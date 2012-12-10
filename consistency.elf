@@ -1,0 +1,145 @@
+%%% consistency relation between clsmap, methmap and fldmap
+%%% Chao Sun
+%%% $Id: consistency.elf,v 1.1 2012/02/08 19:23:35 csun Exp csun $
+%%% Created at Feb, 8th 2012
+
+%%% check if a type is in clsmap
+
+clsmap-ty : clsmap -> ty -> type.
+
+clsmap-ty/notnull
+   : clsmap-ty CM (ty/ _ _ C) 
+      <- clsmap`domain? CM C true.
+
+clsmap-ty/null : clsmap-ty CM (ty/null).
+
+
+%%% check if all types appear in methty is also in clsmap
+
+clsmap-methty : clsmap -> methty -> type.
+
+clsmap-methty/base
+   : clsmap-methty CM (methty/base T) 
+      <- clsmap-ty CM T.
+
+clsmap-methty/args
+   : clsmap-methty CM (methty/arg A T _ _)
+      <- clsmap-ty CM T
+      <- clsmap-methty CM A.
+
+
+%%% check if a fldmap is consistent with a clsmap
+
+clsmap-fldmap : clsmap -> fldmap -> type.
+
+clsmap-fldmap/0 : clsmap-fldmap _ fldmap/0.
+
+clsmap-fldmap/null
+   : clsmap-fldmap CM (fldmap/+ _ ty/null FM)
+      <- clsmap-fldmap CM FM.
+
+clsmap-fldmap/+
+   : clsmap-fldmap CM (fldmap/+ F (ty/ _ _ C) FM)
+      <- clsmap`domain? CM C true
+      <- clsmap-fldmap CM FM.
+
+
+%%% check if a clsmap is consistent with itself
+
+clsmap-clsmap : clsmap -> clsmap -> type.
+
+clsmap-clsmap/0 : clsmap-clsmap _ clsmap`map/0.
+
+clsmap-clsmap/+
+   : clsmap-clsmap CM0 (clsmap`map/+ C FM CM)
+      <- clsmap`lookup CM0 C FM
+      <- clsmap-fldmap CM0 FM
+      <- clsmap`shift C CM CM'
+      <- clsmap-clsmap CM0 CM'.
+
+
+%%% check if a clsmap is consistent with a methmap
+
+clsmap-methmap : clsmap -> methmap -> type.
+
+clsmap-methmap/0 : clsmap-methmap _ methmap`map/0.
+
+clsmap-methmap/meth
+   : clsmap-methmap CM (methmap`map/+ N MT MM)
+      <- clsmap`fresh CM N
+      <- clsmap-methty CM MT
+      <- methmap`shift N MM MM'
+      <- clsmap-methmap CM MM'.
+
+clsmap-methmap/const
+   : clsmap-methmap CM
+      (methmap`map/+ N (methty/arg MT (ty/ nonnull/yes _ N) _ _) MM)
+      <- clsmap`lookup CM N _
+      <- clsmap-methty CM MT
+      <- methmap`shift N MM MM'
+      <- clsmap-methmap CM MM'.
+
+
+%%% consistency between clsmap and context
+
+clsmap-cxt : clsmap -> cxt N -> type.
+
+clsmap-cxt/nil : clsmap-cxt _ cxt/nil.
+
+clsmap-cxt/cons
+   : clsmap-cxt CM (cxt/cons _ T B)
+      <- clsmap-cxt CM B
+      <- clsmap-ty CM T.
+
+%%% consistency between context and set.
+
+
+cxt-set : cxt N -> set -> type.
+
+cxt-set/0 : cxt-set B set/0.
+
+cxt-set/+/z
+  : cxt-set B (set/+ z S)
+    <- set`shift z S S'
+    <- cxt-set B S'.
+
+cxt-set/+/s
+  : cxt-set B (set/+ (s L) S)
+    <- set`shift (s L) S S'
+    <- cxt-lookup B (s L) _ _
+    <- cxt-set B S'.
+
+
+%%% consistency about a cxt
+
+cxt-cxt : cxt N -> cxt M -> type.
+
+cxt-cxt/nil : cxt-cxt _ cxt/nil.
+
+cxt-cxt/cons
+  : cxt-cxt B0 (cxt/cons O T B)
+    <- cxt-set B0 S
+    <- cxt-cxt B0 B.
+
+
+%%% theorems
+
+
+%theorem clsmap-cxt-lookup-implies-fldmap :
+    forall* {CM} {N} {B: cxt N} {O} {T} {L}
+    forall  {CM-B: clsmap-cxt CM B}
+            {B-L: cxt-lookup B L O T}
+    exists  {CM-T: clsmap-ty CM T}
+    true.
+
+- : clsmap-cxt-lookup-implies-fldmap
+     (clsmap-cxt/cons CM-T CM-B) cxt-lookup/hit CM-T.
+
+- : clsmap-cxt-lookup-implies-fldmap
+    (clsmap-cxt/cons _ CM-B) (cxt-lookup/miss B-L _) CM-T
+    <- clsmap-cxt-lookup-implies-fldmap CM-B B-L CM-T.
+
+%worlds () (clsmap-cxt-lookup-implies-fldmap _ _ _).
+%total (B-L) (clsmap-cxt-lookup-implies-fldmap _ B-L _).
+
+     

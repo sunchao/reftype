@@ -1,0 +1,462 @@
+%%% type rules for conservative type system based on FP.
+
+%%% abbreviations
+
+%abbrev null	= (object/ nat`z).	% null object
+
+%abbrev all	= nat`z.	% special 'All' field
+
+%abbrev loc	= nat. % location
+
+
+%%% output for type checking
+
+out	: kind -> type.
+
+%abbrev expr-out	= out exprk.
+
+%abbrev cond-out	= out condk.
+
+%abbrev args-out	= out argsk.
+
+
+out/expr    : ty -> tgtmap -> efxmap -> expr-out.
+
+out/cond    : efxmap -> cond-out.
+
+out/args/0  : args-out.
+
+out/args/+  : expr-out -> args-out -> args-out.
+
+
+
+%%% type judgments
+
+ref-typing	: loc -> clsmap -> methmap ->
+	cxt N -> term K -> out K -> loc -> type.
+
+ref-calltyping	: loc -> args-out -> methty -> expr-out -> type.
+
+
+% The declared effects use numbers for the formal parameters,
+% so here we need to map them to the numbers of acutal parameters.
+
+ref-calltyping/call
+  : ref-calltyping L out/args/0 (methty/base T)
+    (out/expr T (tgtmap/1 L) efxmap/0).
+
+% R and W are sets of fields being read and write, respectively.
+%%% WRONG!!!
+ref-calltyping/args
+  : ref-calltyping
+    L (out/args/+ (out/expr T GM XM0) AO)
+    (methty/arg A T R W) (out/expr AT AGM XM5)
+    <- ref-calltyping L AO A (out/expr AT AGM AXM)
+    <- tgtmap=>efxmap RGM efx/write RXM
+    <- tgtmap=>efxmap WGM efx/write WXM
+    <- tgtmap=>efxmap GM efx/write XM3
+    <- efxmap`join XM0 RXM XM1
+    <- efxmap`join XM1 WXM XM2
+    <- efxmap`join XM2 XM3 XM4
+    <- efxmap`join XM4 AXM XM5.
+
+%%% expressions
+
+ref-typing/lit
+  : ref-typing L _ _ B (lit O) 
+    (out/expr T (tgtmap/1 N) efxmap/0) L
+    <- cxt-lookup B N O T.
+
+ref-typing/null
+  : ref-typing L _ _ _ (lit null)
+    (out/expr ty/null tgtmap/0 efxmap/0) L.
+
+% Reading a shared field.
+% After reading, all existing targets are unbound, and
+% replaced by a singleton set of the special "world" target.
+% Correspondingly, the effect map will be added with an entry
+% of read effect on the world target.
+
+ref-typing/read/shared
+  : ref-typing L1 CM MM B (read E F)
+    (out/expr (ty/ NN annot/shared FC) (tgtmap/1 z) XM3) L2
+    <- ref-typing L1 CM MM B E (out/expr (ty/ nn/yes _ C) GM1 XM1) L2
+    <- clsmap`lookup CM C FM
+    <- fldmap`lookup FM F (ty/ NN annot/shared FC)
+    <- tgtmap`extend GM1 F GM2
+    <- tgtmap=>efxmap GM2 efx/write XM2
+    <- efxmap`join XM1 XM2 XM3.
+
+% reading an unique field
+ref-typing/read/unique
+  : ref-typing L1 CM MM B (read E F)
+    (out/expr (ty/ NN annot/unique FC) GM2 XM3) L2
+    <- ref-typing L1 CM MM B E (out/expr (ty/ nn/yes _ C) GM1 XM1) L2
+    <- clsmap`lookup CM C FM
+    <- fldmap`lookup FM F (ty/ NN annot/unique FC)
+    <- tgtmap`extend GM1 F GM2
+    <- tgtmap=>efxmap GM2 efx/write XM2
+    <- efxmap`join XM1 XM2 XM3.
+
+ref-typing/write
+  : ref-typing L1 CM MM B (write E1 F E2) (out/expr T GM3 XM5) L3
+    <- ref-typing L1 CM MM B E1 (out/expr (ty/ nn/yes _ C) GM1 XM1) L2
+    <- ref-typing L2 CM MM B E2 (out/expr T GM2 XM2) L3
+    <- clsmap`lookup CM C FM
+    <- fldmap`lookup FM F T
+    <- tgtmap`extend GM1 F GM3
+    <- tgtmap=>efxmap GM3 efx/write XM4
+    <- efxmap`join XM1 XM2 XM3
+    <- efxmap`join XM3 XM4 XM5.
+
+%% Should clear local effects at end
+%% first, clear effects on locations L1, L1+1, ... , L2-1
+%% then, remove locations appear in efxmap of T2.
+
+%% Here we need to 
+ref-typing/let
+  : ref-typing L1 CM MM B (let E F) (out/expr T2 GM3 XM) L3
+    <- ref-typing L1 CM MM B E (out/expr T1 GM1 XM1) L2
+    <- ({x} ref-typing L2 CM MM
+         (cxt/cons x T1 (B:cxt N)) (F x) (out/expr T2 GM2 XM2) L3)
+    <- tgtmap`subst GM2 N GM1 GM3
+    <- efxmap`subst XM2 N GM1 XM3
+    <- efxmap=>tgtmap XM2 GSM
+    <- tgtmap`disjoint GM1 GSM
+    <- efxmap`join XM1 XM3 XM.
+
+ref-typing/if
+  : ref-typing L1 CM MM B (if C E1 E2) (out/expr T GM XM2) L4
+    <- ref-typing L1 CM MM B C (out/cond XM0) L2
+    <- ref-typing L2 CM MM B E1 (out/expr T GM XM1) L3
+    <- ref-typing L3 CM MM B E2 (out/expr T GM XM1) L4
+    <- efxmap`join XM0 XM1 XM2.
+
+
+%%% conditionals
+ 
+ref-typing/eq
+  : ref-typing L1 CM MM B (eql E1 E2) (out/cond XM) L3
+    <- ref-typing L1 CM MM B E1 (out/expr _ _ XM1) L2
+    <- ref-typing L2 CM MM B E2 (out/expr _ _ XM2) L3
+    <- efxmap`join XM1 XM2 XM.
+
+ref-typing/not
+  : ref-typing L1 CM MM B (not C) R L2
+    <- ref-typing L1 CM MM B C R L2.
+
+ref-typing/and
+  : ref-typing L1 CM MM B (and C1 C2) (out/cond XM) L3
+    <- ref-typing L1 CM MM B C1 (out/cond XM1) L2
+    <- ref-typing L2 CM MM B C2 (out/cond XM2) L3
+    <- efxmap`join XM1 XM2 XM.
+
+ref-typing/args/0 : ref-typing L _ _ _ args/0 out/args/0 L.
+
+ref-typing/args/+
+  : ref-typing L1 CM MM B
+    (args/+ E A) (out/args/+ (out/expr T GM XM) R) L3
+    <- ref-typing L1 CM MM B E (out/expr T GM XM) L2
+    <- ref-typing L2 CM MM B A R L3.
+
+% return value takes one binding
+ref-typing/call
+  : ref-typing L1 CM MM B (call M A) R (s L2)
+    <- clsmap`fresh CM M
+    <- methmap`lookup MM M MT
+    <- ref-typing L1 CM MM B A AR L2
+    <- ref-calltyping L2 AR MT R.
+
+% constructor will have write effect on every field
+ref-typing/const
+  : ref-typing L1 CM MM B
+    (call C (args/+ (alloc C S set/0) A)) 
+    (out/expr T GM XM) (s L2)
+    <- clsmap`lookup CM C FM
+    <- fldmap`domain FM S
+    <- methmap`lookup MM C (methty/arg MT _ _ _)
+    <- ref-typing L1 CM MM B A AO L2
+    <- ref-calltyping L2 AO MT (out/expr T GM XM).
+%    <- efxmap`add XM (set/1 L2) X XM'.
+
+
+%%% method type
+
+%{
+methtymatch*
+  : loc
+    -> efxmap
+    -> clsmap
+    -> methmap
+    -> cxt N -> func -> methty -> loc -> type.
+
+methtymatch/base
+  : methtymatch* L1 XM CM MM B (func/0 E) (methty/base T) L2
+    <- ref-typing L1 CM MM B E (out/expr (refty/ T S) XME) L2
+    <- tgt#map (tgt/ z all) N
+    <- efxmap`update2 XME N efx/write XME'
+    <- efxmap`leq XME' XM.
+
+methtymatch/args
+  : methtymatch* L1 XM CM MM B (func/+ F) 
+    (methty/arg A T RFS WFS) L2
+    <- ({o} methtymatch* (s L1) XM'' CM MM
+	 (cxt/cons o (refty/ T (set/1 N)) B) (F o) A L2)
+    <- tgt#map (tgt/ L1 all) N
+    <- set-tgtset`extend (set/1 N) RFS GR
+    <- set-tgtset`extend (set/1 N) WFS GW
+    <- efxmap`addefxs XM GR efx/read XM'
+    <- efxmap`addefxs XM' GW efx/write XM''.
+
+%abbrev methtymatch 
+  = [CM][MM][F][MT] methtymatch* (s z) efxmap/0 CM MM cxt/nil F MT L.
+
+
+%%% constructor type
+
+constyping
+  : loc 
+    -> efxmap
+    -> clsmap
+    -> methmap 
+    -> fldmap 
+    -> cxt N
+    -> set -> (object -> expr) -> efxmap -> loc -> type.
+
+constyping/0 : constyping L XM _ _ _ _ set/0 ([t] lit t) XM L.
+
+constyping/nn
+  : constyping
+    L0 XM CM MM FM B S ([t] (seq (write (lit t) F E) (R t))) XM''' L2
+    <- fldmap`lookup FM F (ty/ nn/yes A C)
+    <- set`remove S (set/1 F) S'	%% the target of E is discarded
+    <- ref-typing L0 CM MM B E (out/expr (refty/ (ty/ nn/yes A C) _ _) XME) L1
+    <- tgt#map (tgt/ (s z) F) N
+    <- efxmap-efx-update XM N efx/write XM'
+    <- efxmap`join XM' XME XM''
+    <- constyping L1 XM'' CM MM FM B S' ([t] R t) XM''' L2.
+
+constyping/mn
+  : constyping
+    L0 XM CM MM FM B S ([t] (seq (write (lit t) F E) (R t))) X3 L2
+    <- fldmap`lookup FM F (ty/ nn/may A C)
+    <- ref-typing L0 CM MM B E (out/expr (refty/ (ty/ nn/may A C) _ _) XME) L1
+    <- tgt#map (tgt/ (s z) F) N
+    <- efxmap-efx-update XM N efx/write XM'
+    <- efxmap`join XM' XME XM''
+    <- constyping L1 XM'' CM MM FM B S ([t] R t) XM''' L2.
+
+constymatch*
+  : loc
+    -> efxmap
+    -> clsmap
+    -> methmap
+    -> fldmap
+    -> cxt N
+    -> set -> (object -> func) -> methty -> loc -> type.
+
+constymatch/base
+  : constymatch* L0 XM CM MM FM B S ([t] func/0 (E t))
+    (methty/base (ty/ nn/yes _ C)) L1
+    <- clsmap`lookup CM C FM  
+    <- constyping L0 efxmap/0 CM MM FM B S ([t] E t) XME L1
+    <- tgt#map (tgt/ z all) N
+    <- efxmap-efx-update XME N efx/write XME'
+    <- efxmap`leq XME' XM.
+ 
+constymatch/args
+  : constymatch* L0 XM CM MM FM B S ([t] func/+ [r] (F t r))
+    (methty/arg CT T RFS WFS) L1
+    <- ({r} constymatch* (s L0) XM'' CM MM FM
+	 (cxt/cons r (refty/ T (set/1 L0) set/0) B) S ([t] (F t r)) CT L1)
+    <- set-tgtset`extend (set/1 L1) RFS GR
+    <- set-tgtset`extend (set/1 L1) WFS GW
+    <- efxmap`addefxs XM GR efx/read XM'
+    <- efxmap`addefxs XM' GW efx/write XM''.
+
+%abbrev constymatch
+  = [CM][MM][FM][S][F][CT] 
+    constymatch* (s (s z)) efxmap/0 CM MM FM cxt/nil S F CT L.
+
+
+%%% program type
+
+select-fields : fldmap -> set -> type.
+
+select-fields/0 : select-fields fldmap/0 set`set/0.
+
+select-fields/+/in
+  : select-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-fields M' S'
+    <- set`union S' (set/1 F) S.
+
+select-fields/+/out
+  : select-fields (fldmap/+ F (ty/ nn/may _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-fields M' S.
+
+
+methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
+
+methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
+
+methmapmatch/+/const
+  : methmapmatch* CM MM0
+    (methmap/+ C (methty/arg CT (ty/ nn/yes _ C) _ _) MM)
+    (prog`map/+ C (func/+ ([t] FF t)) XM)
+    <- clsmap`lookup CM C FM
+    <- select-fields FM S
+    <- constymatch CM MM0 FM S FF CT
+    <- methmap`shift C MM MM'
+    <- prog`shift C XM XM'
+    <- methmapmatch* CM MM0 MM' XM'.
+
+methmapmatch/+/meth
+  : methmapmatch* CM MM0
+    (methmap/+ N MT MM) (prog`map/+ N FUN XM)
+    <- clsmap`fresh CM N
+    <- methtymatch CM MM0 FUN MT
+    <- methmap`shift N MM MM'
+    <- prog`shift N XM XM'
+    <- methmapmatch* CM MM0 MM' XM'.
+
+%abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
+}%
+
+
+
+%%% Theorems
+
+%%% This theorem is definitely provable, but a little bit tedius.
+%theorem efxmap`join-implies-leq :
+	forall* {M1} {M2} {M3}
+	forall {J:efxmap`join M1 M2 M3}
+        exists {L:efxmap`leq M1 M3} {L:efxmap`leq M2 M3}
+	true.
+
+% join : map -> map -> map -> type.
+
+
+% join/L : join map/0 M M.
+
+% join/R : join M map/0 M.
+
+% join/= : join (map/+ N1 D1 M1) (map/+ N2 D2 M2) (map/+ N1 D3 M3)
+%     <- nat`eq N1 N2
+%     <- inner-efxmap`join D1 D2 D3
+%     <- join M1 M2 M3.
+
+% join/< : join (map/+ N1 D1 M1) (map/+ N2 D2 M2) (map/+ N1 D1 M3)
+%     <- nat`plus (s N0) N1 N2
+%     <- join M1 (map/+ N0 D2 M2) M3.
+
+% join/> : join (map/+ N1 D1 M1) (map/+ N2 D2 M2) (map/+ N2 D2 M3)
+%     <- nat`plus (s N3) N2 N1
+%     <- join (map/+ N3 D1 M1) M2 M3.
+
+
+- : efxmap`join-implies-leq efxmap`join/L efxmap`leq/0 M<=M
+     <- efxmap`leq-reflexive _ M<=M.
+
+- : efxmap`join-implies-leq efxmap`join/R M<=M efxmap`leq/0
+     <- efxmap`leq-reflexive _ M<=M.
+
+%worlds () (efxmap`join-implies-leq _ _ _).
+%trustme %total  {} (efxmap`join-implies-leq _ _ _).
+
+
+% %theorem ref-calltyping-imp-tgtmap<=efxmap :
+% 	forall* {L} {AO} {MT} {T} {GM} {XM}
+% 	forall  {CTYP: ref-calltyping L AO MT
+% 			(out/expr T GM XM)}
+% 	exists  {GM<=XM: tgtmap<=efxmap GM XM}
+% 	true.
+
+% - : ref-calltyping-imp-tgtmap<=efxmap 
+%      ref-calltyping/call tgtmap<=efxmap/0.
+
+% - : ref-calltyping-imp-tgtmap<=efxmap
+%      (ref-calltyping/args XM4UAXM=XM5 _ _ _ _ _ _ _ _ TYP-A) GM<=XM5
+%      <- ref-calltyping-imp-tgtmap<=efxmap TYP-A GM<=AXM
+%      <- efxmap`join-implies-leq XM4UAXM=XM5 _ AXM<=XM5
+%      <- tgtmap<=efxmap-right-transitive GM<=AXM AXM<=XM5 GM<=XM5.
+
+% %worlds () (ref-calltyping-imp-tgtmap<=efxmap _ _).
+% %total  (T) (ref-calltyping-imp-tgtmap<=efxmap T _).
+
+
+% %%% Then we need to prove a theorem for this
+% %theorem typing-imp-tgtmap<=efxmap :
+% 	forall* {L1} {L2} {CM} {MM} {N} {B:cxt N} {GM} {E:expr}
+% 		{T} {S} {XM}
+% 	forall  {TYP: ref-typing L1 CM MM B E
+% 		       (out/expr (refty/ T S GM) XM) L2}
+% 	exists  {GM<=XM: tgtmap<=efxmap GM XM}
+% 	true.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/lit GM=>XM _) GM<=XM
+%      <- tgtmap=>efxmap-imp-tgtmap<=efxmap GM=>XM GM<=XM.
+
+% - : typing-imp-tgtmap<=efxmap ref-typing/null tgtmap<=efxmap/0.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/read/shared _ _ _ _ _ _ _) tgtmap<=efxmap/0.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/read/unique
+% 	XM1UXM2=XM3 GM2=>XM2 GM1UGM=GM2 S1=>GM _ _ TYP-E) GM2<=XM3
+%      <- tgtmap=>efxmap-imp-tgtmap<=efxmap GM2=>XM2 GM2<=XM2
+%      <- efxmap`join-implies-leq XM1UXM2=XM3 XM1<=XM3 XM2<=XM3
+%      <- tgtmap<=efxmap-right-transitive GM2<=XM2 XM2<=XM3 GM2<=XM3.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/write XM3UXM2=XM4 XM1UXM=XM3 GM2=>XM GM1UGM=GM2
+% 	S=>GM FM->F=T CM->C=FM TYP-E2 TYP-E1) GM3<=XM4 % GM3 is from RT
+%      <- typing-imp-tgtmap<=efxmap TYP-E2 GM3<=XM2
+%      <- efxmap`join-implies-leq XM3UXM2=XM4 _ XM2<=XM4
+%      <- tgtmap<=efxmap-right-transitive GM3<=XM2 XM2<=XM4 GM3<=XM4.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/let XM1UXM2=XM ([x] TYP-F x) TYP-E) GM<=XM
+%      <- ({x} typing-imp-tgtmap<=efxmap (TYP-F x) GM<=XM2)
+%      <- efxmap`join-implies-leq XM1UXM2=XM _ XM2<=XM
+%      <- tgtmap<=efxmap-right-transitive GM<=XM2 XM2<=XM GM<=XM.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/if XM0UXM1=XM2 TYP-E2 TYP-E1 TYP-C) GM<=XM2
+%      <- efxmap`join-implies-leq XM0UXM1=XM2 _ XM1<=XM2
+%      <- typing-imp-tgtmap<=efxmap TYP-E1 GM<=XM1
+%      <- tgtmap<=efxmap-right-transitive GM<=XM1 XM1<=XM2 GM<=XM2.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/call CALL _ _ _) GM<=XM
+%      <- ref-calltyping-imp-tgtmap<=efxmap CALL GM<=XM.
+
+% - : typing-imp-tgtmap<=efxmap
+%      (ref-typing/const CALL _ _ _ _) GM<=XM
+%      <- ref-calltyping-imp-tgtmap<=efxmap CALL GM<=XM.
+
+% %worlds (objvar) (typing-imp-tgtmap<=efxmap _ _).
+% %total  (T) (typing-imp-tgtmap<=efxmap T _).
+
+
+% %theorem typing-imp-cxt-set :
+%     forall* {L1} {L2} {CM} {MM} {N} {B:cxt N} {E:expr}
+%             {T} {S} {GM} {XM}
+%     forall  {B-B: cxt-cxt B B}
+%             {TYP: ref-typing L1 CM MM B E
+%                   (out/expr (refty/ T S GM) XM) L2}
+%     exists  {B-S: cxt-set B S}
+%     true.
+
+% %%% here we have a lookup. how we 
+% - : typing-imp-cxt-set B-B (ref-typing/lit B-L) B-S
+%     <- cxt-cxt-lookup-obj-imp-cxt-set B-B B-L B-S.
+      
+% - : typing-imp-cxt-set _ (ref-typing/null) cxt-set/0.
+
+% %worlds () (typing-imp-cxt-set _ _ _).
+% %trustme %total  {} (typing-imp-cxt-set _ _ _).
+    
