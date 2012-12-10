@@ -1,0 +1,1 @@
+#include "clsmap-base.elf"
