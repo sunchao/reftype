@@ -43,7 +43,7 @@ dependency :
 	ln -s ../simple-concur simple-concur; \
 	ln -s ../frac-nesting frac-nesting; \
 	ln -s ../permission-type permission-type)
-	
+
 ${RELEASE} : README sources.cfg Makefile ${GEN}
 	tar cvf - README sources.cfg `cat sources.cfg` | gzip > ${RELEASE}
 
@@ -52,4 +52,3 @@ clean :
 
 realclean : clean
 	rcsclean
-	
