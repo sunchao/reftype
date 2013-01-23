@@ -1,411 +1,250 @@
-%% Converting from refty to permission type
-%%% $Id: conversion.elf,v 1.2 2012/06/05 04:51:11 csun Exp csun $
-%%% created at Feb 10th, 2012
+%abbrev obj-notnull : object -> permission
+	= ([r] (unitperm (nonlinear (neg (objequal r null))))).
 
-%abbrev world = null.
+nn2output : nn -> expr-output -> expr-output -> type.
 
-%abbrev write-shared = (unitperm (basic world all null)).
+nn2output/exists 
+  : nn2output NN (output/exists [r] (O1 r))
+    (output/exists [r] (O2 r))
+    <- ({r} nn2output NN (O1 r) (O2 r)).
+		   
+nn2output/expr/may 
+  : {O} nn2output nn/may (output/expr O Pi)
+    (output/expr O
+      (unitperm (conditional (objequal O null) empty Pi))).
 
-%abbrev predperm : clspred -> object -> permission
-    = [P][R] (unitperm (nonlinear (predcall P (predargs/1 R)))).
-
-
-
-%%% Permission with variables
-
-vperm : type.
-
-vperm/base : permission -> vperm.
-
-vperm/var : ((gterm V) -> vperm) -> vperm.
-
+nn2output/expr/yes
+  : {O} nn2output nn/yes (output/expr O Pi)
+    (output/expr O
+      (unitperm (nonlinear (neg (objequal O null))) , Pi)).
 
 
-%%% add two vperms
+set2facts : cxt N -> object -> set -> formula -> type.
 
-vperm-add : vperm -> vperm -> vperm -> type.
+set2facts/0 : set2facts _ _ set/0 f.
 
-vperm-add/left
-  : vperm-add (vperm/var [v] (VP0 v)) VP1 (vperm/var [v] (VP2 v))
-    <- ({v} vperm-add (VP0 v) VP1 (VP2 v)).
-
-vperm-add/right
-  : vperm-add VP0 (vperm/var [v] (VP1 v)) (vperm/var [v] (VP2 v))
-    <- ({v} vperm-add VP0 (VP1 v) (VP2 v)).
-
-vperm-add/base
-  : vperm-add
-    (vperm/base
-      (unitperm (nonlinear G1) , Pi1 , 
-	(unitperm (encumbered Pi1' write-shared))))
-    (vperm/base
-      (unitperm (nonlinear G2) , Pi2 , 
-	(unitperm (encumbered Pi2' write-shared))))
-    (vperm/base
-      (unitperm (nonlinear (disj G1 G2)) , (Pi1 , Pi2) , 
-	(unitperm (encumbered (Pi1' , Pi2') write-shared)))).
+set2facts/+
+  : set2facts B O S (disj (objequal O O') G)
+    <- set`add S' L S
+    <- cxt-lookup B L O' _
+    <- set2facts B O S' G.
 
 
+efxmap2perm : clsmap -> predmap -> cxt N -> efxmap -> tgtmap
+  -> permission -> permission -> type.
 
-%%% effect => permission
+efxmap2perm-helper : object -> fldmap -> predmap -> 
+  inner-efxmap -> set -> permission -> permission -> type.
 
-efx=>input : efx -> permission -> permission -> type.
+efxmap2perm-helper/0
+  : efxmap2perm-helper _ _ _ inner-efxmap/0 _ empty empty.
 
-efx=>input/write : efx=>input efx/write Pi Pi.
-
-efx=>input/consume : efx=>input efx/consume Pi Pi.
-
-
-efx=>output : efx -> permission -> permission -> type.
-
-efx=>output/write : efx=>output efx/write Pi Pi.
-
-efx=>output/consume : efx=>output efx/consume Pi empty.
-
-
-
-%%% convert the location set into a disjunction of facts
-
-%%% I forgot why I have to convert to disjuctions here..
-%%% It seems conditional would be a better choice.
-
-
-set=>fact : cxt N -> object -> set -> permission -> type.
-
-set=>fact/objequal : cxt N -> object -> set -> formula -> type.
-
-set=>fact/objequal/0 : set=>fact/objequal _ _ set/0 f.
-
-set=>fact/objequal/+
-  : set=>fact/objequal B O S (disj (objequal O O') G)
-    <- set`add S' (s L) S
-    <- cxt-lookup-ty B (s L) O' _
-    <- set=>fact/objequal B O S' G.
-
-
-% The first element could be zero, which represents
-% the world object, and thus we want to generate a 
-% special fact for that.
-
-set=>fact/0 : set=>fact _ _ set/0 empty.
-
-set=>fact/+/z
-  : set=>fact B O (set/+ z S)
-    (unitperm
-      (conditional
-        (nested (allperm O) world all)
-        (empty) (unitperm (nonlinear G))))
-    <- set`shift z S S'
-    <- set=>fact/objequal B O S' G.
-
-set=>fact/+/s
-  : set=>fact B O (set/+ (s L) S)
-    (unitperm
-      (conditional
-        (f)
-        (empty) (unitperm (nonlinear G))))
-    <- set=>fact/objequal B O (set/+ (s L) S) G.
-
-
-%%% Converting a efxmap to two set of permissions:
-%%% the first set is all that has target associated,
-%%% the second is all that do not.
-
-efxmap=>perm : efxmap -> tgtmap -> clsmap -> predmap -> cxt N ->
-	permission -> permission -> type.
-
-efxmap=>perm-helper
-  : object -> inner-efxmap -> fldmap -> predmap ->
-	set -> permission -> permission -> type.
-
-%%% generate field permissions
-%%% (here all fields in set should be unique.)
-efxmap=>perm-helper/0
-  : efxmap=>perm-helper _ inner-efxmap/0 _ _ _ empty empty.
-
-efxmap=>perm-helper/+/in
-  : efxmap=>perm-helper
-     O M FM PM S ((unitperm (precise-exists O F PF)) , Pi1) Pi2
+efxmap2perm-helper/+/in
+  : efxmap2perm-helper O FM PM M S
+    (unitperm (precise-exists O F PF) , Pi1) Pi2
     <- inner-efxmap`update M' F X M
     <- inner-efxmap`fresh M' F
     <- set`member S F
     <- fldmap`lookup FM F T
-    <- ty=>perm PM T PF
-    <- efxmap=>perm-helper O M' FM PM S Pi1 Pi2.
+    <- ty2perm PM T PF
+    <- efxmap2perm-helper O FM PM M' S Pi1 Pi2.
 
-efxmap=>perm-helper/+/out
-  : efxmap=>perm-helper
-     O M FM PM S Pi1 ((unitperm (precise-exists O F PF)) , Pi2)
+efxmap2perm-helper/+/out
+  : efxmap2perm-helper O FM PM M S
+    Pi1 (unitperm (precise-exists O F PF) , Pi2)
     <- inner-efxmap`update M' F X M
     <- inner-efxmap`fresh M' F
     <- set`not-member S F
     <- fldmap`lookup FM F T
-    <- ty=>perm PM T PF
-    <- efxmap=>perm-helper O M' FM PM S Pi1 Pi2.
+    <- ty2perm PM T PF
+    <- efxmap2perm-helper O FM PM M' S Pi1 Pi2.
 
 
-efxmap=>perm/0 : efxmap=>perm efxmap/0 _ _ _ _ empty empty.
+efxmap2perm/0 : efxmap2perm _ _ _ efxmap/0 _ empty empty.
 
-efxmap=>perm/+/z/in
-  : efxmap=>perm XM GM CM PM B ((allperm world) , Pi1) Pi2
-    <- efxmap`update XM' z M XM
-    <- efxmap`fresh XM' z
-    <- tgtmap`domain? GM z true
-    <- efxmap=>perm XM' GM CM PM B Pi1 Pi2.
-
-efxmap=>perm/+/z/out
-  : efxmap=>perm XM GM CM PM B Pi1 ((allperm world) , Pi2)
-    <- efxmap`update XM' z M XM
-    <- efxmap`fresh XM' z
-    <- tgtmap`domain? GM z false
-    <- efxmap=>perm XM' GM CM PM B Pi1 Pi2.
-
-efxmap=>perm/+/in
-  : efxmap=>perm XM GM CM PM B (Pi1' , Pi1) (Pi2' , Pi2)
+efxmap2perm/+/in
+  : efxmap2perm CM PM B XM GM (Pi3 , Pi1) (Pi4 , Pi2)
     <- efxmap`update XM' L M XM
     <- efxmap`fresh XM' L
     <- tgtmap`lookup GM L S
     <- cxt-lookup B L O (ty/ _ _ C)
     <- clsmap`lookup CM C FM
-    <- efxmap=>perm-helper O M FM PM S Pi1' Pi2'
-    <- efxmap=>perm XM' GM CM PM B Pi1 Pi2.
+    <- efxmap2perm-helper O FM PM M S Pi3 Pi4
+    <- efxmap2perm CM PM B XM' GM Pi1 Pi2.
 
-efxmap=>perm/+/out
-  : efxmap=>perm XM GM CM PM B Pi1 (Pi2' , Pi2)
+efxmap2perm/+/out
+  : efxmap2perm CM PM B XM GM Pi1 (Pi4 , Pi2)
     <- efxmap`update XM' L M XM
     <- efxmap`fresh XM' L
     <- tgtmap`fresh GM L
     <- cxt-lookup B L O (ty/ _ _ C)
     <- clsmap`lookup CM C FM
-    <- efxmap=>perm-helper O M FM PM set/0 _ Pi2'
-    <- efxmap=>perm XM' GM CM PM B Pi1 Pi2.
+    <- efxmap2perm-helper O FM PM M set/0 _ Pi4
+    <- efxmap2perm CM PM B XM' GM Pi1 Pi2.
 
 
-%%% We will temporarily use output here. 
-%%% After we add read effect, we MAY need
-%%% to change to vperm.
+efxmap2output : clsmap -> predmap -> cxt N -> efxmap 
+  -> ty -> tgtmap -> expr-output -> type.
 
-efxmap=>output
-  : clsmap -> predmap -> cxt N -> efxmap 
-    -> ty -> tgtmap -> expr-output -> type.
-
-efxmap=>output/step1 
-  : clsmap -> predmap -> cxt N -> set -> tgtmap -> 
-    efxmap -> (object -> object -> permission) -> type.
-
-efxmap=>output/step1/
-  : efxmap=>output/step1 CM PM B S GM XM 
-    ([o][r] 
-      ((unitperm
-         (conditional (GF o)
-           (empty) 
-           (unitperm
-             (nonlinear
-               (disj (objequal o r) (G o))))) ,
-         ((allperm o) ,
-           (unitperm
-             (encumbered
-               (allperm o) Pi1))) , Pi2)))
-    <- efxmap=>perm XM GM CM PM B Pi1 Pi2
-    <- ({o} set=>fact B o S
-         ((unitperm 
-            (conditional 
-              (GF o) (empty)
-              (unitperm (nonlinear (G o))))))).
-
-
-efxmap=>output/step2 
-  : nn -> (object -> object -> permission) -> expr-output -> type.
-
-efxmap=>output/step2/may
-  : efxmap=>output/step2 nn/may ([o][r] PF o r)
-    (output/exists [r]
+efxmap2output/0
+  : efxmap2output CM PM B XM (ty/ NN _ C) GM0 OUT
+    <- tgtmap`split GM0 S GM
+    <- tgtmap`size GM nat`z
+    <- efxmap2perm CM PM B XM GM _ Pi
+    <- ({o} set2facts B o S (G o))
+    <- nn2output NN 
       (output/exists [o]
-        (output/expr r
-          (unitperm 
-            (conditional 
-              (objequal r null) (empty) (PF o r)))))).
+	(output/expr o
+	  (unitperm (nonlinear (G o)) , Pi))) OUT.
 
-efxmap=>output/step2/yes
-  : efxmap=>output/step2 nn/may ([o][r] PF o r)
-    (output/exists [r]
+efxmap2output/+
+  : efxmap2output CM PM B XM (ty/ NN _ C) GM0 OUT
+    <- tgtmap`split GM0 S GM
+    <- tgtmap`size GM (nat`s _)
+    <- efxmap2perm CM PM B XM GM Pi1 Pi2
+    <- ({o} set2facts B o S (G o))
+    <- nn2output NN
       (output/exists [o]
-        (output/expr r
-          (unitperm 
-            (nonlinear 
-              (neg (objequal r null))) , (PF o r))))).
-            
+	(output/exists [r]
+	  (output/expr o
+	    (unitperm (nonlinear (disj (objequal o r) (G o))) ,
+	    ((allperm r) , (unitperm (encumbered (allperm r) Pi1))) ,
+	    Pi2)))) OUT.
+	  
 
-efxmap=>output/
-  : efxmap=>output CM PM B XM (ty/ NN _ C) GM OUT
-    <- tgtmap`split GM S GM2
-    <- efxmap=>output/step1 CM PM B S GM2 XM PF
-    <- efxmap=>output/step2 NN PF OUT.
+% TODO: this is so similar with ty2perm, maybe we can merge them.
 
+create-fact : predmap -> ty -> (object -> permission) -> type. 
 
+create-fact/unique
+  : create-fact PM (ty/ NN annot/unique C) ([r] PF CP r)
+    <- predmap`lookup PM C CP
+    <- nn2perm NN ([_] empty) PF.
 
-%%% Converting efxmap to input
-
-%%% this conversion will create lots of empty permissions
-%%% from conversion of both efxmap and inner-efxmap. Maybe
-%%% there's a better way to do this...
-
-efxmap=>input : clsmap -> predmap -> cxt N -> efxmap -> permission -> type.
-
-efxmap=>input/obj : clsmap -> predmap -> cxt N -> efxmap -> permission -> type.
-
-efxmap=>input/obj/0 : efxmap=>input/obj _ _ _ efxmap/0 empty.
- 
-efxmap=>input/obj/+ 
-  : efxmap=>input/obj CM PM B XM (Pi1 , Pi2)
-    <- efxmap`update XM' L M XM
-    <- efxmap`fresh XM' L
-    <- cxt-lookup-ty B L O C
-    <- clsmap`lookup CM C FM
-    <- efxmap=>perm-helper O M FM PM set/0 _ Pi1
-    <- efxmap=>input/obj CM PM B XM' Pi2.
-
-efxmap=>input/0 : efxmap=>input _ _ B efxmap/0 empty.
-
-efxmap=>input/+/z
-  : efxmap=>input CM PM B (efxmap/+ z _ XM) ((allperm world) , Pi)
-    <- efxmap`shift z XM XMS
-    <- efxmap=>input/obj CM PM B XMS Pi.
-
-efxmap=>input/+/s
-  : efxmap=>input CM PM B (efxmap/+ (s L) M XM) Pi
-    <- efxmap=>input/obj CM PM B (efxmap/+ (s L) M XM) Pi.
-
-
-
-% unique permissions don't come from context.
-% Instead, we convert them to effects.
-% As a result, context => facts & effects => permissions
-
-create-fact : ty -> (object -> permission) -> type.
+create-fact/borrow
+  : create-fact PM (ty/ NN annot/unique C) ([r] PF CP r)
+    <- predmap`lookup PM C CP
+    <- nn2perm NN ([_] empty) PF.
 
 create-fact/shared
-  : create-fact (ty/ _ annot/shared _)
-    ([o] unitperm (nonlinear (nested (allperm o) null all))).
+  : create-fact PM (ty/ NN annot/unique C) ([r] PF CP r)
+    <- predmap`lookup PM C CP
+    <- nn2perm
+      NN ([o] unitperm (nonlinear (nested (allperm o) null all))) PF.
+      
 
-create-fact/unique : create-fact (ty/ _ annot/unique _) ([_] empty).
+cxt2facts : predmap -> cxt N -> permission -> type.
 
-create-fact/borrow : create-fact (ty/ _ annot/borrow _) ([_] empty).
+cxt2facts/0 : cxt2facts PM cxt/nil empty.
 
-
-% context => facts
-
-cxt=>input : cxt N -> permission -> type.
-
-cxt=>input/0 : cxt=>input cxt/nil empty.
-
-cxt=>input/+ : cxt=>input (cxt/cons O T B) ((Pi1 O) , Pi2)
-               <- create-fact T ([o] Pi1 o)
-               <- cxt=>input B Pi2.
-
-
-%%% convert set of fields to field permissions
-
-set=>perm : clsmap -> predmap -> fldmap -> set
-     -> (object -> permission) -> type.
-
-set=>perm/0 : set=>perm _ _ _ set/0 ([_] empty).
-
-set=>perm/+
-  : set=>perm CM PM FM S
-    ([o] (unitperm (precise-exists o F PF)) , (Pi o))
-    <- set`add S' F S
-    <- fldmap`lookup FM F T
-    <- ty=>perm PM T ([o] PF o)
-    <- set=>perm CM PM FM S' ([o] Pi o).
-
+cxt2facts/+
+  : cxt2facts PM (cxt/cons O T B) ((PF O) , Pi)
+    <- create-fact PM T PF
+    <- cxt2facts PM B Pi.
+	
 
 %%% methty => proctype
 
-methty=>proctype* : clsmap -> predmap -> permission
-	-> permission -> methty -> proctype -> type.
+methty2proctype* : clsmap -> predmap -> permission
+  -> permission -> methty -> proctype -> type.
 
-methty=>proctype/base 
-   : methty=>proctype* CM PM Pin Pout (methty/base T)
-      (proctype/base Pin
-	 (output/exists [o]
-	    (output/expr o ((PF o) , Pout))))
-      <- ty=>perm PM T ([o] PF o).
+methty2proctype/base 
+  : methty2proctype* CM PM Pin Pout (methty/base T)
+    (proctype/base Pin
+      (output/exists [o]
+	(output/expr o ((PF o) , Pout))))
+    <- ty2perm PM T ([o] PF o).
 	      
 
-%%% here if the argument type is unique, then the read/write sets
-%%% associated with it can only be empty. 
-methty=>proctype/args 
-  : methty=>proctype* CM PM Pin Pout (methty/arg MT (ty/ NN A C) R W)
+set2perm : clsmap -> predmap -> fldmap -> set ->
+  (object -> permission) -> type.
+
+set2perm/0 : set2perm _ _ _ set/0 ([_] empty).
+
+set2perm/+
+  : set2perm CM PM FM S
+    ([o] (unitperm (precise-exists o F PF)) , (Pi o))
+    <- set`add S' F S
+    <- fldmap`lookup FM F T
+    <- ty2perm PM T ([o] PF o)
+    <- set2perm CM PM FM S' ([o] Pi o).
+
+% here if the argument type is unique, then the read/write sets
+% associated with it can only be empty. 
+methty2proctype/args 
+  : methty2proctype* CM PM Pin Pout (methty/arg MT (ty/ NN A C) R W)
     (proctype/arg ([r] PTF r))
-    <- ty=>perm PM (ty/ NN A C) ([o] PF o)
+    <- ty2perm PM (ty/ NN A C) ([o] PF o)
     <- clsmap`lookup CM C FM
-    <- set=>perm CM PM FM R ([o] RPF o)
-    <- set=>perm CM PM FM W ([o] WPF o)
-    <- ({o} methty=>proctype* CM PM
+    <- set2perm CM PM FM R ([o] RPF o)
+    <- set2perm CM PM FM W ([o] WPF o)
+    <- ({o} methty2proctype* CM PM
          (((PF o) , (RPF o) , (WPF o)) , Pin) 
          (((RPF o) , (WPF o)) , Pout) MT (PTF o)).
 
-%abbrev methty=>proctype
-   = [CM][PM][MT][PT] methty=>proctype* CM PM empty empty MT PT.
+%abbrev methty2proctype
+   = [CM][PM][MT][PT] methty2proctype* CM PM empty empty MT PT.
+
+
 
 
 %abbrev obj-notnull : object -> permission
 	= ([r] (unitperm (nonlinear (neg (objequal r null))))).
 
-consty=>proctype* : clsmap -> predmap -> fldmap -> permission -> permission
-	-> methty -> (object -> proctype) -> type.
+consty2proctype*
+  : clsmap -> predmap -> fldmap -> permission -> 
+  permission -> methty -> (object -> proctype) -> type.
 
-consty=>proctype/base
-   : consty=>proctype* CM PM FM Pin Pout
-      (methty/base T)
-      ([t] (proctype/base
-	      (Pin , (obj-notnull t) , (OS t))
-	      (output/exists [t]
-		 (output/expr t ((PF t) , Pout)))))
-      <- ty=>perm PM T ([o] PF o)
-      <- fldmap`domain FM S
-      <- ({t} allocFields t S (OS t)).
+consty2proctype/base
+  : consty2proctype* CM PM FM Pin Pout
+    (methty/base T)
+    ([t] (proctype/base
+	   (Pin , (obj-notnull t) , (OS t))
+	   (output/exists [t]
+	     (output/expr t ((PF t) , Pout)))))
+    <- ty2perm PM T ([o] PF o)
+    <- fldmap`domain FM S
+    <- ({t} allocFields t S (OS t)).
 
-consty=>proctype/args
-   : consty=>proctype* CM PM FM Pin Pout
-      (methty/arg CT (ty/ NN A C) R W)
-      ([t] (proctype/arg ([r] PTF t r)))
-      <- ty=>perm PM (ty/ NN A C) ([r] PF r)
-      <- clsmap`lookup CM C FM'
-      <- set=>perm CM PM FM' R ([o] RPF o)
-      <- set=>perm CM PM FM' W ([o] WPF o)
-      <- ({r} consty=>proctype* CM PM FM 
-	    (((PF r) , (RPF r) , (WPF r)) , Pin)
-	    (((RPF r) , (WPF r)) , Pout) CT ([t] PTF t r)).
+consty2proctype/args
+  : consty2proctype* CM PM FM Pin Pout
+    (methty/arg CT (ty/ NN A C) R W)
+    ([t] (proctype/arg ([r] PTF t r)))
+    <- ty2perm PM (ty/ NN A C) ([r] PF r)
+    <- clsmap`lookup CM C FM'
+    <- set2perm CM PM FM' R ([o] RPF o)
+    <- set2perm CM PM FM' W ([o] WPF o)
+    <- ({r} consty2proctype* CM PM FM 
+	 (((PF r) , (RPF r) , (WPF r)) , Pin)
+	 (((RPF r) , (WPF r)) , Pout) CT ([t] PTF t r)).
 
-%abbrev consty=>proctype
-   = [CM][PM][FM][CT][PTF] consty=>proctype* CM PM FM empty empty CT PTF.
+%abbrev consty2proctype
+   = [CM][PM][FM][CT][PTF] consty2proctype* CM PM FM empty empty CT PTF.
 
 
 %%% methmap => progtype
 
-methmap=>progtype : clsmap -> predmap -> methmap -> progtype -> type.
+methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
 
-methmap=>progtype/0 : methmap=>progtype _ _ methmap/0 progtype`map/0.
+methmap2progtype/0 : methmap2progtype _ _ methmap/0 progtype`map/0.
 
-methmap=>progtype/+/const
-  : methmap=>progtype CM PM MM W
+methmap2progtype/+/const
+  : methmap2progtype CM PM MM W
     <- methmap`update 
       MM' C (methty/arg CT (ty/ nonnull/yes annot/unique C) _ _) MM
     <- methmap`fresh MM' C
     <- clsmap`lookup CM C FM
-    <- consty=>proctype CM PM FM CT ([t] PTF t)
-    <- methmap=>progtype CM PM MM' W'
+    <- consty2proctype CM PM FM CT ([t] PTF t)
+    <- methmap2progtype CM PM MM' W'
     <- progtype`update W' C (proctype/arg PTF) W.
 
-methmap=>progtype/+/meth
-  : methmap=>progtype CM PM MM W
+methmap2progtype/+/meth
+  : methmap2progtype CM PM MM W
     <- methmap`update MM' C MT MM
     <- methmap`fresh MM' C
     <- clsmap`fresh CM C
-    <- methty=>proctype CM PM MT PT
-    <- methmap=>progtype CM PM MM' W'
+    <- methty2proctype CM PM MT PT
+    <- methmap2progtype CM PM MM' W'
     <- progtype`update W' C PT W.
 
 
@@ -414,49 +253,6 @@ methmap=>progtype/+/meth
 env2progtype : clsmap -> methmap -> progtype -> type.
 
 env2progtype/
-   : env2progtype CM MM W
-      <- clsmap=>predmap CM PM
-      <- methmap=>progtype CM PM MM W.
-
-
-%%% theorems 
-
-%%% theorems about vperm
-
-%%% theorems about efx=>input and efx=>output
-
-%%% theorems about set=>fact
-
-%theorem false-implies-set=>fact :
-    forall* {N} {B:cxt N} {O} {S}
-    forall  {F:void}
-    exists  {G} {S=>G: set=>fact B O S G}
-    true.
-
-%worlds () (false-implies-set=>fact _ _ _).
-%total  {} (false-implies-set=>fact _ _ _).
-
-
-%%% theorems about efxmap=>perm<
-
-
-%%% theorems about efxmap=>output
-
-%%% theorems about efxmap=>input
-
-%theorem false-implies-efxmap=>input :
-    forall* {N} {CM} {PM} {B:cxt N} {XM} 
-    forall  {F:void}
-    exists  {Pi} {XM=>Pi: efxmap=>input CM PM B XM Pi}
-    true.       
-
-%worlds () (false-implies-efxmap=>input _ _ _).
-%total  {} (false-implies-efxmap=>input _ _ _).
-
-
-%%% theorems about methty=>proctype
-
-%%% theorems about consty=>proctype
-
-
-%%% theorems about methmap=>progtype
+  : env2progtype CM MM W
+    <- clsmap2predmap CM PM
+    <- methmap2progtype CM PM MM W.
