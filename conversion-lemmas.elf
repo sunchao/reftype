@@ -1,2 +1,144 @@
-%%% $Id$
-%theorem
+%%%% lemmas about type checking
+
+%theorem cxt2facts-implies-permission :
+    forall* {PM} {N} {B:cxt N} {Pi} {L} {O} {NN} {A} {C}
+    forall  {B2G: cxt2facts PM B Pi}
+            {B-L: cxt-lookup B L O (ty/ NN A C)}
+    exists  {AF} {A2AF: annot2perm2 A AF}
+            {PF} {NN2PF: nn2perm NN AF PF}
+            {CP} {PM-L: predmap`lookup PM C CP}
+            {Pi2} {IMP: implies Pi ((PF CP O) , Pi2)}
+    true.
+
+- : cxt2facts-implies-permission
+    (cxt2facts/cons B2G PM-L NN2PF A2AF)
+    cxt-lookup/hit _ A2AF _ NN2PF _ PM-L _ implies/reflexive.
+
+- : cxt2facts-implies-permission
+    (cxt2facts/cons B2G _ _ _) (cxt-lookup/miss B-L _) 
+    AF A2AF PF T2PF CP PM-L _
+    (implies/trans
+      (implies/combine
+	implies/reflexive IMP)
+      (implies/equiv equiv/roll2))
+    <- cxt2facts-implies-permission
+      B2G B-L AF A2AF PF T2PF CP PM-L _ IMP.
+
+
+%worlds () (cxt2facts-implies-permission _ _ _ _ _ _ _ _ _ _).
+%total (B-L) (cxt2facts-implies-permission _ B-L _ _ _ _ _ _ _ _).
+    
+
+
+%theorem annot2perm2-total* :
+    forall {A}
+    exists {AF} {A2AF: annot2perm2 A AF}
+    true.
+
+- : annot2perm2-total* annot/unique _ annot2perm2/unique.
+- : annot2perm2-total* annot/shared _ annot2perm2/shared.
+- : annot2perm2-total* annot/borrow _ annot2perm2/borrow.
+
+%worlds () (annot2perm2-total* _ _ _).
+%total  (A) (annot2perm2-total* A _ _).
+
+%abbrev annot2perm2-total = annot2perm2-total* _ _.
+
+
+%theorem cxt2facts-total :
+    forall* {CM} {PM} {N} {B: cxt N}
+    forall  {CM-B: clsmap-cxt CM B}
+            {CM2PM: clsmap2predmap CM PM}
+    exists  {G} {B2G: cxt2facts PM B G}
+    true.
+
+- : cxt2facts-total clsmap-cxt/nil _ _ cxt2facts/nil.
+
+- : cxt2facts-total
+    (clsmap-cxt/cons (clsmap-ty/notnull IN) CM-B) CM2PM _
+    (cxt2facts/cons B2G PM-L NN2PF A2AF)
+    <- annot2perm2-total A2AF
+    <- nn2perm-total NN2PF
+    <- clsmap`in-implies-lookup IN _ CM-L
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
+    <- cxt2facts-total CM-B CM2PM G B2G.
+
+%worlds () (cxt2facts-total _ _ _ _).
+%total (CM-B) (cxt2facts-total CM-B _ _ _).
+
+
+%theorem ref-typing-ok/lit/L1 :
+    forall* {O} 
+    exists  {IMP: implies empty
+		  (unitperm (nonlinear 
+			      (disj (objequal O O) f)))}
+    true.
+
+- : ref-typing-ok/lit/L1 
+    (implies/trans
+      (implies/empty2true)
+      (implies/nonlinear 
+	(bimplies/trans
+	  (bimplies/objequal-reflexive)
+	  (bimplies/trans
+	    (bimplies/add-negneg)
+	    (bimplies/neg
+	      (bimplies/conj-weaken/false)
+	      (bool`ne/FT)))))).
+
+%worlds () (ref-typing-ok/lit/L1 _).
+%total  {} (ref-typing-ok/lit/L1 _).
+    
+
+
+%theorem ref-typing-ok/lit :
+    forall* {L1} {L2} {CM} {MM} {N} {B: cxt N}
+            {C} {GM} {XM} {E: expr} {PM} {W} {O} 
+    forall  {NN} {A} {CM-CM : clsmap-clsmap CM CM}
+            {CM-B :  clsmap-cxt CM B}
+            {CM2PM : clsmap2predmap CM PM}
+            {R-TYP : ref-typing L1 CM MM B
+		     (lit O) (out/expr (ty/ NN A C) GM XM) L2}
+    exists  {Pin} {Out} {Pi}
+            {XM2Pin : efxmap2perm CM PM B XM tgtmap/0 Pi Pin}
+            {XM2Out : efxmap2output CM PM B XM (ty/ NN A C) GM Out}
+            {P-TYP :  typing W Pin E Out}
+    true.
+
+- : ref-typing-ok/lit nn/may annot/shared CM-CM CM-B CM2PM
+    (ref-typing/lit B-L) _ _ _ %{=>}%
+    efxmap2perm/0
+    (efxmap2output/shared
+      (nn2output/exists ([r] (nn2output/expr/may r))) 
+      ([r] (set2facts/+ set2facts/0 B-L set`update/0))
+      efxmap2perm/0
+      (tgtmap`split/+/empty
+	set`update/0
+	tgtmap`split/0
+	tgtmap`fresh/0
+	tgtmap`update/0)
+      PM-L)
+    (tTrans
+      (transform/trans
+	(transform/implies
+	  (implies/trans
+	    IMP
+	    (implies/equiv equiv/commute)))
+	(transform/drop))
+      (letTyping/base null
+	(tObjLoc))
+      (transform/trans
+	(transform/implies
+	  (implies/cond-inner
+	    (bimplies/reflexive)
+	    (bimplies/reflexive)
+	    (implies/reflexive)
+	    (implies/trans
+	      (implies/equiv (equiv/symmetric equiv/identity))
+	      (implies/combine
+		implies/reflexive
+		(implies
+    <- cxt2facts-total CM-B CM2PM _ B2G
+    <- cxt2facts-implies-permission 
+      B2G B-L _ A2AF _ nn2perm/may _ PM-L _ IMP.
+
