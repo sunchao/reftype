@@ -18,7 +18,7 @@ nn2output/expr/yes
 
 set2facts : cxt N -> object -> set -> formula -> type.
 
-set2facts/0 : set2facts _ _ set/0 f.
+set2facts/0 : set2facts _ _ set/0 t.
 
 set2facts/+
   : set2facts B O S (disj (objequal O O') G)
@@ -83,8 +83,23 @@ efxmap2perm/+/out
 efxmap2output : clsmap -> predmap -> cxt N -> efxmap 
   -> ty -> tgtmap -> expr-output -> type.
 
-efxmap2output/0
-  : efxmap2output CM PM B XM (ty/ NN _ C) GM0 OUT
+% GM is either empty or only contains "0 -> 0"
+efxmap2output/shared
+  : efxmap2output CM PM B XM (ty/ NN annot/shared C) GM0 OUT
+    <- predmap`lookup PM C CP
+    <- tgtmap`split GM0 S GM 
+    <- efxmap2perm CM PM B XM tgtmap/0 _ Pi
+    <- ({o} set2facts B o S (G o))
+    <- nn2output NN 
+      (output/exists [o]
+	(output/expr o
+	  (((unitperm (nonlinear (nested (allperm o) null all))) , 
+	     (one-predcall CP o)) , 
+	    (unitperm (nonlinear (G o))) , Pi))) OUT.
+
+efxmap2output/unique/0
+  : efxmap2output CM PM B XM (ty/ NN annot/unique C) GM0 OUT
+    <- predmap`lookup PM C CP
     <- tgtmap`split GM0 S GM
     <- tgtmap`size GM nat`z
     <- efxmap2perm CM PM B XM GM _ Pi
@@ -92,10 +107,12 @@ efxmap2output/0
     <- nn2output NN 
       (output/exists [o]
 	(output/expr o
-	  (unitperm (nonlinear (G o)) , Pi))) OUT.
+	  ((one-predcall CP o) , 
+	    unitperm (nonlinear (G o)) , Pi))) OUT.
 
-efxmap2output/+
-  : efxmap2output CM PM B XM (ty/ NN _ C) GM0 OUT
+efxmap2output/unique/+
+  : efxmap2output CM PM B XM (ty/ NN annot/unique C) GM0 OUT
+    <- predmap`lookup PM C CP
     <- tgtmap`split GM0 S GM
     <- tgtmap`size GM (nat`s _)
     <- efxmap2perm CM PM B XM GM Pi1 Pi2
@@ -104,39 +121,37 @@ efxmap2output/+
       (output/exists [o]
 	(output/exists [r]
 	  (output/expr o
-	    (unitperm (nonlinear (disj (objequal o r) (G o))) ,
-	    ((allperm r) , (unitperm (encumbered (allperm r) Pi1))) ,
-	    Pi2)))) OUT.
+	    ((one-predcall CP r) ,
+	      unitperm (nonlinear (disj (objequal o r) (G o))) ,
+	      ((allperm r) , (unitperm (encumbered (allperm r) Pi1))) ,
+	      Pi2)))) OUT.
 	  
 
 % TODO: this is so similar with ty2perm, maybe we can merge them.
 
-create-fact : predmap -> ty -> (object -> permission) -> type. 
+annot2perm2 : annot -> (object -> permission) -> type. 
 
-create-fact/unique
-  : create-fact PM (ty/ NN annot/unique C) ([r] PF CP r)
-    <- predmap`lookup PM C CP
-    <- nn2perm NN ([_] empty) PF.
+annot2perm2/unique : annot2perm2 annot/unique ([_] empty).
 
-create-fact/borrow
-  : create-fact PM (ty/ NN annot/unique C) ([r] PF CP r)
-    <- predmap`lookup PM C CP
-    <- nn2perm NN ([_] empty) PF.
+annot2perm2/borrow : annot2perm2 annot/borrow ([_] empty).
 
-create-fact/shared
-  : create-fact PM (ty/ NN annot/unique C) ([r] PF CP r)
-    <- predmap`lookup PM C CP
-    <- nn2perm
-      NN ([o] unitperm (nonlinear (nested (allperm o) null all))) PF.
-      
+annot2perm2/shared
+  : annot2perm2 annot/shared
+    ([o] unitperm 
+      (nonlinear (nested (allperm o) null all))).
+
+
+%%% a well-formed context shouldn't contain null type.
 
 cxt2facts : predmap -> cxt N -> permission -> type.
 
-cxt2facts/0 : cxt2facts PM cxt/nil empty.
+cxt2facts/nil : cxt2facts PM cxt/nil empty.
 
-cxt2facts/+
-  : cxt2facts PM (cxt/cons O T B) ((PF O) , Pi)
-    <- create-fact PM T PF
+cxt2facts/cons
+  : cxt2facts PM (cxt/cons O (ty/ NN A C) B) ((PF CP O) , Pi)
+    <- annot2perm2 A AF
+    <- nn2perm NN AF PF
+    <- predmap`lookup PM C CP
     <- cxt2facts PM B Pi.
 	
 
