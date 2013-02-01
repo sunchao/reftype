@@ -1,4 +1,4 @@
-%%% converting *maps to permission
+%%% converting *map to permission
 
 
 % TODO: this is so similar with ty2perm, maybe we can merge them.
@@ -24,6 +24,7 @@ ty2perm2/
     <- predmap`lookup PM C CP.
 
 
+% make disjunction of objequal facts for object targets.
 
 set2facts : cxt N -> object -> set -> formula -> type.
 
@@ -35,6 +36,9 @@ set2facts/+
     <- cxt-lookup B L O' _
     <- set2facts B O S' G.
 
+
+% convert a efxmap to two set of permissions (encumbered
+% and non-encumbered), based on tgtmap.
 
 efxmap2perm : clsmap -> predmap -> cxt N -> efxmap -> tgtmap
   -> permission -> permission -> type.
@@ -89,68 +93,46 @@ efxmap2perm/+/out
     <- efxmap2perm CM PM B XM' GM Pi1 Pi2.
 
 
-tgtmap2perm : tgtmap -> (object -> formula) -> 
+%{ if tgtmap is empty, we shouldn't generate field
+  permissions, since otherwise we may have permission like:
+
+   (allperm o) , (unitperm (encumbered (allperm o) empty))
+
+  which is obviously unsound. }%
+
+tgtmap2perm : tgtmap -> 
+  (object -> permission) -> (object -> formula) -> 
   permission -> permission -> expr-output -> type.
   
 tgtmap2perm/0
-  : tgtmap2perm GM GF _ Pi2
+  : tgtmap2perm GM PF GF _ Pi2
     (output/exists [o]
       (output/expr o
-	(unitperm (nonlinear (G o)) , Pi2)))
+        (unitperm (nonlinear (G o)) , Pi2)))
     <- tgtmap`size GM nat`z.
 
 tgtmap2perm/+
-  : tgtmap2perm GM GF Pi1 Pi2
+  : tgtmap2perm GM PF GF Pi1 Pi2
     (output/exists [o]
       (output/exists [r]
-	(output/expr o
-	  (unitperm (nonlinear (disj (objequal o r) (G o))) ,
-	    ((allperm r) , (unitperm (encumbered (allperm r) Pi1))) ,
-	    Pi2))))
+        (output/expr o
+          (unitperm (nonlinear (disj (objequal o r) (G o))) ,
+            ((PF r) , (unitperm (encumbered (PF r) Pi1))) ,
+            Pi2))))
     <- tgtmap`size GM (nat`s _).
 
-
-add-to-output
-  : predmap -> ty -> expr-output -> expr-output -> type.
-
-add-to-output/base/may
-  : add-to-output PM (ty/ nn/may A C) 
-    (output/expr O Pi)
-    (output/expr O
-      (unitperm
-	(conditional 
-	  (objequal O null)
-	  (empty)
-	  (((AF O) , (one-predcall CP O)) , Pi))))
-    <- predmap`lookup PM C CP
-    <- annot2perm2 A AF.
-
-add-to-output/base/yes
-  : add-to-output PM (ty/ nn/yes A C) 
-    (output/expr O Pi)
-    (output/expr O
-      (unitperm
-	(nonlinear (neg (objequal O null))) ,
-	(((AF O) , (one-predcall CP O)) , Pi)))
-    <- predmap`lookup PM C CP
-    <- annot2perm2 A AF.
-    
-add-to-output/exists
-  : add-to-output PM T
-    (output/exists [r] (O r)) (output/exists [r] (O' r)).
-    
 
 
 efxmap2output : clsmap -> predmap -> cxt N -> efxmap 
   -> ty -> tgtmap -> expr-output -> type.
 
 efxmap2output
-  : efxmap2output CM PM B XM T GM0 OUT'
+  : efxmap2output CM PM B XM T GM0 OUT
     <- tgtmap`split GM0 S GM
     <- efxmap2perm CM PM B XM GM Pi1 Pi2
     <- ({o} set2facts B o S (GF o))
-    <- tgtmap2perm GM GF Pi1 Pi2 OUT
-    <- add-to-output PM T OUT OUT'.
+    <- ty2perm PM T ([o] PF o)
+    <- tgtmap2perm GM PF GF Pi1 Pi2 OUT.
 
 
 
