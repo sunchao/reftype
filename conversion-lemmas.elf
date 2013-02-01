@@ -11,11 +11,11 @@
     true.
 
 - : cxt2facts-implies-permission
-    (cxt2facts/cons B2G PM-L NN2PF A2AF)
+    (cxt2facts/cons B2G (ty2perm2/ PM-L NN2PF A2AF))
     cxt-lookup/hit _ A2AF _ NN2PF _ PM-L _ implies/reflexive.
 
 - : cxt2facts-implies-permission
-    (cxt2facts/cons B2G _ _ _) (cxt-lookup/miss B-L _) 
+    (cxt2facts/cons B2G _) (cxt-lookup/miss B-L _) 
     AF A2AF PF T2PF CP PM-L _
     (implies/trans
       (implies/combine
@@ -56,100 +56,71 @@
 
 - : cxt2facts-total
     (clsmap-cxt/cons (clsmap-ty/notnull IN) CM-B) CM2PM _
-    (cxt2facts/cons B2G PM-L NN2PF A2AF)
+    (cxt2facts/cons B2G (ty2perm2/ PM-L NN2PF A2AF))
     <- annot2perm2-total A2AF
     <- nn2perm-total NN2PF
     <- clsmap`in-implies-lookup IN _ CM-L
     <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
     <- cxt2facts-total CM-B CM2PM G B2G.
 
+- : cxt2facts-total
+    (clsmap-cxt/cons clsmap-ty/null CM-B) CM2PM _
+    (cxt2facts/cons B2G ty2perm2/null)
+    <- cxt2facts-total CM-B CM2PM G B2G.
+
 %worlds () (cxt2facts-total _ _ _ _).
 %total (CM-B) (cxt2facts-total CM-B _ _ _).
 
 
-%theorem ref-typing-ok/lit/L4 :
-    forall* {AF} {A}
-    forall  {O} {A2AF: annot2perm2 A AF}
-    exists  {Pi} {IMP: implies (AF O) (Pi , empty)}
-    true.
-
-- : ref-typing-ok/lit/L4 _ annot2perm2/unique _
-    (implies/equiv (equiv/symmetric equiv/identity)).
-
-- : ref-typing-ok/lit/L4 _ annot2perm2/shared _
-    (implies/equiv (equiv/symmetric equiv/identity)).
-
-- : ref-typing-ok/lit/L4 _ annot2perm2/borrow _
-    (implies/equiv (equiv/symmetric equiv/identity)).
-
-%worlds () (ref-typing-ok/lit/L4 _ _ _ _).
-%total  {} (ref-typing-ok/lit/L4 _ _ _ _).
-    
-    
-
-%theorem ref-typing-ok/lit/L1 :
-    forall* {AF}
-    forall  {O} {A2AF: annot2perm2 annot/shared AF}
-    exists  {IMP: implies (AF O)
-		  (unitperm (nonlinear (nested (allperm O) null all)))}
-    true.
-
-- : ref-typing-ok/lit/L1 _ annot2perm2/shared implies/reflexive.
-
-%worlds () (ref-typing-ok/lit/L1 _ _ _).
-%total  {} (ref-typing-ok/lit/L1 _ _ _).
-    
-
-%theorem ref-typing-ok/lit/L2 :
-    forall* {AF} 
-    forall  {A2AF: annot2perm2 annot/unique AF}
-    exists  {IMP: {o} implies (AF o) empty}
-    true.
-
-- : ref-typing-ok/lit/L2 annot2perm2/unique ([_] implies/reflexive).
-
-%worlds () (ref-typing-ok/lit/L2 _ _).
-%total  {} (ref-typing-ok/lit/L2 _ _).
-
-
-%theorem ref-typing-ok/lit/L3 :
-    forall* {AF}
-    forall  {O} {A2AF: annot2perm2 annot/borrow AF}
-    exists  {IMP: implies (AF O) empty}
-    true.
-
-- : ref-typing-ok/lit/L3 _ annot2perm2/borrow implies/reflexive.
-
-%worlds () (ref-typing-ok/lit/L3 _ _ _).
-%total  {} (ref-typing-ok/lit/L3 _ _ _).
-
-
-%abbrev make-one-disj
-  : bimplies true t (disj (objequal O O) f)
-    = (bimplies/trans
-      (bimplies/objequal-reflexive)
-      (bimplies/trans
-	(bimplies/add-negneg)
-	(bimplies/neg
-	  (bimplies/conj-weaken/false)
-	  (bool`ne/FT)))).
-
-			
-%theorem ref-typing-ok/lit* :
+%theorem ref-typing-ok/lit :
     forall* {L1} {L2} {CM} {MM} {N} {B: cxt N}
-            {C} {GM} {PM} {W} {A} {O}
-    forall  {NN} {CM-CM : clsmap-clsmap CM CM}
+            {C} {N1} {PM} {W} {A} {O} {NN}
+    forall  {CM-CM : clsmap-clsmap CM CM}
+            {CM-MM: clsmap-methmap CM MM}
             {CM-B:  clsmap-cxt CM B}
             {CM2PM: clsmap2predmap CM PM}
+            {B-L: cxt-lookup B N1 O (ty/ NN A C)}
             {R-TYP: ref-typing L1 CM MM B (lit O) 
-                    (out/expr (ty/ NN A C) GM efxmap/0) L2}
+                    (out/expr (ty/ NN A C) (tgtmap/1 N1) efxmap/0) L2}
     exists  {G} {Out}
             {B2G: cxt2facts PM B G}
-            {XM2Out: efxmap2output CM PM B efxmap/0 (ty/ NN A C) GM Out}
+            {XM2Out: efxmap2output 
+                     CM PM B efxmap/0 (ty/ NN A C) (tgtmap/1 N1) Out}
             {P-TYP:  typing W (G , empty) (lit O) Out}
     true.
-    
-%worlds () (ref-typing-ok/lit* _ _ _ _ _ _ _ _ _ _ _).
-%total  {} (ref-typing-ok/lit* _ _ _ _ _ _ _ _ _ _ _).
 
-%abbrev ref-typing-ok/lit = ref-typing-ok/lit* _ _ _.
+- : ref-typing-ok/lit CM-CM CM-MM CM-B CM2PM B-L
+    (RTYP: ref-typing _ _ _ _ (lit O) _ _) %{=>}% _ _
+    B2G (efxmap2output/
+          (tgtmap2perm/0 tgtmap`size/0)
+          T2PF
+          ([o] set2facts/+ set2facts/0 B-L set`update/0)
+          (efxmap2perm/0)
+          (tgtmap`split/+/empty
+            set`update/0
+            tgtmap`split/0
+            tgtmap`fresh/0
+            tgtmap`update/0))
+    (tTrans
+      (transform/drop)
+      (letTyping/base null tObjLoc)
+      (transform/trans
+        (transform/implies
+          (implies/trans3
+            (implies/empty2true)
+            (implies/nonlinear 
+              (bimplies/trans
+                (bimplies/objequal-reflexive)
+                (bimplies/trans
+                  (bimplies/add-negneg)
+                  (bimplies/neg
+                    (bimplies/conj-weaken/false)
+                    (bool`ne/FT)))))
+            (implies/equiv (equiv/symmetric equiv/identity))))
+        (transform/gen-exists _)))
+    <- typing-implies-clsmap-ty CM-CM CM-MM CM-B RTYP CM-T
+    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
+    <- cxt2facts-total CM-B CM2PM _ B2G.
+    
+%worlds () (ref-typing-ok/lit _ _ _ _ _ _ _ _ _ _ _).
+%total  {} (ref-typing-ok/lit _ _ _ _ _ _ _ _ _ _ _).
