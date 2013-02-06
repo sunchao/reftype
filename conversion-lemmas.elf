@@ -1,4 +1,8 @@
 %%%% lemmas about type checking
+%abbrev fldperm-fun
+  : object -> nat -> (object -> permission) -> permission
+ = [o][F][PF] unitperm (precise-exists o F ([v] PF v)).
+
 
 %theorem cxt2facts-implies-permission :
     forall* {PM} {N} {B:cxt N} {Pi} {L} {O} {NN} {A} {C}
@@ -150,14 +154,338 @@
 %total  {} (ref-typing-ok/lit _ _ _ _ _ _ _ _ _ _ _).
 
 
-%theorem ref-typing-ok/read :
-    forall* {L1} {L2} {CM} {MM} {N} {B: cxt N}
-            {C} {E} {F} {T} {GM} {XM}
-    forall  {CM-CM: clsmap-clsmap CM CM}
-            {CM-MM: clsmap-methmap CM MM}
-            {CM-B: clsmap-cxt CM B}
-            {R-TYP: ref-typing L1 CM MM B
-		    (read E F) (output/expr T GM XM) L2}
-	    {B-L: cxt
-    exists  {G} {Out}
-            {B2G: 
+%theorem tgtmap=>efxmap-can-split :
+    forall* {GM} {GM1} {GM2} {XM} {X}
+    forall  {GM2XM: tgtmap=>efxmap GM X XM}
+            {J: tgtmap`deep-disjoint GM1 GM2}
+            {U: tgtmap`join GM1 GM2 GM}
+    exists  {XM1} {XM2} 
+            {GM12XM1: tgtmap=>efxmap GM1 X XM1}
+            {GM22XM2: tgtmap=>efxmap GM2 X XM2}
+            {J: efxmap`deep-disjoint XM1 XM2}
+            {U: efxmap`join XM1 XM2 XM}
+    true.
+
+- : tgtmap=>efxmap-can-split
+    GM=>XM tgtmap`deep-disjoint/L tgtmap`join/L
+    _ _ tgtmap=>efxmap/0 GM=>XM efxmap`deep-disjoint/L efxmap`join/L.
+
+- : tgtmap=>efxmap-can-split
+    GM=>XM tgtmap`deep-disjoint/R tgtmap`join/R
+    _ _ GM=>XM tgtmap=>efxmap/0 efxmap`deep-disjoint/R efxmap`join/R.
+
+%worlds () (tgtmap=>efxmap-can-split _ _ _ _ _ _ _ _ _).
+%trustme %total  {} (tgtmap=>efxmap-can-split _ _ _ _ _ _ _ _ _).
+    
+
+
+set-one-class : cxt N -> set -> nat -> type.
+
+set-one-class/0 : set-one-class _ set/0 _.
+
+set-one-class/+
+  : set-one-class B (set/+ L S) C
+    <- set`shift L S S'
+    <- cxt-lookup B L _ (ty/ _ _ C)
+    <- set-one-class B S' C.
+
+
+%theorem typing-read/L1 :
+    forall* {CM} {FM} {PM} {XM} {N} {B: cxt N} 
+            {C} {NN} {A} {FC} {S} {O} {PF}
+    forall  {F} {K} {S-SZ: set`size S (s K)}
+            {S-C: set-one-class B S C}
+            {CM-L: clsmap`lookup CM C FM}
+            {FM-L: fldmap`lookup FM F (ty/ NN A FC)}
+            {T=>PF: ty2perm PM (ty/ NN A FC) PF}
+            {S=>XM: set+nat=>efxmap S F efx/write XM}
+    exists  {G} {Pi} {Pi'} {Pi2}
+            {S=>G: set2facts B O S G}
+            {XM=>Pi: efxmap2perm CM PM B XM tgtmap/0 Pi2 Pi}
+            {IMP: implies
+                  ((unitperm (nonlinear G)) , Pi)
+                  ((unitperm (precise-exists O F ([v] (PF v))) , 
+                     (unitperm
+                       (encumbered 
+                         (unitperm
+                           (precise-exists O F ([v] (PF v)))) Pi))) , Pi') }
+    true.
+
+- : typing-read/L1 F (s N) (set`size/+ SZ-S)
+    (set-one-class/+ SOC-SS B-L SL<<S=SS)
+    CM-L FM-L T2PF (set+nat=>efxmap/+ S1+FX=XM1)
+    %{=>}% _ _ _ _
+    (set2facts/+ SS=>GS B-L SS+SL=S)
+    (efxmap2perm/+/out
+      XMS=>PiS
+      (efxmap2perm-helper/+/out
+        efxmap2perm-helper/0
+        T2PF
+        FM-L
+        set`not-member/0
+        inner-efxmap`fresh/0
+        inner-efxmap`update/0)
+      CM-L B-L tgtmap`fresh/0 SL!<XMS XMS+S=LSXM)
+    (implies/trans6
+      (implies/equiv equiv/commute)
+      (implies/combine
+        (implies/combine
+          (implies/equiv equiv/identity)
+          (implies/reflexive))
+        (implies/disj2cond))
+      (implies/cond-push)
+      (implies/cond-gen-inner)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/trans6
+          (implies/combine
+            (implies/reflexive)
+            (implies/equiv equiv/identity))
+          (implies/equiv equiv/associate)
+          (implies/combine
+            (implies/trans
+              (implies/combine
+                (implies/nonlinear bimplies/objequal-symmetric)
+                (implies/trans
+                  (implies/equiv (equiv/symmetric equiv/identity))
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/self-implication))))
+              (implies/objequal
+                ([o] (fldperm-fun o F ([v] PF v)) , 
+                  (unitperm
+                    (encumbered (fldperm-fun o F ([v] PF v))
+                      (fldperm-fun R F ([v] PF v)))))))
+            (implies/trans3
+              (implies/equiv (equiv/symmetric equiv/identity))
+              (implies/combine
+                (implies/reflexive)
+                (implies/trans3
+                  (implies/self-implication)
+                  (implies/equiv-encumbered
+                    (equiv/commute)
+                    (equiv/combine
+                      (equiv/symmetric equiv/identity)
+                      (equiv/reflexive)))
+                  (implies/combine-assoc-encumbered)))
+              (implies/linear-modus-ponens)))
+          (implies/equiv (equiv/symmetric equiv/associate))
+          (implies/combine
+            (implies/reflexive)
+            (implies/chain-implication))
+          (implies/equiv (equiv/symmetric equiv/identity)))
+        (implies/trans2
+          (implies/combine
+            (implies/reflexive)
+            (implies/trans3
+              (implies/equiv 
+                (equiv/transitive
+                  (equiv/symmetric equiv/associate)
+                  (equiv/combine
+                    (equiv/reflexive)
+                    (equiv/commute))))
+              (implies/combine
+                (implies/trans3
+                  (implies/equiv (equiv/symmetric equiv/identity))
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/trans3
+                      (implies/self-implication)
+                      (implies/equiv-encumbered
+                        (equiv/reflexive)
+                        (equiv/combine
+                          (equiv/symmetric equiv/identity)
+                          (equiv/reflexive)))
+                      (implies/combine-assoc-encumbered)))
+                  (implies/linear-modus-ponens))
+                (IMP))
+              (implies/trans
+                (implies/equiv
+                  (equiv/associate))
+                (implies/combine
+                  (implies/trans
+                    (implies/equiv
+                      (equiv/transitive
+                        (equiv/commute)
+                        (equiv/symmetric equiv/associate)))
+                    (implies/combine
+                      (implies/reflexive)
+                      (implies/chain-implication)))
+                  (implies/reflexive)))))
+          (implies/equiv 
+            (equiv/transitive
+              (equiv/commute)
+              (equiv/symmetric equiv/associate)))))
+      (implies/cond-pull))
+    <- set`shift-implies-update SL<<S=SS SS+SL=S
+    <- efxmap`shift-total SL<<XM=XMS
+    <- efxmap`shift-implies-update SL<<XM=XMS XMS+S=LSXM
+    <- efxmap`shift-implies-fresh SL<<XM=XMS SL!<XMS
+    <- shift-preserves-set+nat=>efxmap
+      S1+FX=XM1 SL<<S=SS SL<<XM=XMS SS+FX=XMS
+    <- set`shift-preserves-size SZ-S SL<<S=SS SZ-SS
+    <- typing-read/L1 F N SZ-SS SOC-SS CM-L FM-L T2PF
+      SS+FX=XMS %{=>}% _ _ _ _ SS=>GS XMS=>PiS IMP.
+
+- : typing-read/L1 F z (set`size/+ set`size/0)
+    (set-one-class/+ set-one-class/0 B-L set`shift/0)
+    CM-L FM-L T2PF (set+nat=>efxmap/+ set+nat=>efxmap/0)
+    %{=>}% _ _ _ _
+    (set2facts/+ set2facts/0 B-L set`update/0)
+    (efxmap2perm/+/out
+      (efxmap2perm/0)
+      (efxmap2perm-helper/+/out
+        efxmap2perm-helper/0
+        T2PF
+        FM-L
+        set`not-member/0
+        inner-efxmap`fresh/0
+        inner-efxmap`update/0)
+      CM-L
+      B-L
+      tgtmap`fresh/0
+      efxmap`fresh/0
+      efxmap`update/0)
+    (implies/trans3
+      (implies/combine
+        (implies/nonlinear
+          (bimplies/trans
+            (bimplies/neg
+              (bimplies/trans
+                (bimplies/conj/XX
+                  (bimplies/reflexive)
+                  (bimplies/rem-negneg))
+                (bimplies/conj-true))
+              (bool`ne/FT))
+            (bimplies/trans
+              (bimplies/rem-negneg)
+              (bimplies/objequal-symmetric))))
+        (implies/trans
+          (implies/equiv (equiv/symmetric equiv/identity))
+          (implies/combine
+            (implies/equiv
+              (equiv/transitive
+                (equiv/identity)
+                (equiv/identity)))
+            (implies/trans
+              (implies/self-implication)
+              (implies/equiv-encumbered
+                (equiv/transitive
+                  (equiv/identity)
+                  (equiv/identity))
+                (equiv/reflexive))))))
+      (implies/objequal
+        ([o] (fldperm-fun o F ([v] PF v)) , 
+          (unitperm
+            (encumbered (fldperm-fun o F ([v] PF v))
+              (combine (combine (fldperm-fun R F ([v] PF v)) empty) empty)))))
+      (implies/equiv (equiv/symmetric equiv/identity))).
+    
+%worlds () (typing-read/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (K) (typing-read/L1 _ K _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+
+% here, we need to prove that if we have two efxmap
+% XM1 join XM2, and if XM2 contains all write permissions,
+% then XM1 won't contain consume permission for all 
+% corresponding write permissions in XM2.
+
+all-write : efxmap -> type.
+
+all-write/inner : inner-efxmap -> type.
+
+all-write/inner/0 : all-write/inner inner-efxmap/0.
+
+all-write/inner/+ 
+  : all-write/inner (inner-efxmap/+ _ efx/write M)
+    <- all-write/inner M.
+
+
+all-write/0 : all-write efxmap/0.
+
+all-write/+
+  : all-write (efxmap/+ _ M XM)
+    <- all-write/inner M
+    <- all-write XM.
+
+
+%theorem set`extend-write-implies-all-write :
+    forall* {S} {F} {XM} {GM}
+    forall  {S+F=XM: set`extend S F GM}
+            {GM=>XM: tgtmap=>efxmap GM efx/write XM}
+    exists  {W-XM: all-write XM}
+    true.
+
+- : set`extend-write-implies-all-write
+    set`extend/0 tgtmap=>efxmap/0 all-write/0.
+
+- : set`extend-write-implies-all-write
+    (set`extend/+ S+F=GM) 
+    (tgtmap=>efxmap/+ GM=>XM (set=>inner-efxmap/+ set=>inner-efxmap/0))
+    (all-write/+ W-XM (all-write/inner/+ all-write/inner/0))
+    <- set`extend-write-implies-all-write S+F=GM GM=>XM W-XM.
+
+%worlds () (set`extend-write-implies-all-write _ _ _).
+%total (S) (set`extend-write-implies-all-write S _ _).
+
+
+filter-consume : efxmap -> efxmap -> type.
+
+filter-consume/0 : filter-consume efxmap/0 efxmap/0.
+
+filter-consume/inner : inner-efxmap -> inner-efxmap -> type.
+
+filter-consume/inner/0 : filter-consume/inner inner-efxmap/0 inner-efxmap/0.
+
+filter-consume/inner/+/consume
+  : filter-consume/inner M MO
+    <- inner-efxmap`update M' F efx/consume M
+    <- inner-efxmap`fresh M' F
+    <- filter-consume/inner M' MO'
+    <- inner-efxmap`update MO' F efx/consume MO.
+
+filter-consume/inner/write
+  : filter-consume/inner M MO'
+    <- inner-efxmap`update M' F efx/write M
+    <- inner-efxmap`fresh M' F
+    <- filter-consume/inner M' MO'.
+
+filter-consume/inner/read
+  : filter-consume/inner M MO'
+    <- inner-efxmap`update M' F efx/read M
+    <- inner-efxmap`fresh M' F
+    <- filter-consume/inner M' MO'.
+
+filter-consume/+
+  : filter-consume XM XMO
+    <- efxmap`update XM' L M XM
+    <- efxmap`fresh XM' L
+    <- filter-consume/inner M MO
+    <- filter-consume XM' XMO'
+    <- efxmap`update XMO' L MO XMO.
+
+% show that if we have XM1 join XM2 = XM,
+% and XM2O is the efxmap contains all consume
+% effects from XM2, then the intersection between
+% XM1 and XM2O contains no consume effect.
+
+%theorem typing-read/L2 :
+    forall* {XM1} {XM2} {XM} {XM2O}
+    forall  {U: efxmap`join XM1 XM2 XM}
+            {F: filter-consume XM2 XM2O}
+    exists  {D: efxmap`deep-disjoint XM1 XM2O}
+    true.
+
+- : typing-read/L2 efxmap`join/L _ efxmap`deep-disjoint/L.
+
+- : typing-read/L2 efxmap`join/R _ efxmap`deep-disjoint/R.
+
+- : typing-read/L2 (efxmap`join/= XM1UXM2 M1UM2 nat`eq/)
+    (filter-consume/+ U F FI FS U') _
+    <- efxmap`fresh-update-implies-shift FS U' SH'
+    <- efxmap`shift-total SH
+    <- efxmap`shift-preserves-join XM1UXM2 SH SH' _ SH3 XM1UXM2'
+    <- typing-read/L2 XM1UXM2' F DX.
+
