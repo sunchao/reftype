@@ -27,9 +27,175 @@ efxmap`deep-disjoint/>
     <- efxmap`deep-disjoint (efxmap/+ N3 D1 M1) M2.
 
 
+efxmap`deep-disjoint? : efxmap -> efxmap -> bool -> type.
+
+efxmap`deep-disjoint?/yes
+  : efxmap`deep-disjoint M1 M2 ->
+      efxmap`deep-disjoint? M1 M2 true.
+				 
+efxmap`deep-disjoint?/no
+  : efxmap`lookup M1 N D1 ->
+    efxmap`lookup M2 N D2 -> 
+    inner-efxmap`disjoint? D1 D2 false -> 
+      efxmap`deep-disjoint? M1 M2 false.
+
+
+
 
 %%% Theorems 
 
+  
+%theorem efxmap`deep-disjoint?-total* :
+ forall {M1} {M2}
+ exists {B} {D:efxmap`deep-disjoint? M1 M2 B}
+ true.
+
+- : efxmap`deep-disjoint?-total* _ _ _ (efxmap`deep-disjoint?/yes efxmap`deep-disjoint/L).
+
+- : efxmap`deep-disjoint?-total* _ _ _ (efxmap`deep-disjoint?/yes efxmap`deep-disjoint/R).
+
+%theorem efxmap`deep-disjoint?-total*/+ :
+ forall* {N1} {D1} {M1} {N2} {D2} {M2} {C}
+ forall {S1} {S2} {SZ1:efxmap`size M1 S1} {SZ2:efxmap`size M2 S2} {CMP:nat`compare N1 N2 C}
+ exists {B} {D:efxmap`deep-disjoint? (efxmap/+ N1 D1 M1) (efxmap/+ N2 D2 M2) B}
+ true.
+
+%theorem efxmap`deep-disjoint?-total*/= :
+    forall* {N} {D1} {M1} {D2} {M2} {B1} {B2}
+    forall  {D?: efxmap`deep-disjoint? M1 M2 B1}
+            {ID?: inner-efxmap`disjoint? D1 D2 B2}
+    exists  {B3} {D: efxmap`deep-disjoint? (efxmap/+ N D1 M1) (efxmap/+ N D2 M2) B3}
+    true.
+
+- : efxmap`deep-disjoint?-total*/= 
+    (efxmap`deep-disjoint?/yes X) (inner-efxmap`disjoint?/yes IX)
+    _ (efxmap`deep-disjoint?/yes
+	(efxmap`deep-disjoint/= X IX nat`eq/)).
+
+- : efxmap`deep-disjoint?-total*/= 
+    _ (inner-efxmap`disjoint?/no L1 L2)
+    _ (efxmap`deep-disjoint?/no (efxmap`lookup/= nat`eq/)
+      (efxmap`lookup/= nat`eq/) (inner-efxmap`disjoint?/no L1 L2)).
+
+- : efxmap`deep-disjoint?-total*/=
+    (efxmap`deep-disjoint?/no L1 L2 IX) (inner-efxmap`disjoint?/yes _)
+    _ (efxmap`deep-disjoint?/no
+	(efxmap`lookup/> L1 P) (efxmap`lookup/> L2 P) IX)
+    <- nat`plus-total P.
+    
+%worlds () (efxmap`deep-disjoint?-total*/= _ _ _ _).
+%total  {} (efxmap`deep-disjoint?-total*/= _ _ _ _).
+
+
+%theorem efxmap`deep-disjoint?-total*/< :
+ forall* {N1} {D1} {M1} {N2} {D2} {M2} {N0} {B1}
+ forall {P:plus (s N0) N1 N2}
+               {D?1:efxmap`deep-disjoint? M1 (efxmap/+ N0 D2 M2) B1}
+ exists {B} {D:efxmap`deep-disjoint? (efxmap/+ N1 D1 M1) (efxmap/+ N2 D2 M2) B}
+ true.
+
+%theorem efxmap`deep-disjoint?-total*/> :
+ forall* {N1} {D1} {M1} {N2} {D2} {M2} {N3} {B1}
+ forall {P:plus (s N3) N2 N1}
+               {D?1:efxmap`deep-disjoint? (efxmap/+ N3 D1 M1) M2 B1}
+ exists {B} {D:efxmap`deep-disjoint? (efxmap/+ N1 D1 M1) (efxmap/+ N2 D2 M2) B}
+ true.
+
+- : efxmap`deep-disjoint?-total* _ _ _ D?
+    <- efxmap`size-total SZ1
+    <- efxmap`size-total SZ2
+    <- nat`compare-total CMP
+    <- efxmap`deep-disjoint?-total*/+ _ _ SZ1 SZ2 CMP _ D?.
+
+- : efxmap`deep-disjoint?-total*/+ _ _
+    efxmap`size/0 _ nat`compare/= _ XX
+    <- inner-efxmap`disjoint?-total IX
+    <- efxmap`deep-disjoint?-total*/=
+      (efxmap`deep-disjoint?/yes efxmap`deep-disjoint/L) IX _ XX.
+
+- : efxmap`deep-disjoint?-total*/+ _ _
+    _ efxmap`size/0 nat`compare/= _ XX
+    <- inner-efxmap`disjoint?-total IX
+    <- efxmap`deep-disjoint?-total*/=
+      (efxmap`deep-disjoint?/yes efxmap`deep-disjoint/R) IX _ XX.
+
+- : efxmap`deep-disjoint?-total*/+ _ _
+    (efxmap`size/+ SZ1) (efxmap`size/+ SZ2) (nat`compare/=) _ XX
+    <- nat`compare-total CMP
+    <- inner-efxmap`disjoint?-total IX
+    <- efxmap`deep-disjoint?-total*/+ _ _ SZ1 SZ2 CMP _ X
+    <- efxmap`deep-disjoint?-total*/= X IX _ XX.
+
+- : efxmap`deep-disjoint?-total*/+ _ _ _ _ (nat`compare/< N2>N1) _ D?
+    <- gt-implies-plus N2>N1 _ N0+1+N1=N2
+    <- efxmap`deep-disjoint?-total*/< N0+1+N1=N2
+      (efxmap`deep-disjoint?/yes efxmap`deep-disjoint/L) _ D?.
+
+- : efxmap`deep-disjoint?-total*/+ _ _ (efxmap`size/+ SZ1) SZ2 (nat`compare/< N2>N1) _ D?
+    <- gt-implies-plus N2>N1 _ N0+1+N1=N2
+    <- nat`compare-total CMP
+    <- efxmap`deep-disjoint?-total*/+ _ _ SZ1 SZ2 CMP _ D?1
+    <- efxmap`deep-disjoint?-total*/< N0+1+N1=N2 D?1 _ D?.
+
+- : efxmap`deep-disjoint?-total*/< N0+1+N1=N2 
+    (efxmap`deep-disjoint?/yes M1*M022) _
+    (efxmap`deep-disjoint?/yes (efxmap`deep-disjoint/< M1*M022 N0+1+N1=N2)).
+
+- : efxmap`deep-disjoint?-total*/< N0+1+N1=N2
+    (efxmap`deep-disjoint?/no M1^N3=D1 M022^N3=D2 IX) _
+    (efxmap`deep-disjoint?/no (efxmap`lookup/> M1^N3=D1 N3+1+N1=N4) M222^N4=D2 IX)
+    <- plus-total N3+1+N1=N4
+    <- plus-swap-succ N3+1+N1=N4 N3+N1+1=N4
+    <- plus-commutative N3+N1+1=N4 N1+1+N3=N4
+    <- plus-swap-succ N0+1+N1=N2 N0+N1+1=N2
+    <- plus-commutative N0+N1+1=N2 N1+1+N0=N2
+    <- efxmap`shift-preserves-lookup*
+      M022^N3=D2 (efxmap`shift/+ N1+1+N0=N2) N1+1+N3=N4 M222^N4=D2.
+      
+
+%worlds () (efxmap`deep-disjoint?-total*/< _ _ _ _).
+%total { } (efxmap`deep-disjoint?-total*/< _ _ _ _).
+
+
+- : efxmap`deep-disjoint?-total*/+ _ _ _ _ (nat`compare/> N1>N2) _ D?
+    <- gt-implies-plus N1>N2 _ N3+1+N2=N1
+    <- efxmap`deep-disjoint?-total*/>
+      N3+1+N2=N1 (efxmap`deep-disjoint?/yes efxmap`deep-disjoint/R) _ D?.
+
+- : efxmap`deep-disjoint?-total*/+ _ _ SZ1
+    (efxmap`size/+ SZ2) (nat`compare/> N1>N2) _ D?
+    <- gt-implies-plus N1>N2 _ N3+1+N2=N1
+    <- nat`compare-total CMP
+    <- efxmap`deep-disjoint?-total*/+ _ _ SZ1 SZ2 CMP _ D?1
+    <- efxmap`deep-disjoint?-total*/> N3+1+N2=N1 D?1 _ D?.
+
+- : efxmap`deep-disjoint?-total*/> P
+    (efxmap`deep-disjoint?/yes D) _
+    (efxmap`deep-disjoint?/yes (efxmap`deep-disjoint/> D P)).
+
+- : efxmap`deep-disjoint?-total*/> N3+1+N2=N1
+    (efxmap`deep-disjoint?/no M311^N4=D1 M2^N4=D2 IX) _
+    (efxmap`deep-disjoint?/no M111^N5=D1
+      (efxmap`lookup/> M2^N4=D2 N4+1+N2=N5) IX)
+    <- plus-total N4+1+N2=N5
+    <- plus-swap-succ N4+1+N2=N5 N4+N2+1=N5
+    <- plus-commutative N4+N2+1=N5 N2+1+N4=N5
+    <- plus-swap-succ N3+1+N2=N1 N3+N2+1=N1
+    <- plus-commutative N3+N2+1=N1 N2+1+N3=N1
+    <- efxmap`shift-preserves-lookup* M311^N4=D1 (shift/+ N2+1+N3=N1) N2+1+N4=N5
+                               M111^N5=D1.
+
+%worlds () (efxmap`deep-disjoint?-total*/> _ _ _ _).
+%total { } (efxmap`deep-disjoint?-total*/> _ _ _ _).
+
+%worlds () (efxmap`deep-disjoint?-total*/+ _ _ _ _ _ _ _).
+%total [S1 S2] (efxmap`deep-disjoint?-total*/+ S1 S2 _ _ _ _ _).
+
+%worlds () (efxmap`deep-disjoint?-total* _ _ _ _).
+%total { } (efxmap`deep-disjoint?-total* _ _ _ _).
+
+%abbrev efxmap`deep-disjoint?-total = efxmap`deep-disjoint?-total* _ _ _.
+  
 
 %theorem efxmap`false-implies-deep-disjoint :
     forall* {XM1} {XM2}
@@ -995,3 +1161,153 @@ efxmap`deep-disjoint/>
 %total (D) (efxmap`update-disjoint-implies-disjoint D _ _ _ _).
 
 
+%theorem efxmap`deep-disjoint-lookup-implies-disjoint :
+ forall* {M1} {M2} {N} {D1} {D2}
+ forall {A:efxmap`deep-disjoint M1 M2}
+        {L1:efxmap`lookup M1 N D1} {L2:efxmap`lookup M2 N D2}
+ exists {IX:inner-efxmap`disjoint D1 D2}
+ true.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/= _ X nat`eq/) 
+    (efxmap`lookup/= nat`eq/) (efxmap`lookup/= nat`eq/) X.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/= X _ nat`eq/)
+    (efxmap`lookup/> L1 P1) (efxmap`lookup/> L2 P2) XX
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ
+    <- nat`succ-cancels EQ NEQ
+    <- efxmap`lookup-respects-eq L1 efxmap`eq/ NEQ inner-efxmap`eq/ L1P
+    <- efxmap`deep-disjoint-lookup-implies-disjoint X L1P L2 XX.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/= _ _ nat`eq/)
+    (efxmap`lookup/> _ P) (efxmap`lookup/= nat`eq/) X
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- inner-efxmap`false-implies-disjoint F X.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/= _ _ nat`eq/)
+    (efxmap`lookup/= nat`eq/) (efxmap`lookup/> _ P) X
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- inner-efxmap`false-implies-disjoint F X.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/< _ N0+1+N=N)
+    (efxmap`lookup/= nat`eq/) (efxmap`lookup/= nat`eq/) X
+    <- plus-implies-gt N0+1+N=N nat`eq/ N>N
+    <- gt-anti-reflexive N>N F
+    <- inner-efxmap`false-implies-disjoint F X.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/< _ P1)
+    (efxmap`lookup/= nat`eq/) (efxmap`lookup/> _ P2) X
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- inner-efxmap`false-implies-disjoint F X.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/< D N0+1+N1=N2)
+    (efxmap`lookup/> L1P N0P+1+N1=N2)
+    (efxmap`lookup/= nat`eq/) F
+    <- plus-right-cancels N0P+1+N1=N2 N0+1+N1=N2 nat`eq/ nat`eq/ N0P+1=N0+1
+    <- succ-cancels N0P+1=N0+1 N0P=N0
+    <- efxmap`lookup-respects-eq L1P efxmap`eq/ N0P=N0 inner-efxmap`eq/ L1
+    <- efxmap`deep-disjoint-lookup-implies-disjoint D L1 (efxmap`lookup/= nat`eq/) F.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/< D N0+1+N1=N2)
+    (efxmap`lookup/> L1 N1P+1+N1=N)
+    (efxmap`lookup/> L2 N2P+1+N2=N) F
+    <- plus-swap-succ N0+1+N1=N2 N0+N1+1=N2
+    <- plus-associative-converse N0+N1+1=N2 N2P+1+N2=N NX
+                                 N2P+1+N0=NX NX+N1+1=N
+    <- plus-swap-succ N1P+1+N1=N N1P+N1+1=N
+    <- plus-right-cancels NX+N1+1=N N1P+N1+1=N nat`eq/ nat`eq/ NX=N1P
+    <- plus-respects-eq N2P+1+N0=NX nat`eq/ nat`eq/ NX=N1P N2P+1+N0=N1P
+    <- efxmap`deep-disjoint-lookup-implies-disjoint D L1 (efxmap`lookup/> L2 N2P+1+N0=N1P) F.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/> _ N3+1+N=N)
+    (efxmap`lookup/= nat`eq/) (efxmap`lookup/= nat`eq/) X
+    <- plus-implies-gt N3+1+N=N nat`eq/ N>N
+    <- gt-anti-reflexive N>N F
+    <- inner-efxmap`false-implies-disjoint F X.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/> _ N3+1+N2=N1)
+    (efxmap`lookup/> _ N3+1+N1=N2)
+    (efxmap`lookup/= nat`eq/) X
+    <- plus-implies-gt N3+1+N2=N1 nat`eq/ N1>N2
+    <- plus-implies-gt N3+1+N1=N2 nat`eq/ N2>N1
+    <- gt-anti-symmetric N1>N2 N2>N1 F
+    <- inner-efxmap`false-implies-disjoint F X.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/> D N3+1+N2=N1)
+    (efxmap`lookup/= nat`eq/)
+    (efxmap`lookup/> L2P N3P+1+N2=N1) F
+    <- plus-right-cancels N3P+1+N2=N1 N3+1+N2=N1 nat`eq/ nat`eq/ N3P+1=N3+1
+    <- succ-cancels N3P+1=N3+1 N3P=N3
+    <- efxmap`lookup-respects-eq L2P efxmap`eq/ N3P=N3 inner-efxmap`eq/ L2
+    <- efxmap`deep-disjoint-lookup-implies-disjoint D (efxmap`lookup/= nat`eq/) L2 F.
+
+- : efxmap`deep-disjoint-lookup-implies-disjoint
+    (efxmap`deep-disjoint/> D N3+1+N2=N1)
+    (efxmap`lookup/> L1 N1P+1+N1=N)
+    (efxmap`lookup/> L2 N2P+1+N2=N) F
+    <- plus-swap-succ N3+1+N2=N1 N3+N2+1=N1
+    <- plus-associative-converse N3+N2+1=N1 N1P+1+N1=N NX
+                                 N1P+1+N3=NX NX+N2+1=N
+    <- plus-swap-succ N2P+1+N2=N N2P+N2+1=N
+    <- plus-right-cancels NX+N2+1=N N2P+N2+1=N nat`eq/ nat`eq/ NX=N2P
+    <- plus-respects-eq N1P+1+N3=NX nat`eq/ nat`eq/ NX=N2P N1P+1+N3=N2P
+    <- efxmap`deep-disjoint-lookup-implies-disjoint D (efxmap`lookup/> L1 N1P+1+N3=N2P) L2 F.
+
+%worlds () (efxmap`deep-disjoint-lookup-implies-disjoint _ _ _ _).
+%total (D) (efxmap`deep-disjoint-lookup-implies-disjoint D _ _ _).
+
+
+
+%theorem efxmap`fresh-update-preserves-deep-disjoint :
+ forall* {M1} {M2} {N} {D} {M2P}
+ forall {I: efxmap`deep-disjoint M1 M2}
+  {F: efxmap`fresh M1 N}
+  {U: efxmap`update M2 N D M2P}
+ exists {DP: efxmap`deep-disjoint M1 M2P}
+ true.
+
+%theorem efxmap`fresh-update-preserves-deep-disjoint/L :
+    forall* {M1} {M2} {N} {D} {M2P} {B}
+    forall {I: efxmap`deep-disjoint M1 M2}
+           {F: efxmap`fresh M1 N}
+           {U: efxmap`update M2 N D M2P}
+           {D?: efxmap`deep-disjoint? M1 M2P B}
+    exists {DP: efxmap`deep-disjoint M1 M2P}
+    true.
+
+- : efxmap`fresh-update-preserves-deep-disjoint/L
+    _ _ _ (efxmap`deep-disjoint?/yes DJ) DJ.
+
+- : efxmap`fresh-update-preserves-deep-disjoint/L 
+    D FR U (efxmap`deep-disjoint?/no 
+	     L1 L2P (inner-efxmap`disjoint?/no LL1 LL2)) XXX
+    <- efxmap`fresh-lookup-not-equal FR L1 NE
+    <- nat`ne-symmetric NE NEs
+    <- efxmap`update-preserves-lookup-converse L2P U NEs L2
+    <- efxmap`deep-disjoint-lookup-implies-disjoint D L1 L2 IX
+    <- inner-efxmap`disjoint-lookup-contradiction IX LL1 LL2 F
+    <- efxmap`false-implies-deep-disjoint F XXX.
+
+%worlds () (efxmap`fresh-update-preserves-deep-disjoint/L _ _ _ _ _).
+%total { } (efxmap`fresh-update-preserves-deep-disjoint/L _ _ _ _ _).
+
+- : efxmap`fresh-update-preserves-deep-disjoint D F U DP
+    <- efxmap`deep-disjoint?-total D?
+    <- efxmap`fresh-update-preserves-deep-disjoint/L D F U D? DP.
+
+%worlds () (efxmap`fresh-update-preserves-deep-disjoint _ _ _ _).
+%total { } (efxmap`fresh-update-preserves-deep-disjoint _ _ _ _).
