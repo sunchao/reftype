@@ -1,41 +1,34 @@
 %%% remove operation on tgtmap.
 
 %%% all these definitions and theorems are
-%%% similar to set`remove.
+%%% similar to set`remove. 
+
+%%% HOWEVER, we need to define what is a 
+%%% "well-formed" tgtmap:
+%%% A well-formed tgtmap will not have set/0 as value.
+
+wf-tgtmap : tgtmap -> type.
+
+wf-tgtmap/0 : wf-tgtmap tgtmap/0.
+
+wf-tgtmap/+ 
+  : wf-tgtmap (tgtmap/+ _ (set/+ _ _) M)
+    <- wf-tgtmap M.
 
 
 tgtmap`remove : tgtmap -> tgtmap -> tgtmap -> type.
 
-% tgtmap`remove/0 : tgtmap`remove tgtmap/0 _ tgtmap/0.
-
-% tgtmap`remove/+/hit
-%   : tgtmap`remove (tgtmap/+ F S1 M1) M2 M3
-%     <- tgtmap`lookup M2 F S2
-%     <- set`remove S1 S2 S3
-%     <- tgtmap`shift F M1 M1P
-%     <- tgtmap`remove M1P M2 M3P
-%     <- tgtmap`update M3P F S3 M3.
-
-% tgtmap`remove/+/miss
-%   : tgtmap`remove (tgtmap/+ F S1 M1) M2 M3
-%     <- tgtmap`fresh M2 F
-%     <- tgtmap`shift F M1 M1P
-%     <- tgtmap`remove M1P M2 M3P
-%     <- tgtmap`update M3P F S1 M3.
-
-% M2 = (map/1 (set/+ D1 (set/+ D2 set/0)))
-% M1 = (map/1 (set/+ D3 set/0))
-% M3 = (map/1 (set/+ D3 set/0))
 tgtmap`remove/
-  : tgtmap`leq M3 M1 -> 
-	tgtmap`deep-disjoint M2 M3 ->
-	tgtmap`join M2 M3 M4 ->
-	tgtmap`leq M1 M4 ->
-	tgtmap`remove M1 M2 M3.
+  : wf-tgtmap M1 -> 
+    wf-tgtmap M2 ->
+    tgtmap`leq M3 M1 -> 
+    tgtmap`deep-disjoint M2 M3 ->
+    tgtmap`join M2 M3 M4 ->
+    tgtmap`leq M1 M4 ->
+    tgtmap`remove M1 M2 M3.
 		   
 
 %%%% theorems
-
 
 %theorem tgtmap`join-is-lub :
         forall* {M1} {M2} {M3} {M4}
@@ -187,6 +180,19 @@ tgtmap`remove/
 %total (F) (tgtmap`fresh-implies-unit-deep-disjoint F _).
 
 
+%theorem set`leq-implies-remove-all-converse :
+    forall* {A} {B}
+    forall  {R: set`remove A B set/0}
+    exists  {LE: set`leq A B}
+    true.
+
+- : set`leq-implies-remove-all-converse 
+    (set`remove/ set`leq/0 _ _ A<=B) A<=B.
+
+%worlds () (set`leq-implies-remove-all-converse _ _).
+%total  {} (set`leq-implies-remove-all-converse _ _).
+    
+
 
 %theorem tgtmap`can-remove :
     forall* {M} {S} {N} {D}
@@ -283,24 +289,60 @@ tgtmap`remove/
         exists  {C} {R:tgtmap`remove A B C}
         true.
 
-% here X is in B's domain but it may points to a different
-% set than M
-% X<-B 
-% - : tgtmap`remove-total/L2 FS AP+X=A
-%     (tgtmap`remove/ CP<=AP B^CP BUCP=DP AP<=DP) 
-%     (tgtmap`domain?/in X<-B) CP
-%     (tgtmap`remove/ CP<=A B^CP BUCP=DP A<=DP)
-%      <- tgtmap`fresh-update-implies-unit-join FS AP+X=A APUX=A
-%      <- tgtmap`join-implies-leq APUX=A AP<=A X<=A
-%      <- tgtmap`leq-transitive CP<=AP AP<=A CP<=A
-%      <- tgtmap`join-implies-leq BUCP=DP B<=DP CP<=DP
-%      <- tgtmap`lookup-respects-leq X<-B B<=DP _ XP<-DP S<=SP
-%      <- tgtmap`lookup-implies-unit-leq XP<-DP XP<=DP
-%      <- tgtmap`leq-transitive
-%        (tgtmap`leq/= tgtmap`leq/0 S<=SP nat`eq/) XP<=DP X<=DP .
+%theorem tgtmap`remove-total/L3 :
+    forall* {S} {S'} {B} {CP} {DP} {AP} {X} {A}
+    forall  {Q} {R: set`remove S' S Q}
+            {L: tgtmap`lookup B X S} {LE: tgtmap`leq CP AP}
+            {DX: tgtmap`deep-disjoint B CP}
+            {U: tgtmap`join B CP DP} {LE: tgtmap`leq AP DP}
+            {FS: tgtmap`fresh AP X} {UD: tgtmap`update AP X S' A}
+    exists  {CP'} {DP'} 
+            {LE: tgtmap`leq CP' AP} {DX: tgtmap`deep-disjoint B CP'}
+            {U: tgtmap`join B CP' DP'} {LE: tgtmap`leq A DP'}
+    true.
+
+- : tgtmap`remove-total/L3 set/0 S'/S=0
+    B<X>=S CP<=AP B^CP BUCP=DP AP<=DP X!<AP AP+S'=A %{=>}%
+    CP DP CP<=A B^CP BUCP=DP A<=DP
+    <- set`leq-implies-remove-all-converse S'/S=0 S'<=S
+    <- tgtmap`fresh-update-implies-unit-join X!<AP AP+S'=A APUS'=A
+    <- tgtmap`join-implies-leq APUS'=A AP<=A S'<=A
+    <- tgtmap`leq-transitive CP<=AP AP<=A CP<=A
+    <- tgtmap`join-implies-leq BUCP=DP B<=DP CP<=DP
+    <- tgtmap`lookup-respects-leq B<X>=S B<=DP S'' DP<X>=S'' S<=S''
+    <- set`leq-transitive S'<=S S<=S'' S'<=S''
+    <- tgtmap`update-total DP+S''=DP
+    <- tgtmap`update-may-have-no-effect DP<X>=S'' DP+S''=DP tgtmap`eq/
+    <- tgtmap`update-preserves-leq* AP<=DP S'<=S'' AP+S'=A DP+S''=DP A<=DP.
+
+%worlds () (tgtmap`remove-total/L3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total  {} (tgtmap`remove-total/L3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+    
+%%% This proof needs to be changed since:
+%%% X!<CP, X<-B => DP(X)=S
+%%% Also, A(X) = S'
+%%% but S' is not necessarily leq S (there's no restriction on S).
+%%% To prove, we cannot use CP as result. Instead, in case that
+%%% S' is NOT leq S, we need to show there exists a CP'
+%%% that is bigger than CP, and we can infer
+%%% CP'<=A, BUCP'=DP' and A<=DP'.
+
+- : tgtmap`remove-total/L2 X!<AP AP+X=A
+    (tgtmap`remove/ WF-AP WF-B CP<=AP B^CP BUCP=DP AP<=DP) 
+    (tgtmap`domain?/in X<-B) CP
+    (tgtmap`remove/ WF-A WF-B CP<=A B^CP BUCP=DP A<=DP)
+     <- tgtmap`fresh-update-implies-unit-join X!<AP AP+X=A APUX=A
+     <- tgtmap`join-implies-leq APUX=A AP<=A X<=A
+     <- tgtmap`leq-transitive CP<=AP AP<=A CP<=A
+     <- tgtmap`join-implies-leq BUCP=DP B<=DP CP<=DP
+     <- tgtmap`lookup-respects-leq X<-B B<=DP _ XP<-DP S<=SP
+     <- tgtmap`lookup-implies-unit-leq XP<-DP XP<=DP
+     <- tgtmap`fresh-respects-geq X!<AP CP<=AP X!<CP
+
+
 
 - : tgtmap`remove-total/L2 FS AP+X=A
-    (tgtmap`remove/ CP<=AP B^CP BUCP=DP AP<=DP) (tgtmap`domain?/out X</-B) C
+    (tgtmap`remove/ CP<=AP B^CP BUCP=DP AP<=DP) (domain?/out X</-B) C
     (tgtmap`remove/ C<=A B^C BUC=D A<=D)
     <- tgtmap`fresh-implies-unit-deep-disjoint X</-B B^X
     <- tgtmap`join-total* CP (tgtmap/+ X M tgtmap/0) C CPUX=C
@@ -317,17 +359,16 @@ tgtmap`remove/
     <- tgtmap`join-is-lub APUX=A AP<=D X<=D A<=D.
 
 %worlds () (tgtmap`remove-total/L2 _ _ _ _ _ _).
-%trustme %total { } (tgtmap`remove-total/L2 _ _ _ _ _ _).
+%total { } (tgtmap`remove-total/L2 _ _ _ _ _ _).
 
-- : tgtmap`remove-total/L1
-    _ tgtmap`size/0 _ 
-    (tgtmap`remove/ tgtmap`leq/0 tgtmap`deep-disjoint/R tgtmap`join/R tgtmap`leq/0).
+- : tgtmap`remove-total/L1 _ tgtmap`size/0 set/0
+    (tgtmap`remove/ leq/0 disjoint/R union/R leq/0).
 
 - : tgtmap`remove-total/L1 _ SZ C A-B=C
-    <- tgtmap`can-remove* SZ AP X _ SZP AP+X=A FS
+    <- tgtmap`can-remove* SZ AP X _ SZP AP+X=A X!<AP
     <- tgtmap`remove-total/L1 _ SZP CP AP-B=CP
-    <- tgtmap`domain?-total M?
-    <- tgtmap`remove-total/L2 FS AP+X=A AP-B=CP M? C A-B=C.
+    <- member?-total M?
+    <- tgtmap`remove-total/L2 X!<AP AP+X=A AP-B=CP M? C A-B=C.
 
 %worlds () (tgtmap`remove-total/L1 _ _ _ _).
 %total (N) (tgtmap`remove-total/L1 N _ _ _).
@@ -338,13 +379,6 @@ tgtmap`remove/
 
 %worlds () (tgtmap`remove-total* _ _ _ _).
 %total { } (tgtmap`remove-total* _ _ _ _).
-
-
-
-% remove is NOT deterministic: for instance
-% remove (tgtmap/1 N (set/1 K)) (tgtmap/1 N (set/1 K)) could be
-% either (tgtmap/1 N set/0) OR tgtmap/0
-
 
 
 %theorem tgtmap`remove-implies-deep-disjoint :
@@ -491,6 +525,42 @@ tgtmap`remove/
 
 %worlds () (tgtmap`remove-associates-join _ _ _ _ _).
 %total { } (tgtmap`remove-associates-join _ _ _ _ _).
+
+
+%theorem tgtmap`remove-associates-join-converse* :
+        forall* {A} {B} {C} {D} {E} {F}
+        forall  {U: tgtmap`join B D F}
+                {R3: tgtmap`remove A F E}
+                {R1: tgtmap`remove A B C}
+        exists  {R2: tgtmap`remove C D E}
+        true.
+
+- : tgtmap`remove-associates-join-converse* BUD=F A-F=E A-B=C C-D=E
+    <- tgtmap`remove-total C-D=EP
+    <- tgtmap`remove-associates-join* A-B=C C-D=EP BUD=F A-F=EP
+    <- tgtmap`remove-unique A-F=EP A-F=E tgtmap`eq/ tgtmap`eq/ EP=E
+    <- tgtmap`remove-respects-eq C-D=EP tgtmap`eq/ tgtmap`eq/ EP=E C-D=E.
+
+%worlds () (tgtmap`remove-associates-join-converse* _ _ _ _).
+%total { } (tgtmap`remove-associates-join-converse* _ _ _ _).
+
+
+%theorem tgtmap`remove-associates-join-converse :
+        forall* {A} {B} {D} {E} {F}
+        forall {U: join B D F}
+                {R3: tgtmap`remove A F E}
+        exists {C}
+                {R1: tgtmap`remove A B C}
+                {R2: tgtmap`remove C D E}
+        true.
+
+- : tgtmap`remove-associates-join-converse BUD=F A-F=E C A-B=C C-D=E
+    <- tgtmap`remove-total A-B=C
+    <- tgtmap`remove-associates-join-converse* BUD=F A-F=E A-B=C C-D=E.
+
+%worlds () (tgtmap`remove-associates-join-converse _ _ _ _ _).
+%total { } (tgtmap`remove-associates-join-converse _ _ _ _ _).
+
 
 
 % %theorem todo :
