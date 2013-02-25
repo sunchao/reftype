@@ -444,6 +444,210 @@ filter-non-consume/0 : filter-non-consume efxmap/0 efxmap/0.
 
 filter-non-consume/inner : inner-efxmap -> inner-efxmap -> type.
 
+filter-non-consume/inner/0 : filter-non-consume/inner inner-efxmap/0 inner-efxmap/0.
+ 
+filter-non-consume/inner/consume
+  : filter-non-consume/inner (inner-efxmap/+ F efx/consume M) MP
+    <- inner-efxmap`shift F M MS
+    <- filter-non-consume/inner MS MP.
+
+filter-non-consume/inner/write
+  : filter-non-consume/inner (inner-efxmap/+ F efx/write M) MP
+    <- inner-efxmap`shift F M MS
+    <- filter-non-consume/inner MS MM
+    <- inner-efxmap`update MM F efx/write MP.
+
+filter-non-consume/inner/read
+  : filter-non-consume/inner (inner-efxmap/+ F efx/read M) MP
+    <- inner-efxmap`shift F M MS
+    <- filter-non-consume/inner MS MM
+    <- inner-efxmap`update MM F efx/read MP.
+
+
+filter-non-consume/+
+  : filter-non-consume (efxmap/+ L M XM) XMO
+    <- efxmap`shift L XM XM'
+    <- filter-non-consume/inner M M'
+    <- filter-non-consume XM' XMO'
+    <- efxmap`update XMO' L M' XMO.
+
+
+
+%theorem filter-non-consume-implies-leq :
+    forall* {M1} {M2} {M3} {M4} {M5}
+    forall  {U: efxmap`join M1 M2 M3}
+            {F: filter-non-consume M2 M4}
+            {F: filter-non-consume M3 M5}
+    exists  {LE: efxmap`leq M4 M5}
+    true.
+    
+
+%theorem filter-non-consume-implies-leq/inner/L :
+    forall* {M1} {M2} {M3} {MO2} {MO3}
+    forall  {N1} {SZ1: inner-efxmap`size M1 N1}
+            {N2} {SZ2: inner-efxmap`size M2 N2}
+            {U: inner-efxmap`join M1 M2 M3}
+            {F: filter-non-consume/inner M2 MO2}
+            {F: filter-non-consume/inner M3 MO3}
+    exists  {D: inner-efxmap`leq MO2 MO3}
+    true.
+
+- : filter-non-consume-implies-leq/inner/L 
+    _ _ _ _ inner-efxmap`join/L _ _ inner-efxmap`leq/0.
+                                             
+- : filter-non-consume-implies-leq/inner/L
+    _ _ _ _ inner-efxmap`join/R _ _ inner-
+
+
+
+% the join/= consume case is not possible
+     
+- : only-consume-once/inner/L
+    _ _ _ _ inner-efxmap`join/L filter-consume/inner/0 _ set`disjoint/L.
+    
+- : only-consume-once/inner/L _ _ _ _ inner-efxmap`join/R _ _ set`disjoint/R.
+
+- : only-consume-once/inner/L
+    _ SZ-M1 _ (inner-efxmap`size/+ SZ-M2)
+    (inner-efxmap`join/> J P) FC
+    (inner-efxmap`domain/+ DM-M2) DDD
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- inner-efxmap`shift-total SH-M2
+    <- inner-efxmap`domain-total DM-M1
+    <- inner-efxmap`shift-preserves-size SZ-M2 SH-M2 SZ-M2S
+    <- inner-efxmap`shift-preserves-join 
+      J (inner-efxmap`shift/+ P2) SH-M2 _ SH-M JS
+    <- inner-efxmap`shift-preserves-domain DM-M2 SH-M2 _ SH-S2 DM-M2S
+    <- filter-consume/inner-implies-size-leq FC DM-M1 LEQ
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- inner-efxmap`domain-preserves-fresh 
+      (inner-efxmap`fresh/< GT) DM-M1 FS2
+    <- set`not-member-respects-geq FS2 LEQ FS3
+    <- only-consume-once/inner/L _ SZ-M1 _ SZ-M2S JS FC DM-M2S S1S-D-S2S
+    <- set`shift-implies-update SH-S2 UD-S2
+    <- set`not-member-add-preserves-disjoint S1S-D-S2S FS3 UD-S2 DDD.
+
+- : only-consume-once/inner/L
+    _ (inner-efxmap`size/+ SZ-M1) _ SZ-M2
+    (inner-efxmap`join/< M1-U-NM2=M P)
+    (filter-consume/inner/consume S1S+F=S1 FC-M1S=S1S SH-M1=M1S)
+    (inner-efxmap`domain/+ DM-M2) S1-D-S2S
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- inner-efxmap`shift-preserves-join
+      M1-U-NM2=M SH-M1=M1S (inner-efxmap`shift/+ P2) _ SH-M=MS M1S-U-NM2S=MS 
+    <- inner-efxmap`shift-preserves-size SZ-M1 SH-M1=M1S SZ-M1S
+    <- only-consume-once/inner/L _ SZ-M1S _ SZ-M2
+      M1S-U-NM2S=MS FC-M1S=S1S (inner-efxmap`domain/+ DM-M2) S1S-D-S2S
+    <- set`disjoint-symmetric S1S-D-S2S S2S-D-S1S
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- set`not-member-add-preserves-disjoint
+      S2S-D-S1S (set`not-member/< GT) S1S+F=S1 S2S-D-S1
+    <- set`disjoint-symmetric S2S-D-S1 S1-D-S2S.
+      
+- : only-consume-once/inner/L
+    _ (inner-efxmap`size/+ SZ-M1) _ SZ-M2
+    (inner-efxmap`join/< M1-U-NM2=M P)
+    (filter-consume/inner/write FC-M1S=S1S SH-M1=M1S)
+    (inner-efxmap`domain/+ DM-M2) S1-D-S2
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- inner-efxmap`shift-preserves-join
+      M1-U-NM2=M SH-M1=M1S (inner-efxmap`shift/+ P2) _ SH-M=MS M1S-U-NM2S=MS 
+    <- inner-efxmap`shift-preserves-size SZ-M1 SH-M1=M1S SZ-M1S
+    <- only-consume-once/inner/L _ SZ-M1S _ SZ-M2
+      M1S-U-NM2S=MS FC-M1S=S1S (inner-efxmap`domain/+ DM-M2) S1-D-S2.
+
+- : only-consume-once/inner/L 
+    _ (inner-efxmap`size/+ SZ-M1) _ SZ-M2
+    (inner-efxmap`join/< M1-U-NM2=M P)
+    (filter-consume/inner/read FC-M1S=S1S SH-M1=M1S)
+    (inner-efxmap`domain/+ DM-M2) S1-D-S2
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- inner-efxmap`shift-preserves-join
+      M1-U-NM2=M SH-M1=M1S (inner-efxmap`shift/+ P2) _ SH-M=MS M1S-U-NM2S=MS 
+    <- inner-efxmap`shift-preserves-size SZ-M1 SH-M1=M1S SZ-M1S
+    <- only-consume-once/inner/L _ SZ-M1S _ SZ-M2
+      M1S-U-NM2S=MS FC-M1S=S1S (inner-efxmap`domain/+ DM-M2) S1-D-S2.
+
+- : only-consume-once/inner/L 
+    _ (inner-efxmap`size/+ SZ-M1) _ (inner-efxmap`size/+ SZ-M2)
+    (inner-efxmap`join/= M1-U-M2 _ nat`eq/)
+    (filter-consume/inner/write F-M1S=S1 SH-M1=M1S)
+    (inner-efxmap`domain/+ DM-M2) DDD
+    <- inner-efxmap`shift-total SH-M2=M2S
+    <- inner-efxmap`shift-preserves-join
+      M1-U-M2 SH-M1=M1S SH-M2=M2S _ SH-M3=M3S M1S-U-M2S=M3S
+    <- inner-efxmap`shift-preserves-domain 
+      DM-M2 SH-M2=M2S _ SH-S2=S2S DM-M2S=S2S
+    <- inner-efxmap`shift-preserves-size SZ-M1 SH-M1=M1S SZ-M1S
+    <- inner-efxmap`shift-preserves-size SZ-M2 SH-M2=M2S SZ-M2S
+    <- only-consume-once/inner/L _ SZ-M1S _ SZ-M2S
+      M1S-U-M2S=M3S F-M1S=S1 DM-M2S=S2S S1S-D-S2S
+    <- inner-efxmap`domain-total DM-M1S
+    <- filter-consume/inner-implies-size-leq F-M1S=S1 DM-M1S LEQ
+    <- inner-efxmap`shift-implies-fresh SH-M1=M1S FS-M1S
+    <- inner-efxmap`domain-preserves-fresh FS-M1S DM-M1S FS2
+    <- set`not-member-respects-geq FS2 LEQ FS3
+    <- set`shift-implies-update SH-S2=S2S UD-S2
+    <- set`not-member-add-preserves-disjoint S1S-D-S2S FS3 UD-S2 DDD.
+
+- : only-consume-once/inner/L 
+    _ (inner-efxmap`size/+ SZ-M1) _ (inner-efxmap`size/+ SZ-M2)
+    (inner-efxmap`join/= M1-U-M2 _ nat`eq/)
+    (filter-consume/inner/read F-M1S=S1 SH-M1=M1S)
+    (inner-efxmap`domain/+ DM-M2) DDD
+    <- inner-efxmap`shift-total SH-M2=M2S
+    <- inner-efxmap`shift-preserves-join
+      M1-U-M2 SH-M1=M1S SH-M2=M2S _ SH-M3=M3S M1S-U-M2S=M3S
+    <- inner-efxmap`shift-preserves-domain 
+      DM-M2 SH-M2=M2S _ SH-S2=S2S DM-M2S=S2S
+    <- inner-efxmap`shift-preserves-size SZ-M1 SH-M1=M1S SZ-M1S
+    <- inner-efxmap`shift-preserves-size SZ-M2 SH-M2=M2S SZ-M2S
+    <- only-consume-once/inner/L _ SZ-M1S _ SZ-M2S
+      M1S-U-M2S=M3S F-M1S=S1 DM-M2S=S2S S1S-D-S2S
+    <- inner-efxmap`domain-total DM-M1S
+    <- filter-consume/inner-implies-size-leq F-M1S=S1 DM-M1S LEQ
+    <- inner-efxmap`shift-implies-fresh SH-M1=M1S FS-M1S
+    <- inner-efxmap`domain-preserves-fresh FS-M1S DM-M1S FS2
+    <- set`not-member-respects-geq FS2 LEQ FS3
+    <- set`shift-implies-update SH-S2=S2S UD-S2
+    <- set`not-member-add-preserves-disjoint S1S-D-S2S FS3 UD-S2 DDD.
+
+%worlds () (only-consume-once/inner/L _ _ _ _ _ _ _ _).
+%total {N1 N2} (only-consume-once/inner/L N1 _ N2 _ _ _ _ _).
+
+
+%theorem only-consume-once/inner :
+    forall* {M} {S1} {S2} {M1} {M2}
+    forall  {U: inner-efxmap`join M1 M2 M}
+            {F: filter-consume/inner M1 S1}
+            {D: inner-efxmap`domain M2 S2}
+    exists  {X: set`disjoint S1 S2}
+    true.
+
+- : only-consume-once/inner U F D X
+    <- inner-efxmap`size-total SZ-M1
+    <- inner-efxmap`size-total SZ-M2
+    <- only-consume-once/inner/L _ SZ-M1 _ SZ-M2 U F D X.
+
+%worlds () (only-consume-once/inner _ _ _ _).
+%total  {} (only-consume-once/inner _ _ _ _).
+
+
+
+
+filter-non-consume : efxmap -> efxmap -> type.
+
+filter-non-consume/0 : filter-non-consume efxmap/0 efxmap/0.
+
+
+filter-non-consume/inner : inner-efxmap -> inner-efxmap -> type.
+
+>>>>>>> 67750d0d05b25de610d60b073a0757972dec4e29
+>>>>>>> fb0b9bf22ba43c75f0c3c0f077a01df7718f3728
 filter-non-consume/inner/0
   : filter-non-consume/inner inner-efxmap/0 inner-efxmap/0.
  
@@ -755,9 +959,6 @@ filter-non-consume/inner-implies-leq23/LL* _.
     <- inner-efxmap`update-preserves-leq*
       LEP (efx`leq/eq efx`eq/) UD UD3 LEP2.
     
-
-
-
 % do case analysis on efx`join
 
 - : filter-non-consume/inner-implies-leq23/L 
