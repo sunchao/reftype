@@ -6,7 +6,10 @@ GEN = clsmap.elf methmap.elf fldmap.elf predmap.elf tgtmap.elf \
 	inner-efxmap.elf efxmap.elf
 HELP = clsmap-base.elf methmap-base.elf fldmap-base.elf predmap-base.elf \
 	tgtmap-base.elf inner-efxmap-base.elf efxmap-base.elf
-HAND = tgt.elf tgt2nat.elf typing.elf efx.elf
+HAND = tgtmap-efxmap.elf reftype.elf cxt.elf consistency.elf \
+	subst.elf typing.elf consistency.thm clsmap2predmap.elf \
+	clsmap2predmap.thm conversion.elf consume.thm conversion.thm
+
 CSRC = clsmap.cpp methmap.cpp fldmap.cpp predmap.cpp tgtmap.cpp \
 	inner-efxmap.cpp efxmap.cpp
 

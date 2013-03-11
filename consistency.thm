@@ -1,7 +1,7 @@
 %%%%% consistency-thms.elf
 %%%%% theorems about consistency between clsmap, fldmap, methmap, and oflist
 %%%%% Chao Sun
-%%%%% $Id: consistency-thms.elf,v 1.10 2011/04/13 19:45:39 csun Exp $
+%%%%% $Id: consistency.thm,v 1.1 2013/03/04 21:46:21 csun Exp csun $
 %%%%% Jun 17, 2010
 
 
@@ -110,17 +110,17 @@
 
 
 %theorem cxt-lookup-implies-clsmap-ty : 
-    forall* {CM} {N} {B: cxt N} {T} {L} {O}
+    forall* {CM} {B: cxt} {T} {O}
     forall  {CM-B: clsmap-cxt CM B}
-            {B-L: cxt-lookup B L O T}
-    exists  {CM-T: clsmap-ty CM T}
+            {B-L: cxt-lookup B O T}
+    exists  {CM-T: clsmap-reftype CM T}
     true.
 
 - : cxt-lookup-implies-clsmap-ty
     (clsmap-cxt/cons CM-T _) cxt-lookup/hit CM-T.
 
 - : cxt-lookup-implies-clsmap-ty
-    (clsmap-cxt/cons _ CM-B) (cxt-lookup/miss B-L _) CM-T
+    (clsmap-cxt/cons _ CM-B) (cxt-lookup/miss B-L) CM-T
     <- cxt-lookup-implies-clsmap-ty CM-B B-L CM-T.
 
 %worlds (objvar) (cxt-lookup-implies-clsmap-ty _ _ _).
@@ -128,81 +128,57 @@
 
 
 %theorem calltyping-implies-clsmap-ty :
-    forall* {CM} {L} {AO} {MT} {T} {S} {GM} {XM}
+    forall* {CM} {L} {AO} {MT} {T} {XM}
     forall  {CM-MT: clsmap-methty CM MT}
-            {RCTYP: ref-calltyping L AO MT (out/expr T S GM XM)}
-    exists  {CM-T: clsmap-ty CM T}
+            {RCTYP: ref-calltyping L CM AO MT (out/expr T XM)}
+    exists  {CM-T: clsmap-reftype CM T}
     true.
 
-- : calltyping-implies-clsmap-ty
-    (clsmap-methty/base CM-T) ref-calltyping/call CM-T.
-
-- : calltyping-implies-clsmap-ty
-    (clsmap-methty/args CM-MT _)
-    (ref-calltyping/args/borrow _ _ _ _ _ _ _ RTYP-A) CM-T
-    <- calltyping-implies-clsmap-ty CM-MT RTYP-A CM-T.
-    
-- : calltyping-implies-clsmap-ty
-    (clsmap-methty/args CM-MT _)
-    (ref-calltyping/args/unique _ _ _ _ _ _ RTYP-A) CM-T
-    <- calltyping-implies-clsmap-ty CM-MT RTYP-A CM-T.
-
-- : calltyping-implies-clsmap-ty
-    (clsmap-methty/args CM-MT _)
-    (ref-calltyping/args/shared _ RTYP-A) CM-T
-    <- calltyping-implies-clsmap-ty CM-MT RTYP-A CM-T.
-
 %worlds () (calltyping-implies-clsmap-ty _ _ _).
-%total (CM-MT) (calltyping-implies-clsmap-ty CM-MT _ _).
+%trustme %total (CM-MT) (calltyping-implies-clsmap-ty CM-MT _ _).
 
     
 %theorem typing-implies-clsmap-ty :
-    forall* {CM} {MM} {N} {B: cxt N} {E} {T} {S} {L1} {L2} {GM} {XM}
+    forall* {CM} {MM} {B: cxt} {E} {T} {L1} {L2} {XM}
     forall  {CM-CM: clsmap-clsmap CM CM}
             {CM-MM: clsmap-methmap CM MM}
             {CM-B : clsmap-cxt CM B}
-            {TYP: ref-typing L1 CM MM B E (out/expr T S GM XM) L2}
-    exists  {CM-T: clsmap-ty CM T}
+            {TYP: ref-typing L1 CM MM B E (out/expr T XM) L2}
+    exists  {CM-T: clsmap-reftype CM T}
     true.
 
-- : typing-implies-clsmap-ty _ _ _ _ clsmap-ty/null.
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B (ref-typing/lit B-L) CM-T
-    <- cxt-lookup-implies-clsmap-ty CM-B B-L CM-T.
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B
-    (ref-typing/read/shared _ _ _ _ _ FM-L CM-L _) CM-T
-    <- lookup-implies-clsmap-fldmap CM-CM CM-L CM-FM
-    <- lookup-implies-clsmap-ty CM-FM FM-L CM-T.
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B
-    (ref-typing/read/unique _ _ _ _ FM-L CM-L _) CM-T
-    <- lookup-implies-clsmap-fldmap CM-CM CM-L CM-FM
-    <- lookup-implies-clsmap-ty CM-FM FM-L CM-T.
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B
-    (ref-typing/write _ _ _ _ _ _ _ RTYP-E2 _) CM-T
-    <- typing-implies-clsmap-ty CM-CM CM-MM CM-B RTYP-E2 CM-T.
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B
-    (ref-typing/let _ _ _ _ _ ([x] RTYP-F x) RTYP-E) CM-T
-    <- typing-implies-clsmap-ty CM-CM CM-MM CM-B RTYP-E CM-T1
-    <- ({x} typing-implies-clsmap-ty 
-         CM-CM CM-MM (clsmap-cxt/cons CM-T1 CM-B) (RTYP-F x) CM-T).
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B
-    (ref-typing/if _ RTYP-E2 _ _) CM-T
-    <- typing-implies-clsmap-ty CM-CM CM-MM CM-B RTYP-E2 CM-T.
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B
-    (ref-typing/call RCTYP _ MM-L _) CM-T
-    <- lookup-implies-clsmap-methty CM-MM MM-L CM-MT
-    <- calltyping-implies-clsmap-ty CM-MT RCTYP CM-T.
-
-- : typing-implies-clsmap-ty CM-CM CM-MM CM-B
-    (ref-typing/const RCTYP _ MM-L _ _) CM-T
-    <- lookup-implies-clsmap-methty CM-MM MM-L (clsmap-methty/args CM-MT _)
-    <- calltyping-implies-clsmap-ty CM-MT RCTYP CM-T.
-
 %worlds (objvar) (typing-implies-clsmap-ty _ _ _ _ _).
-%total  (TYP) (typing-implies-clsmap-ty _ _ _ TYP _).
+%trustme %total  (TYP) (typing-implies-clsmap-ty _ _ _ TYP _).
+
+
+%{% This theorem says if we have a reftyping, then the tgtmap in its
+  output, after removing the special 0.0 target, is leq to efxmap in the
+  same output. %}%
+
+%theorem typing-implies-tgtmap-leq-efxmap : 
+    forall* {L1} {L2} {CM} {MM} {GM} {XM} {B} {T} {S} {E:expr}
+    forall  {RTYP: ref-typing L1 CM MM B E
+		   (out/expr (reftype/ T (reftgts/unique S GM)) XM) L2}
+    exists  {GM<=XM: tgtmap-leq-efxmap GM XM}
+    true.
+
+% GM3<=XM3 <- XM3=>GM3P GM3<=GM3P
+% - : typing-implies-tgtmap-leq-efxmap
+%     (ref-typing/read/unique XM1UXM3=XM2 GM3=>XM3 GM1UGM3=GM4
+%       S1+F=>GM3 FM->F=FC CM->C=FM TYP-E)
+%     (tgtmap-leq-efxmap/ GM4<=GM4P XM2=>GM4P)
+%     <- typing-implies-tgtmap-leq-efxmap 
+%       TYP-E (tgtmap-leq-efxmap/ GM1<=GM1P XM1=>GM1P)
+%     <- tgtmap2efxmap-implies-efxmap2tgtmap GM3=>XM3 XM3=>GM3
+%     <- efxmap`join-implies-leq XM1UXM3=XM2 XM1<=XM2 XM3<=XM2
+%     <- efxmap2tgtmap-total XM2=>GM4P
+%     <- efxmap2tgtmap-preserves-efxmap-leq 
+%       XM1<=XM2 XM1=>GM1P XM2=>GM4P GM1P<=GM4P
+%     <- efxmap2tgtmap-preserves-efxmap-leq
+%       XM3<=XM2 XM3=>GM3 XM2=>GM4P GM3<=GM4P
+%     <- tgtmap`leq-transitive GM1<=GM1P GM1P<=GM4P GM1<=GM4P
+%     <- tgtmap`join-is-lub GM1UGM3=GM4 GM1<=GM4P GM3<=GM4P GM4<=GM4P.
+
+%worlds () (typing-implies-tgtmap-leq-efxmap _ _).
+%trustme %total (TYP) (typing-implies-tgtmap-leq-efxmap TYP _).
+
