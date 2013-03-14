@@ -60,7 +60,6 @@
 
 
 
-
 %theorem fldperm-can-lookup/L :
         forall* {CM} {PM} {FM} {F} {NN} {A} {G} {C}
         forall  {FM2G: fldmap2conj CM PM FM ([r] G r) PM}
@@ -130,6 +129,18 @@
 %total  (FM2G) (fldperm-can-lookup/L FM2G _ _ _ _ _ _ _ _).
 
 
+%theorem permission-eq-implies-equiv :
+    forall* {Pi1} {Pi2}
+    forall  {EQ: permission`eq Pi1 Pi2}
+    exists  {EQV: equiv Pi1 Pi2}
+    true.
+
+- : permission-eq-implies-equiv permission`eq/ equiv/reflexive.
+
+%worlds (objvar) (permission-eq-implies-equiv _ _).
+%total  {} (permission-eq-implies-equiv _ _).
+
+
 %%% This theorem says if we have a class predicate and we 
 %%% know that this class has a field F, then we can pull out
 %%% the nesting fact about F from the predicate.
@@ -158,14 +169,16 @@
     ([o] implies/trans3
       (implies/equiv (EQV o))
       (implies/nonlinear
-        (bimplies/trans
-          (bimplies/predcall/Y/inline)
-          (bimplies/trans
+	(bimplies/trans
+	  (bimplies/predcall/Y/inline)
+	  (bimplies/trans
             (bimplies/predcall/+/inline o)
             (bimplies/predcall/0/inline))))
       (IMP o))
     <- clsmap2predmap-implies-clsmap-predmap CM2PM CM-PM
-    <- clsmap-predmap-implies-lookup-format CM-PM PM-L _ PM-LP ([o] EQV o)
+    <- clsmap-predmap-implies-lookup-format CM-PM PM-L _ PM-LP
+      ([o] (PEQ o))
+    <- ({o} permission-eq-implies-equiv (PEQ o) (EQV o))
     <- clsmap2predmap-implies-fldmap2conj CM2PM PM-LP CM-L FM2G
     <- fldperm-can-lookup/L FM2G FM-L AF PF CP A2AF FNN2PF PM->FC IMP.
 
@@ -243,7 +256,7 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
 
 %%% Lemmas for proving tRead
 
-%theorem ref-typing-ok/read :
+%theorem ref-typing-ok/read/shared :
     forall* {CM} {FM} {B} {F} {Pi} {G} {Out1}
             {XM} {E: expr} {PM} {W} {A} {C}
     forall  {T} {WF-T: wf-ty T} 
@@ -260,7 +273,7 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
     true.
 
 % (shared.shared).unique
-- : ref-typing-ok/read (ty/ _ annot/unique _) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared (ty/ _ annot/unique _) _ CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/s_ XM2Pi PM->C nn2perm/yes) TYP %{=>}%
     _ (reftype+efxmap2output/us XM2Pi PM->FC=CP NN2PF) 
     (tTrans2
@@ -303,7 +316,7 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
                       (transform/implies
                         (implies/equiv
                           (equiv/transitive
-                            (equiv/combine equiv/distribute
+                            (Equiv/combine equiv/distribute
                               equiv/reflexive)
                             (equiv/symmetric equiv/associate)))))))
                 (letTyping/exists
@@ -351,7 +364,7 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
       _ _ _ _ NN2PF PM->FC=CP IMP.
 
 % (shared.unique).unique
-- : ref-typing-ok/read (ty/ FAA annot/unique FC) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared (ty/ FAA annot/unique FC) _ CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/us XM2Pi' PM->C nn2perm/yes) TYP
     _ (reftype+efxmap2output/us XM2Pi' PM->FC=CP NN2PF-3) 
         (tTrans2 
@@ -460,7 +473,7 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
       _ _ _ A2AF NN2PF-3 PM->FC=CP IMP.
     
 % (shared.unique).shared
-- : ref-typing-ok/read (ty/ FAA annot/shared FC) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared (ty/ FAA annot/shared FC) _ CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/us XM2Pi' PM->C nn2perm/yes) TYP
     _ (reftype+efxmap2output/s_ XM2Pi' PM->FC=CP NN2PF-3) 
     (tTrans2 
@@ -556,7 +569,7 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
       IMP2.
 
 % (shared.shared).shared
-- : ref-typing-ok/read (ty/ FAA annot/shared FC) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared (ty/ FAA annot/shared FC) _ CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/s_ XM2Pi' PM->C nn2perm/yes) TYP
     _ (reftype+efxmap2output/s_ XM2Pi' PM->FC=CP NN2PF-3) 
     (tTrans2
@@ -633,8 +646,29 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
     <- sharedperm-can-be-duplicated annot2perm/shared NN2PF-3 PM->FC=CP
       IMP2.
 
-%worlds () (ref-typing-ok/read _ _ _ _ _ _ _ _ _ _).
-%total  {} (ref-typing-ok/read _ _ _ _ _ _ _ _ _ _).
+%worlds () (ref-typing-ok/read/shared _ _ _ _ _ _ _ _ _ _).
+%total  {} (ref-typing-ok/read/shared _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem ref-typing-ok/read/unique :
+    forall* {CM} {FM} {B} {F} {Pi} {G} {Out1}
+            {XM} {E: expr} {PM} {W} {A} {C} {S} {GM}
+    forall  {T} {WF-T: wf-ty T} 
+            {CM2PM: clsmap2predmap CM PM}
+            {CM-L: clsmap`lookup CM C FM} 
+            {FM-L: fldmap`lookup FM F T}
+            {ET+XM2Out1: reftype+efxmap2output 
+                CM PM B (reftype/ (ty/ nn/yes A C) (reftgts/unique S GM)) XM Out1}
+            {TYP: typing W (G , ((allperm null) , Pi)) E Out1}
+            {DM-GM: tgtmap`domain GM GS} {S^GS: set`disjoint S GS}
+            {S+F=GMP: set+nat2tgtmap S F GMP} 
+            {GM+GMP=GMS: tgtmap`join GM GMP GMS}
+            {GMS=>XMS: tgtmap2efxmap GMS XMS}
+    exists  {Out} 
+            {RT+XM: reftype+efxmap2output 
+                    CM PM B (reftype/ T reftgts/shared) XM Out}
+            {PTYP: typing W (G , ((allperm null) , Pi)) (read E F) Out}
+    true.
 
 
 %theorem ref-typing-ok : 
