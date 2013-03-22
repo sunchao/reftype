@@ -1,7 +1,7 @@
 %%%%% consistency-thms.elf
 %%%%% theorems about consistency between clsmap, fldmap, methmap, and oflist
 %%%%% Chao Sun
-%%%%% $Id: consistency.thm,v 1.1 2013/03/04 21:46:21 csun Exp csun $
+%%%%% $Id: consistency.thm,v 1.2 2013/03/22 23:08:53 csun Exp $
 %%%%% Jun 17, 2010
 
 
@@ -110,10 +110,10 @@
 
 
 %theorem cxt-lookup-implies-clsmap-ty : 
-    forall* {CM} {B: cxt} {T} {O}
+    forall* {CM} {B: cxt} {T} {O} {VT}
     forall  {CM-B: clsmap-cxt CM B}
-            {B-L: cxt-lookup B O T}
-    exists  {CM-T: clsmap-reftype CM T}
+            {B-L: cxt-lookup B O VT T}
+    exists  {CM-T: clsmap-ty CM T}
     true.
 
 - : cxt-lookup-implies-clsmap-ty
@@ -155,30 +155,151 @@
   output, after removing the special 0.0 target, is leq to efxmap in the
   same output. %}%
 
-%theorem typing-implies-tgtmap-leq-efxmap : 
-    forall* {L1} {L2} {CM} {MM} {GM} {XM} {B} {T} {S} {E:expr}
-    forall  {RTYP: ref-typing L1 CM MM B E
-		   (out/expr (reftype/ T (reftgts/unique S GM)) XM) L2}
-    exists  {GM<=XM: tgtmap-leq-efxmap GM XM}
+good-out : out K -> type.
+
+good-out/expr/null : good-out (out/expr reftype/null _).
+
+good-out/expr/shared : good-out (out/expr (reftype/ _ reftgts/shared) _).
+
+good-out/expr/unique
+  : good-out (out/expr (reftype/ _ (reftgts/unique _ GM)) XM)
+    <- tgtmap-leq-efxmap GM XM.
+
+good-out/cond : good-out (out/cond _).
+
+good-out/args/0 : good-out out/args/0.
+
+good-out/args/+
+  : good-out (out/args/+ EO AO)
+    <- good-out EO
+    <- good-out AO.
+
+
+%theorem bigger-efxmap-preserves-good-out/expr :
+    forall* {RT} {XM1} {XM2}
+    forall  {GO: good-out (out/expr RT XM1)}
+            {XM1<=XM2: efxmap`leq XM1 XM2}
+    exists  {GO: good-out (out/expr RT XM2)}
     true.
 
-% GM3<=XM3 <- XM3=>GM3P GM3<=GM3P
-% - : typing-implies-tgtmap-leq-efxmap
-%     (ref-typing/read/unique XM1UXM3=XM2 GM3=>XM3 GM1UGM3=GM4
-%       S1+F=>GM3 FM->F=FC CM->C=FM TYP-E)
-%     (tgtmap-leq-efxmap/ GM4<=GM4P XM2=>GM4P)
-%     <- typing-implies-tgtmap-leq-efxmap 
-%       TYP-E (tgtmap-leq-efxmap/ GM1<=GM1P XM1=>GM1P)
-%     <- tgtmap2efxmap-implies-efxmap2tgtmap GM3=>XM3 XM3=>GM3
-%     <- efxmap`join-implies-leq XM1UXM3=XM2 XM1<=XM2 XM3<=XM2
-%     <- efxmap2tgtmap-total XM2=>GM4P
-%     <- efxmap2tgtmap-preserves-efxmap-leq 
-%       XM1<=XM2 XM1=>GM1P XM2=>GM4P GM1P<=GM4P
-%     <- efxmap2tgtmap-preserves-efxmap-leq
-%       XM3<=XM2 XM3=>GM3 XM2=>GM4P GM3<=GM4P
-%     <- tgtmap`leq-transitive GM1<=GM1P GM1P<=GM4P GM1<=GM4P
-%     <- tgtmap`join-is-lub GM1UGM3=GM4 GM1<=GM4P GM3<=GM4P GM4<=GM4P.
+- : bigger-efxmap-preserves-good-out/expr 
+    good-out/expr/shared _ good-out/expr/shared.
 
-%worlds () (typing-implies-tgtmap-leq-efxmap _ _).
-%trustme %total (TYP) (typing-implies-tgtmap-leq-efxmap TYP _).
+- : bigger-efxmap-preserves-good-out/expr
+    (good-out/expr/unique GM<=XM1) XM1<=XM2 (good-out/expr/unique GM<=XM2)
+    <- tgtmap-leq-efxmap-right-transitive GM<=XM1 XM1<=XM2 GM<=XM2.
 
+- : bigger-efxmap-preserves-good-out/expr 
+    good-out/expr/null _ good-out/expr/null.
+
+%worlds () (bigger-efxmap-preserves-good-out/expr _ _ _).
+%total  {} (bigger-efxmap-preserves-good-out/expr _ _ _).
+
+
+%theorem calltyping-implies-good-out :
+    forall* {L} {CM} {AO} {EO} {MT}
+    forall  {G-AO: good-out AO}
+            {CTYP: ref-calltyping L CM AO MT EO}
+    exists  {G-EO: good-out EO}
+    true.
+
+- : calltyping-implies-good-out 
+    _ ref-calltyping/call/shared good-out/expr/shared.
+
+- : calltyping-implies-good-out
+    _ ref-calltyping/call/unique
+    (good-out/expr/unique (tgtmap-leq-efxmap/ tgtmap`leq/0 efxmap2tgtmap/0)).
+
+- : calltyping-implies-good-out
+    (good-out/args/+ G-AO _)
+    (ref-calltyping/args XMPURWXM=OXM XMUAXM=XMP _ ATYP) GEOP
+    <- calltyping-implies-good-out G-AO ATYP GEO
+    <- efxmap`join-implies-leq XMPURWXM=OXM XMP<=OXM _
+    <- efxmap`join-implies-leq XMUAXM=XMP _ AXM<=XMP
+    <- efxmap`leq-transitive AXM<=XMP XMP<=OXM AXM<=OXM
+    <- bigger-efxmap-preserves-good-out/expr GEO AXM<=OXM GEOP.
+
+%worlds () (calltyping-implies-good-out _ _ _).
+%total (T)  (calltyping-implies-good-out _ T _).
+
+
+%theorem typing-implies-good-out : 
+    forall* {L1} {L2} {CM} {MM} {B} {K} {E} {O: out K}
+    forall  {RTYP: ref-typing L1 CM MM B E O L2} 
+    exists  {GO: good-out O}
+    true.
+
+- : typing-implies-good-out 
+    (ref-typing/lit/unique _)
+    (good-out/expr/unique (tgtmap-leq-efxmap/ tgtmap`leq/0 efxmap2tgtmap/0)).
+
+- : typing-implies-good-out
+    (ref-typing/lit/shared _) (good-out/expr/shared).
+    
+- : typing-implies-good-out
+    (ref-typing/read XM1UXM2=XM
+      (read-type/uu GMS=>XM2 _ _ _ _) _ _ _) (good-out/expr/unique GMS<=XM)
+    <- tgtmap2efxmap-implies-tgtmap-leq-efxmap GMS=>XM2 GMS<=XM2
+    <- efxmap`join-implies-leq XM1UXM2=XM XM1<=XM XM2<=XM
+    <- tgtmap-leq-efxmap-right-transitive GMS<=XM2 XM2<=XM GMS<=XM.
+
+- : typing-implies-good-out
+    (ref-typing/read _ (read-type/us _ _ _ _ _) _ _ _) good-out/expr/shared.
+
+- : typing-implies-good-out
+    (ref-typing/read _ read-type/s_ _ _ _) good-out/expr/shared.
+
+- : typing-implies-good-out
+    (ref-typing/write XM4UXM3=XM5 XM1UXM2=XM4 _ _ _ _ RTYP-E2 RTYP-E1)
+    GM<=XM5
+    <- typing-implies-good-out RTYP-E2 GM<=XM2
+    <- efxmap`join-implies-leq XM1UXM2=XM4 XM1<=XM4 XM2<=XM4
+    <- efxmap`join-implies-leq XM4UXM3=XM5 XM4<=XM5 XM3<=XM5
+    <- efxmap`leq-transitive XM2<=XM4 XM4<=XM5 XM2<=XM5
+    <- bigger-efxmap-preserves-good-out/expr GM<=XM2 XM2<=XM5 GM<=XM5.
+
+- : typing-implies-good-out
+    (ref-typing/let/shared XM1UXM2=XM ([o] RTYP o) _) GM<=XM
+      <- ({o} typing-implies-good-out (RTYP o) GM<=XM2)
+      <- efxmap`join-implies-leq XM1UXM2=XM _ XM2<=XM
+      <- bigger-efxmap-preserves-good-out/expr GM<=XM2 XM2<=XM GM<=XM.
+
+- : typing-implies-good-out
+    (ref-typing/let/unique XM1UXM2=XM ([o] RTYP o) _) GM<=XM
+    <- ({o} typing-implies-good-out (RTYP o) GM<=XM2)
+    <- efxmap`join-implies-leq XM1UXM2=XM _ XM2<=XM
+    <- bigger-efxmap-preserves-good-out/expr GM<=XM2 XM2<=XM GM<=XM.
+
+- : typing-implies-good-out
+    (ref-typing/if XM0UXM1=XM2 RTYP-E2 RTYP-E1 RTYP-C) GM<=XM
+    <- typing-implies-good-out RTYP-E2 GM<=XM1
+    <- efxmap`join-implies-leq XM0UXM1=XM2 _ XM1<=XM
+    <- bigger-efxmap-preserves-good-out/expr GM<=XM1 XM1<=XM GM<=XM.
+
+- : typing-implies-good-out
+    (ref-typing/call CTYP ATYP _ _) G-EO
+    <- typing-implies-good-out ATYP G-AO
+    <- calltyping-implies-good-out G-AO CTYP G-EO.
+
+- : typing-implies-good-out  
+    (ref-typing/const CTYP ATYP _ _ _) G-EO
+    <- typing-implies-good-out ATYP G-AO
+    <- calltyping-implies-good-out G-AO CTYP G-EO.
+
+- : typing-implies-good-out (ref-typing/eq _ _ _) good-out/cond.
+
+- : typing-implies-good-out (ref-typing/not _) good-out/cond.
+
+- : typing-implies-good-out (ref-typing/and _ _ _) good-out/cond.
+
+- : typing-implies-good-out ref-typing/args/0 good-out/args/0.
+
+- : typing-implies-good-out
+    (ref-typing/args/+ ATYP ETYP) (good-out/args/+ G-AO G-EO)
+    <- typing-implies-good-out ETYP G-EO 
+    <- typing-implies-good-out ATYP G-AO.
+
+- : typing-implies-good-out ref-typing/null good-out/expr/null.
+
+%worlds (objvar) (typing-implies-good-out _ _).
+%total (TYP) (typing-implies-good-out TYP _).
