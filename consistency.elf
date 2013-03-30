@@ -102,22 +102,64 @@ clsmap-cxt/cons
 
 %%% consistency between (object) set and cxt
 
-set-cxt : set -> cxt -> type.
+cxt-set : cxt -> set -> type.
 
-set-cxt/0 : set-cxt set/0 _.
+cxt-set/0 : cxt-set _ set/0.
 
-set-cxt/+ : set-cxt (set/+ N S) B
+cxt-set/+ : cxt-set B (set/+ N S)
 	    <- cxt-lookup-index B N _ _
 	    <- set`shift N S SP
-	    <- set-cxt SP B.
+	    <- cxt-set B SP.
 
+fldmap-inner-efxmap : fldmap -> inner-efxmap -> type.
 
-inner-efxmap-fldmap : inner-efxmap -> fldmap -> type.
+fldmap-inner-efxmap/0 : fldmap-inner-efxmap _ inner-efxmap/0.
 
-inner-efxmap-fldmap/0 : inner-efxmap-fldmap inner-efxmap/0 _.
-
-inner-efxmap-fldmap/+
-  : inner-efxmap-fldmap (inner-efxmap/+ F _ M) FM
+fldmap-inner-efxmap/+
+  : fldmap-inner-efxmap FM (inner-efxmap/+ F _ M)
     <- fldmap`lookup FM F _
     <- inner-efxmap`shift F M MP
-    <- inner-efxmap-fldmap MP FM.
+    <- fldmap-inner-efxmap FM MP.
+
+cxt-efxmap : cxt -> clsmap -> efxmap -> type.
+
+cxt-efxmap/0 : cxt-efxmap _ _ efxmap/0.
+
+cxt-efxmap/+
+  : cxt-efxmap B CM (efxmap/+ L M XM)
+    <- cxt-lookup-index B L _ (ty/ _ _ C)
+    <- clsmap`lookup CM C FM
+    <- fldmap-inner-efxmap FM M
+    <- efxmap`shift L XM XMP
+    <- cxt-efxmap B CM XMP.
+
+
+
+% Theorems
+
+% fldmap-inner-efxmap
+
+%theorem shift-preserves-fldmap-inner-efxmap :
+    forall* {N} {FM} {FMP} {M} {MP}
+    forall  {FM-M: fldmap-inner-efxmap FM M}
+            {SH: fldmap`shift N FM FMP}
+            {SH: inner-efxmap`shift N M MP}
+    exists  {FMP-MP: fldmap-inner-efxmap FMP MP}
+    true.
+
+- : shift-preserves-fldmap-inner-efxmap 
+    fldmap-inner-efxmap/0 _ _ fldmap-inner-efxmap/0.
+
+- : shift-preserves-fldmap-inner-efxmap 
+    (fldmap-inner-efxmap/+ FM-MP SH FM-L) SH-FM
+    (inner-efxmap`shift/+ P) (fldmap-inner-efxmap/+ FMP-MP SH' FMP-L)
+    <- fldmap`shift-preserves-lookup* FM-L SH-FM P FMP-L
+    <- inner-efxmap`shift-total SH-M
+    <- shift-preserves-fldmap-inner-efxmap FM-MP SH-FM SH-M FMP-MP
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- inner-efxmap`shifts-add SH SH-M P2 SH'.
+
+%worlds () (shift-preserves-fldmap-inner-efxmap _ _ _ _).
+%total (I) (shift-preserves-fldmap-inner-efxmap I _ _ _).
+
