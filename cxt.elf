@@ -46,8 +46,9 @@ cxt-lookup-index : cxt -> nat -> object -> ty -> type.
 cxt-lookup-index/hit
   : cxt-lookup-index (cxt/cons O (vtype/unique N) T _) N O T.
 
-cxt-lookup-index/miss/unique : cxt-lookup-index
-    (cxt/cons _ (vtype/unique M) _ B) N O T
+cxt-lookup-index/miss/unique
+  : cxt-lookup-index (cxt/cons _ (vtype/unique M) _ B) N O T
+    <- nat`ne N M
     <- cxt-lookup-index B N O T.
 
 cxt-lookup-index/miss/shared : cxt-lookup-index
@@ -75,3 +76,53 @@ cxt-lookup-index/miss/shared : cxt-lookup-index
 
 %worlds (objvar) (false-implies-ty-eq _ _).
 %total  {} (false-implies-ty-eq _ _).
+
+
+%theorem false-implies-cxt-lookup-index :
+    forall* {B} {L} {O} {T}
+    forall  {F:void}
+    exists  {B-L: cxt-lookup-index B L O T}
+    true.
+
+%worlds () (false-implies-cxt-lookup-index _ _).
+%total  {} (false-implies-cxt-lookup-index _ _).
+
+
+%theorem cxt-lookup-index-deterministic :
+    forall* {B1} {B2} {L1} {L2} {O1} {O2} {T1} {T2}
+    forall  {B-L: cxt-lookup-index B1 L1 O1 T1}
+            {B-L: cxt-lookup-index B2 L2 O2 T2}
+            {EQ: cxt`eq B1 B2} {EQ: nat`eq L1 L2}
+    exists  {EQ: object`eq O1 O2} {EQ: ty`eq T1 T2}
+    true.
+    
+- : cxt-lookup-index-deterministic 
+    cxt-lookup-index/hit cxt-lookup-index/hit cxt`eq/ nat`eq/ object`eq/ ty`eq/.
+
+- : cxt-lookup-index-deterministic
+    (cxt-lookup-index/miss/shared B-L1) (cxt-lookup-index/miss/shared B-L2)
+    cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-index-deterministic B-L1 B-L2 cxt`eq/ nat`eq/ OE TE.
+
+- : cxt-lookup-index-deterministic 
+    (cxt-lookup-index/miss/unique B-L1 NE1) 
+    (cxt-lookup-index/miss/unique B-L2 NE2)
+    cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-index-deterministic B-L1 B-L2 cxt`eq/ nat`eq/ OE TE.
+
+- : cxt-lookup-index-deterministic
+    (cxt-lookup-index/miss/unique _ NE) 
+    cxt-lookup-index/hit cxt`eq/ nat`eq/ OE TE
+    <- nat`ne-anti-reflexive NE F
+    <- false-implies-object-eq F OE
+    <- false-implies-ty-eq F TE.
+
+- : cxt-lookup-index-deterministic
+    cxt-lookup-index/hit (cxt-lookup-index/miss/unique _ NE)
+    cxt`eq/ nat`eq/ OE TE
+    <- nat`ne-anti-reflexive NE F
+    <- false-implies-object-eq F OE
+    <- false-implies-ty-eq F TE.
+
+%worlds () (cxt-lookup-index-deterministic _ _ _ _ _ _).
+%total (B) (cxt-lookup-index-deterministic B _ _ _ _ _).
