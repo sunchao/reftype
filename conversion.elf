@@ -260,6 +260,19 @@ env2progtype/
 
 %%% Theorems
 
+%theorem permission`combine-preserves-eq :
+    forall* {Pi1} {Pi2} {Pi3} {Pi4}
+    forall  {EQ: permission`eq Pi1 Pi3}
+            {EQ: permission`eq Pi2 Pi4} 
+    exists  {EQ: permission`eq (Pi1 , Pi2) (Pi3 , Pi4)}
+    true.
+
+- : permission`combine-preserves-eq permission`eq/ permission`eq/ permission`eq/.
+
+%worlds () (permission`combine-preserves-eq _ _ _).
+%total  {} (permission`combine-preserves-eq _ _ _).
+
+
 %%% set2facts
 
 %theorem cxt-set-implies-set2facts :
@@ -298,6 +311,53 @@ env2progtype/
 %total  {} (inner-efxmap2perm-respects-eq _ _ _ _ _ _ _).
 
 
+%theorem inner-efxmap2perm-deterministic/L :
+    forall* {O1} {O2} {N1} {N2} {PF1} {PF2}
+    forall  {EQ: object`eq O1 O2} {EQ: nat`eq N1 N2}
+            {EQ: {o} permission`eq (PF1 o) (PF2 o)}
+    exists  {EQ: permission`eq
+                 (unitperm (precise-exists O1 N1 ([o] PF1 o)))
+                 (unitperm (precise-exists O2 N2 ([o] PF2 o)))}
+    true.
+
+- : inner-efxmap2perm-deterministic/L object`eq/ nat`eq/
+    ([_] permission`eq/) permission`eq/.
+
+%worlds () (inner-efxmap2perm-deterministic/L _ _ _ _).
+%total  {} (inner-efxmap2perm-deterministic/L _ _ _ _).
+
+
+%theorem inner-efxmap2perm-deterministic :
+    forall* {O1} {O2} {FM1} {FM2} {PM1} {PM2}
+            {M1} {M2} {Pi1} {Pi2}
+    forall  {M1=>Pi1: inner-efxmap2perm O1 FM1 PM1 M1 Pi1}
+            {M2=>Pi2: inner-efxmap2perm O2 FM2 PM2 M2 Pi2}
+            {EQ: object`eq O1 O2} {EQ: fldmap`eq FM1 FM2}
+            {EQ: predmap`eq PM1 PM2} {EQ: inner-efxmap`eq M1 M2}
+    exists  {EQ: permission`eq Pi1 Pi2}
+    true.
+
+- : inner-efxmap2perm-deterministic 
+    inner-efxmap2perm/0 inner-efxmap2perm/0 object`eq/ fldmap`eq/
+    predmap`eq/ inner-efxmap`eq/ permission`eq/.
+
+- : inner-efxmap2perm-deterministic 
+    (inner-efxmap2perm/+ MP1=>Pi1 F<<M1=MP1 T2PF1 FM-L1)
+    (inner-efxmap2perm/+ MP2=>Pi2 F<<M2=MP2 T2PF2 FM-L2)
+    OEQ FMEQ PMEQ MEQ PEQ
+    <- inner-efxmap`map/+-preserves-eq-converse MEQ NEQ XEQ MMEQ
+    <- inner-efxmap`shift-deterministic F<<M1=MP1 F<<M2=MP2 NEQ MMEQ MP1=MP2
+    <- inner-efxmap2perm-deterministic MP1=>Pi1 MP2=>Pi2
+      OEQ FMEQ PMEQ MP1=MP2 Pi1=Pi2
+    <- fldmap`lookup-deterministic FM-L1 FM-L2 FMEQ NEQ TEQ
+    <- ty2perm-deterministic T2PF1 T2PF2 PMEQ TEQ PFEQ
+    <- inner-efxmap2perm-deterministic/L OEQ NEQ PFEQ EXEQ
+    <- permission`combine-preserves-eq EXEQ Pi1=Pi2 PEQ.
+
+%worlds () (inner-efxmap2perm-deterministic _ _ _ _ _ _ _).
+%total (L) (inner-efxmap2perm-deterministic L _ _ _ _ _ _).
+
+
 % efxmap2perm 
 
 %theorem efxmap2perm-respects-eq :
@@ -315,6 +375,39 @@ env2progtype/
 
 %worlds () (efxmap2perm-respects-eq _ _ _ _ _ _ _).
 %total  {} (efxmap2perm-respects-eq _ _ _ _ _ _ _).
+
+
+%theorem efxmap2perm-deterministic :
+    forall* {CM1} {PM1} {B1} {XM1} {Pi1}
+            {CM2} {PM2} {B2} {XM2} {Pi2}
+    forall  {XM1=>Pi1: efxmap2perm CM1 PM1 B1 XM1 Pi1}
+            {XM2=>Pi2: efxmap2perm CM2 PM2 B2 XM2 Pi2}
+            {EQ: clsmap`eq CM1 CM2} {EQ: predmap`eq PM1 PM2}
+            {EQ: cxt`eq B1 B2} {EQ: efxmap`eq XM1 XM2}
+    exists  {EQ: permission`eq Pi1 Pi2}
+    true.
+
+- : efxmap2perm-deterministic efxmap2perm/0 efxmap2perm/0
+    clsmap`eq/ predmap`eq/ cxt`eq/ efxmap`eq/ permission`eq/.
+
+- : efxmap2perm-deterministic
+    (efxmap2perm/+ XMP1=>Pi11 L<<XM1=XMP1 M1=>Pi12 CM-L1 B-L1)
+    (efxmap2perm/+ XMP2=>Pi21 L<<XM2=XMP2 M2=>Pi22 CM-L2 B-L2)
+    CMEQ PMEQ BEQ XMEQP PEQ
+    <- efxmap`map/+-preserves-eq-converse XMEQP NEQ MEQ XMEQ
+    <- efxmap`shift-deterministic L<<XM1=XMP1 L<<XM2=XMP2
+      NEQ XMEQ XMP1=XMP2
+    <- efxmap2perm-deterministic XMP1=>Pi11 XMP2=>Pi21 
+      CMEQ PMEQ BEQ XMP1=XMP2 Pi11=Pi21
+    <- cxt-lookup-index-deterministic B-L1 B-L2 BEQ NEQ OEQ TEQ
+    <- ty-eq-inversion TEQ NNEQ AEQ CEQ
+    <- clsmap`lookup-deterministic CM-L1 CM-L2 CMEQ CEQ FMEQ
+    <- inner-efxmap2perm-deterministic M1=>Pi12 M2=>Pi22
+      OEQ FMEQ PMEQ MEQ Pi3=Pi4
+    <- permission`combine-preserves-eq Pi3=Pi4 Pi11=Pi21 PEQ.
+
+%worlds () (efxmap2perm-deterministic _ _ _ _ _ _ _).
+%total (L) (efxmap2perm-deterministic L _ _ _ _ _ _).
 
 
 %theorem fldmap-inner-efxmap-implies-inner-efxmap2perm :
