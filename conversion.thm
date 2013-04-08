@@ -1527,6 +1527,18 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
 %total  {} (reftyping-frame/L1 _ _ _ _ _ _ _ _).
 
 
+% difficult! In fact, I doubt this is provable..
+
+%theorem permission`left-preserves-equiv :
+    forall* {Pi} {Pi1} {Pi2}
+    forall  {EQV: equiv (Pi , Pi1) (Pi , Pi2)}
+    exists  {EQV: equiv Pi1 Pi2}
+    true.
+
+%worlds () (permission`left-preserves-equiv _ _).
+%trustme %total  {} (permission`left-preserves-equiv _ _).
+
+
 %theorem reftyping-frame/L2 :
     forall* {Pi5} {Pi11} {Pi16} {Pi3} {Pi4} {Pi9} {Pi15}
             {Pi10} {Pi14}
@@ -1538,14 +1550,29 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
     exists  {EQV: equiv Pi16 (Pi14 , Pi15)}
     true.
 
-- : reftyping-frame/L2 Pi5<=>Pi11+Pi16 Pi5<=>Pi3+Pi4
-    Pi3<=>Pi9+Pi15 Pi4<=>Pi10+Pi14 Pi11<=>Pi9+Pi10 Pi16<=>Pi14+Pi15
-    <- equiv-respects-eq Pi5<=>Pi11+Pi16 Pi5<=>Pi3+Pi4 Pi11+Pi16<=>Pi3+Pi4
-    <-
-      
+- : reftyping-frame/L2
+    Pi5<=>Pi11+Pi16 Pi5<=>Pi3+Pi4 Pi3<=>Pi9+Pi15
+    Pi4<=>Pi10+Pi14 Pi11<=>Pi9+Pi10
+    (equiv/transitive
+      (equiv/symmetric Pi15+Pi14<=>Pi16)
+      (equiv/commute))
+    <- permission`left-preserves-equiv 
+      (equiv/transitive7
+        (equiv/symmetric equiv/associate)
+        (equiv/combine equiv/reflexive equiv/roll2)
+        (equiv/associate)
+        (equiv/combine 
+          (equiv/symmetric Pi3<=>Pi9+Pi15)
+          (equiv/symmetric Pi4<=>Pi10+Pi14))
+        (equiv/symmetric Pi5<=>Pi3+Pi4)
+        (Pi5<=>Pi11+Pi16)
+        (equiv/combine Pi11<=>Pi9+Pi10 equiv/reflexive))
+      (Pi15+Pi14<=>Pi16).
 
+%worlds () (reftyping-frame/L2 _ _ _ _ _ _).
+%total  {} (reftyping-frame/L2 _ _ _ _ _ _).
     
-    
+
 %theorem reftyping-frame :
     forall* {CM} {PM} {B} {RT} {XM1} {XM2}
             {Pi1} {Out1} {W} {E}
@@ -1570,15 +1597,32 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
       ([o] S=>GF o) XM22=>Pi22 XM21=>Pi21 XM2|GM=XM21+XM22 PM-L NN2PF)
     (tTrans
       (transform/implies
-	(implies/equiv
-	  (equiv/transitive
-	    (Pi2<=>Pi1+Pi3)
-	    (equiv/commute))))
+        (implies/equiv
+          (equiv/transitive
+            (Pi2<=>Pi1+Pi3)
+            (equiv/commute))))
       (letTyping/base null TYP1')
       (transform/inside [v]
-	(transform/implies
-	  (implies/equiv
-	    (EQV2)))))
+        (transform/trans
+          (transform/implies
+            (implies/equiv
+              (equiv/transitive3
+                (equiv/roll2)
+                (equiv/combine
+                  (equiv/reflexive)
+                  (equiv/transitive3
+                    (equiv/combine
+                      (equiv/transitive
+                        (EQV5)
+                        (equiv/commute))
+                      equiv/reflexive)
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine equiv/reflexive 
+                      (equiv/transitive
+                        (equiv/commute)
+                        (equiv/symmetric Pi22<=>Pi12+Pi5)))))
+                (equiv/roll2))))
+          (transform/drop))))
     <- efxmap`remove-tgtmap-total _ _ XM2|GM=XM21+XM22
     <- reftyping-frame/L1 B-XM1 XM1|GM=XM11+XM12
       B-XM11 B-XM12 XM11<=XM1 XM12<=XM1 XM11^XM12 XM11UXM12=XM1
@@ -1589,17 +1633,102 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
     <- efxmap`leq-implies-permission-leq
       CM-CM CM2PM B-XM1 B-XM2 XM1=>Pi1 XM1<=XM2 _ _ XM2=>Pi2 Pi2<=>Pi1+Pi3
     <- efxmap`leq-implies-permission-leq 
-      CM-CM CM2PM B-XM11 B-XM12 XM11=>Pi11 XM11<=XM21
-      _ _ XM21=>Pi21 Pi21<=>Pi11+Pi3
+      CM-CM CM2PM B-XM11 B-XM21 XM11=>Pi11 XM11<=XM21
+      _ _ XM21=>Pi21 Pi21<=>Pi11+Pi4
     <- efxmap`leq-implies-permission-leq 
       CM-CM CM2PM B-XM12 B-XM22 XM12=>Pi12 XM12<=XM22
-      _ _ XM22=>Pi22 Pi22<=>Pi12+Pi4
+      _ _ XM22=>Pi22 Pi22<=>Pi12+Pi5
     <- efxmap`deep-disjoint-join-implies-equiv*
       XM11^XM12 XM11UXM12=XM1 XM11=>Pi11 XM12=>Pi12 XM1=>Pi1 Pi11+Pi12<=>Pi1
     <- efxmap`deep-disjoint-join-implies-equiv*
-      XM21^XM22 XM21UXM22=XM2 XM21=>Pi21 XM22=>Pi22 XM2=>Pi2 Pi21+Pi22<=>Pi2.
-    <- typing-frame* TYP1 (envadd/exists ([_] envadd/expr)) TYP1'
-    <- equi
+      XM21^XM22 XM21UXM22=XM2 XM21=>Pi21 XM22=>Pi22 XM2=>Pi2 Pi21+Pi22<=>Pi2
+    <- reftyping-frame/L2 Pi2<=>Pi1+Pi3
+      (equiv/symmetric Pi21+Pi22<=>Pi2) Pi21<=>Pi11+Pi4
+      Pi22<=>Pi12+Pi5 (equiv/symmetric Pi11+Pi12<=>Pi1) EQV5
+    <- typing-frame* TYP1 (envadd/exists ([_] envadd/expr)) TYP1'.
+
+- : reftyping-frame CM-CM CM2PM B-XM1 B-XM2 XM1=>Pi1
+    (reftype+efxmap2output/uu tgtmap2perm/+
+      ([o] S=>GF o) XM12=>Pi12 XM11=>Pi11 XM1|GM=XM11+XM12 PM-L NN2PF)
+    TYP1 XM1<=XM2 _ _ XM2=>Pi2
+    (reftype+efxmap2output/uu tgtmap2perm/+
+      ([o] S=>GF o) XM22=>Pi22 XM21=>Pi21 XM2|GM=XM21+XM22 PM-L NN2PF)
+    (tTrans
+      (transform/implies
+        (implies/equiv
+          (equiv/transitive
+            (Pi2<=>Pi1+Pi3)
+            (equiv/commute))))
+      (letTyping/base null TYP1')
+      (transform/inside [v]
+        (transform/inside [r]
+          (transform/implies
+            (implies/trans
+              (implies/equiv
+                (equiv/transitive4
+                  (equiv/combine
+                    (equiv/transitive EQV5 equiv/commute) 
+                    equiv/reflexive)
+                  (equiv/symmetric equiv/associate)
+                  (equiv/combine equiv/reflexive equiv/roll2)
+                  (equiv/associate)))
+              (implies/combine
+                (implies/trans
+                  (implies/equiv (equiv/symmetric equiv/roll3))
+                  (implies/combine
+                    (implies/reflexive) % A
+                    (implies/combine
+                      (implies/reflexive) % B
+                      (implies/trans4
+                        (implies/combine
+                          (implies/trans3
+                            (implies/equiv (equiv/symmetric equiv/identity))
+                            (implies/combine
+                              (implies/reflexive)
+                              (implies/trans
+                                (implies/self-implication)
+                                (implies/combine-assoc-encumbered)))
+                            (implies/linear-modus-ponens))
+                          (implies/reflexive))
+                        (implies/equiv equiv/commute)
+                        (implies/chain-implication)
+                        (implies/equiv-encumbered
+                          (equiv/reflexive)
+                          (equiv/transitive
+                            (equiv/commute)
+                            (equiv/symmetric Pi21<=>Pi11+Pi4)))))))
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/roll2)
+                    (equiv/combine
+                      (equiv/reflexive)
+                      (equiv/transitive
+                        (equiv/commute)
+                        (equiv/symmetric Pi22<=>Pi12+Pi5)))))))))))
+    <- efxmap`remove-tgtmap-total _ _ XM2|GM=XM21+XM22
+    <- reftyping-frame/L1 B-XM1 XM1|GM=XM11+XM12
+      B-XM11 B-XM12 XM11<=XM1 XM12<=XM1 XM11^XM12 XM11UXM12=XM1
+    <- reftyping-frame/L1 B-XM2 XM2|GM=XM21+XM22
+      B-XM21 B-XM22 XM21<=XM2 XM22<=XM2 XM21^XM22 XM21UXM22=XM2
+    <- efxmap`remove-tgtmap-preserves-efxmap`leq 
+      XM1<=XM2 XM1|GM=XM11+XM12 XM2|GM=XM21+XM22 XM11<=XM21 XM12<=XM22
+    <- efxmap`leq-implies-permission-leq
+      CM-CM CM2PM B-XM1 B-XM2 XM1=>Pi1 XM1<=XM2 _ _ XM2=>Pi2 Pi2<=>Pi1+Pi3
+    <- efxmap`leq-implies-permission-leq 
+      CM-CM CM2PM B-XM11 B-XM21 XM11=>Pi11 XM11<=XM21
+      _ _ XM21=>Pi21 Pi21<=>Pi11+Pi4
+    <- efxmap`leq-implies-permission-leq 
+      CM-CM CM2PM B-XM12 B-XM22 XM12=>Pi12 XM12<=XM22
+      _ _ XM22=>Pi22 Pi22<=>Pi12+Pi5
+    <- efxmap`deep-disjoint-join-implies-equiv*
+      XM11^XM12 XM11UXM12=XM1 XM11=>Pi11 XM12=>Pi12 XM1=>Pi1 Pi11+Pi12<=>Pi1
+    <- efxmap`deep-disjoint-join-implies-equiv*
+      XM21^XM22 XM21UXM22=XM2 XM21=>Pi21 XM22=>Pi22 XM2=>Pi2 Pi21+Pi22<=>Pi2
+    <- reftyping-frame/L2 Pi2<=>Pi1+Pi3
+      (equiv/symmetric Pi21+Pi22<=>Pi2) Pi21<=>Pi11+Pi4
+      Pi22<=>Pi12+Pi5 (equiv/symmetric Pi11+Pi12<=>Pi1) EQV5
+    <- typing-frame* TYP1 
+      (envadd/exists ([_] (envadd/exists ([_] envadd/expr)))) TYP1'.
 
 - : reftyping-frame
     CM-CM CM2PM B-XM1 B-XM2 XM1=>Pi1
@@ -1703,27 +1832,25 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
             {PTYP: typing W (G , ((allperm null) , Pi)) (read E F) Out}
     true.
 
-- : ref-typing-ok/read/unique T WF-T CM2PM CM-L FM-L
-    (reftype+efxmap2output/uu GM=>Pi is-tgtmap-empty/false
-      ([o] S=>GF o) XM4=>Pi4 XM3=>Pi3 XM/GM=XM3+XM4 PM->C NN=>PF)
-    TYP DM-GM=GS S^GS S+F=>GMP GMUGMP=GMS GMS=>XMS XM1UXMS=XM _
-    (reftype+efxmap2output/uu
-      
-    <- set+nat2tgtmap-implies-domain S+F=>GMP DM-GMP=S
-    <- tgtmap`domain-preserves-disjoint-converse
-      S^GS DM-GMP=S DM-GM=GS GMP^GM
-    <- tgtmap`disjoint-symmetric GMP^GM GM^GMP
-    <- efxmap`remove-tgtmap-implies-join XM/GM=XM3+XM4 XM3UXM4=XM
-    <- tgtmap`join-implies-leq GMUGMP=GMS GM<=GMS _
-    <- tgtmap2efxmap-implies-tgtmap-leq-efxmap GMS=>XMS GMS<=XMS
-    <- efxmap`join-implies-leq XM1UXMS=XM _ XMS<=XM
-    <- tgtmap-leq-efxmap-left-transitive GMS<=XMS GM<=GMS GM<=XMS
-    <- tgtmap-leq-efxmap-right-transitive GM<=XMS XMS<=XM GM<=XM
-    <- efxmap`remove-tgtmap-implies-efxmap2tgtmap 
-      XM/GM=XM3+XM4 GM<=XM XM4=>GM
-    <- ref-typing-ok/read/unique/L1 GM^GMP GMUGMP=GMS GMS=>XMS 
-      XM1UXMS=XM XM3UXM4=XM XM4=>GM XMP GMP=>XMP XMP<=XM3
-    <- ref-typing-ok/read/unique/L3 GMP=>XMP FNC.
+% - : ref-typing-ok/read/unique T WF-T CM2PM CM-L FM-L
+%     (reftype+efxmap2output/uu GM=>Pi is-tgtmap-empty/false
+%       ([o] S=>GF o) XM4=>Pi4 XM3=>Pi3 XM/GM=XM3+XM4 PM->C NN=>PF)
+%     TYP DM-GM=GS S^GS S+F=>GMP GMUGMP=GMS GMS=>XMS XM1UXMS=XM _
+%     <- set+nat2tgtmap-implies-domain S+F=>GMP DM-GMP=S
+%     <- tgtmap`domain-preserves-disjoint-converse
+%       S^GS DM-GMP=S DM-GM=GS GMP^GM
+%     <- tgtmap`disjoint-symmetric GMP^GM GM^GMP
+%     <- efxmap`remove-tgtmap-implies-join XM/GM=XM3+XM4 XM3UXM4=XM
+%     <- tgtmap`join-implies-leq GMUGMP=GMS GM<=GMS _
+%     <- tgtmap2efxmap-implies-tgtmap-leq-efxmap GMS=>XMS GMS<=XMS
+%     <- efxmap`join-implies-leq XM1UXMS=XM _ XMS<=XM
+%     <- tgtmap-leq-efxmap-left-transitive GMS<=XMS GM<=GMS GM<=XMS
+%     <- tgtmap-leq-efxmap-right-transitive GM<=XMS XMS<=XM GM<=XM
+%     <- efxmap`remove-tgtmap-implies-efxmap2tgtmap 
+%       XM/GM=XM3+XM4 GM<=XM XM4=>GM
+%     <- ref-typing-ok/read/unique/L1 GM^GMP GMUGMP=GMS GMS=>XMS 
+%       XM1UXMS=XM XM3UXM4=XM XM4=>GM XMP GMP=>XMP XMP<=XM3
+%     <- ref-typing-ok/read/unique/L3 GMP=>XMP FNC.
 
 
 %theorem ref-typing-ok : 
