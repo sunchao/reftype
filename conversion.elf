@@ -113,23 +113,23 @@ reftype+efxmap2output/uu
 
 %%% a well-formed context shouldn't contain null type.
 
+vtype2perm : vtype -> (object -> permission) -> type.
+
+vtype2perm/unique : vtype2perm (vtype/unique _) ([_] empty).
+
+vtype2perm/shared : vtype2perm vtype/shared ([o] nested-perm o).
+
+
 cxt2facts : predmap -> cxt -> permission -> type.
 
 cxt2facts/nil : cxt2facts PM cxt/nil empty.
 
-cxt2facts/cons/shared
-  : cxt2facts PM
-    (cxt/cons O vtype/shared _ B) ((PF CP O) , Pi)
-    <- nn2perm NN ([o] (nested-perm o)) PF
+cxt2facts/cons
+  : cxt2facts PM (cxt/cons O VT (ty/ NN _ C) B) ((PF CP O) , Pi)
+    <- vtype2perm VT ([o] F o)
+    <- nn2perm NN F PF
     <- predmap`lookup PM C CP
     <- cxt2facts PM B Pi.
-
-cxt2facts/cons/unique
-  : cxt2facts PM
-    (cxt/cons O (vtype/unique N) T B) ((one-predcall CP O) , Pi)
-    <- predmap`lookup PM C CP
-    <- cxt2facts PM B Pi.
-
 	
 %{%
 
@@ -480,3 +480,40 @@ env2progtype/
 
 %worlds () (efxmap-clsmap-implies-efxmap2perm _ _ _ _ _).
 %total (T) (efxmap-clsmap-implies-efxmap2perm _ _ T _ _).
+
+
+% cxt2facts
+
+%theorem vtype2perm-total :
+    forall  {VT} 
+    exists  {PF} {VT2PF: vtype2perm VT PF}
+    true.
+
+- : vtype2perm-total (vtype/unique _) _ vtype2perm/unique.
+
+- : vtype2perm-total (vtype/shared) _ vtype2perm/shared.
+
+%worlds () (vtype2perm-total _ _ _).
+%total  {} (vtype2perm-total _ _ _).
+
+
+%theorem cxt2facts-total :
+    forall* {CM} {PM} {B}
+    forall  {CM-B: clsmap-cxt CM B}
+            {CM2PM: clsmap2predmap CM PM}
+    exists  {G} {B2G: cxt2facts PM B G}
+    true.
+
+- : cxt2facts-total clsmap-cxt/nil _ _ cxt2facts/nil.
+
+- : cxt2facts-total 
+    (clsmap-cxt/cons (clsmap-ty/notnull IN) CM-B) CM2PM _ 
+    (cxt2facts/cons B2G PM-L NN2PF VT2P)
+    <- clsmap`in-implies-lookup IN _ CM-L
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
+    <- vtype2perm-total _ _ VT2P
+    <- nn2perm-total NN2PF
+    <- cxt2facts-total CM-B CM2PM _ B2G.
+
+%worlds () (cxt2facts-total _ _ _ _).
+%total (CM-B) (cxt2facts-total CM-B _ _ _).
