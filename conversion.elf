@@ -1,5 +1,6 @@
 %%% converting *map to permission
 
+
 % make disjunction of objequal facts for object targets.
 
 set2facts : cxt -> object -> set -> formula -> type.
@@ -7,10 +8,18 @@ set2facts : cxt -> object -> set -> formula -> type.
 set2facts/0 : set2facts _ _ set/0 f.
 
 set2facts/+
-  : set2facts B O S (disj (objequal O O') G)
-    <- set`add S' L S
+  : set2facts B O (set/+ L S) (disj (objequal O O') G)
+    <- set`shift L S S'
     <- cxt-lookup-index B L O' _
     <- set2facts B O S' G.
+
+% Using set`add will make this undeterministic - change to set`shift instead.
+
+% set2facts/+
+%   : set2facts B O S (disj (objequal O O') G)
+%     <- set`add S' L S
+%     <- cxt-lookup-index B L O' _
+%     <- set2facts B O S' G.
 
 
 % convert a efxmap to a set of permissions.
@@ -291,12 +300,54 @@ env2progtype/
 
 - : cxt-set-implies-set2facts 
     (cxt-set/+ S-B SH B-L) _
-    (set2facts/+ S=>G B-L A)
-    <- cxt-set-implies-set2facts S-B _ S=>G
-    <- set`shift-implies-update SH A.
+    (set2facts/+ S=>G B-L SH)
+    <- cxt-set-implies-set2facts S-B _ S=>G.
 
 %worlds () (cxt-set-implies-set2facts _ _ _).
 %total (S-B) (cxt-set-implies-set2facts S-B _ _).
+
+
+%theorem set2facts-deterministic :
+    forall* {S1} {G1} {S2} {G2} {B1} {B2} {O1} {O2}
+    forall  {S2G1: set2facts B1 O1 S1 G1}
+            {S2G2: set2facts B2 O2 S2 G2}
+            {EQ: cxt`eq B1 B2} {EQ: object`eq O1 O2}
+            {EQ: set`eq S1 S2}
+    exists  {EQ: permission`eq (unitperm (nonlinear G1))
+                 (unitperm (nonlinear G2))}
+    true.
+
+%theorem set2facts-deterministic/L :
+    forall* {O1} {O2} {O3} {O4} {G1} {G2}
+    forall  {O-EQ: object`eq O1 O3}
+            {O-EQ: object`eq O2 O4}
+            {G-EQ: permission`eq (unitperm (nonlinear G1))
+                   (unitperm (nonlinear G2))}
+    exists  {P-EQ: permission`eq
+                   (unitperm (nonlinear (disj (objequal O1 O2) G1)))
+                   (unitperm (nonlinear (disj (objequal O3 O4) G2)))}
+    true.
+
+- : set2facts-deterministic/L
+    object`eq/ object`eq/ permission`eq/ permission`eq/.
+
+- : set2facts-deterministic
+    set2facts/0 set2facts/0 cxt`eq/ object`eq/ set`eq/ permission`eq/.
+
+- : set2facts-deterministic
+    (set2facts/+ S2G1 B-L1 SH1) (set2facts/+ S2G2 B-L2 SH2)
+    B-EQ O-EQ S-EQ P-EQ
+    <- set`map/+-preserves-eq-converse S-EQ L-EQ _ SP-EQ
+    <- set`shift-deterministic SH1 SH2 L-EQ SP-EQ SS-EQ
+    <- cxt-lookup-index-deterministic B-L1 B-L2 B-EQ L-EQ OO-EQ _
+    <- set2facts-deterministic S2G1 S2G2 B-EQ O-EQ SS-EQ PP-EQ
+    <- set2facts-deterministic/L O-EQ OO-EQ PP-EQ P-EQ.
+
+%worlds () (set2facts-deterministic/L _ _ _ _).
+%total {} (set2facts-deterministic/L _ _ _ _).
+
+%worlds () (set2facts-deterministic _ _ _ _ _ _).
+%total (S2G) (set2facts-deterministic S2G _ _ _ _ _).
 
 
 % inner-efxmap2perm
