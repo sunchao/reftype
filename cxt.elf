@@ -1,4 +1,5 @@
 %%% Type Context
+% $Id$
 
 
 % definition
@@ -9,6 +10,7 @@ cxt : type.	%name cxt B.
 % equality 
 
 cxt`eq : cxt -> cxt -> type.
+
 cxt`eq/ : cxt`eq B B.
 
 
@@ -20,18 +22,21 @@ vtype/unique : nat -> vtype.
 
 vtype/shared : vtype.
 
+
 % constructor
 
 cxt/nil : cxt.
+
 cxt/cons : object -> vtype -> ty -> cxt -> cxt.
 
 
-%{% wellformed context:
-  1. in each reftype, if its unique, then it should only
-     have a singleton set and empty tgtmap.
-  2. the nat in each reftype/unique is in decreasing order,
-     from outer context to inner context.
-%}%
+%{ Well-formed Context:
+  1. Each unique reftype should only contain one singleton
+    set and an empty tgtmap;
+  2. All indexes are different, and in a monotonically increasing
+    order from inner to outer context. }%
+
+wf-cxt : cxt -> type.
 
 
 % lookup object
@@ -52,13 +57,8 @@ cxt-lookup-index : cxt -> nat -> object -> ty -> type.
 cxt-lookup-index/hit
   : cxt-lookup-index (cxt/cons O (vtype/unique N) T _) N O T.
 
-cxt-lookup-index/miss/unique
-  : cxt-lookup-index (cxt/cons _ (vtype/unique M) _ B) N O T
-    <- nat`ne N M
-    <- cxt-lookup-index B N O T.
-
-cxt-lookup-index/miss/shared : cxt-lookup-index
-    (cxt/cons _ vtype/shared _ B) N O T
+cxt-lookup-index/miss
+  : cxt-lookup-index (cxt/cons _ _ _ B) N O T
     <- cxt-lookup-index B N O T.
 
 
@@ -105,19 +105,13 @@ cxt-lookup-index/miss/shared : cxt-lookup-index
 - : cxt-lookup-index-deterministic 
     cxt-lookup-index/hit cxt-lookup-index/hit cxt`eq/ nat`eq/ object`eq/ ty`eq/.
 
-- : cxt-lookup-index-deterministic
-    (cxt-lookup-index/miss/shared B-L1) (cxt-lookup-index/miss/shared B-L2)
-    cxt`eq/ nat`eq/ OE TE
-    <- cxt-lookup-index-deterministic B-L1 B-L2 cxt`eq/ nat`eq/ OE TE.
-
 - : cxt-lookup-index-deterministic 
-    (cxt-lookup-index/miss/unique B-L1 NE1) 
-    (cxt-lookup-index/miss/unique B-L2 NE2)
-    cxt`eq/ nat`eq/ OE TE
+    (cxt-lookup-index/miss B-L1) 
+    (cxt-lookup-index/miss B-L2) cxt`eq/ nat`eq/ OE TE
     <- cxt-lookup-index-deterministic B-L1 B-L2 cxt`eq/ nat`eq/ OE TE.
 
 - : cxt-lookup-index-deterministic
-    (cxt-lookup-index/miss/unique _ NE) 
+    (cxt-lookup-index/miss _ NE) 
     cxt-lookup-index/hit cxt`eq/ nat`eq/ OE TE
     <- nat`ne-anti-reflexive NE F
     <- false-implies-object-eq F OE
@@ -132,3 +126,5 @@ cxt-lookup-index/miss/shared : cxt-lookup-index
 
 %worlds (objvar) (cxt-lookup-index-deterministic _ _ _ _ _ _).
 %total (B) (cxt-lookup-index-deterministic B _ _ _ _ _).
+
+
