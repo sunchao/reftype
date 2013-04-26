@@ -86,34 +86,34 @@ cxt-lookup-index/miss
 
 %%% theorems
 
-%theorem false-implies-object-eq :
-	forall* {O1:object} {O2}
-	forall  {F:void}
-	exists  {EQ: object`eq O1 O2}
-	true.
+false-implies-object-eq 
+  : {V:void} {O1:object} {O2}
+    object`eq O1 O2
+    -> type.
 
-%worlds (objvar) (false-implies-object-eq _ _).
-%total  {} (false-implies-object-eq _ _).
-
-
-%theorem false-implies-ty-eq :
-	forall* {T1} {T2}
-	forall  {F:void}
-	exists  {EQ: ty`eq T1 T2}
-	true.
-
-%worlds (objvar) (false-implies-ty-eq _ _).
-%total  {} (false-implies-ty-eq _ _).
+%mode false-implies-object-eq +V +O1 +O2 -E.
+%worlds () (false-implies-object-eq _ _ _ _).
+%total {} (false-implies-object-eq _ _ _ _).
 
 
-%theorem false-implies-cxt-lookup-index :
-    forall* {B} {L} {O} {T}
-    forall  {F:void}
-    exists  {B-L: cxt-lookup-index B L O T}
-    true.
+false-implies-ty-eq
+  : {V:void} {T1} {T2}
+    ty`eq T1 T2
+    -> type.
 
+%mode false-implies-ty-eq +V +T1 +T2 -E.
+%worlds () (false-implies-ty-eq _ _ _ _).
+%total {} (false-implies-ty-eq _ _ _ _).
+
+
+false-implies-cxt-lookup-index
+  : {V:void}
+    cxt-lookup-index B L O T
+    -> type.
+
+%mode false-implies-cxt-lookup-index +V -L.
 %worlds () (false-implies-cxt-lookup-index _ _).
-%total  {} (false-implies-cxt-lookup-index _ _).
+%total {} (false-implies-cxt-lookup-index _ _).
 
 
 cxt-bounded-weaken 
@@ -138,26 +138,124 @@ cxt-bounded-weaken
 %total (B) (cxt-bounded-weaken B _ _).
 
 
-cxt-lookup-bounded-false
+cxt-lookup-bounded-implies-false
   : cxt-lookup-index B L O T
     -> cxt-bounded B L
     -> void
     -> type.
 
-%mode cxt-lookup-bounded-false  +D1 +D2 -V.
+%mode cxt-lookup-bounded-implies-false  +D1 +D2 -V.
 
-- : cxt-lookup-bounded-false 
+- : cxt-lookup-bounded-implies-false 
     cxt-lookup-index/hit (cxt-bounded/cons/unique GT _) V
     <- nat`gt-anti-reflexive GT V.
 
-- : cxt-lookup-bounded-false 
+- : cxt-lookup-bounded-implies-false 
     (cxt-lookup-index/miss B-L) (cxt-bounded/cons/unique GT B-B) V
     <- cxt-bounded-weaken B-B GT B-B2
-    <- cxt-lookup-bounded-false B-L B-B2 V.
+    <- cxt-lookup-bounded-implies-false B-L B-B2 V.
 
-- : cxt-lookup-bounded-false
+- : cxt-lookup-bounded-implies-false
     (cxt-lookup-index/miss B-L) (cxt-bounded/cons/shared B-B) V
-    <- cxt-lookup-bounded-false B-L B-B V.
+    <- cxt-lookup-bounded-implies-false B-L B-B V.
 
-%worlds () (cxt-lookup-bounded-false _ _ _).
-%total (L) (cxt-lookup-bounded-false L _ _).
+%worlds () (cxt-lookup-bounded-implies-false _ _ _).
+%total (L) (cxt-lookup-bounded-implies-false L _ _).
+
+
+cxt-lookup-index-unique/L
+  : cxt-lookup-index B1 L1 O1 T1
+    -> cxt-lookup-index B2 L2 O2 T2
+    -> cxt-bounded B1 N1 
+    -> cxt-bounded B2 N2
+    -> nat`eq N1 N2
+    -> cxt`eq B1 B2
+    -> nat`eq L1 L2
+    -> object`eq O1 O2
+    -> ty`eq T1 T2 
+    -> type.
+
+%mode cxt-lookup-index-unique/L +D1 +D2 +D3 +D4 +D5 +D6 +D7 -D8 -D9.
+
+- : cxt-lookup-index-unique/L
+    cxt-lookup-index/hit cxt-lookup-index/hit 
+    _ _ _ cxt`eq/ nat`eq/ object`eq/ ty`eq/.
+    
+- : cxt-lookup-index-unique/L
+    (cxt-lookup-index/miss B-L1) (cxt-lookup-index/miss B-L2)
+    (cxt-bounded/cons/unique N1>M1 B-B1)
+    (cxt-bounded/cons/unique N2>M2 B-B2) nat`eq/ cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-index-unique/L 
+      B-L1 B-L2 B-B1 B-B2 nat`eq/ cxt`eq/ nat`eq/ OE TE.
+
+- : cxt-lookup-index-unique/L
+    (cxt-lookup-index/miss B-L1) (cxt-lookup-index/miss B-L2)
+    (cxt-bounded/cons/shared B-B1) 
+    (cxt-bounded/cons/shared B-B2) nat`eq/ cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-index-unique/L
+      B-L1 B-L2 B-B1 B-B2 nat`eq/ cxt`eq/ nat`eq/ OE TE.
+
+- : cxt-lookup-index-unique/L
+    (cxt-lookup-index/miss B-L) (cxt-lookup-index/hit)
+    (cxt-bounded/cons/unique _ B-B) _ nat`eq/ cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-bounded-implies-false B-L B-B V
+    <- false-implies-object-eq V _ _ OE
+    <- false-implies-ty-eq V _ _ TE.
+
+- : cxt-lookup-index-unique/L 
+    (cxt-lookup-index/hit) (cxt-lookup-index/miss B-L)
+    (cxt-bounded/cons/unique _ B-B) _ nat`eq/ cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-bounded-implies-false B-L B-B V
+    <- false-implies-object-eq V _ _ OE
+    <- false-implies-ty-eq V _ _ TE.
+
+%worlds () (cxt-lookup-index-unique/L _ _ _ _ _ _ _ _ _).
+%total (L) (cxt-lookup-index-unique/L L _ _ _ _ _ _ _ _).
+
+
+cxt-lookup-index-unique
+  : cxt-lookup-index B1 L1 O1 T1
+    -> cxt-lookup-index B2 L2 O2 T2
+    -> cxt-ordered B1 
+    -> cxt-ordered B2
+    -> cxt`eq B1 B2
+    -> nat`eq L1 L2
+    -> object`eq O1 O2
+    -> ty`eq T1 T2 
+    -> type.
+
+%mode cxt-lookup-index-unique +D1 +D2 +D3 +D4 +D5 +D6 -D7 -D8.
+
+- : cxt-lookup-index-unique 
+    cxt-lookup-index/hit cxt-lookup-index/hit 
+    _ _ cxt`eq/ nat`eq/ object`eq/ ty`eq/.
+    
+- : cxt-lookup-index-unique
+    (cxt-lookup-index/miss B-L1) (cxt-lookup-index/miss B-L2)
+    (cxt-ordered/cons/unique B-B1)
+    (cxt-ordered/cons/unique B-B2) cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-index-unique/L 
+      B-L1 B-L2 B-B1 B-B2 nat`eq/ cxt`eq/ nat`eq/ OE TE.
+
+- : cxt-lookup-index-unique
+    (cxt-lookup-index/miss B-L1) (cxt-lookup-index/miss B-L2)
+    (cxt-ordered/cons/shared B-O1) (cxt-ordered/cons/shared B-O2)
+    cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-index-unique B-L1 B-L2 B-O1 B-O2 cxt`eq/ nat`eq/ OE TE.
+    
+- : cxt-lookup-index-unique
+    (cxt-lookup-index/miss B-L) (cxt-lookup-index/hit)
+    (cxt-ordered/cons/unique B-B) _ cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-bounded-implies-false B-L B-B V
+    <- false-implies-object-eq V _ _ OE
+    <- false-implies-ty-eq V _ _ TE.
+
+- : cxt-lookup-index-unique
+    (cxt-lookup-index/hit) (cxt-lookup-index/miss B-L)
+    (cxt-ordered/cons/unique B-B) _ cxt`eq/ nat`eq/ OE TE
+    <- cxt-lookup-bounded-implies-false B-L B-B V
+    <- false-implies-object-eq V _ _ OE
+    <- false-implies-ty-eq V _ _ TE.
+
+%worlds () (cxt-lookup-index-unique _ _ _ _ _ _ _ _).
+%total (L) (cxt-lookup-index-unique L _ _ _ _ _ _ _).
