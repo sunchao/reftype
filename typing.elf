@@ -4,10 +4,44 @@
 %%% abbreviations
 
 %abbrev null = (object/ nat`z).	% null object
+
 %abbrev all = nat`z. % special 'All' field
+
 %abbrev loc = nat. % location
+
 %abbrev efxmap/1 : nat -> nat -> efx -> efxmap 
   = [L][F][X] (efxmap/+ L (inner-efxmap/+ F X inner-efxmap/0) efxmap/0).
+
+
+% whether there is a effect on shared
+
+maybe-efx : type.
+
+maybe-efx/just : efx -> maybe-efx. 
+
+maybe-efx/nothing : maybe-efx.
+
+
+maybe-efx-join : maybe-efx -> maybe-efx -> maybe-efx -> type.
+
+maybe-efx-join/1
+  : maybe-efx-join (maybe-efx/just X) maybe-efx/nothing (maybe-efx/just X).
+
+maybe-efx-join/2
+  : maybe-efx-join maybe-efx/nothing (maybe-efx/just X)  (maybe-efx/just X).
+
+maybe-efx-join/3
+  : maybe-efx-join
+    (maybe-efx/just X1) (maybe-efx/just X2) (maybe-efx/just X3)
+    <- efx`join X1 X2 X3.
+
+maybe-efx-leq : maybe-efx -> maybe-efx -> type.
+
+maybe-efx-leq/1 : maybe-efx-leq maybe-efx/nothing (maybe-efx/just _).
+
+maybe-efx-leq/2
+  : maybe-efx-leq (maybe-efx/just X1) (maybe-efx/just X2)
+    <- efx`leq X1 X2.
 
 
 %%% output for type checking
@@ -15,15 +49,23 @@
 out : kind -> type.
 
 %abbrev expr-out = out exprk.
+
 %abbrev cond-out = out condk.
+
 %abbrev args-out = out argsk.
 
-out/expr : reftype -> efxmap -> expr-out.
-out/cond : efxmap -> cond-out.
+
+out/expr : reftype -> efxmap -> maybe-efx -> expr-out.
+
+out/cond : efxmap -> maybe-efx -> cond-out.
+
 out/args/0 : args-out.
+
 out/args/+ : expr-out -> args-out -> args-out.
 
 %abbrev reftgts/1 = [N] (reftgts/unique (set/1 N) tgtmap/0).
+
+
 
 %%% type judgments
 
@@ -35,12 +77,15 @@ ref-calltyping : loc -> clsmap -> args-out -> methty -> expr-out -> type.
 % so here we need to map them to the numbers of acutal parameters.
 ref-calltyping/call/shared
   : ref-calltyping _ _ out/args/0 (methty/base (ty/ NN annot/shared C))
-    (out/expr (reftype/ (ty/ NN annot/shared C) reftgts/shared) efxmap/0).
+    (out/expr
+      (reftype/ (ty/ NN annot/shared C) 
+        reftgts/shared) efxmap/0 maybe-efx/nothing).
 
 ref-calltyping/call/unique
   : ref-calltyping L _ out/args/0 (methty/base (ty/ NN annot/unique C))
-    (out/expr (reftype/ (ty/ NN annot/unique C) (reftgts/1 L)) efxmap/0).
-
+    (out/expr
+      (reftype/ (ty/ NN annot/unique C) 
+        (reftgts/1 L)) efxmap/0 maybe-efx/nothing).
 
 %{% R and W are sets of fields being read and write, respectively.
   here the order of efxmap`join matters: the effects of evaluating
@@ -76,38 +121,43 @@ reftype-extend-rw/borrow
     <- efxmap`join RXM WXM XM.
 
 ref-calltyping/args
-  : ref-calltyping L CM (out/args/+ (out/expr RT XM) AO)
-    (methty/arg A T R W) (out/expr ART OXM)
-    <- ref-calltyping L CM AO A (out/expr ART AXM)
+  : ref-calltyping L CM (out/args/+ (out/expr RT XM MX) AO)
+    (methty/arg A T R W) (out/expr ART OXM OMX)
+    <- ref-calltyping L CM AO A (out/expr ART AXM AMX)
     <- reftype-extend-rw CM T RT R W RWXM
     <- efxmap`join XM AXM XMP
-    <- efxmap`join XMP RWXM OXM.
+    <- efxmap`join XMP RWXM OXM
+    <- maybe-efx-join MX AMX OMX.
 
 
 %%% expressions
 
 ref-typing/lit/unique
   : ref-typing L _ _ B (lit O) 
-    (out/expr (reftype/ T (reftgts/unique (set/1 N) tgtmap/0)) efxmap/0) L
+    (out/expr (reftype/ T (reftgts/unique (set/1 N) tgtmap/0)) 
+      efxmap/0 maybe-efx/nothing) L
     <- cxt-lookup B O (vtype/unique N) T.
 
 ref-typing/lit/shared
   : ref-typing L _ _ B (lit O) 
-    (out/expr (reftype/ T reftgts/shared) efxmap/0) L
+    (out/expr (reftype/ T reftgts/shared) efxmap/0 maybe-efx/nothing) L
     <- cxt-lookup B O (vtype/shared) T.
     
 
 ref-typing/null
- : ref-typing L _ _ _ (lit null) (out/expr reftype/null efxmap/0) L.
+ : ref-typing L _ _ _ (lit null)
+   (out/expr reftype/null efxmap/0 maybe-efx/nothing) L.
 
 
-read-type : reftgts -> nat -> annot -> efx -> reftgts -> efxmap -> type.
+read-type
+  : reftgts -> nat -> annot -> efx -> reftgts -> efxmap -> maybe-efx -> type.
 
-read-type/s_ : read-type reftgts/shared _ _ X reftgts/shared (efxmap/1 z z X).
-  
+read-type/s_
+  : read-type reftgts/shared _ _ X reftgts/shared efxmap/0 (maybe-efx/just X).
+    
 read-type/us
   : read-type (reftgts/unique S GM) 
-    F annot/shared X reftgts/shared XM
+    F annot/shared X reftgts/shared XM maybe-efx/nothing
     <- tgtmap`domain GM SP
     <- set`disjoint S SP
     <- set+nat2tgtmap S F GMP
@@ -116,7 +166,7 @@ read-type/us
 
 read-type/uu
   : read-type (reftgts/unique S GM) 
-    F annot/unique X (reftgts/unique set/0 GMS) XM
+    F annot/unique X (reftgts/unique set/0 GMS) XM maybe-efx/nothing
     <- tgtmap`domain GM SP
     <- set`disjoint S SP
     <- set+nat2tgtmap S F GMP
@@ -126,29 +176,32 @@ read-type/uu
 
 ref-typing/read
   : ref-typing L1 CM MM B (read E F)
-    (out/expr (reftype/ (ty/ NN A FC) GP) XM) L2
+    (out/expr (reftype/ (ty/ NN A FC) GP) XM MX) L2
     <- ref-typing L1 CM MM B E
-      (out/expr (reftype/ (ty/ nn/yes _ C) G) XM1) L2
+      (out/expr (reftype/ (ty/ nn/yes _ C) G) XM1 MX1) L2
     <- clsmap`lookup CM C FM
     <- fldmap`lookup FM F (ty/ NN A FC)
-    <- read-type G F A efx/read GP XM2
-    <- efxmap`join XM1 XM2 XM.
+    <- read-type G F A efx/read GP XM2 MX2
+    <- efxmap`join XM1 XM2 XM
+    <- maybe-efx-join MX1 MX2 MX.
 
 %{% When checking E2, all permissions for E1.F will
  be encumbered and not available. THis is possibly
  too restrictive. But for now, I don't have good solution. %}%
 
 ref-typing/write
-  : ref-typing L1 CM MM B (write E1 F E2) (out/expr RT XM5) L3
+  : ref-typing L1 CM MM B (write E1 F E2) (out/expr RT XM5 MX5) L3
     <- ref-typing L1 CM MM B E1
-      (out/expr (reftype/ (ty/ nn/yes _ C) G) XM1) L2
-    <- ref-typing L2 CM MM B E2 (out/expr RT XM2) L3
+      (out/expr (reftype/ (ty/ nn/yes _ C) G) XM1 MX1) L2
+    <- ref-typing L2 CM MM B E2 (out/expr RT XM2 MX2) L3
     <- clsmap`lookup CM C FM
     <- fldmap`lookup FM F (ty/ NN A FC)
-    <- read-type G F A efx/write _ XM3
+    <- read-type G F A efx/write _ XM3 MX3
     <- efxmap`disjoint XM3 XM2
     <- efxmap`join XM1 XM2 XM4
-    <- efxmap`join XM4 XM3 XM5.
+    <- efxmap`join XM4 XM3 XM5
+    <- maybe-efx-join MX1 MX2 MX4
+    <- maybe-efx-join MX4 MX3 MX5.
 
 
 %{% Should clear local effects at end
@@ -158,38 +211,41 @@ ref-typing/write
 % TODO: add substitution
 % here T could be unique OR shared
 ref-typing/let/shared
-  : ref-typing L1 CM MM B (let E F) (out/expr RT XM) L3
+  : ref-typing L1 CM MM B (let E F) (out/expr RT XM MX) L3
     <- ref-typing L1 CM MM B E
-      (out/expr (reftype/ T reftgts/shared) XM1) L2
+      (out/expr (reftype/ T reftgts/shared) XM1 MX1) L2
     <- ({x} ref-typing L2 CM MM
 	 (cxt/cons x vtype/shared T B)
-	 (F x) (out/expr RT XM2) L3)
-    <- efxmap`join XM1 XM2 XM.
+	 (F x) (out/expr RT XM2 MX2) L3)
+    <- efxmap`join XM1 XM2 XM
+    <- maybe-efx-join MX1 MX2 MX.
 
 % TODO: substitution
 ref-typing/let/unique
-  : ref-typing L1 CM MM B (let E F) (out/expr RT XM) L3
+  : ref-typing L1 CM MM B (let E F) (out/expr RT XM MX2) L3
     <- ref-typing L1 CM MM B E
-      (out/expr (reftype/ T (reftgts/unique S GM)) XM1) L2
+      (out/expr (reftype/ T (reftgts/unique S GM)) XM1 MX1) L2
     <- ({x} ref-typing (s L2) CM MM
-	 (cxt/cons x (vtype/unique L2) T B)
-	 (F x) (out/expr RT XM2) L3)
-    <- efxmap`join XM1 XM2 XM.
+         (cxt/cons x (vtype/unique L2) T B)
+         (F x) (out/expr RT XM2 MX2) L3)
+    <- efxmap`join XM1 XM2 XM
+    <- maybe-efx-join MX1 MX2 MX.
 
 ref-typing/if
-  : ref-typing L1 CM MM B (if C E1 E2) (out/expr T XM2) L4
-    <- ref-typing L1 CM MM B C (out/cond XM0) L2
-    <- ref-typing L2 CM MM B E1 (out/expr T XM1) L3
-    <- ref-typing L3 CM MM B E2 (out/expr T XM1) L4
-    <- efxmap`join XM0 XM1 XM2.
+  : ref-typing L1 CM MM B (if C E1 E2) (out/expr T XM2 MX2) L4
+    <- ref-typing L1 CM MM B C (out/cond XM0 MX0) L2
+    <- ref-typing L2 CM MM B E1 (out/expr T XM1 MX) L3
+    <- ref-typing L3 CM MM B E2 (out/expr T XM1 MX) L4
+    <- efxmap`join XM0 XM1 XM2
+    <- maybe-efx-join MX0 MX MX2.
 
 
 %%% conditionals
  
 ref-typing/eq
-  : ref-typing L1 CM MM B (eql E1 E2) (out/cond XM) L3
-    <- ref-typing L1 CM MM B E1 (out/expr _ XM1) L2
-    <- ref-typing L2 CM MM B E2 (out/expr _ XM2) L3
+  : ref-typing L1 CM MM B (eql E1 E2) (out/cond XM MX) L3
+    <- ref-typing L1 CM MM B E1 (out/expr _ XM1 MX) L2
+    <- ref-typing L2 CM MM B E2 (out/expr _ XM2 MX) L3
     <- efxmap`join XM1 XM2 XM.
 
 ref-typing/not
@@ -197,17 +253,18 @@ ref-typing/not
     <- ref-typing L1 CM MM B C R L2.
 
 ref-typing/and
-  : ref-typing L1 CM MM B (and C1 C2) (out/cond XM) L3
-    <- ref-typing L1 CM MM B C1 (out/cond XM1) L2
-    <- ref-typing L2 CM MM B C2 (out/cond XM2) L3
-    <- efxmap`join XM1 XM2 XM.
+  : ref-typing L1 CM MM B (and C1 C2) (out/cond XM MX) L3
+    <- ref-typing L1 CM MM B C1 (out/cond XM1 MX1) L2
+    <- ref-typing L2 CM MM B C2 (out/cond XM2 MX2) L3
+    <- efxmap`join XM1 XM2 XM
+    <- maybe-efx-join MX1 MX2 MX.
 
 ref-typing/args/0 : ref-typing L _ _ _ args/0 out/args/0 L.
 
 ref-typing/args/+
   : ref-typing L1 CM MM B
-    (args/+ E A) (out/args/+ (out/expr T XM) R) L3
-    <- ref-typing L1 CM MM B E (out/expr T XM) L2
+    (args/+ E A) (out/args/+ (out/expr T XM MX) R) L3
+    <- ref-typing L1 CM MM B E (out/expr T XM MX) L2
     <- ref-typing L2 CM MM B A R L3.
 
 % return value takes one binding
@@ -221,12 +278,12 @@ ref-typing/call
 % constructor will have write effect on every field
 ref-typing/const
   : ref-typing L1 CM MM B
-    (call C (args/+ (alloc C S set/0) A)) (out/expr T XM) (s L2)
+    (call C (args/+ (alloc C S set/0) A)) (out/expr T XM MX) (s L2)
     <- clsmap`lookup CM C FM
     <- fldmap`domain FM S
     <- methmap`lookup MM C (methty/arg MT _ _ _)
     <- ref-typing L1 CM MM B A AO L2
-    <- ref-calltyping L2 CM AO MT (out/expr T XM).
+    <- ref-calltyping L2 CM AO MT (out/expr T XM MX).
 
 
 % methtymatch
@@ -234,10 +291,12 @@ ref-typing/const
 methtymatch*
   : loc -> efxmap -> clsmap -> methmap -> cxt -> func -> methty -> loc -> type.
 
+% TODO: fix methty
 methtymatch/base
   : methtymatch* L1 XM CM MM B (func/0 E) (methty/base T) L2
-    <- ref-typing L1 CM MM B E (out/expr (reftype/ T _) XMP) L2
-    <- efxmap`leq XMP XM.
+    <- ref-typing L1 CM MM B E (out/expr (reftype/ T _) XMP MXP) L2
+    <- efxmap`leq XMP XM
+    <- maybe-efx-leq MXP MX.
 
 
 %{ shared annotation doesn't carry any effect, read/write 
