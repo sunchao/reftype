@@ -246,36 +246,34 @@
 
 %% wellformed type - not borrowed
 
-wf-ty : ty -> type.
+not-borrow : ty -> type.
 
-wf-ty/unique : wf-ty (ty/ _ annot/unique _).
+not-borrow/unique : not-borrow (ty/ _ annot/unique _).
 
-wf-ty/shared : wf-ty (ty/ _ annot/shared _).
-
+not-borrow/shared : not-borrow (ty/ _ annot/shared _).
 
 
 %%% Lemmas for proving tRead
 
-%theorem ref-typing-ok/read/shared :
-    forall* {CM} {FM} {B} {F} {Pi} {G} {Out1}
-            {XM} {E: expr} {PM} {W} {A} {C}
-    forall  {T} {WF-T: wf-ty T} 
-            {CM2PM: clsmap2predmap CM PM}
-            {CM-L: clsmap`lookup CM C FM} 
-            {FM-L: fldmap`lookup FM F T}
-            {ET+XM2Out1: reftype+efxmap2output 
-                CM PM B (reftype/ (ty/ nn/yes A C) reftgts/shared) XM Out1}
-            {TYP: typing W (G , ((allperm null) , Pi)) E Out1}
-    exists  {Out} 
-            {RT+XM: reftype+efxmap2output 
-                    CM PM B (reftype/ T reftgts/shared) XM Out}
-            {PTYP: typing W (G , ((allperm null) , Pi)) (read E F) Out}
-    true.
+ref-typing-ok/read/shared
+  : not-borrow T
+    -> clsmap2predmap CM PM
+    -> clsmap`lookup CM C FM
+    -> fldmap`lookup FM F T
+    -> reftype+efxmap2output CM PM B 
+      (reftype/ (ty/ nn/yes A C) reftgts/shared) XM Out1
+    -> typing W (G , ((allperm null) , Pi)) E Out1
+    -> %{=>}% reftype+efxmap2output CM PM B (reftype/ T reftgts/shared) XM Out
+    -> typing W (G , ((allperm null) , Pi)) (read E F) Out
+    -> type.
+
+%mode ref-typing-ok/read/shared +D1 +D2 +D3 +D4 +D5 +D6 -D7 -D8.
+
 
 % (shared.shared).unique
-- : ref-typing-ok/read/shared (ty/ _ annot/unique _) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared not-borrow/unique CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/s_ XM2Pi PM->C nn2perm/yes) TYP %{=>}%
-    _ (reftype+efxmap2output/us XM2Pi PM->FC=CP NN2PF) 
+    (reftype+efxmap2output/us XM2Pi PM->FC=CP NN2PF) 
     (tTrans2
       (tRead1 TYP
         (letTyping/exists 
@@ -364,9 +362,10 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
       _ _ _ _ NN2PF PM->FC=CP IMP.
 
 % (shared.unique).unique
-- : ref-typing-ok/read/shared (ty/ FAA annot/unique FC) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared %{ (ty/ FAA annot/unique FC) }%
+    (not-borrow/unique) CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/us XM2Pi' PM->C nn2perm/yes) TYP
-    _ (reftype+efxmap2output/us XM2Pi' PM->FC=CP NN2PF-3) 
+    (reftype+efxmap2output/us XM2Pi' PM->FC=CP NN2PF-3) 
         (tTrans2 
       (tRead1 TYP
         (letTyping/exists [r]
@@ -473,9 +472,10 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
       _ _ _ A2AF NN2PF-3 PM->FC=CP IMP.
     
 % (shared.unique).shared
-- : ref-typing-ok/read/shared (ty/ FAA annot/shared FC) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared %{ (ty/ FAA annot/shared FC) }%
+    not-borrow/shared CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/us XM2Pi' PM->C nn2perm/yes) TYP
-    _ (reftype+efxmap2output/s_ XM2Pi' PM->FC=CP NN2PF-3) 
+    (reftype+efxmap2output/s_ XM2Pi' PM->FC=CP NN2PF-3) 
     (tTrans2 
       (tRead1 TYP
         (letTyping/exists [r]
@@ -569,9 +569,10 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
       IMP2.
 
 % (shared.shared).shared
-- : ref-typing-ok/read/shared (ty/ FAA annot/shared FC) _ CM2PM CM->C=FM FM->F=T
+- : ref-typing-ok/read/shared %{ (ty/ FAA annot/shared FC) }% 
+    not-borrow/shared CM2PM CM->C=FM FM->F=T
     (reftype+efxmap2output/s_ XM2Pi' PM->C nn2perm/yes) TYP
-    _ (reftype+efxmap2output/s_ XM2Pi' PM->FC=CP NN2PF-3) 
+    (reftype+efxmap2output/s_ XM2Pi' PM->FC=CP NN2PF-3) 
     (tTrans2
       (tRead1 TYP 
         (letTyping/exists 
@@ -646,8 +647,8 @@ wf-ty/shared : wf-ty (ty/ _ annot/shared _).
     <- sharedperm-can-be-duplicated annot2perm/shared NN2PF-3 PM->FC=CP
       IMP2.
 
-%worlds () (ref-typing-ok/read/shared _ _ _ _ _ _ _ _ _ _).
-%total  {} (ref-typing-ok/read/shared _ _ _ _ _ _ _ _ _ _).
+%worlds () (ref-typing-ok/read/shared _ _ _ _ _ _ _ _).
+%total  {} (ref-typing-ok/read/shared _ _ _ _ _ _ _ _).
 
 
 %theorem set2inner-efxmap-implies-filter-non-consume/inner/L :
@@ -1280,14 +1281,14 @@ efxmap`leq-implies-permission-leq
       
 
 %theorem inner-efxmap`disjoint-join-implies-equiv :
-                                                    forall* {M1} {M2} {M} {O} {FM} {PM} {Pi1} {Pi2}
-                                                    forall  {M1^M2: inner-efxmap`disjoint M1 M2}
-                                                    {M2UM2=M: inner-efxmap`join M1 M2 M}
-                                                    {M1=>Pi1: inner-efxmap2perm O FM PM M1 Pi1}
-                                                    {M2=>Pi2: inner-efxmap2perm O FM PM M2 Pi2}
-                                                    exists  {Pi} {M=>Pi: inner-efxmap2perm O FM PM M Pi}
-                                                    {EQV: equiv (Pi1 , Pi2) Pi}
-                                                    true.
+    forall* {M1} {M2} {M} {O} {FM} {PM} {Pi1} {Pi2}
+    forall  {M1^M2: inner-efxmap`disjoint M1 M2}
+            {M2UM2=M: inner-efxmap`join M1 M2 M}
+            {M1=>Pi1: inner-efxmap2perm O FM PM M1 Pi1}
+            {M2=>Pi2: inner-efxmap2perm O FM PM M2 Pi2}
+    exists  {Pi} {M=>Pi: inner-efxmap2perm O FM PM M Pi}
+            {EQV: equiv (Pi1 , Pi2) Pi}
+    true.
 
 - : inner-efxmap`disjoint-join-implies-equiv 
     M1^M2 M1UM2=M M1=>Pi1 M2=>Pi2 Pi M=>Pi EQV
@@ -1301,16 +1302,16 @@ efxmap`leq-implies-permission-leq
 
 
 %theorem efxmap`deep-disjoint-join-implies-equiv/L :
-                                                     forall* {CM} {PM} {B} {Pi1} {Pi2} {XM1} {XM2} {XM}
-                                                     forall  {N1} {SZ1: efxmap`size XM1 N1}
-                                                     {N2} {SZ2: efxmap`size XM2 N2}
-                                                     {XM1^XM2: efxmap`deep-disjoint XM1 XM2}
-                                                     {XM1UXM2=XM: efxmap`join XM1 XM2 XM}
-                                                     {XM1=>Pi1: efxmap2perm CM PM B XM1 Pi1}
-                                                     {XM2=>Pi2: efxmap2perm CM PM B XM2 Pi2}
-                                                     exists  {Pi} {XM=>Pi: efxmap2perm CM PM B XM Pi} 
-                                                     {EQV: equiv (Pi1 , Pi2) Pi}
-                                                     true.
+    forall* {CM} {PM} {B} {Pi1} {Pi2} {XM1} {XM2} {XM}
+    forall  {N1} {SZ1: efxmap`size XM1 N1}
+            {N2} {SZ2: efxmap`size XM2 N2}
+            {XM1^XM2: efxmap`deep-disjoint XM1 XM2}
+            {XM1UXM2=XM: efxmap`join XM1 XM2 XM}
+            {XM1=>Pi1: efxmap2perm CM PM B XM1 Pi1}
+            {XM2=>Pi2: efxmap2perm CM PM B XM2 Pi2}
+    exists  {Pi} {XM=>Pi: efxmap2perm CM PM B XM Pi} 
+            {EQV: equiv (Pi1 , Pi2) Pi}
+    true.
 
 - : efxmap`deep-disjoint-join-implies-equiv/L
     _ _ _ _ efxmap`deep-disjoint/L _ _ XM=>Pi _ XM=>Pi 
