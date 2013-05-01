@@ -143,10 +143,7 @@ cxt2facts/cons
     <- predmap`lookup PM C CP
     <- cxt2facts PM B Pi.
 	
-%{%
 
-
-%%% methty => proctype
 
 methty2proctype* : clsmap -> predmap -> permission
   -> permission -> methty -> proctype -> type.
@@ -155,103 +152,20 @@ methty2proctype/base
   : methty2proctype* CM PM Pin Pout (methty/base T)
     (proctype/base Pin
       (output/exists [o]
-	(output/expr o ((PF o) , Pout))))
+        (output/expr o ((PF o) , Pout))))
     <- ty2perm PM T ([o] PF o).
-	      
-
-set2perm : clsmap -> predmap -> fldmap -> set ->
-  (object -> permission) -> type.
-
-set2perm/0 : set2perm _ _ _ set/0 ([_] empty).
-
-set2perm/+
-  : set2perm CM PM FM S
-    ([o] (unitperm (precise-exists o F PF)) , (Pi o))
-    <- set`add S' F S
-    <- fldmap`lookup FM F T
-    <- ty2perm PM T ([o] PF o)
-    <- set2perm CM PM FM S' ([o] Pi o).
-
-
-
-
-% here if the argument type is unique, then the read/write sets
-% associated with it can only be empty. 
-methty2proctype/args 
-  : methty2proctype* CM PM Pin Pout (methty/arg MT (ty/ NN A C) R W)
-    (proctype/arg ([r] PTF r))
-    <- ty2perm PM (ty/ NN A C) ([o] PF o)
-    <- clsmap`lookup CM C FM
-    <- set2perm CM PM FM R ([o] RPF o)
-    <- set2perm CM PM FM W ([o] WPF o)
-    <- ({o} methty2proctype* CM PM
-         (((PF o) , (RPF o) , (WPF o)) , Pin) 
-         (((RPF o) , (WPF o)) , Pout) MT (PTF o)).
 
 %abbrev methty2proctype
-   = [CM][PM][MT][PT] methty2proctype* CM PM empty empty MT PT.
-
+  = [CM][PM][MT][PT] methty2proctype* CM PM empty empty MT PT.
 
 consty2proctype*
   : clsmap -> predmap -> fldmap -> permission -> 
   permission -> methty -> (object -> proctype) -> type.
 
-consty2proctype/base
-  : consty2proctype* CM PM FM Pin Pout
-    (methty/base T)
-    ([t] (proctype/base
-	   (Pin , 
-	     (unitperm (nonlinear (neg (objequal t null)))) , 
-	     (OS t))
-	   (output/exists [t]
-	     (output/expr t ((PF t) , Pout)))))
-    <- ty2perm PM T ([o] PF o)
-    <- fldmap`domain FM S
-    <- ({t} allocFields t S (OS t)).
-
-consty2proctype/args
-  : consty2proctype* CM PM FM Pin Pout
-    (methty/arg CT (ty/ NN A C) R W)
-    ([t] (proctype/arg ([r] PTF t r)))
-    <- ty2perm PM (ty/ NN A C) ([r] PF r)
-    <- clsmap`lookup CM C FM'
-    <- set2perm CM PM FM' R ([o] RPF o)
-    <- set2perm CM PM FM' W ([o] WPF o)
-    <- ({r} consty2proctype* CM PM FM 
-	 (((PF r) , (RPF r) , (WPF r)) , Pin)
-	 (((RPF r) , (WPF r)) , Pout) CT ([t] PTF t r)).
-
 %abbrev consty2proctype
    = [CM][PM][FM][CT][PTF] consty2proctype* CM PM FM empty empty CT PTF.
 
-
-%%% methmap => progtype
-
 methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
-
-methmap2progtype/0 : methmap2progtype _ _ methmap/0 progtype`map/0.
-
-methmap2progtype/+/const
-  : methmap2progtype CM PM MM W
-    <- methmap`update 
-      MM' C (methty/arg CT (ty/ nonnull/yes annot/unique C) _ _) MM
-    <- methmap`fresh MM' C
-    <- clsmap`lookup CM C FM
-    <- consty2proctype CM PM FM CT ([t] PTF t)
-    <- methmap2progtype CM PM MM' W'
-    <- progtype`update W' C (proctype/arg PTF) W.
-
-methmap2progtype/+/meth
-  : methmap2progtype CM PM MM W
-    <- methmap`update MM' C MT MM
-    <- methmap`fresh MM' C
-    <- clsmap`fresh CM C
-    <- methty2proctype CM PM MT PT
-    <- methmap2progtype CM PM MM' W'
-    <- progtype`update W' C PT W.
-
-
-%%% environment => progtype
 
 env2progtype : clsmap -> methmap -> progtype -> type.
 
@@ -260,7 +174,6 @@ env2progtype/
     <- clsmap2predmap CM PM
     <- methmap2progtype CM PM MM W.
 
-%}%
 
 %%% Theorems
 
