@@ -1,0 +1,326 @@
+%%% constructing a predmap from clsmap.
+%%% for each class, construct a predicate for it.
+%%% $Id$
+
+%abbrev all : nat = z.
+
+%abbrev allperm : object -> permission = [o] (unitperm (basic o all null)).
+
+%abbrev fldperm
+   : nat -> (clspred -> object -> permission) ->
+  (clspred -> object -> permission) 
+  = [F][PF] ([p][r] unitperm (precise-exists r F ([o] PF p o))).
+
+%abbrev conj2pred : (clspred -> object -> formula) -> clspred 
+	= [g] (predicate/Y ([f] predicate/+ ([o] predicate/0 (g f o)))).
+
+%abbrev one-predcall : clspred -> object -> permission 
+	= [p][o] (unitperm (nonlinear (predcall p (predargs/1 o)))).
+
+
+%%% annotation => permission
+
+annot2perm : annot -> (object -> permission) -> type.
+
+annot2perm/unique : annot2perm annot/unique ([o] (allperm o)).
+      
+annot2perm/shared
+  : annot2perm annot/shared
+    ([o] (unitperm
+	   (nonlinear
+	     (nested (allperm o) null all)))).
+
+annot2perm/borrow : annot2perm annot/borrow ([_] empty).
+
+
+%%% nonnull => permission
+
+nn2perm : nonnull -> (object -> permission) 
+  -> (clspred -> object -> permission) -> type.
+
+nn2perm/yes
+  : nn2perm nonnull/yes PF
+    ([p][r] 
+      (combine
+        (unitperm 
+          (nonlinear (neg (objequal r null))))
+        (combine (PF r) (one-predcall p r)))).
+
+nn2perm/may
+  : nn2perm nonnull/may PF
+    ([p][r]
+      (unitperm
+        (conditional
+          (objequal r null) 
+          (empty)
+          (combine (PF r) (one-predcall p r))))).
+
+
+ty2perm : predmap -> ty -> (object -> permission) -> type.
+
+ty2perm/null
+  : ty2perm _ ty/null ([r] unitperm (nonlinear (objequal r null))).
+
+ty2perm/
+  : ty2perm PM (ty/ NN A C) ([r] (PF CP r))
+    <- annot2perm A AF
+    <- nn2perm NN AF PF
+    <- predmap`lookup PM C CP.
+
+
+%%% converting a fldmap to a permission 
+
+fldmap2conj
+  : clsmap -> predmap -> fldmap -> (object -> formula) -> predmap -> type.
+
+fldmap2conj/0 : fldmap2conj CM PM fldmap/0 ([o] t) PM.
+
+fldmap2conj/null
+  : fldmap2conj CM PMin (fldmap/+ F ty/null FM) ([o] G o) PMout
+    <- fldmap`shift F FM FM'
+    <- fldmap2conj CM PMin FM' ([o] G o) PMout.
+
+fldmap2conj/in
+  : fldmap2conj CM PMin
+    (fldmap/+ F (ty/ NN A C) FM)
+    ([r] conj (nested ((fldperm F PF) CP r) r all) (G r)) PMout
+    <- predmap`lookup PMin C CP
+    <- fldmap`shift F FM FM'
+    <- annot2perm A ([o] AF o)
+    <- nn2perm NN AF ([p][r] PF p r)
+    <- fldmap2conj CM PMin FM' ([r] G r) PMout.
+
+fldmap2conj/out
+  : fldmap2conj CM PMin
+    (fldmap/+ F (ty/ NN A C) FM)
+    ([r] conj (nested ((fldperm F PF) (conj2pred CJ) r) r all) (G r)) PMout
+    <- predmap`fresh PMin C
+    <- clsmap`lookup CM C KM
+    <- fldmap`shift F FM FM'
+    <- annot2perm A ([o] AF o)
+    <- nn2perm NN AF ([p][r] PF p r)
+    <- ({f} predmap`update PMin C f (PMF1 f))
+    <- ({f} fldmap2conj CM (PMF1 f) KM ([o] CJ f o) (PMF2 f))
+    <- fldmap2conj CM (PMF2 (conj2pred CJ)) FM' ([r] G r) PMout.
+
+
+%%% converting a clsmap to predmap
+
+clsmap2predmap* : clsmap -> predmap -> clsmap -> predmap -> type.
+
+%abbrev clsmap2predmap = [CM][PM] clsmap2predmap* CM predmap/0 CM PM.
+
+
+clsmap2predmap/0 : clsmap2predmap* _ PM clsmap/0 PM.
+
+clsmap2predmap/in
+  : clsmap2predmap* CM0 PMin (clsmap/+ C _ CM) PMout
+    <- predmap`lookup PMin C (conj2pred CJ)
+    <- clsmap`shift C CM CM'
+    <- clsmap2predmap* CM0 PMin CM' PMout.
+
+clsmap2predmap/out
+  : clsmap2predmap* CM0 PMin (clsmap/+ C FM CM) PMout
+    <- predmap`fresh PMin C
+    <- clsmap`shift C CM CM'
+    <- ({f} predmap`update PMin C f (PMF1 f))
+    <- ({f} fldmap2conj CM0 (PMF1 f) FM ([o] CJ f o) (PMF2 f))
+    <- clsmap2predmap* CM0 (PMF2 (conj2pred CJ)) CM' PMout.
+
+
+
+%%% theorems
+
+%theorem nn2perm-total* :
+    forall  {NN} {AF}
+    exists  {PF} {NN2PF: nn2perm NN AF PF}
+    true.
+
+- : nn2perm-total* nonnull/yes _ _ nn2perm/yes.
+- : nn2perm-total* nonnull/may _ _ nn2perm/may.
+
+%worlds (objvar | predvar) (nn2perm-total* _ _ _ _).
+%total  {} (nn2perm-total* _ _ _ _).
+
+%abbrev nn2perm-total = nn2perm-total* _ _ _.
+
+
+%theorem annot2perm-total* :
+    forall {A}
+    exists {AF} {A2AF: annot2perm A AF}
+    true.
+
+- : annot2perm-total* annot/unique _ annot2perm/unique.
+- : annot2perm-total* annot/shared _ annot2perm/shared.
+- : annot2perm-total* annot/borrow _ annot2perm/borrow.
+
+%worlds (objvar | predvar) (annot2perm-total* _ _ _).
+%total  (A) (annot2perm-total* A _ _).
+
+%abbrev annot2perm-total = annot2perm-total* _ _.
+
+
+%theorem false-implies-ty2perm :
+    forall* {PM} {T}
+    forall  {F:void}
+    exists  {PF} {T2PF: ty2perm PM T PF}
+    true.
+
+%worlds () (false-implies-ty2perm _ _ _).
+%total  {} (false-implies-ty2perm _ _ _).
+
+
+%theorem fldmap2conj-respects-eq :
+    forall* {CM1} {CM2} {PMin1} {PMin2} {FM1} {FM2} {G} {PMout} 
+    forall  {F2C: fldmap2conj CM1 PMin1 FM1 ([r] G r) PMout}
+            {CME: clsmap`eq CM1 CM2}
+            {PMinE: predmap`eq PMin1 PMin2}
+            {FME: fldmap`eq FM1 FM2}
+    exists  {F2C: fldmap2conj CM2 PMin2 FM2 ([r] G r) PMout}
+    true.
+
+- : fldmap2conj-respects-eq F2C clsmap`eq/ predmap`eq/ fldmap`eq/ F2C.
+
+%worlds (objvar | predvar) (fldmap2conj-respects-eq _ _ _ _ _).
+%total {} (fldmap2conj-respects-eq _ _ _ _ _).
+
+
+%theorem false-implies-clsmap2predmap :
+    forall* {CM}
+    forall  {F:void}
+    exists  {PM} {CM2PM: clsmap2predmap CM PM}
+    true.
+
+%worlds () (false-implies-clsmap2predmap _ _ _).
+%total  {} (false-implies-clsmap2predmap _ _ _).
+
+
+%theorem annot2perm-deterministic :
+    forall* {A1} {A2} {AF1} {AF2}
+    forall  {A2AF: annot2perm A1 AF1}
+            {A2AF: annot2perm A2 AF2}
+            {E: annot`eq A1 A2}
+    exists  {E: {o} permission`eq (AF1 o) (AF2 o)}
+    true.
+
+- : annot2perm-deterministic 
+    annot2perm/unique annot2perm/unique annot`eq/ ([_] permission`eq/).
+
+- : annot2perm-deterministic
+    annot2perm/shared annot2perm/shared annot`eq/ ([_] permission`eq/).
+
+- : annot2perm-deterministic
+    annot2perm/borrow annot2perm/borrow annot`eq/ ([_] permission`eq/).
+    
+%worlds (objvar) (annot2perm-deterministic _ _ _ _).
+%total  {} (annot2perm-deterministic _ _ _ _).
+
+
+%theorem nn2perm-deterministic/L1 :
+    forall* {PF1} {PF2}
+    forall  {FEQ: {o} permission`eq (PF1 o) (PF2 o)}
+    exists  {PEQ: {p}{r:object} permission`eq
+		  (unitperm (nonlinear (neg (objequal r null))) , 
+                    ((PF1 r) , (one-predcall p r)))
+                  (unitperm (nonlinear (neg (objequal r null))) , 
+                    ((PF2 r) , (one-predcall p r)))}
+    true.
+
+- : nn2perm-deterministic/L1 ([_] permission`eq/) ([_][_] permission`eq/).
+
+%worlds (objvar) (nn2perm-deterministic/L1 _ _).
+%total  {} (nn2perm-deterministic/L1 _ _).
+
+
+%theorem nn2perm-deterministic/L2 :
+    forall* {PF1} {PF2}
+    forall  {FEQ: {o} permission`eq (PF1 o) (PF2 o)}
+    exists  {PEQ: {p}{r:object} permission`eq
+                  (unitperm
+                    (conditional
+                      (objequal r null) (empty)
+                      ((PF1 r) , (one-predcall p r))))
+                  (unitperm
+                    (conditional
+                      (objequal r null) (empty)
+                      ((PF2 r) , (one-predcall p r))))}
+    true.
+
+- : nn2perm-deterministic/L2 ([_] permission`eq/) ([_][_] permission`eq/).
+
+%worlds (objvar) (nn2perm-deterministic/L2 _ _).
+%total  {} (nn2perm-deterministic/L2 _ _).
+
+
+%theorem nn2perm-deterministic :
+    forall* {NN1} {NN2} {PF1} {PF2} {FF1} {FF2}
+    forall  {NN12PF1: nn2perm NN1 PF1 FF1}
+            {NN22PF2: nn2perm NN2 PF2 FF2}
+            {E: nonnull`eq NN1 NN2}
+            {E: {o} permission`eq (PF1 o) (PF2 o)}
+    exists  {E: {o}{p} permission`eq (FF1 o p) (FF2 o p)}
+    true.
+
+- : nn2perm-deterministic nn2perm/yes nn2perm/yes nonnull`eq/
+    ([o] PEQ o) ([p][o] PPEQ p o)
+    <- nn2perm-deterministic/L1 PEQ PPEQ.
+
+- : nn2perm-deterministic nn2perm/may nn2perm/may nonnull`eq/
+    ([o] PEQ o) ([p][o] PPEQ p o)
+    <- nn2perm-deterministic/L2 PEQ PPEQ.
+
+%worlds (objvar) (nn2perm-deterministic _ _ _ _ _).
+%total  {} (nn2perm-deterministic _ _ _ _ _).
+
+
+% ty2perm
+
+%theorem ty2perm-eq-inversion :
+    forall* {NN1} {NN2} {A1} {A2} {C1} {C2}
+    forall  {EQ: ty`eq (ty/ NN1 A1 C1) (ty/ NN2 A2 C2)}
+    exists  {EQ: nonnull`eq NN1 NN2} {EQ: annot`eq A1 A2}
+            {EQ: nat`eq C1 C2}
+    true.
+
+- : ty2perm-eq-inversion ty`eq/ nonnull`eq/ annot`eq/ nat`eq/.
+
+%worlds () (ty2perm-eq-inversion _ _ _ _).
+%total  {} (ty2perm-eq-inversion _ _ _ _).
+
+
+%theorem ty2perm-deterministic/L :
+    forall* {PF1: clspred -> object -> permission} {PF2} {PD1} {PD2} 
+    forall  {FEQ: {p}{o} permission`eq (PF1 p o) (PF2 p o)}
+            {PEQ: predicate`eq PD1 PD2}
+    exists  {PEQ: {o} permission`eq (PF1 PD1 o) (PF2 PD2 o)}
+    true.
+
+- : ty2perm-deterministic/L
+     ([_][_] permission`eq/) predicate`eq/ ([_] permission`eq/).
+
+%worlds (objvar) (ty2perm-deterministic/L _ _ _).
+%total  {} (ty2perm-deterministic/L _ _ _).
+
+
+%theorem ty2perm-deterministic :
+    forall* {PM1} {PM2} {T1} {T2} {PF1} {PF2}
+    forall  {T12PF1: ty2perm PM1 T1 PF1}
+            {T22PF2: ty2perm PM2 T2 PF2}
+            {E: predmap`eq PM1 PM2} {EQ: ty`eq T1 T2}
+    exists  {E: {o} permission`eq (PF1 o) (PF2 o)}
+    true.
+
+- : ty2perm-deterministic ty2perm/null ty2perm/null
+    predmap`eq/ ty`eq/ ([_] permission`eq/).
+
+- : ty2perm-deterministic
+    (ty2perm/ PM-L1 NN12FF1 A12AF1) (ty2perm/ PM-L2 NN22FF2 A22AF2)
+    PMEQ TEQ PFF1=PFF2
+    <- ty2perm-eq-inversion TEQ NNEQ AEQ NEQ
+    <- predmap`lookup-deterministic PM-L1 PM-L2 PMEQ NEQ CPEQ
+    <- annot2perm-deterministic A12AF1 A22AF2 AEQ AF1=AF2
+    <- nn2perm-deterministic NN12FF1 NN22FF2 NNEQ AF1=AF2 PF1=PF2
+    <- ty2perm-deterministic/L PF1=PF2 CPEQ PFF1=PFF2.
+    
+%worlds (objvar) (ty2perm-deterministic _ _ _ _ _).
+%total  {} (ty2perm-deterministic _ _ _ _ _).
