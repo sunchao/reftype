@@ -1,122 +1,77 @@
 % Explicit Type Context
-% $Id$
+% $Id: cxt.elf,v 1.1 2013/05/04 02:39:47 csun Exp csun $
 
 % definition
 
-loc-cxt : type. %name loc-cxt LB.
+%abbrev utargets = [L] (targets/ (set/1 L) tgtmap/0 false).
 
-shared-cxt : type. %name shared-cxt SB.
+%abbrev stargets = (targets/ set/0 tgtmap/0 true).
+
 
 cxt : type. %name cxt B.
 
-cxt/ : loc-cxt -> shared-cxt -> cxt.
+cxt/nil : cxt.
+
+cxt/cons : object -> reftype -> cxt -> cxt.
 
 
 % equalities
 
-loc-cxt-eq : loc-cxt -> loc-cxt -> type.
-
-loc-cxt-eq/ : loc-cxt-eq LB LB.
-
-
-shared-cxt-eq : shared-cxt -> shared-cxt -> type.
-
-shared-cxt-eq/ : shared-cxt-eq SB SB.
-
-
 cxt-eq : cxt -> cxt -> type.
 
-cxt-eq/ : cxt-eq (cxt/ LB1 SB1) (cxt/ LB2 SB2)
-          <- loc-cxt-eq LB1 LB2
-          <- shared-cxt-eq SB1 SB2.
-
-
-% constructors 
-
-loc-cxt/nil : loc-cxt.
-
-loc-cxt/cons : object -> nat -> ty -> loc-cxt -> loc-cxt.
-
-
-shared-cxt/nil : shared-cxt.
-
-shared-cxt/cons : object -> ty -> shared-cxt -> shared-cxt.
+cxt-eq/ : cxt-eq B B.
 
 
 % lookups 
 
-shared-cxt-lookup : shared-cxt -> object -> ty -> type.
+cxt-lookup : cxt -> object -> reftype -> type.
 
-shared-cxt-lookup/hit : shared-cxt-lookup (shared-cxt/cons O T _) O T.
+cxt-lookup/hit : cxt-lookup (cxt/cons O RT _) O RT.
 
-shared-cxt-lookup/miss 
-  : shared-cxt-lookup (shared-cxt/cons _ _ SB) O T
-    <- shared-cxt-lookup SB O T.
-
-loc-cxt-lookup : loc-cxt -> object -> ty -> type.
-
-loc-cxt-lookup/hit : loc-cxt-lookup (loc-cxt/cons O _ T _) O T.
-
-loc-cxt-lookup/miss 
-  : loc-cxt-lookup (loc-cxt/cons _ _ _ LB) O T
-    <- loc-cxt-lookup LB O T.
-
-loc-cxt-lookup-loc : loc-cxt -> nat -> object -> ty -> type.
-
-loc-cxt-lookup-loc/hit : loc-cxt-lookup-loc (loc-cxt/cons O L T _) L O T.
-
-loc-cxt-lookup-loc/miss
-  : loc-cxt-lookup-loc (loc-cxt/cons _ _ _ LB) L O T
-    <- loc-cxt-lookup-loc LB L O T.
+cxt-lookup/miss
+  : cxt-lookup (cxt/cons _ _ B) O RT
+    <- cxt-lookup B O RT.
 
 
 % lookup object
 
-cxt-lookup : cxt -> object -> ty -> type.
-
-cxt-lookup/shared 
-  : cxt-lookup (cxt/ LB SB) O T
-    <- shared-cxt-lookup SB O T.
-
-cxt-lookup/loc
-  : cxt-lookup (cxt/ LB SB) O T
-    <- loc-cxt-lookup LB O T.
-
-
-% lookup loc
-
 cxt-lookup-loc : cxt -> nat -> object -> ty -> type.
 
-cxt-lookup-loc/
-  : cxt-lookup-loc (cxt/ LB _) L O T
-    <- loc-cxt-lookup-loc LB L O T.
+cxt-lookup-loc/hit
+  : cxt-lookup-loc (cxt/cons O (reftype/ T (utargets L)) _) L O T.
+
+cxt-lookup-loc/miss
+  : cxt-lookup-loc (cxt/cons _ _ B) L O T
+    <- cxt-lookup-loc B L O T.
 
 
-% all locations in loc-cxt are ordered
+% well-formed context
 
-loc-cxt-ordered : loc-cxt -> type.
+wf-cxt : cxt -> type.
 
-loc-cxt-ordered-h : nat -> loc-cxt -> type.
+wf-cxt-h : nat -> cxt -> type.
 
-loc-cxt-ordered-h/nil : loc-cxt-ordered-h _ loc-cxt/nil.
+wf-cxt-h/nil : wf-cxt-h _ cxt/nil.
 
-loc-cxt-ordered-h/cons
-  : loc-cxt-ordered-h L1 (loc-cxt/cons _ L2 _ LB)
-    <- nat`gt L1 L2 
-    <- loc-cxt-ordered-h L2 LB.
+wf-cxt-h/cons/u
+  : wf-cxt-h N (cxt/cons _ (reftype/ _ (utargets M)) B)
+    <- nat`gt N M
+    <- wf-cxt-h M B.
 
-loc-cxt-ordered/nil : loc-cxt-ordered loc-cxt/nil.
-
-loc-cxt-ordered/cons
-  : loc-cxt-ordered (loc-cxt/cons _ L _ LB)
-    <- loc-cxt-ordered-h L LB.
+wf-cxt-h/cons/s
+  : wf-cxt-h N (cxt/cons _ (reftype/ _ stargets) B)
+    <- wf-cxt-h N B.
 
 
-cxt-ordered : cxt -> type.
+wf-cxt/nil : wf-cxt cxt/nil.
 
-cxt-ordered/
-  : cxt-ordered (cxt/ LB _)
-    <- loc-cxt-ordered LB.
+wf-cxt/cons/u
+  : wf-cxt (cxt/cons _ (reftype/ _ (utargets N)) B)
+    <- wf-cxt-h N B.
+
+wf-cxt/cons/s
+  : wf-cxt (cxt/cons _ (reftype/ _ stargets) B)
+    <- wf-cxt B.
 
 
 % theorems
