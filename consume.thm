@@ -2,7 +2,7 @@
 % XM1 join XM2, and if XM2 contains all write permissions,
 % then XM1 won't contain consume permission for all 
 % corresponding write permissions in XM2.
-%%% $Id: consume.thm,v 1.1 2013/03/04 22:24:38 csun Exp $
+%%% $Id: consume.thm,v 1.1 2013/05/07 16:42:33 csun Exp csun $
 
 all-write : efxmap -> type.
 
@@ -1054,3 +1054,110 @@ filter-non-consume/inner-implies-leq23/LL* _.
 
 %worlds () (consume-once-left _ _ _ _ _).
 %total  {} (consume-once-left _ _ _ _ _).
+
+
+%theorem set2inner-efxmap-implies-filter-non-consume/inner/L :
+    forall* {S} {M}
+    forall  {N} {SZ: set`size S N} {S+X=>M: set2inner-efxmap S efx/write M}
+    exists  {FNCI: filter-non-consume/inner M M}
+    true.
+
+- : set2inner-efxmap-implies-filter-non-consume/inner/L _ _
+    set2inner-efxmap/0 filter-non-consume/inner/0.
+
+- : set2inner-efxmap-implies-filter-non-consume/inner/L 
+    (s N) (set`size/+ SZ) 
+    (set2inner-efxmap/+ S2M) (filter-non-consume/inner/write U FI SH-M=MS)
+    <- set`shift-total SH-S=SS
+    <- set`shift-preserves-size SZ SH-S=SS SZ-SS
+    <- inner-efxmap`shift-total SH-M=MS
+    <- shift-preserves-set2inner-efxmap S2M SH-S=SS SH-M=MS SS2MS
+    <- set2inner-efxmap-implies-filter-non-consume/inner/L N SZ-SS SS2MS FI
+    <- inner-efxmap`shift-implies-update SH-M=MS U.
+      
+%worlds () (set2inner-efxmap-implies-filter-non-consume/inner/L _ _ _ _).
+%total (N) (set2inner-efxmap-implies-filter-non-consume/inner/L N _ _ _).
+
+
+%theorem set2inner-efxmap-implies-filter-non-consume/inner:
+    forall* {S} {M}
+    forall  {S+X=>M: set2inner-efxmap S efx/write M}
+    exists  {FNCI: filter-non-consume/inner M M}
+    true. 
+
+- : set2inner-efxmap-implies-filter-non-consume/inner S+X=>M FNCI
+    <- set`size-total SZ
+    <- set2inner-efxmap-implies-filter-non-consume/inner/L _ SZ S+X=>M FNCI.
+
+%worlds () (set2inner-efxmap-implies-filter-non-consume/inner _ _).
+%total  {} (set2inner-efxmap-implies-filter-non-consume/inner _ _).
+
+
+%theorem set+nat2tgtmap-implies-filter-non-consume :
+    forall* {S} {F} {GM} {XM}
+    forall  {N} {SZ: set`size S N} {S+F=>GM: set+nat2tgtmap S F GM}
+            {GM+W=>XM: tgtmap2efxmap GM efx/write XM}
+    exists  {FNC: filter-non-consume XM XM}
+    true.
+
+- : set+nat2tgtmap-implies-filter-non-consume _ _ 
+    set+nat2tgtmap/0 tgtmap2efxmap/0 filter-non-consume/0.
+
+- : set+nat2tgtmap-implies-filter-non-consume
+    (s N) (set`size/+ SZ) (set+nat2tgtmap/+ S+F=>GM)
+    (tgtmap2efxmap/+ GM=>XM (set2inner-efxmap/+ set2inner-efxmap/0)) %{=>}% 
+    (filter-non-consume/+ XM-U FNC
+      (filter-non-consume/inner/write
+        inner-efxmap`update/0 filter-non-consume/inner/0 inner-efxmap`shift/0)
+      SH-XM)
+    <- set`shift-total SH-S
+    <- tgtmap`shift-total SH-GM
+    <- efxmap`shift-total SH-XM
+    <- shift-preserves-set+nat2tgtmap S+F=>GM SH-S SH-GM SS+F=>GMS
+    <- shift-preserves-tgtmap2efxmap GM=>XM SH-GM SH-XM GMS=>XMS
+    <- set`shift-preserves-size SZ SH-S SZS
+    <- set+nat2tgtmap-implies-filter-non-consume _ SZS SS+F=>GMS GMS=>XMS FNC
+    <- efxmap`shift-implies-update SH-XM XM-U.
+
+%worlds () (set+nat2tgtmap-implies-filter-non-consume _ _ _ _ _).
+%trustme %total (N) (set+nat2tgtmap-implies-filter-non-consume N _ _ _ _).
+
+
+%theorem set2inner-efxmap-implies-non-consume/L :
+    forall* {S} {M}
+    forall  {S=>M: set2inner-efxmap S efx/write M}
+    exists  {FNCI: filter-non-consume/inner M M}
+    true.
+
+- : set2inner-efxmap-implies-non-consume/L set2inner-efxmap/0
+  filter-non-consume/inner/0.
+
+- : set2inner-efxmap-implies-non-consume/L (set2inner-efxmap/+ S=>M)
+    (filter-non-consume/inner/write U FNCI SH)
+    <- set2inner-efxmap-implies-non-consume/L S=>M FFF
+    <- inner-efxmap`shift-total SH
+    <- shift-preserves-filter-non-consume/inner FFF SH SH FNCI
+    <- inner-efxmap`shift-implies-update SH U.
+
+%worlds () (set2inner-efxmap-implies-non-consume/L _ _).
+%total (T) (set2inner-efxmap-implies-non-consume/L T _).
+
+
+%theorem set2inner-efxmap-implies-non-consume :
+    forall* {GM} {XM}
+    forall  {GM=>XM: tgtmap2efxmap GM efx/write XM}
+    exists  {FNC: filter-non-consume XM XM}
+    true.
+
+- : set2inner-efxmap-implies-non-consume tgtmap2efxmap/0 filter-non-consume/0.
+
+- : set2inner-efxmap-implies-non-consume
+    (tgtmap2efxmap/+ GM=>XM S=>M) (filter-non-consume/+ U FNC FNCI SH)
+    <- set2inner-efxmap-implies-non-consume GM=>XM FNCP
+    <- set2inner-efxmap-implies-non-consume/L S=>M FNCI
+    <- efxmap`shift-total SH
+    <- shift-preserves-filter-non-consume FNCP SH SH FNC
+    <- efxmap`shift-implies-update SH U.
+
+%worlds () (set2inner-efxmap-implies-non-consume _ _).
+%total (T) (set2inner-efxmap-implies-non-consume T _).
