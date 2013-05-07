@@ -1,0 +1,281 @@
+%%%%% consistency-thms.elf
+%%%%% theorems about consistency between clsmap, fldmap, methmap, and oflist
+%%%%% Chao Sun
+%%%%% $Id: consistency.thm,v 1.2 2013/03/22 23:08:53 csun Exp $
+%%%%% Jun 17, 2010
+
+
+% theorems about shift
+
+%theorem shift-preserves-clsmap-fldmap :
+    forall* {CM} {FM1} {FM2} {N}
+    forall  {CM-FM1: clsmap-fldmap CM FM1}
+        		{SH: fldmap`shift N FM1 FM2}
+    exists  {CM-FM2: clsmap-fldmap CM FM2}
+    true.
+
+- : shift-preserves-clsmap-fldmap clsmap-fldmap/0 _ clsmap-fldmap/0.
+
+- : shift-preserves-clsmap-fldmap 
+    (clsmap-fldmap/+ CM-FM1 IN) _ (clsmap-fldmap/+ CM-FM1 IN).
+
+%worlds () (shift-preserves-clsmap-fldmap _ _ _).
+%total  {} (shift-preserves-clsmap-fldmap _ _ _).
+
+
+% This theorem says if under a "bigger" clsmap CM0, CM 
+% is well-defined, and class C in CM has fldmap FM, then all
+% classes in FM is well-defined under CM0
+
+%theorem lookup-implies-clsmap-fldmap : 
+    forall* {M} {CM} {FM} {C}
+    forall  {M-CM: clsmap-clsmap M CM}
+            {L: clsmap`lookup CM C FM}
+    exists  {M-FM: clsmap-fldmap M FM}
+    true.
+
+- : lookup-implies-clsmap-fldmap (clsmap-clsmap/+ _ _ M-FM _)
+     (clsmap`lookup/= _) M-FM.
+
+- : lookup-implies-clsmap-fldmap (clsmap-clsmap/+ M-CMP SH _ _)
+     (clsmap`lookup/> L P0) M-FM
+     <- nat`plus-swap-succ P0 P1
+     <- nat`plus-commutative P1 P2
+     <- clsmap`shift-preserves-lookup* L SH P2 L2
+     <- lookup-implies-clsmap-fldmap M-CMP L2 M-FM.
+
+%worlds () (lookup-implies-clsmap-fldmap _ _ _).
+%total  (M-CM) (lookup-implies-clsmap-fldmap M-CM _ _).
+
+
+%theorem lookup-implies-clsmap-ty :
+    forall* {CM} {FM} {F} {T}
+    forall  {CM-FM: clsmap-fldmap CM FM}
+            {FML: fldmap`lookup FM F T}
+    exists  {CM-NT : clsmap-ty CM T}
+    true.
+
+- : lookup-implies-clsmap-ty (clsmap-fldmap/+ CM-FM CM-T) 
+    (fldmap`lookup/= _) CM-T.
+
+- : lookup-implies-clsmap-ty (clsmap-fldmap/+ CM-FM _) 
+    (fldmap`lookup/> LP _) CM-T
+    <- lookup-implies-clsmap-ty CM-FM LP CM-T.
+
+%worlds () (lookup-implies-clsmap-ty _ _ _).
+%total  (CM-FM) (lookup-implies-clsmap-ty CM-FM _ _).
+
+
+%theorem lookup-implies-clsmap-methty :
+    forall* {CM} {MM} {MT} {M}
+    forall  {CM-MM: clsmap-methmap CM MM}
+            {MM-LP: methmap`lookup MM M MT}
+    exists  {CM-MT: clsmap-methty CM MT}
+    true.
+
+- : lookup-implies-clsmap-methty
+     (clsmap-methmap/meth _ _ CM-MT _) (methmap`lookup/= _) CM-MT.
+
+- : lookup-implies-clsmap-methty
+     (clsmap-methmap/const _ _ (CM-MT) CML) (methmap`lookup/= _) 
+     (clsmap-methty/args CM-MT (clsmap-ty/notnull (clsmap`domain?/in CML))).
+
+- : lookup-implies-clsmap-methty
+     (clsmap-methmap/meth CM-MMP N<<MM=MMP _ _) 
+     (methmap`lookup/> MML P1) CM-MT
+     <- nat`plus-swap-succ P1 P2
+     <- nat`plus-commutative P2 P3
+     <- methmap`shift-preserves-lookup* MML N<<MM=MMP P3 MMPL
+     <- lookup-implies-clsmap-methty CM-MMP MMPL CM-MT.
+
+- : lookup-implies-clsmap-methty
+     (clsmap-methmap/const CM-MMP N<<MM=MMP _ _)
+     (methmap`lookup/> MML P1) CM-MT
+     <- nat`plus-swap-succ P1 P2
+     <- nat`plus-commutative P2 P3
+     <- methmap`shift-preserves-lookup* MML N<<MM=MMP P3 MMPL
+     <- lookup-implies-clsmap-methty CM-MMP MMPL CM-MT.
+
+%worlds (objvar) (lookup-implies-clsmap-methty _ _ _).
+%total  (L) (lookup-implies-clsmap-methty L _ _).
+
+
+%theorem cxt-lookup-implies-clsmap-ty : 
+    forall* {CM} {B} {T} {O} {G}
+    forall  {CM-B: clsmap-cxt CM B}
+            {B-L: cxt-lookup B O (reftype/ T G)}
+    exists  {CM-T: clsmap-ty CM T}
+    true.
+
+- : cxt-lookup-implies-clsmap-ty
+    (clsmap-cxt/cons _ CM-T) cxt-lookup/hit CM-T.
+
+- : cxt-lookup-implies-clsmap-ty
+    (clsmap-cxt/cons CM-B _) (cxt-lookup/miss B-L) CM-T
+    <- cxt-lookup-implies-clsmap-ty CM-B B-L CM-T.
+
+%worlds (objvar) (cxt-lookup-implies-clsmap-ty _ _ _).
+%total (CM-B) (cxt-lookup-implies-clsmap-ty CM-B _ _).
+
+
+%theorem calltyping-implies-clsmap-ty :
+    forall* {CM} {L} {AO} {MT} {RT} {XM}
+    forall  {CM-MT: clsmap-methty CM MT}
+            {RCTYP: ref-calltyping L CM AO MT (out/expr RT XM)}
+    exists  {CM-T: clsmap-reftype CM RT}
+    true.
+
+%worlds () (calltyping-implies-clsmap-ty _ _ _).
+%trustme %total (CM-MT) (calltyping-implies-clsmap-ty CM-MT _ _).
+
+    
+%theorem typing-implies-clsmap-ty :
+    forall* {CM} {MM} {B} {E} {RT} {L1} {L2} {XM}
+    forall  {CM-CM: clsmap-clsmap CM CM}
+            {CM-MM: clsmap-methmap CM MM}
+            {CM-B : clsmap-cxt CM B}
+            {TYP: reftyping L1 CM MM B E (out/expr RT XM) L2}
+    exists  {CM-T: clsmap-reftype CM RT}
+    true.
+
+%worlds (objvar) (typing-implies-clsmap-ty _ _ _ _ _).
+%trustme %total  (TYP) (typing-implies-clsmap-ty _ _ _ TYP _).
+
+
+%{ A "good out" should have the following properties:
+  1, the GM should be leq than XM
+  2, either S or GM is NOT empty. }%
+
+good-targets : targets -> type.
+
+good-targets/set
+  : good-targets (targets/ S _ _)
+    <- set`size S (s _).
+
+good-targets/tgtmap
+  : good-targets (targets/ _ GM _)
+    <- tgtmap`size GM (s _).
+
+good-targets/bool : good-targets (targets/ _ _ true).
+
+
+good-out : out K -> type.
+
+good-out/expr/null : good-out (out/expr reftype/null _).
+
+good-out/expr
+  : good-out (out/expr (reftype/ _ G) XM)
+    <- tgtmap-leq-efxmap GM XM
+    <- good-targets (targets/ S GM SB).
+
+good-out/cond : good-out (out/cond _).
+
+good-out/args/0 : good-out out/args/0.
+
+good-out/args/+
+  : good-out (out/args/+ EO AO)
+    <- good-out EO
+    <- good-out AO.
+
+
+%theorem nat`ge-succ-implies-succ :
+    forall* {N1} {N2}
+    forall  {GE: nat`ge N1 (s N2)}
+    exists  {N3} {EQ: nat`eq N1 (s N3)}
+    true.
+
+- : nat`ge-succ-implies-succ (nat`ge/= EQ) _ EQ.
+
+- : nat`ge-succ-implies-succ (nat`ge/> GT) _ EQ
+    <- nat`gt-implies-positive GT _ EQ.
+
+%worlds () (nat`ge-succ-implies-succ _ _ _).
+%total  {} (nat`ge-succ-implies-succ _ _ _).
+
+
+efxmap`leq-preserves-good-out/expr
+  : good-out (out/expr RT XM1)
+    -> efxmap`leq XM1 XM2
+    -> good-out (out/expr RT XM2)
+    -> type.
+
+%mode efxmap`leq-preserves-good-out/expr +GG1 +LE -GG2.
+
+- : efxmap`leq-preserves-good-out/expr 
+    (good-out/expr GG GM<=XM1) XM1<=XM2 
+    (good-out/expr GG GM<=XM2)
+    <- tgtmap-leq-efxmap-right-transitive GM<=XM1 XM1<=XM2 GM<=XM2.
+
+- : efxmap`leq-preserves-good-out/expr 
+    good-out/expr/null _ good-out/expr/null.
+
+%worlds () (efxmap`leq-preserves-good-out/expr _ _ _).
+%total  {} (efxmap`leq-preserves-good-out/expr _ _ _).
+
+
+make-reftype-implies-good-targets
+  : make-reftype _ _ (reftype/ _ G)
+    -> good-targets G -> type.
+
+%mode make-reftype-implies-good-targets +MK -GG.
+
+- : make-reftype-implies-good-targets make-reftype/u
+    (good-targets/set (set`size/+ set`size/0)).
+
+- : make-reftype-implies-good-targets make-reftype/s good-targets/bool.
+
+- : make-reftype-implies-good-targets make-reftype/b
+    (good-targets/set (set`size/+ set`size/0)). 
+
+%worlds () (make-reftype-implies-good-targets _ _).
+%total  {} (make-reftype-implies-good-targets _ _).
+
+
+make-reftype-implies-empty-tgtmap
+  : make-reftype _ _ (reftype/ _ (targets/ _ GM _))
+    -> tgtmap`eq GM tgtmap/0 -> type.
+
+%mode make-reftype-implies-empty-tgtmap +MK -SZ.
+
+- : make-reftype-implies-empty-tgtmap make-reftype/u tgtmap`eq/.
+
+- : make-reftype-implies-empty-tgtmap make-reftype/b tgtmap`eq/.
+
+- : make-reftype-implies-empty-tgtmap make-reftype/s tgtmap`eq/.
+
+%worlds () (make-reftype-implies-empty-tgtmap _ _).
+%total  {} (make-reftype-implies-empty-tgtmap _ _).
+
+
+%theorem ref-calltyping-implies-good-out :
+    forall* {L} {CM} {AO} {EO} {MT}
+    forall  {G-AO: good-out AO}
+            {CTYP: ref-calltyping L CM AO MT EO}
+    exists  {G-EO: good-out EO}
+    true.
+
+- : ref-calltyping-implies-good-out good-out/args/0
+    (ref-calltyping/call MK-T) (good-out/expr GG GM<=XM)
+    <- make-reftype-implies-good-targets MK-T GG
+    <- make-reftype-implies-empty-tgtmap MK-T tgtmap`eq/
+    <- empty-tgtmap-leq-efxmap-always GM<=XM.
+
+- : ref-calltyping-implies-good-out 
+    (good-out/args/+ G-AO _)
+    (ref-calltyping/args XM4UXM2=XM XM1UXM3=XM4 ST CTYP) GEOP
+    <- ref-calltyping-implies-good-out G-AO CTYP GEO
+    <- efxmap`join-implies-leq XM1UXM3=XM4 _ XM3<=XM4
+    <- efxmap`join-implies-leq XM4UXM2=XM XM4<=XM _
+    <- efxmap`leq-transitive XM3<=XM4 XM4<=XM XM3<=XM
+    <- efxmap`leq-preserves-good-out/expr GEO XM3<=XM GEOP.
+
+%worlds () (ref-calltyping-implies-good-out _ _ _).
+%total (CT) (ref-calltyping-implies-good-out _ CT _).
+
+
+reftyping-implies-good-out : reftyping _ _ _ _ _ O _ -> good-out O -> type.
+
+%mode reftyping-implies-good-out +RTYP -GG.
+
+%worlds () (reftyping-implies-good-out _ _).
+%trustme %total (TYP) (reftyping-implies-good-out TYP _).
