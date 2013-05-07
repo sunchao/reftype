@@ -1,0 +1,101 @@
+% Subtyping Rules
+% $Id$
+
+%abbrev shared-efxmap = [X] (efxmap/1 nat`z nat`z X).
+
+
+% determine the max effect from these two sets.
+
+maximum-effect : set -> set -> efxmap -> type.
+
+maximum-effect/none : maximum-effect set/0 set/0 efxmap/0.
+
+maximum-effect/read 
+  : maximum-effect (set/+ _ _) set/0 (shared-efxmap efx/read).
+
+maximum-effect/write
+  : maximum-effect (set/+ _ _) (set/+ _ _) (shared-efxmap efx/write).
+
+
+% shortcut for constructing a shared tgtmap
+
+bool2tgtmap : bool -> tgtmap -> type.
+
+bool2tgtmap/no : bool2tgtmap false tgtmap/0.
+
+bool2tgtmap/yes : bool2tgtmap true (tgtmap/+ z (set/1 z) tgtmap/0).
+
+
+%{ sub-annotation rule produces effects on the RHS targets.
+This rule is so complicated, mainly because shared annotation.
+I don't know how to simplify it. }%
+
+sub-annot : targets -> set -> set -> set
+	-> annot -> annot -> efxmap -> type.
+
+%{ passing unique to shared will "expose" everything accessible
+from targets associated with the unique reference. It doesn't matter
+whether the unique reference is from shared. }%
+sub-annot/unique2shared
+  : sub-annot (targets/ S GM1 _) FS _ _ annot/unique annot/shared XM
+    <- set+set2tgtmap S FS GM2
+    <- tgtmap`join GM1 GM2 GM
+    <- tgtmap2efxmap GM efx/expose XM.
+
+sub-annot/unique2unique
+  : sub-annot (targets/ S GM1 SB) FS _ _ annot/unique annot/unique XM
+    <- set+set2tgtmap S FS GM2
+    <- bool2tgtmap SB GM3
+    <- tgtmap`join GM1 GM2 GM4
+    <- tgtmap`join GM4 GM3 GM
+    <- tgtmap2efxmap GM efx/consume XM.
+
+%{ passing some annotation to borrow produces read and write
+effects on fields linked with the borrowed annotation. Here we 
+can differentiate between shared and unique/borrow - for shared, the effects
+should be directly mapped to "shared" object. }%
+
+sub-annot/unique2borrow 
+  : sub-annot (targets/ S GM SB) _ RS WS annot/unique annot/borrow XM
+    <- set+set2tgtmap S RS RGM
+    <- set+set2tgtmap S WS WGM
+    <- tgtmap`join RGM GM GM1
+    <- tgtmap`join WGM GM GM2
+    <- tgtmap2efxmap GM1 efx/read XM1
+    <- tgtmap2efxmap GM2 efx/write XM2
+    <- efxmap`join XM1 XM2 XMP
+    <- maximum-effect RS WS SX
+    <- efxmap`join XMP SX XM.
+
+% SB must be true.
+sub-annot/shared2borrow
+  : sub-annot (targets/ _ _ true) _ RS WS annot/shared annot/borrow SX
+    <- maximum-effect RS WS SX.
+
+sub-annot/shared2shared : sub-annot _ _ _ _ annot/shared annot/shared efxmap/0.
+  
+% GM should be empty, and SB should be false
+sub-annot/borrow2borrow
+  : sub-annot (targets/ S tgtmap/0 false) _ RS WS annot/borrow annot/borrow XM
+    <- set+set2tgtmap S RS RGM
+    <- set+set2tgtmap S WS WGM
+    <- tgtmap2efxmap RGM efx/read XM1
+    <- tgtmap2efxmap WGM efx/write XM2
+    <- efxmap`join XM1 XM2 XM.
+
+
+sub-nonnull : nonnull -> nonnull -> type.
+
+sub-nonnull/ : sub-nonnull nonnull/yes nonnull/may.
+
+
+%{ Subtyping: the two sets are for read and write effects on
+borrowed parameters. They are only used in checking method calls }%
+subtype : clsmap -> reftype -> ty -> set -> set -> efxmap -> type.
+
+subtype/
+  : subtype CM (reftype/ (ty/ NN1 A1 C1) GS) (ty/ NN2 A2 C2) RS WS XM
+    <- nat`eq C1 C2
+    <- clsmap`lookup CM C1 FM
+    <- fldmap`domain FM FS
+    <- sub-annot GS FS RS WS A1 A2 XM.
