@@ -1,0 +1,260 @@
+%%% consistency relation between clsmap, methmap and fldmap
+%%% Chao Sun
+%%% $Id: consistency.elf,v 1.2 2013/03/22 23:09:41 csun Exp $
+%%% Created at Feb, 8th 2012
+
+%%% check if a type is in clsmap
+
+clsmap-ty : clsmap -> ty -> type.
+
+clsmap-ty/notnull : clsmap-ty CM (ty/ _ _ C) 
+		    <- clsmap`domain? CM C true.
+
+clsmap-ty/null : clsmap-ty CM ty/null.
+
+
+clsmap-reftype : clsmap -> reftype -> type.
+
+clsmap-reftype/notnull
+   : clsmap-reftype CM (reftype/ T _) 
+     <- clsmap-ty CM T.
+
+clsmap-reftype/null : clsmap-reftype _ reftype/null.
+
+
+% check if all types appear in methty is also in clsmap
+
+clsmap-methty : clsmap -> methty -> type.
+
+% nothing to check for shared effect
+clsmap-methty/base
+  : clsmap-methty CM (methty/base T _) 
+    <- clsmap-ty CM T.
+
+% should we worried that effect sets are not
+% subsets of class's field set?
+clsmap-methty/args
+  : clsmap-methty CM (methty/arg A T _ _)
+    <- clsmap-ty CM T
+    <- clsmap-methty CM A.
+
+
+% check if a fldmap is consistent with a clsmap
+
+clsmap-fldmap : clsmap -> fldmap -> type.
+
+clsmap-fldmap/0 : clsmap-fldmap _ fldmap/0.
+
+clsmap-fldmap/+
+  : clsmap-fldmap CM (fldmap/+ _ T FM)
+    <- clsmap-ty CM T
+    <- clsmap-fldmap CM FM.
+
+
+% check if a clsmap is consistent with itself
+
+clsmap-clsmap : clsmap -> clsmap -> type.
+
+clsmap-clsmap/0 : clsmap-clsmap _ clsmap`map/0.
+
+clsmap-clsmap/+
+  : clsmap-clsmap CM0 (clsmap`map/+ C FM CM)
+    <- clsmap`lookup CM0 C FM
+    <- clsmap-fldmap CM0 FM
+    <- clsmap`shift C CM CMS
+    <- clsmap-clsmap CM0 CMS.
+
+
+% check if a clsmap is consistent with a methmap
+
+clsmap-methmap : clsmap -> methmap -> type.
+
+clsmap-methmap/0 : clsmap-methmap _ methmap`map/0.
+
+clsmap-methmap/meth
+  : clsmap-methmap CM (methmap`map/+ N MT MM)
+    <- clsmap`fresh CM N
+    <- clsmap-methty CM MT
+    <- methmap`shift N MM MMS
+    <- clsmap-methmap CM MMS.
+
+clsmap-methmap/const
+  : clsmap-methmap CM
+    (methmap`map/+ N (methty/arg MT (ty/ nonnull/yes _ N) _ _) MM)
+    <- clsmap`lookup CM N _
+    <- clsmap-methty CM MT
+    <- methmap`shift N MM MMS
+    <- clsmap-methmap CM MMS.
+
+
+% consistency between clsmap and context
+
+clsmap-cxt : clsmap -> cxt -> type.
+
+clsmap-cxt/nil : clsmap-cxt _ cxt/nil.
+
+clsmap-cxt/cons
+  : clsmap-cxt CM (cxt/cons O (reftype/ T _) B)
+    <- clsmap-ty CM T
+    <- clsmap-cxt CM B.
+
+
+% consistency between location set and cxt
+
+cxt-set : cxt -> set -> type.
+
+cxt-set/0 : cxt-set _ set/0.
+
+cxt-set/+
+  : cxt-set B (set/+ N S)
+    <- wf-cxt B
+    <- cxt-lookup-loc B N _ _
+    <- set`shift N S SP
+    <- cxt-set B SP.
+
+
+% for each index of F -> X in inner-efxmap, F must be in fldmap.
+
+fldmap-inner-efxmap : fldmap -> inner-efxmap -> type.
+
+fldmap-inner-efxmap/0 : fldmap-inner-efxmap _ inner-efxmap/0.
+
+fldmap-inner-efxmap/+
+  : fldmap-inner-efxmap FM (inner-efxmap/+ F _ M)
+    <- fldmap`lookup FM F _
+    <- inner-efxmap`shift F M MP
+    <- fldmap-inner-efxmap FM MP.
+
+% for each entry (L -> M) in efxmap, L must be in cxt, and M must 
+% be consistent with SOME fldmap in clsmap.
+
+cxt-efxmap : cxt -> clsmap -> efxmap -> type.
+
+cxt-efxmap/0 : cxt-efxmap _ _ efxmap/0.
+
+cxt-efxmap/+
+  : cxt-efxmap B CM (efxmap/+ L M XM)
+    <- wf-cxt B
+    <- cxt-lookup-loc B L _ (reftype/ (ty/ _ _ C) _)
+    <- clsmap`lookup CM C FM
+    <- fldmap-inner-efxmap FM M
+    <- efxmap`shift L XM XMP
+    <- cxt-efxmap B CM XMP.
+
+
+% Theorems
+
+% fldmap-inner-efxmap
+
+%theorem shift-preserves-fldmap-inner-efxmap :
+    forall* {N} {FM} {FMP} {M} {MP}
+    forall  {FM-M: fldmap-inner-efxmap FM M}
+            {SH: fldmap`shift N FM FMP}
+            {SH: inner-efxmap`shift N M MP}
+    exists  {FMP-MP: fldmap-inner-efxmap FMP MP}
+    true.
+
+- : shift-preserves-fldmap-inner-efxmap 
+    fldmap-inner-efxmap/0 _ _ fldmap-inner-efxmap/0.
+
+- : shift-preserves-fldmap-inner-efxmap 
+    (fldmap-inner-efxmap/+ FM-MP SH FM-L) SH-FM
+    (inner-efxmap`shift/+ P) (fldmap-inner-efxmap/+ FMP-MP SH' FMP-L)
+    <- fldmap`shift-preserves-lookup* FM-L SH-FM P FMP-L
+    <- inner-efxmap`shift-total SH-M
+    <- shift-preserves-fldmap-inner-efxmap FM-MP SH-FM SH-M FMP-MP
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- inner-efxmap`shifts-add SH SH-M P2 SH'.
+
+%worlds () (shift-preserves-fldmap-inner-efxmap _ _ _ _).
+%total (I) (shift-preserves-fldmap-inner-efxmap I _ _ _).
+
+
+%theorem leq-preserves-fldmap-inner-efxmap :
+    forall* {M} {MP} {FM}
+    forall  {M<=MP: inner-efxmap`leq M MP}
+            {FM-MP: fldmap-inner-efxmap FM MP}
+    exists  {FM-M: fldmap-inner-efxmap FM M}
+    true.
+
+- : leq-preserves-fldmap-inner-efxmap 
+    inner-efxmap`leq/0 _ fldmap-inner-efxmap/0.
+
+- : leq-preserves-fldmap-inner-efxmap
+    (inner-efxmap`leq/= M<=MP _ nat`eq/) 
+    (fldmap-inner-efxmap/+ FM-MPS F<<MP=MPS FM-L)
+    (fldmap-inner-efxmap/+ FM-MS F<<M=MS FM-L)
+    <- inner-efxmap`shift-total F<<M=MS
+    <- inner-efxmap`shift-preserves-leq M<=MP F<<M=MS F<<MP=MPS MS<=MPS
+    <- leq-preserves-fldmap-inner-efxmap MS<=MPS FM-MPS FM-MS.
+
+- : leq-preserves-fldmap-inner-efxmap
+    (inner-efxmap`leq/> L P) 
+    (fldmap-inner-efxmap/+ FM-MPS F<<MP=MPS FM-L) FM-M
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- inner-efxmap`shift-preserves-leq
+      L (inner-efxmap`shift/+ P2) F<<MP=MPS LP
+    <- leq-preserves-fldmap-inner-efxmap LP FM-MPS FM-M.
+
+%worlds () (leq-preserves-fldmap-inner-efxmap _ _ _).
+%total (L) (leq-preserves-fldmap-inner-efxmap _ L _).
+      
+
+%theorem fldmap-inner-efxmap-respects-eq :
+    forall* {FM1} {FM2} {M1} {M2}
+    forall  {FM1-M1: fldmap-inner-efxmap FM1 M1}
+            {EQ: fldmap`eq FM1 FM2} {EQ: inner-efxmap`eq M1 M2}
+    exists  {FM2-M2: fldmap-inner-efxmap FM2 M2}
+    true.
+
+- : fldmap-inner-efxmap-respects-eq FM-M fldmap`eq/ inner-efxmap`eq/ FM-M.
+
+%worlds () (fldmap-inner-efxmap-respects-eq _ _ _ _).
+%total  {} (fldmap-inner-efxmap-respects-eq _ _ _ _).
+
+
+
+% cxt-efxmap
+
+%theorem cxt-efxmap-respects-eq :
+    forall* {B1} {B2} {CM1} {CM2} {XM1} {XM2} 
+    forall  {B1-XM1: cxt-efxmap B1 CM1 XM1}
+            {EQ: cxt-eq B1 B2} {EQ: clsmap`eq CM1 CM2} {EQ: efxmap`eq XM1 XM2}
+    exists  {B2-XM2: cxt-efxmap B2 CM2 XM2}
+    true.
+
+- : cxt-efxmap-respects-eq B-XM cxt-eq/ clsmap`eq/ efxmap`eq/ B-XM.
+        
+%worlds () (cxt-efxmap-respects-eq _ _ _ _ _).
+%total  {} (cxt-efxmap-respects-eq _ _ _ _ _).
+
+
+%theorem leq-preserves-cxt-efxmap :
+    forall* {XM} {XMP} {CM} {B}
+    forall  {B-XMP: cxt-efxmap B CM XMP}
+            {XM1<=XM2: efxmap`leq XM XMP}
+    exists  {B-XM: cxt-efxmap B CM XM}
+    true.
+
+- : leq-preserves-cxt-efxmap _ efxmap`leq/0 cxt-efxmap/0.
+
+- : leq-preserves-cxt-efxmap 
+    (cxt-efxmap/+ B-XMPS L<<XMP=XMPS FM-MS CM-L B-L B-O)
+    (efxmap`leq/= XM<=XMS M<=MS nat`eq/)
+    (cxt-efxmap/+ B-XMS L<<XM=XMS FM-M CM-L B-L B-O)
+    <- efxmap`shift-total L<<XM=XMS
+    <- efxmap`shift-preserves-leq XM<=XMS L<<XM=XMS L<<XMP=XMPS XMS<=XMPS
+    <- leq-preserves-cxt-efxmap B-XMPS XMS<=XMPS B-XMS
+    <- leq-preserves-fldmap-inner-efxmap M<=MS FM-MS FM-M.
+      
+- : leq-preserves-cxt-efxmap
+    (cxt-efxmap/+ B-XMPS L<<XMP=XMPS _ _ _ _) (efxmap`leq/> L P) B-XM
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- efxmap`shift-preserves-leq L (efxmap`shift/+ P2) L<<XMP=XMPS LP
+    <- leq-preserves-cxt-efxmap B-XMPS LP B-XM.
+           
+%worlds () (leq-preserves-cxt-efxmap _ _ _).    
+%total (L) (leq-preserves-cxt-efxmap L _ _).
