@@ -1,0 +1,153 @@
+$Id$
+
+This is the log I kept while writing proof for my type system.
+
+<2013-02-19 Tue>
+
+Cannot check expression like:
+
+  let x = {a, a.f} in x.g end
+
+The reason is permission for a.f is encumbered while checking
+x.g.
+
+<2013-03-04 Mon>
+
+Right now I am using a special target 0.0 to represent 
+the world target. However, this causes much problem in 
+transformation. Maybe we don't need to represent the "world" target
+at all. 
+
+<2013-03-05 Tue>
+
+Looks like we need a special treatment on shared type. 
+For shared type, it should be associated with no target, since all
+effects are mapped to the world object, and we enforce that
+the input and output both have write shared effects.
+
+Checking shared targets should be pretty easy, suppose we have a 
+expression a.b.c...f, then on the path from f to a, any of them
+is shared type, then the target should be shared, otherwise it
+will be unique, and have a set and tgtmap associated.
+
+[after a lot of changes...]
+
+A problem occured when proving s.u, 
+we need to have this unique permission in the output. However,
+the current transformation only takes reftgts as input, and thus
+will produce a nesting fact about the result value, which is 
+not correct. 
+
+ 
+Let's consider the four possible cases:
+
+base (e)       field  (f)      result targets      result effects
+unique         unique          unique {e.f}        X e.f
+unique         shared          shared              X shared
+shared         unique          
+shared         shared         
+
+<2013-03-21 Thu>
+
+In the typing rules for read, we have a restriction
+that the object target set should be disjoint with the
+key sets of field target set. This is because the case:
+
+(if x < 3 then a else a.f).f
+
+To type check the above, we first need to type check
+if x < 3 then a else a.f, and get following permission as output:
+
+\exists z \exists r
+    (r == r_a \/ r == r' + 
+    z(r'.all -> 0 + P(r')) + z(r'.all -> 0 + P(r')) --+- 
+    \exists r_f z(r.f -> r_f + r_f.all -> 0 + P(r_f)))
+
+(assuming f is unique)
+
+The input effect for above is "read a.f"
+
+Then, to check the whole expression, we have "write a.f" as 
+input effect, and we have essentially the same permission
+as above except the fraction z is removed. 
+
+The problem is we cannot use this permission to read field f,
+since we need (\exists r_f (r.f -> r_f + r_f.all -> 0 + P(r_f)))
+to check the "then" case, but this permission is encumbered
+by the "else" case. 
+
+<2013-05-05 Sun>
+
+When checking E.F, we need to differentiate the cases when
+E is shared or borrow. When E is shared, we should produce a 
+read effect on the special "shared" target directly. When E 
+is unique (which only happens when E is a method parameter), then
+we should produce a read effect on E.F.
+
+(added later)
+
+I thought a lot about how to represent "shared" targets. There
+are three options initially:
+
+1) put it into set, using a special number, like 0
+2) put it into tgtmap, using a special entry, like 0->0
+3) use a extra bool, to indicate if resulting targets include shared.
+
+For option 1), the main problem is it adds extra complexity to the
+other operations and theorems. For instance, when we do methtymatch,
+we need to do extra check for each parameter, to see it's unique or
+shared. If later, we should use 0 as its target. When we converting
+tgtmap to efxmap, we need to do extra processing, so that the 
+converted efxmap can later generate the right permission 
+for shared: 0.0 -> 0. 
+
+For option 2), the main problem is some of existing 
+assumptions/proofs need to be redone. For instance, one important
+assumption right now is for every tgtmap GM and efxmap XM in 
+output/expr, GM <= XM. This won't be true if we allow 0->0 in GM.
+
+I chose option 3) at end. The biggest advantage is it won't violate
+many theorems I had so far, so it's easier to adapt. Also, it makes
+things more clear by using a distinct "shared" flag - if we put 
+shared target in either set or tgtmap, then many operations on 
+set/tgtmap need to treat the shared target differently than other
+values.
+
+
+<2013-05-07 Tue>
+
+I always had the wrong impression that for consume effect on a.f,
+it converts to:
+
+  input: \exists r_f (r_a.f -> r_f, r_f.all -> 0, P(r_f))
+  output: empty
+
+but instead, maybe we should keep the permission on r_a.f -> r_f.
+It doesn't like to make any difference for the current design, since
+once a unique field is consumed, it is never allowed to be read/write
+again. Therefore, it is safe to set it to be empty. But, it would
+be more precise to make output permission to be:
+
+  output: \exists r_f (r_a.f -> r.f, empty, P(r_f))
+
+Then, if the type system is flow-sensitive, we can restore
+the permission by assigning this field to something else.
+
+Maybe we can define a extra rule for efx`join
+
+  efx`join/X: efx`join efx/consume efx/write efx/write.
+
+Also, a direct affect from above is that, before I disallow join
+operations between consume and read/write. Instead, these should
+be legal (same for expose.)
+
+For expose effect on a.f, the input and output permission should both be:
+
+  \exists r_f (r_a.f -> r_f, r_f.all < null.all, P(r_f))
+
+Notice that here "f" is annoated as unique. With this expose effect,
+we cannot restore class invariant on object referred by "a". For instance,
+we cannot pass "a" to a unique method parameter. This is solved right now,
+because a unique method parameter is transformed into consume effects on
+all of a's fields, and a consume effect is incompatible with a expose
+effect.
