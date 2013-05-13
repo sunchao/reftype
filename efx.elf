@@ -1,12 +1,11 @@
 %%% Effects 
-%%% $Id: efx.elf,v 1.1 2012/10/15 20:01:05 csun Exp $
+%%% $Id: efx.elf,v 1.1 2013/05/06 02:28:41 csun Exp csun $
 
 %abbrev 0 = z.
 %abbrev 1 = s 0.
 %abbrev 2 = s 1.
 %abbrev 3 = s 2.
-%abbrev 4 = s 3.
-%abbrev 3>0 = (nat`gt/> (nat`gt/> nat`gt/1)).
+%abbrev 2>0 = (nat`gt/> nat`gt/1).
 
 
 %%% Definitions
@@ -15,11 +14,10 @@ efx : type.	%name efx X.
 
 efx/ : nat -> efx.
 
-%abbrev efx/none = efx/ 0.
-%abbrev efx/read = efx/ 1.
-%abbrev efx/write = efx/ 2.
-%abbrev efx/expose = efx/ 3.
-%abbrev efx/consume = efx/ 4.
+%abbrev efx/read = efx/ 0.
+%abbrev efx/write = efx/ 1.
+%abbrev efx/expose = efx/ 2.
+%abbrev efx/consume = efx/ 3.
 
 
 % equality
@@ -33,7 +31,7 @@ eq/ : eq X X.
 
 wf-efx : efx -> type.
 
-wf-efx/ : wf-efx (efx/ N) <- nat`le N 4.
+wf-efx/ : wf-efx (efx/ N) <- nat`le N 3.
 
 
 % less-eq
@@ -48,13 +46,10 @@ leq/ : leq (efx/ N1) (efx/ N2)
 
 join : efx -> efx -> efx -> type.
 
-join/1 : join (efx/ N) (efx/ 0) (efx/ N)
-         <- nat`ge N 3.
+join/1 : join (efx/ 2) (efx/ 2) (efx/ 2).
 
-join/2 : join (efx/ 3) (efx/ 3) (efx/ 3).
-
-join/3 : join (efx/ N) (efx/ M) (efx/ P) 
-         <- nat`lt N 3
+join/2 : join (efx/ N) (efx/ M) (efx/ P) 
+         <- nat`lt N 2
          <- nat`max N M P.
 
 
@@ -249,13 +244,10 @@ false-implies-join : {F:void} join X1 X2 X3 -> type.
 join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 %mode join-implies-leq* +J -LE.
 
-- : join-implies-leq* (join/1 _) (leq/ GE)
-    <- nat`ge-reflexive _ GE.
+- : join-implies-leq* join/1 (leq/ GE)
+    <- nat`ge-reflexive 2 GE.
 
-- : join-implies-leq* join/2 (leq/ GE)
-    <- nat`ge-reflexive 3 GE.
-
-- : join-implies-leq* (join/3 MX _) (leq/ GE)
+- : join-implies-leq* (join/2 MX _) (leq/ GE)
     <- nat`max-implies-ge MX GE _.
 
 %worlds () (join-implies-leq* _ _).
@@ -265,14 +257,10 @@ join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 join-implies-leq : join X1 X2 X3 -> leq X1 X3 -> leq X2 X3 -> type.
 %mode join-implies-leq +J -LE1 -LE2.
 
-- : join-implies-leq (join/1 _) (leq/ GE1) (leq/ GE2)
-    <- nat`ge-reflexive _ GE1
-    <- nat`ge-zero-always _ GE2.
+- : join-implies-leq join/1 (leq/ GE) (leq/ GE)
+    <- nat`ge-reflexive 2 GE.
 
-- : join-implies-leq join/2 (leq/ GE) (leq/ GE)
-    <- nat`ge-reflexive 3 GE.
-
-- : join-implies-leq (join/3 MX _) (leq/ GE1) (leq/ GE2)
+- : join-implies-leq (join/2 MX _) (leq/ GE1) (leq/ GE2)
     <- nat`max-implies-ge MX GE1 GE2.
 
 %worlds () (join-implies-leq _ _ _).
@@ -305,28 +293,18 @@ join-deterministic
 
 %mode join-deterministic +J1 +J2 +E1 +E2 -E3.
 
-- : join-deterministic (join/1 _) (join/1 _) eq/ eq/ eq/.
+- : join-deterministic join/1 join/1 eq/ eq/ eq/.
 
-- : join-deterministic join/2 join/2 eq/ eq/ eq/.
-
-- : join-deterministic (join/3 MX1 LT1) (join/3 MX2 LT2) eq/ eq/ EQ
+- : join-deterministic (join/2 MX1 LT1) (join/2 MX2 LT2) eq/ eq/ EQ
     <- nat`max-deterministic MX1 MX2 nat`eq/ nat`eq/ E
     <- efx-preserves-eq E EQ.
 
-- : join-deterministic (join/3 MX _) (join/1 _) eq/ eq/ EQ
-    <- max-zero-right MX E
-    <- efx-preserves-eq E EQ.
-
-- : join-deterministic (join/1 _) (join/3 MX _) eq/ eq/ EQ
-    <- max-zero-right MX E
-    <- efx-preserves-eq E EQ.
-
-- : join-deterministic (join/3 MX _) join/2 eq/ eq/ EQ
+- : join-deterministic (join/2 MX _) join/1 eq/ eq/ EQ
     <- max-equal MX E
     <- nat`eq-symmetric E EP
     <- efx-preserves-eq EP EQ.
 
-- : join-deterministic join/2 (join/3 MX _) eq/ eq/ EQ
+- : join-deterministic join/1 (join/2 MX _) eq/ eq/ EQ
     <- max-equal MX E
     <- nat`eq-symmetric E EP
     <- efx-preserves-eq EP EQ.
@@ -344,39 +322,22 @@ join-associative
 
 %mode join-associative +J1 +J2 -X6 -J3 -J4.
 
-- : join-associative (join/1 GE) (join/1 _) _ 
-    (join/3 (nat`max/=) 3>0) (join/1 GE).
+- : join-associative join/1 join/1 _ join/1 join/1.
 
-- : join-associative (join/1 GE) join/2 _ (join/3 (nat`max/< 3>0) 3>0) join/2.
-
-- : join-associative (join/1 GE) (join/3 MX1 LT) (efx/ N) 
-    (join/3 MX 3>0) (join/3 MX1 LT)
-    <- max-zero N MX.
-
-- : join-associative join/2 (join/1 GE) _ (join/1 GE) join/2.
-
-- : join-associative join/2 join/2 _ join/2 join/2.
-
-- : join-associative join/2 (join/3 MX LT) _ (join/3 MX LT) J2
+- : join-associative join/1 (join/2 MX LT) _ (join/2 MX LT) J2
     <- nat`gt-anti-reflexive LT V
     <- false-implies-join V J2.
 
-- : join-associative
-    (join/3 MX LT) (join/1 GE) _ (join/1 GE1) (join/3 MX LT)
-    <- max-ge-lt-implies-eq MX GE LT E1
-    <- nat`eq-symmetric E1 E2
-    <- nat`ge-respects-eq GE E2 nat`eq/ GE1.
-
-- : join-associative (join/3 MX LT) join/2 _ J1 (join/3 MX2 LT)
+- : join-associative (join/2 MX LT) join/1 _ J1 (join/2 MX2 LT)
     <- max-gt-implies-eq MX LT EP
     <- nat`eq-symmetric EP E
     <- efx-preserves-eq E EQ
-    <- join-respects-eq join/2 EQ eq/ eq/ J1
+    <- join-respects-eq join/1 EQ eq/ eq/ J1
     <- nat`max-respects-eq MX nat`eq/ EP nat`eq/ MX2.
 
 - : join-associative
-    (join/3 MX1 LT1) (join/3 MX2 LT2) (efx/ N) 
-    (join/3 MX3 LT3) (join/3 MX4 LT1)
+    (join/2 MX1 LT1) (join/2 MX2 LT2) (efx/ N) 
+    (join/2 MX3 LT3) (join/2 MX4 LT1)
     <- nat`max-associative MX1 MX2 N MX3 MX4
     <- nat`max-implies-ge MX1 _ GE
     <- nat`gt-transitive-ge LT2 GE LT3.
@@ -396,7 +357,6 @@ join-associative
 %abbrev efx`join = join.
 %abbrev efx`join/1 = join/1.
 %abbrev efx`join/2 = join/2.
-%abbrev efx`join/3 = join/3.
 %abbrev efx`false-implies-eq = false-implies-eq.
 %abbrev efx`eq-transitive = eq-transitive.
 %abbrev efx`false-implies-leq = false-implies-leq.
