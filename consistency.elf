@@ -1,6 +1,6 @@
 %%% consistency relation between clsmap, methmap and fldmap
 %%% Chao Sun
-%%% $Id: consistency.elf,v 1.2 2013/03/22 23:09:41 csun Exp $
+%%% $Id: consistency.elf,v 1.1 2013/05/07 04:07:53 csun Exp csun $
 %%% Created at Feb, 8th 2012
 
 %%% check if a type is in clsmap
@@ -10,7 +10,7 @@ clsmap-ty : clsmap -> ty -> type.
 clsmap-ty/notnull : clsmap-ty CM (ty/ _ _ C) 
 		    <- clsmap`domain? CM C true.
 
-clsmap-ty/null : clsmap-ty CM ty/null.
+% clsmap-ty/null : clsmap-ty CM ty/null.
 
 
 clsmap-reftype : clsmap -> reftype -> type.
@@ -132,14 +132,33 @@ cxt-efxmap : cxt -> clsmap -> efxmap -> type.
 
 cxt-efxmap/0 : cxt-efxmap _ _ efxmap/0.
 
-cxt-efxmap/+
-  : cxt-efxmap B CM (efxmap/+ L M XM)
+cxt-efxmap/+/z
+  : cxt-efxmap B CM (efxmap/+ z _ XM)
+    <- efxmap`shift z XM XMP
+    <- cxt-efxmap B CM XMP.
+
+cxt-efxmap/+/s
+  : cxt-efxmap B CM (efxmap/+ (s L) M XM)
     <- wf-cxt B
-    <- cxt-lookup-loc B L _ (reftype/ (ty/ _ _ C) _)
+    <- cxt-lookup-loc B (s L) _ (ty/ _ _ C)
     <- clsmap`lookup CM C FM
     <- fldmap-inner-efxmap FM M
-    <- efxmap`shift L XM XMP
+    <- efxmap`shift (s L) XM XMP
     <- cxt-efxmap B CM XMP.
+
+
+% all locations from set have same class ID.
+
+same-class : cxt -> set -> nat -> type.
+
+same-class/0 : same-class _ set/0 _.
+
+same-class/+
+  : same-class B (set/+ L S) C
+    <- wf-cxt B 
+    <- set`shift L S S'
+    <- cxt-lookup-loc B L _ (ty/ _ _ C)
+    <- same-class B S' C.
 
 
 % Theorems
@@ -218,12 +237,15 @@ cxt-efxmap/+
 
 % cxt-efxmap
 
-%theorem cxt-efxmap-respects-eq :
-    forall* {B1} {B2} {CM1} {CM2} {XM1} {XM2} 
-    forall  {B1-XM1: cxt-efxmap B1 CM1 XM1}
-            {EQ: cxt-eq B1 B2} {EQ: clsmap`eq CM1 CM2} {EQ: efxmap`eq XM1 XM2}
-    exists  {B2-XM2: cxt-efxmap B2 CM2 XM2}
-    true.
+cxt-efxmap-respects-eq
+  : cxt-efxmap B1 CM1 XM1
+    -> cxt-eq B1 B2
+    -> clsmap`eq CM1 CM2
+    -> efxmap`eq XM1 XM2
+    -> cxt-efxmap B2 CM2 XM2
+    -> type.
+
+%mode cxt-efxmap-respects-eq +B-XM1 +E1 +E2 +E3 -B-XM2.
 
 - : cxt-efxmap-respects-eq B-XM cxt-eq/ clsmap`eq/ efxmap`eq/ B-XM.
         
@@ -231,30 +253,46 @@ cxt-efxmap/+
 %total  {} (cxt-efxmap-respects-eq _ _ _ _ _).
 
 
-%theorem leq-preserves-cxt-efxmap :
-    forall* {XM} {XMP} {CM} {B}
-    forall  {B-XMP: cxt-efxmap B CM XMP}
-            {XM1<=XM2: efxmap`leq XM XMP}
-    exists  {B-XM: cxt-efxmap B CM XM}
-    true.
+leq-preserves-cxt-efxmap
+  : cxt-efxmap B CM XMP
+    -> efxmap`leq XM XMP
+    -> cxt-efxmap B CM XM
+    -> type.
+
+%mode leq-preserves-cxt-efxmap +B-XM1 +LE -B-XM2.
 
 - : leq-preserves-cxt-efxmap _ efxmap`leq/0 cxt-efxmap/0.
 
 - : leq-preserves-cxt-efxmap 
-    (cxt-efxmap/+ B-XMPS L<<XMP=XMPS FM-MS CM-L B-L B-O)
+    (cxt-efxmap/+/s B-XMPS L<<XMP=XMPS FM-MS CM-L B-L B-O)
     (efxmap`leq/= XM<=XMS M<=MS nat`eq/)
-    (cxt-efxmap/+ B-XMS L<<XM=XMS FM-M CM-L B-L B-O)
+    (cxt-efxmap/+/s B-XMS L<<XM=XMS FM-M CM-L B-L B-O)
     <- efxmap`shift-total L<<XM=XMS
     <- efxmap`shift-preserves-leq XM<=XMS L<<XM=XMS L<<XMP=XMPS XMS<=XMPS
-    <- leq-preserves-cxt-efxmap B-XMPS XMS<=XMPS B-XMS
+    <- leq-preserves-cxt-efxmap B-XMPS XMS<=XMPS B-XMS 
     <- leq-preserves-fldmap-inner-efxmap M<=MS FM-MS FM-M.
-      
+
 - : leq-preserves-cxt-efxmap
-    (cxt-efxmap/+ B-XMPS L<<XMP=XMPS _ _ _ _) (efxmap`leq/> L P) B-XM
+    (cxt-efxmap/+/s B-XMPS L<<XMP=XMPS _ _ _ _) (efxmap`leq/> L P) B-XM
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- efxmap`shift-preserves-leq L (efxmap`shift/+ P2) L<<XMP=XMPS LP
+    <- leq-preserves-cxt-efxmap B-XMPS LP B-XM.
+
+- : leq-preserves-cxt-efxmap
+    (cxt-efxmap/+/z B-XMPS L<<XMP=XMPS)
+    (efxmap`leq/= XM<=XMS M<=MS nat`eq/)
+    (cxt-efxmap/+/z B-XMS L<<XM=XMS)
+    <- efxmap`shift-total L<<XM=XMS 
+    <- efxmap`shift-preserves-leq XM<=XMS L<<XM=XMS L<<XMP=XMPS XMS<=XMPS
+    <- leq-preserves-cxt-efxmap B-XMPS XMS<=XMPS B-XMS.
+
+- : leq-preserves-cxt-efxmap
+    (cxt-efxmap/+/z B-XMPS L<<XMP=XMPS) (efxmap`leq/> L P) B-XM
     <- nat`plus-swap-succ P P1
     <- nat`plus-commutative P1 P2
     <- efxmap`shift-preserves-leq L (efxmap`shift/+ P2) L<<XMP=XMPS LP
     <- leq-preserves-cxt-efxmap B-XMPS LP B-XM.
            
-%worlds () (leq-preserves-cxt-efxmap _ _ _).    
+%worlds (fracvar) (leq-preserves-cxt-efxmap _ _ _).    
 %total (L) (leq-preserves-cxt-efxmap L _ _).
