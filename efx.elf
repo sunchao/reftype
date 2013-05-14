@@ -1,5 +1,5 @@
 %%% Effects 
-%%% $Id: efx.elf,v 1.1 2013/05/06 02:28:41 csun Exp csun $
+%%% $Id: efx.elf,v 1.2 2013/05/13 17:05:14 csun Exp csun $
 
 %abbrev 0 = z.
 %abbrev 1 = s 0.
@@ -50,8 +50,19 @@ join/1 : join (efx/ 2) (efx/ 2) (efx/ 2).
 
 join/2 : join (efx/ N) (efx/ M) (efx/ P) 
          <- nat`lt N 2
+         <- nat`ne M 2
          <- nat`max N M P.
 
+%{ we CAN'T allow write /\ expose = expose (really sucks).
+expose get converted to:
+  \exists r_f (r.f -> r_f, r_f < 0.all, P(r_f))
+
+for both input and output. But write converts to
+  \exists r_f (r.f -> r_f, r_f.all -> 0, P(r_f))
+
+for input. Thus, when checking E1 ; E2, we have no way to 
+get the required permission for write (unless we have permission
+for shared, but which will make it unsound.) }%
 
 
 %%% Theorems
@@ -235,6 +246,12 @@ leq-transitive : leq X1 X2 -> leq X2 X3 -> leq X1 X3 -> type.
 
 % join
 
+false-implies-join* : {F:void} join X1 X2 X3 -> type.
+%mode +{X1} +{X2} -{X3} +{V} -{J:join X1 X2 X3} false-implies-join* V J.
+%worlds () (false-implies-join* _ _).
+%total  {} (false-implies-join* _ _).
+
+
 false-implies-join : {F:void} join X1 X2 X3 -> type.
 %mode +{X1} +{X2} +{X3} +{V} -{J:join X1 X2 X3} false-implies-join V J.
 %worlds () (false-implies-join _ _).
@@ -247,7 +264,7 @@ join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 - : join-implies-leq* join/1 (leq/ GE)
     <- nat`ge-reflexive 2 GE.
 
-- : join-implies-leq* (join/2 MX _) (leq/ GE)
+- : join-implies-leq* (join/2 MX _ _) (leq/ GE)
     <- nat`max-implies-ge MX GE _.
 
 %worlds () (join-implies-leq* _ _).
@@ -260,7 +277,7 @@ join-implies-leq : join X1 X2 X3 -> leq X1 X3 -> leq X2 X3 -> type.
 - : join-implies-leq join/1 (leq/ GE) (leq/ GE)
     <- nat`ge-reflexive 2 GE.
 
-- : join-implies-leq (join/2 MX _) (leq/ GE1) (leq/ GE2)
+- : join-implies-leq (join/2 MX _ _) (leq/ GE1) (leq/ GE2)
     <- nat`max-implies-ge MX GE1 GE2.
 
 %worlds () (join-implies-leq _ _ _).
@@ -295,16 +312,16 @@ join-deterministic
 
 - : join-deterministic join/1 join/1 eq/ eq/ eq/.
 
-- : join-deterministic (join/2 MX1 LT1) (join/2 MX2 LT2) eq/ eq/ EQ
+- : join-deterministic (join/2 MX1 LT1 NE1) (join/2 MX2 LT2 NE2) eq/ eq/ EQ
     <- nat`max-deterministic MX1 MX2 nat`eq/ nat`eq/ E
     <- efx-preserves-eq E EQ.
 
-- : join-deterministic (join/2 MX _) join/1 eq/ eq/ EQ
+- : join-deterministic (join/2 MX _ _) join/1 eq/ eq/ EQ
     <- max-equal MX E
     <- nat`eq-symmetric E EP
     <- efx-preserves-eq EP EQ.
 
-- : join-deterministic join/1 (join/2 MX _) eq/ eq/ EQ
+- : join-deterministic join/1 (join/2 MX _ _) eq/ eq/ EQ
     <- max-equal MX E
     <- nat`eq-symmetric E EP
     <- efx-preserves-eq EP EQ.
@@ -324,21 +341,39 @@ join-associative
 
 - : join-associative join/1 join/1 _ join/1 join/1.
 
-- : join-associative join/1 (join/2 MX LT) _ (join/2 MX LT) J2
+- : join-associative join/1 (join/2 MX NE LT) _ (join/2 MX NE LT) J2
     <- nat`gt-anti-reflexive LT V
     <- false-implies-join V J2.
 
-- : join-associative (join/2 MX LT) join/1 _ J1 (join/2 MX2 LT)
-    <- max-gt-implies-eq MX LT EP
-    <- nat`eq-symmetric EP E
-    <- efx-preserves-eq E EQ
-    <- join-respects-eq join/1 EQ eq/ eq/ J1
-    <- nat`max-respects-eq MX nat`eq/ EP nat`eq/ MX2.
+- : join-associative (join/2 MX NE LT) join/1 _ J3 J4
+    <- max-gt-implies-eq MX LT E
+    <- nat`eq-ne-implies-false E NE V
+    <- false-implies-join* V J3
+    <- false-implies-join V J4.
+
+both-ne-max-ne
+  : nat`ne N1 M
+    -> nat`ne N2 M
+    -> nat`max N1 N2 N
+    -> nat`ne N M
+    -> type.
+
+%mode both-ne-max-ne +NE1 +NE2 +MX -NE3.
+
+- : both-ne-max-ne NE1 NE2 (nat`max/> _) NE1.
+
+- : both-ne-max-ne NE1 NE2 (nat`max/< _) NE2.
+
+- : both-ne-max-ne NE _ (nat`max/=) NE.
+
+%worlds () (both-ne-max-ne _ _ _ _).
+%total { } (both-ne-max-ne _ _ _ _).
 
 - : join-associative
-    (join/2 MX1 LT1) (join/2 MX2 LT2) (efx/ N) 
-    (join/2 MX3 LT3) (join/2 MX4 LT1)
+    (join/2 MX1 NE1 LT1) (join/2 MX2 NE2 LT2) (efx/ N) 
+    (join/2 MX3 NE2 LT3) (join/2 MX4 NE LT1)
     <- nat`max-associative MX1 MX2 N MX3 MX4
+    <- both-ne-max-ne NE1 NE2 MX3 NE
     <- nat`max-implies-ge MX1 _ GE
     <- nat`gt-transitive-ge LT2 GE LT3.
 
