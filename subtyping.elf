@@ -1,6 +1,7 @@
 % Subtyping Rules
-% $Id$
+% $Id: subtyping.elf,v 1.1 2013/05/07 04:28:33 csun Exp $
 
+%abbrev shared-tgtmap = (tgtmap/+ nat`z (set/1 nat`z) tgtmap/0). 
 %abbrev shared-efxmap = [X] (efxmap/1 nat`z nat`z X).
 
 
@@ -17,15 +18,6 @@ maximum-effect/write
   : maximum-effect (set/+ _ _) (set/+ _ _) (shared-efxmap efx/write).
 
 
-% shortcut for constructing a shared tgtmap
-
-bool2tgtmap : bool -> tgtmap -> type.
-
-bool2tgtmap/no : bool2tgtmap false tgtmap/0.
-
-bool2tgtmap/yes : bool2tgtmap true (tgtmap/+ z (set/1 z) tgtmap/0).
-
-
 %{ sub-annotation rule produces effects on the RHS targets.
 This rule is so complicated, mainly because shared annotation.
 I don't know how to simplify it. }%
@@ -33,50 +25,46 @@ I don't know how to simplify it. }%
 sub-annot : targets -> set -> set -> set
 	-> annot -> annot -> efxmap -> type.
 
-%{ passing unique to shared will "expose" everything accessible
-from targets associated with the unique reference. It doesn't matter
-whether the unique reference is from shared. }%
-sub-annot/unique2shared
-  : sub-annot (targets/ S GM1 _) FS _ _ annot/unique annot/shared XM
+%{ GM1 may contain shared, but it's ok to expose shared. }%
+sub-annot/unique2shared 
+  : sub-annot (targets/ S GM1) FS _ _ annot/unique annot/shared XM
     <- set+set2tgtmap S FS GM2
     <- tgtmap`join GM1 GM2 GM
     <- tgtmap2efxmap GM efx/expose XM.
 
 sub-annot/unique2unique
-  : sub-annot (targets/ S GM1 SB) FS _ _ annot/unique annot/unique XM
+  : sub-annot (targets/ S GM1) FS _ _ annot/unique annot/unique XM
     <- set+set2tgtmap S FS GM2
-    <- bool2tgtmap SB GM3
-    <- tgtmap`join GM1 GM2 GM4
-    <- tgtmap`join GM4 GM3 GM
+    <- tgtmap`join GM1 GM2 GM
     <- tgtmap2efxmap GM efx/consume XM.
 
 %{ passing some annotation to borrow produces read and write
 effects on fields linked with the borrowed annotation. Here we 
-can differentiate between shared and unique/borrow - for shared, the effects
-should be directly mapped to "shared" object. }%
+can differentiate between shared and 
+unique/borrow - for shared, the effects should be directly 
+mapped to "shared" object. }%
 
-sub-annot/unique2borrow 
-  : sub-annot (targets/ S GM SB) _ RS WS annot/unique annot/borrow XM
+sub-annot/unique2borrow
+  : sub-annot (targets/ S GM) _ RS WS annot/unique annot/borrow XM
     <- set+set2tgtmap S RS RGM
     <- set+set2tgtmap S WS WGM
     <- tgtmap`join RGM GM GM1
     <- tgtmap`join WGM GM GM2
     <- tgtmap2efxmap GM1 efx/read XM1
     <- tgtmap2efxmap GM2 efx/write XM2
-    <- efxmap`join XM1 XM2 XMP
-    <- maximum-effect RS WS SX
-    <- efxmap`join XMP SX XM.
+    <- efxmap`join XM1 XM2 XM.
 
-% SB must be true.
 sub-annot/shared2borrow
-  : sub-annot (targets/ _ _ true) _ RS WS annot/shared annot/borrow SX
-    <- maximum-effect RS WS SX.
+  : sub-annot (targets/ _ _) _ RS WS annot/shared annot/borrow XM
+    <- maximum-effect RS WS XM.
 
-sub-annot/shared2shared : sub-annot _ _ _ _ annot/shared annot/shared efxmap/0.
-  
+sub-annot/shared2shared
+  : sub-annot _ _ _ _ annot/shared annot/shared efxmap/0.
+
 % GM should be empty, and SB should be false
 sub-annot/borrow2borrow
-  : sub-annot (targets/ S tgtmap/0 false) _ RS WS annot/borrow annot/borrow XM
+  : sub-annot (targets/ S tgtmap/0) 
+    _ RS WS annot/borrow annot/borrow XM
     <- set+set2tgtmap S RS RGM
     <- set+set2tgtmap S WS WGM
     <- tgtmap2efxmap RGM efx/read XM1
