@@ -1,4 +1,4 @@
-$Id: log.org,v 1.2 2013/05/09 19:03:00 csun Exp $
+$Id: log.org,v 1.3 2013/05/13 14:22:32 csun Exp csun $
 
 This is the log I kept while writing proof for my type system.
 
@@ -208,5 +208,43 @@ For a well-formed shared reftype, it should have empty set, and the
 only element in tgtmap is the shared target. 
 
 
+<2013-05-13 Mon>
 
+I was trying to prove that if XM1 <= XM2, XM1 => Pi1, XM2 => Pi2,
+then Pi1 implies Pi2. However, this doesn't apply to "expose"
+effect, as it produces shared permission for unique references.
+
+  expose: \exists r_f (r.f->r_f,r_f.all<null.all,P(r_f))
+
+Thinking again, I think I made a wrong definition for
+converting expose effect. For instance, write effect join
+expose effect "should" produce a expose effect. But, if we convert
+expose like above, we won't get permission for the write effect.
+
+
+<2013-05-14 Tue>
+
+I also made a wrong definition for consume effect.
+
+Currently, the output permission for consume effect on a.f is:
+
+  \exists r_f (r_a.f->r_f, P(r_f))
+
+However, if we consume the object a as whole, then we won't be able
+to keep the field permission on a.f. A more conservative way is to
+use empty permission as output. That is, once consumed, we lost
+every hope of restoring the permission.
+
+A tricker question is about expose effect. Like consume, one could also
+expose a entire object, and thus the current definition:
+
+  \exists r_f (r_a.f->r_f, r_f.all < null.all, P(r_f))
+
+won't work. We can change it to the following:
+
+  \exists r_f (r_a.f->r_f, r_f.all->0, P(r_f)) < null.all
+
+And then, we need to be more conservative about expose: expose 
+will produce a write effect on shared target. We then can type check
+write /\ expose = expose.
 
