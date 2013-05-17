@@ -1,6 +1,6 @@
 %%% consistency relation between clsmap, methmap and fldmap
 %%% Chao Sun
-%%% $Id: consistency.elf,v 1.1 2013/05/07 04:07:53 csun Exp csun $
+%%% $Id: consistency.elf,v 1.3 2013/05/14 15:29:04 csun Exp csun $
 %%% Created at Feb, 8th 2012
 
 %%% check if a type is in clsmap
@@ -15,12 +15,9 @@ clsmap-ty/null : clsmap-ty CM ty/null.
 
 clsmap-reftype : clsmap -> reftype -> type.
 
-clsmap-reftype/notnull
-   : clsmap-reftype CM (reftype/ T _) 
+clsmap-reftype/
+   : clsmap-reftype CM (reftype/ T _ _) 
      <- clsmap-ty CM T.
-
-clsmap-reftype/null : clsmap-reftype _ reftype/null.
-
 
 % check if all types appear in methty is also in clsmap
 
@@ -94,7 +91,7 @@ clsmap-cxt : clsmap -> cxt -> type.
 clsmap-cxt/nil : clsmap-cxt _ cxt/nil.
 
 clsmap-cxt/cons
-  : clsmap-cxt CM (cxt/cons O (reftype/ T _) B)
+  : clsmap-cxt CM (cxt/cons _ T _ B)
     <- clsmap-ty CM T
     <- clsmap-cxt CM B.
 
@@ -132,6 +129,8 @@ cxt-efxmap : cxt -> clsmap -> efxmap -> type.
 
 cxt-efxmap/0 : cxt-efxmap _ _ efxmap/0.
 
+% cxt should only contain nonnull types
+
 cxt-efxmap/+
   : cxt-efxmap B CM (efxmap/+ L M XM)
     <- wf-cxt B
@@ -143,6 +142,65 @@ cxt-efxmap/+
 
 
 % Theorems
+
+clsmap-ty-respects-leq
+  : clsmap-ty CM0 T
+    -> clsmap`leq CM0 CM1
+    -> clsmap-ty CM1 T
+    -> type.
+
+%mode clsmap-ty-respects-leq +CM0-T +CM0<=CM1 -CM1-T.
+
+- : clsmap-ty-respects-leq (clsmap-ty/notnull (clsmap`domain?/in L0)) 
+    CM0<=CM1 (clsmap-ty/notnull (clsmap`domain?/in L1))
+    <- clsmap`lookup-respects-leq L0 CM0<=CM1 _ L1 _.
+
+- : clsmap-ty-respects-leq clsmap-ty/null _ clsmap-ty/null.
+
+%worlds () (clsmap-ty-respects-leq _ _ _).
+%total { } (clsmap-ty-respects-leq _ _ _).
+
+
+clsmap-fldmap-respects-leq
+  : clsmap-fldmap CM0 FM
+    -> clsmap`leq CM0 CM1
+    -> clsmap-fldmap CM1 FM
+    -> type.
+
+%mode clsmap-fldmap-respects-leq +CM0-FM +CM0<=CM1 -CM1-FM.
+
+- : clsmap-fldmap-respects-leq clsmap-fldmap/0 _ clsmap-fldmap/0.
+
+- : clsmap-fldmap-respects-leq (clsmap-fldmap/+ CM0-FM CM0-T)
+    CM0<=CM1 (clsmap-fldmap/+ CM1-FM CM1-T)
+    <- clsmap-ty-respects-leq CM0-T CM0<=CM1 CM1-T
+    <- clsmap-fldmap-respects-leq CM0-FM CM0<=CM1 CM1-FM.
+
+%worlds () (clsmap-fldmap-respects-leq _ _ _).
+%total (CM-FM) (clsmap-fldmap-respects-leq CM-FM _ _).
+
+
+clsmap-clsmap-respects-leq
+  : clsmap-clsmap CM0 CM
+    -> clsmap`leq CM0 CM1
+    -> clsmap-clsmap CM1 CM
+    -> type.
+
+%mode clsmap-clsmap-respects-leq +CM-CM1 +LE -CM-CM2.
+
+- : clsmap-clsmap-respects-leq clsmap-clsmap/0 _ clsmap-clsmap/0.
+
+- : clsmap-clsmap-respects-leq (clsmap-clsmap/+ CM0-CMS SH CM0-FM CM0-L)
+    CM0<=CM1 (clsmap-clsmap/+ CM1-CMS SH CM1-FM CM1-L)
+    <- clsmap`lookup-respects-leq CM0-L CM0<=CM1 _ CM1-LP EQ
+    <- fldmap`eq-symmetric EQ EQP
+    <- clsmap`lookup-respects-eq CM1-LP clsmap`eq/ nat`eq/ EQP CM1-L
+    <- clsmap-fldmap-respects-leq CM0-FM CM0<=CM1 CM1-FM
+    <- clsmap-clsmap-respects-leq CM0-CMS CM0<=CM1 CM1-CMS.
+
+%worlds () (clsmap-clsmap-respects-leq _ _ _).
+%total (CM-CM) (clsmap-clsmap-respects-leq CM-CM _ _).
+
 
 % fldmap-inner-efxmap
 
@@ -221,11 +279,11 @@ cxt-efxmap/+
 %theorem cxt-efxmap-respects-eq :
     forall* {B1} {B2} {CM1} {CM2} {XM1} {XM2} 
     forall  {B1-XM1: cxt-efxmap B1 CM1 XM1}
-            {EQ: cxt-eq B1 B2} {EQ: clsmap`eq CM1 CM2} {EQ: efxmap`eq XM1 XM2}
+            {EQ: cxt`eq B1 B2} {EQ: clsmap`eq CM1 CM2} {EQ: efxmap`eq XM1 XM2}
     exists  {B2-XM2: cxt-efxmap B2 CM2 XM2}
     true.
 
-- : cxt-efxmap-respects-eq B-XM cxt-eq/ clsmap`eq/ efxmap`eq/ B-XM.
+- : cxt-efxmap-respects-eq B-XM cxt`eq/ clsmap`eq/ efxmap`eq/ B-XM.
         
 %worlds () (cxt-efxmap-respects-eq _ _ _ _ _).
 %total  {} (cxt-efxmap-respects-eq _ _ _ _ _).
@@ -256,5 +314,5 @@ cxt-efxmap/+
     <- efxmap`shift-preserves-leq L (efxmap`shift/+ P2) L<<XMP=XMPS LP
     <- leq-preserves-cxt-efxmap B-XMPS LP B-XM.
            
-%worlds () (leq-preserves-cxt-efxmap _ _ _).    
+%worlds (objvar | fracvar) (leq-preserves-cxt-efxmap _ _ _).    
 %total (L) (leq-preserves-cxt-efxmap L _ _).
