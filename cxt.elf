@@ -1,44 +1,43 @@
 % Explicit Type Context
-% $Id: cxt.elf,v 1.3 2013/05/07 21:59:31 csun Exp csun $
+% $Id: cxt.elf,v 1.4 2013/05/12 02:01:12 csun Exp csun $
 
 % definition
 
-%abbrev single-tgt : nat -> targets = [L] (targets/ (set/1 L) tgtmap/0).
+%abbrev loc = nat.
 
 cxt : type. %name cxt B.
 
 cxt/nil : cxt.
 
-cxt/cons : object -> reftype -> cxt -> cxt.
+cxt/cons : object -> ty -> loc -> cxt -> cxt.
 
 
 % equalities
 
-cxt-eq : cxt -> cxt -> type.
+cxt`eq : cxt -> cxt -> type.
 
-cxt-eq/ : cxt-eq B B.
+cxt`eq/ : cxt`eq B B.
 
 
 % lookups 
 
-cxt-lookup : cxt -> object -> reftype -> type.
+cxt-lookup : cxt -> object -> ty -> loc -> type.
 
-cxt-lookup/hit : cxt-lookup (cxt/cons O RT _) O RT.
+cxt-lookup/hit : cxt-lookup (cxt/cons O T L _) O T L.
 
 cxt-lookup/miss
-  : cxt-lookup (cxt/cons _ _ B) O RT
-    <- cxt-lookup B O RT.
+  : cxt-lookup (cxt/cons _ _ _ B) O T L
+    <- cxt-lookup B O T L.
 
 
 % lookup object
 
-cxt-lookup-loc : cxt -> nat -> object -> ty -> type.
+cxt-lookup-loc : cxt -> loc -> object -> ty -> type.
 
-cxt-lookup-loc/hit
-  : cxt-lookup-loc (cxt/cons O (reftype/ T (single-tgt L)) _) L O T.
+cxt-lookup-loc/hit : cxt-lookup-loc (cxt/cons O T L _) L O T.
 
-cxt-lookup-loc/miss
-  : cxt-lookup-loc (cxt/cons _ _ B) L O T
+cxt-lookup-loc/miss 
+  : cxt-lookup-loc (cxt/cons _ _ _ B) L O T
     <- cxt-lookup-loc B L O T.
 
 
@@ -51,7 +50,7 @@ wf-cxt-h : nat -> cxt -> type.
 wf-cxt-h/nil : wf-cxt-h _ cxt/nil.
 
 wf-cxt-h/cons
-  : wf-cxt-h N (cxt/cons _ (reftype/ _ (single-tgt M)) B)
+  : wf-cxt-h N (cxt/cons _ _ M B)
     <- nat`gt N M
     <- wf-cxt-h M B.
 
@@ -59,7 +58,7 @@ wf-cxt-h/cons
 wf-cxt/nil : wf-cxt cxt/nil.
 
 wf-cxt/cons
-  : wf-cxt (cxt/cons _ (reftype/ _ (single-tgt N)) B)
+  : wf-cxt (cxt/cons _ _ N B)
     <- wf-cxt-h N B.
 
 
@@ -98,7 +97,7 @@ false-implies-cxt-lookup-loc V LP.
 
 cxt-lookup-loc-respects-eq
   : cxt-lookup-loc B1 L1 O1 T1
-    -> cxt-eq B1 B2
+    -> cxt`eq B1 B2
     -> nat`eq L1 L2
     -> object`eq O1 O2
     -> ty`eq T1 T2
@@ -107,7 +106,7 @@ cxt-lookup-loc-respects-eq
 
 %mode cxt-lookup-loc-respects-eq +L1 +BE +NE +OE +TE -L2.
 
-- : cxt-lookup-loc-respects-eq L cxt-eq/ nat`eq/ object`eq/ ty`eq/ L.
+- : cxt-lookup-loc-respects-eq L cxt`eq/ nat`eq/ object`eq/ ty`eq/ L.
 
 %worlds () (cxt-lookup-loc-respects-eq _ _ _ _ _ _).
 %total  {} (cxt-lookup-loc-respects-eq _ _ _ _ _ _).
@@ -118,7 +117,7 @@ cxt-lookup-loc-unique
     -> wf-cxt B2
     -> cxt-lookup-loc B1 L1 O1 T1
     -> cxt-lookup-loc B2 L2 O2 T2
-    -> cxt-eq B1 B2
+    -> cxt`eq B1 B2
     -> nat`eq L1 L2
     -> object`eq O1 O2
     -> ty`eq T1 T2
@@ -126,5 +125,5 @@ cxt-lookup-loc-unique
 
 %mode cxt-lookup-loc-unique +D1 +D2 +D3 +D4 +D5 +D6 -D7 -D8.
 
-%worlds (fracvar) (cxt-lookup-loc-unique _ _ _ _ _ _ _ _).
+%worlds (fracvar | objvar) (cxt-lookup-loc-unique _ _ _ _ _ _ _ _).
 %trustme %total {} (cxt-lookup-loc-unique _ _ _ _ _ _ _ _).
