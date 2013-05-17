@@ -1,10 +1,9 @@
 %%% Effects 
-%%% $Id: efx.elf,v 1.2 2013/05/13 17:05:14 csun Exp csun $
+%%% $Id: efx.elf,v 1.3 2013/05/14 02:35:19 csun Exp csun $
 
 %abbrev 0 = z.
 %abbrev 1 = s 0.
 %abbrev 2 = s 1.
-%abbrev 3 = s 2.
 %abbrev 2>0 = (nat`gt/> nat`gt/1).
 
 
@@ -16,9 +15,13 @@ efx/ : nat -> efx.
 
 %abbrev efx/read = efx/ 0.
 %abbrev efx/write = efx/ 1.
-%abbrev efx/expose = efx/ 2.
-%abbrev efx/consume = efx/ 3.
+%abbrev efx/consume = efx/ 2.
 
+%{ 2013.05.17: we treat expose effects on field target
+as consume effects, which is not too precise. Another 
+possible good way is to redefine tgtmap and efxmap, to allow
+arbitrary field level. However, this turns out to be too
+much work for now. }%  
 
 % equality
 
@@ -31,7 +34,7 @@ eq/ : eq X X.
 
 wf-efx : efx -> type.
 
-wf-efx/ : wf-efx (efx/ N) <- nat`le N 3.
+wf-efx/ : wf-efx (efx/ N) <- nat`le N 2.
 
 
 % less-eq
@@ -46,12 +49,9 @@ leq/ : leq (efx/ N1) (efx/ N2)
 
 join : efx -> efx -> efx -> type.
 
-join/1 : join (efx/ 2) (efx/ 2) (efx/ 2).
-
-join/2 : join (efx/ N) (efx/ M) (efx/ P) 
-         <- nat`lt N 2
-         <- nat`ne M 2
-         <- nat`max N M P.
+join/ : join (efx/ N) (efx/ M) (efx/ P) 
+        <- nat`lt N 2
+        <- nat`max N M P.
 
 %{ we CAN'T allow write /\ expose = expose (really sucks).
 expose get converted to:
@@ -261,10 +261,7 @@ false-implies-join : {F:void} join X1 X2 X3 -> type.
 join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 %mode join-implies-leq* +J -LE.
 
-- : join-implies-leq* join/1 (leq/ GE)
-    <- nat`ge-reflexive 2 GE.
-
-- : join-implies-leq* (join/2 MX _ _) (leq/ GE)
+- : join-implies-leq* (join/ MX _) (leq/ GE)
     <- nat`max-implies-ge MX GE _.
 
 %worlds () (join-implies-leq* _ _).
@@ -274,10 +271,7 @@ join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 join-implies-leq : join X1 X2 X3 -> leq X1 X3 -> leq X2 X3 -> type.
 %mode join-implies-leq +J -LE1 -LE2.
 
-- : join-implies-leq join/1 (leq/ GE) (leq/ GE)
-    <- nat`ge-reflexive 2 GE.
-
-- : join-implies-leq (join/2 MX _ _) (leq/ GE1) (leq/ GE2)
+- : join-implies-leq (join/ MX _) (leq/ GE1) (leq/ GE2)
     <- nat`max-implies-ge MX GE1 GE2.
 
 %worlds () (join-implies-leq _ _ _).
@@ -310,21 +304,9 @@ join-deterministic
 
 %mode join-deterministic +J1 +J2 +E1 +E2 -E3.
 
-- : join-deterministic join/1 join/1 eq/ eq/ eq/.
-
-- : join-deterministic (join/2 MX1 LT1 NE1) (join/2 MX2 LT2 NE2) eq/ eq/ EQ
+- : join-deterministic (join/ MX1 LT1) (join/ MX2 LT2) eq/ eq/ EQ
     <- nat`max-deterministic MX1 MX2 nat`eq/ nat`eq/ E
     <- efx-preserves-eq E EQ.
-
-- : join-deterministic (join/2 MX _ _) join/1 eq/ eq/ EQ
-    <- max-equal MX E
-    <- nat`eq-symmetric E EP
-    <- efx-preserves-eq EP EQ.
-
-- : join-deterministic join/1 (join/2 MX _ _) eq/ eq/ EQ
-    <- max-equal MX E
-    <- nat`eq-symmetric E EP
-    <- efx-preserves-eq EP EQ.
 
 %worlds () (join-deterministic _ _ _ _ _).
 %total  {} (join-deterministic _ _ _ _ _).
@@ -338,18 +320,6 @@ join-associative
     -> type.
 
 %mode join-associative +J1 +J2 -X6 -J3 -J4.
-
-- : join-associative join/1 join/1 _ join/1 join/1.
-
-- : join-associative join/1 (join/2 MX NE LT) _ (join/2 MX NE LT) J2
-    <- nat`gt-anti-reflexive LT V
-    <- false-implies-join V J2.
-
-- : join-associative (join/2 MX NE LT) join/1 _ J3 J4
-    <- max-gt-implies-eq MX LT E
-    <- nat`eq-ne-implies-false E NE V
-    <- false-implies-join* V J3
-    <- false-implies-join V J4.
 
 both-ne-max-ne
   : nat`ne N1 M
@@ -370,10 +340,9 @@ both-ne-max-ne
 %total { } (both-ne-max-ne _ _ _ _).
 
 - : join-associative
-    (join/2 MX1 NE1 LT1) (join/2 MX2 NE2 LT2) (efx/ N) 
-    (join/2 MX3 NE2 LT3) (join/2 MX4 NE LT1)
+    (join/ MX1 LT1) (join/ MX2 LT2) (efx/ N) 
+    (join/ MX3 LT3) (join/ MX4 LT1)
     <- nat`max-associative MX1 MX2 N MX3 MX4
-    <- both-ne-max-ne NE1 NE2 MX3 NE
     <- nat`max-implies-ge MX1 _ GE
     <- nat`gt-transitive-ge LT2 GE LT3.
 
@@ -390,8 +359,7 @@ both-ne-max-ne
 %abbrev efx`leq = leq.
 %abbrev efx`leq/ = leq/.
 %abbrev efx`join = join.
-%abbrev efx`join/1 = join/1.
-%abbrev efx`join/2 = join/2.
+%abbrev efx`join/ = join/.
 %abbrev efx`false-implies-eq = false-implies-eq.
 %abbrev efx`eq-transitive = eq-transitive.
 %abbrev efx`false-implies-leq = false-implies-leq.
