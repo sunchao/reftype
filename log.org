@@ -1,4 +1,4 @@
-$Id: log.org,v 1.3 2013/05/13 14:22:32 csun Exp csun $
+$Id: log.org,v 1.4 2013/05/14 21:16:29 csun Exp csun $
 
 This is the log I kept while writing proof for my type system.
 
@@ -247,4 +247,69 @@ won't work. We can change it to the following:
 And then, we need to be more conservative about expose: expose 
 will produce a write effect on shared target. We then can type check
 write /\ expose = expose.
+
+
+<2013-05-16 Thu>
+
+Yesterday's discussion with Prof. Boyland was helpful. Regarding
+expose effect, I ignored one fact: after exposing a target like
+x.u.v, x.u will be *totally messed up*, since the invariant for object
+refered by x.u will be broken. Therefore, we need to change our system
+to accomodate this case.
+
+The easiest way to handle this case is to only allow expose
+on the object level, all exposes on fields are treated as consume.
+It's hard to track expose effect on arbitrary level field, given
+current design of tgtmap in our system.
+
+For read and write effects, we only need to track on the first level
+because of the way method effects are declared. For consume and expose
+effects, it would be nice if we can track them on arbitrary level. 
+However, this poses problems:
+
+  how to convert these *arbitrary level* effects into permissions?
+I spend a longtime last summer trying to find a nice and elegant 
+solution to this, but failed.
+
+Also, it is important to remember that, read and write effects are 
+on field permission, i.e., r.f -> r_f, while expose and consume
+effects are on object permission, i.e., r_f.all -> 0.
+
+
+<2013-05-17 Fri>
+
+Another issue I neglected is *local effect*. When we have 
+expression like the following:
+
+  let x = new C in x
+
+In current system, expression *new C* will take a new location,
+and use it as result target. Then, this target needs to *flow* out
+of the let-expression, so that in future we can track effects on
+reference x (for instance, x.u won't get consumed twice). 
+
+The problem is, at the point that we are out of the let-expression,
+we lost track on the information on x: we don't know its type anymore.
+
+Looks like not a problem, if target indeed *flow* out of the 
+let-expression, for instance, like the following:
+
+  let y = 
+    let x = new C in x.f end
+  in a.u = y end
+
+then we don't need to know anything about x when we are in body
+of y. Same if we replace *x.f* with *x*. Therefore, our old approach
+to this problem still works.
+
+
+<2013-05-18 Sat>
+
+Looks like we can *restore* field permission in some limited way.
+If we have expression: x.u = new C, then for all object targets G
+that x refers to, we can search for all consume effects on
+
+  g.f \forall g \in G
+
+and then remove them from the existing efxmap.
 
