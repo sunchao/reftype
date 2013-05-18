@@ -1,5 +1,5 @@
 % Explicit Type Context
-% $Id: cxt.elf,v 1.4 2013/05/12 02:01:12 csun Exp csun $
+% $Id: cxt.elf,v 1.5 2013/05/17 16:57:14 csun Exp csun $
 
 % definition
 
@@ -64,25 +64,38 @@ wf-cxt/cons
 
 % theorems
 
-false-implies-object-eq 
-  : {V:void} {O1:object} {O2}
-    object`eq O1 O2
+
+%theorem false-implies-object-eq : 
+    forall* {O1:object} {O2}
+    forall  {V:void}
+    exists  {EQ: object`eq O1 O2}
+    true.
+
+%worlds (objvar | fracvar) (false-implies-object-eq _ _).
+%total {} (false-implies-object-eq _ _).
+
+
+false-implies-ty-eq : {V:void} ty`eq T1 T2 -> type.
+
+%mode +{T1} +{T2} +{V} -{E: ty`eq T1 T2} false-implies-ty-eq V E.
+%worlds (objvar) (false-implies-ty-eq _ _).
+%total {} (false-implies-ty-eq _ _).
+
+
+cxt`cons-eq-implies-eq
+  : cxt`eq (cxt/cons O1 T1 L1 B1) (cxt/cons O2 T2 L2 B2)
+    -> object`eq O1 O2
+    -> ty`eq T1 T2
+    -> nat`eq L1 L2
+    -> cxt`eq B1 B2
     -> type.
+    
+%mode cxt`cons-eq-implies-eq +E -E1 -E2 -E3 -E4.
 
-%mode false-implies-object-eq +V +O1 +O2 -E.
-%worlds (objvar) (false-implies-object-eq _ _ _ _).
-%total {} (false-implies-object-eq _ _ _ _).
+- : cxt`cons-eq-implies-eq cxt`eq/ object`eq/ ty`eq/ nat`eq/ cxt`eq/.
 
-
-false-implies-ty-eq
-  : {V:void} {T1} {T2}
-    ty`eq T1 T2
-    -> type.
-
-%mode false-implies-ty-eq +V +T1 +T2 -E.
-%worlds (objvar) (false-implies-ty-eq _ _ _ _).
-%total {} (false-implies-ty-eq _ _ _ _).
-
+%worlds (fracvar | objvar) (cxt`cons-eq-implies-eq _ _ _ _ _).
+%total { } (cxt`cons-eq-implies-eq _ _ _ _ _).
 
 % lookup-loc
 
@@ -112,6 +125,87 @@ cxt-lookup-loc-respects-eq
 %total  {} (cxt-lookup-loc-respects-eq _ _ _ _ _ _).
 
 
+wf-cxt-h-respects-gt
+  : wf-cxt-h N B
+    -> nat`gt M N 
+    -> wf-cxt-h M B
+    -> type.
+
+%mode wf-cxt-h-respects-gt +WFH-N +GT -WFH-M.
+
+- : wf-cxt-h-respects-gt wf-cxt-h/nil _ wf-cxt-h/nil.
+
+- : wf-cxt-h-respects-gt 
+    (wf-cxt-h/cons WFH-K N>K) M>N (wf-cxt-h/cons WFH-K M>K)
+    <- nat`gt-transitive M>N N>K M>K.
+
+%worlds (fracvar | objvar) (wf-cxt-h-respects-gt _ _ _).
+%total WFH (wf-cxt-h-respects-gt WFH _ _).
+    
+
+wf-cxt-h-lookup-bound-impossible
+  : wf-cxt-h N B
+    -> cxt-lookup-loc B N _ _
+    -> void
+    -> type.
+
+%mode wf-cxt-h-lookup-bound-impossible +WFH +B-L -V.
+
+- : wf-cxt-h-lookup-bound-impossible 
+    (wf-cxt-h/cons _ N>M) cxt-lookup-loc/hit V 
+    <- nat`gt-anti-reflexive N>M V.
+
+- : wf-cxt-h-lookup-bound-impossible
+    (wf-cxt-h/cons B-M N>M) (cxt-lookup-loc/miss N-L) V
+    <- wf-cxt-h-respects-gt B-M N>M B-N
+    <- wf-cxt-h-lookup-bound-impossible B-N N-L V.
+
+%worlds (fracvar | objvar) (wf-cxt-h-lookup-bound-impossible _ _ _).
+%total L (wf-cxt-h-lookup-bound-impossible _ L _).
+
+
+cxt-lookup-loc-unique/L
+  : wf-cxt-h K1 B1
+    -> wf-cxt-h K2 B2
+    -> cxt-lookup-loc B1 L1 O1 T1
+    -> cxt-lookup-loc B2 L2 O2 T2
+    -> cxt`eq B1 B2
+    -> nat`eq L1 L2
+    -> object`eq O1 O2
+    -> ty`eq T1 T2
+    -> type.
+
+%mode cxt-lookup-loc-unique/L +D1 +D2 +D3 +D4 +D5 +D6 -D7 -D8.
+
+- : cxt-lookup-loc-unique/L _ _ cxt-lookup-loc/hit cxt-lookup-loc/hit
+    cxt`eq/ nat`eq/ object`eq/ ty`eq/.
+
+- : cxt-lookup-loc-unique/L (wf-cxt-h/cons WFH-B _) _
+    (cxt-lookup-loc/miss B-L) (cxt-lookup-loc/hit)
+    cxt`eq/ nat`eq/ O1=O2 T1=T2
+    <- wf-cxt-h-lookup-bound-impossible WFH-B B-L V
+    <- false-implies-object-eq V O1=O2
+    <- ty`false-implies-eq V T1=T2.
+
+- : cxt-lookup-loc-unique/L (wf-cxt-h/cons WFH-B _) _
+    (cxt-lookup-loc/hit) (cxt-lookup-loc/miss B-L)
+    cxt`eq/ nat`eq/ O1=O2 T1=T2
+    <- wf-cxt-h-lookup-bound-impossible WFH-B B-L V
+    <- false-implies-object-eq V O1=O2
+    <- ty`false-implies-eq V T1=T2.
+
+- : cxt-lookup-loc-unique/L
+    (wf-cxt-h/cons WFH-B1 GT1) (wf-cxt-h/cons WFH-B2 GT2)
+    (cxt-lookup-loc/miss B1-L) (cxt-lookup-loc/miss B2-L)
+    B1=B2 N1=N2 O1=O2 T1=T2
+    <- cxt`cons-eq-implies-eq B1=B2 _ _ K1=K2 BB1=BB2
+    <- cxt-lookup-loc-unique/L WFH-B1 WFH-B2
+      B1-L B2-L BB1=BB2 N1=N2 O1=O2 T1=T2.
+
+%worlds (fracvar | objvar) (cxt-lookup-loc-unique/L _ _ _ _ _ _ _ _).
+%total L (cxt-lookup-loc-unique/L _ _ L _ _ _ _ _).
+
+
 cxt-lookup-loc-unique
   : wf-cxt B1
     -> wf-cxt B2
@@ -125,5 +219,29 @@ cxt-lookup-loc-unique
 
 %mode cxt-lookup-loc-unique +D1 +D2 +D3 +D4 +D5 +D6 -D7 -D8.
 
+- : cxt-lookup-loc-unique _ _ cxt-lookup-loc/hit cxt-lookup-loc/hit
+    cxt`eq/ nat`eq/ object`eq/ ty`eq/.
+
+- : cxt-lookup-loc-unique (wf-cxt/cons WFH-B) _
+    (cxt-lookup-loc/miss B-L) (cxt-lookup-loc/hit)
+    cxt`eq/ nat`eq/ O1=O2 T1=T2
+    <- wf-cxt-h-lookup-bound-impossible WFH-B B-L V
+    <- false-implies-object-eq V O1=O2
+    <- ty`false-implies-eq V T1=T2.
+
+- : cxt-lookup-loc-unique (wf-cxt/cons WFH-B) _
+    (cxt-lookup-loc/hit) (cxt-lookup-loc/miss B-L)
+    cxt`eq/ nat`eq/ O1=O2 T1=T2
+    <- wf-cxt-h-lookup-bound-impossible WFH-B B-L V
+    <- false-implies-object-eq V O1=O2
+    <- ty`false-implies-eq V T1=T2.
+
+- : cxt-lookup-loc-unique (wf-cxt/cons WFH-B1) (wf-cxt/cons WFH-B2)
+    (cxt-lookup-loc/miss B1-L) (cxt-lookup-loc/miss B2-L)
+    B1=B2 L1=L2 O1=O2 T1=T2
+    <- cxt`cons-eq-implies-eq B1=B2 _ _ _ BB1=BB2
+    <- cxt-lookup-loc-unique/L
+      WFH-B1 WFH-B2 B1-L B2-L BB1=BB2 L1=L2 O1=O2 T1=T2.
+
 %worlds (fracvar | objvar) (cxt-lookup-loc-unique _ _ _ _ _ _ _ _).
-%trustme %total {} (cxt-lookup-loc-unique _ _ _ _ _ _ _ _).
+%total L (cxt-lookup-loc-unique _ _ L _ _ _ _ _).
