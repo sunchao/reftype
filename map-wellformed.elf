@@ -1,0 +1,163 @@
+%%% well-formed efxmap: all values are non-empty.
+%%% $Id$
+
+%%%% Definition
+
+wellformed : map -> type.
+
+wellformed/0 : wellformed map/0.
+
+wellformed/+ 
+  : wellformed (map/+ _ S M)
+    <- data`size S (s _)
+    <- wellformed M.
+
+
+
+%%%% Theorems
+
+%theorem update-non-empty-preserves-wellformed :
+    forall* {GM} {GMP} {S} {N} {B}
+    forall  {WF: wellformed GM} 
+            {SZ: data`size S (s B)}
+            {U: update GM N S GMP}
+    exists  {WF: wellformed GMP}
+    true.
+
+- : update-non-empty-preserves-wellformed 
+    wellformed/0 SZ _ (wellformed/+ wellformed/0 SZ).
+
+- : update-non-empty-preserves-wellformed
+    (wellformed/+ WF SZ) SZ' (update/= NE) (wellformed/+ WF SZ').
+
+- : update-non-empty-preserves-wellformed
+    (wellformed/+ WF SZ) SZ' (update/< P)
+    (wellformed/+ (wellformed/+ WF SZ) SZ').
+
+- : update-non-empty-preserves-wellformed
+    (wellformed/+ WF SZ) SZ' (update/> UD P) (wellformed/+ WF' SZ)
+    <- update-non-empty-preserves-wellformed WF SZ' UD WF'.
+
+%worlds () (update-non-empty-preserves-wellformed _ _ _ _).
+%total (U) (update-non-empty-preserves-wellformed _ _ U _).
+
+
+%theorem shift-preserves-wellformed : 
+    forall* {GM} {N} {GMP}
+    forall  {WF: wellformed GM}
+            {SH: shift N GM GMP}
+    exists  {WF: wellformed GMP}
+    true.
+
+- : shift-preserves-wellformed wellformed/0 _ wellformed/0.
+
+- : shift-preserves-wellformed (wellformed/+ WF SZ)
+    (shift/+ P) (wellformed/+ WF SZ).
+
+%worlds () (shift-preserves-wellformed _ _ _).
+%total  {} (shift-preserves-wellformed _ _ _).
+
+
+%theorem join-preserves-wellformed* :
+    forall* {M1} {M2} {M3}
+    forall  {N1} {SZ1: size M1 N1} {N2} {SZ2: size M2 N2}
+            {WF-M1: wellformed M1}
+            {WF-M1: wellformed M2}
+            {J: join M1 M2 M3}
+    exists  {WF-M3: wellformed M3}
+    true.
+
+- : join-preserves-wellformed* _ _ _ _ _ WF join/L WF.
+
+- : join-preserves-wellformed* _ _ _ _ WF _ join/R WF.
+
+
+%theorem ge-implies-succ :
+    forall* {N1} {N2}
+    forall  {GE: ge N1 (s N2)}
+    exists  {N3} {EQ: nat`eq N1 (s N3)}
+    true.
+
+- : ge-implies-succ (ge/= _) _ nat`eq/.
+
+- : ge-implies-succ (ge/> _) _ nat`eq/.
+
+%worlds () (ge-implies-succ _ _ _).
+%total  {} (ge-implies-succ _ _ _).
+
+
+- : join-preserves-wellformed* _ (size/+ MSZ1) _ (size/+ MSZ2)
+    (wellformed/+ WF1 SZ1) (wellformed/+ WF2 SZ2) 
+    (join/= J U nat`eq/) (wellformed/+ WF3 SZ3')
+    <- join-preserves-wellformed* _ MSZ1 _ MSZ2 WF1 WF2 J WF3
+    <- data`join-implies-leq* U LE
+    <- data`size-total SZ3
+    <- data`leq-implies-size-le LE SZ1 SZ3 GE
+    <- ge-implies-succ GE _ EQ
+    <- data`size-respects-eq SZ3 data`eq/ EQ SZ3'.
+
+- : join-preserves-wellformed* _ (size/+ MSZ1)
+    _ (size/+ MSZ2)
+    (wellformed/+ WF1 SZ1) WF2
+    (join/< J P) WF3
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- shift-total SH1
+    <- shift-preserves-wellformed WF1 SH1 WF1P
+    <- shift-preserves-size MSZ1 SH1 MSZ1S
+    <- shift-preserves-join J SH1 (shift/+ P2) _ SH3 JS
+    <- join-preserves-wellformed*  _ MSZ1S _ (size/+ MSZ2) WF1P WF2 JS WF3P
+    <- shift-implies-update SH3 UD
+    <- update-non-empty-preserves-wellformed WF3P SZ1 UD WF3.
+
+- : join-preserves-wellformed* _ (size/+ MSZ1)
+    _ (size/+ MSZ2) WF1 (wellformed/+ WF2 SZ2)
+    (join/> J P) WF3
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- shift-total SH2
+    <- shift-preserves-wellformed WF2 SH2 WF2P
+    <- shift-preserves-size MSZ2 SH2 MSZ2S
+    <- shift-preserves-join J (shift/+ P2) SH2 _ SH3 JS
+    <- join-preserves-wellformed* _ (size/+ MSZ1) _ MSZ2S WF1 WF2P JS WF3P
+    <- shift-implies-update SH3 UD
+    <- update-non-empty-preserves-wellformed WF3P SZ2 UD WF3.
+
+%worlds () (join-preserves-wellformed* _ _ _ _ _ _ _ _).
+%total {N1 N2} (join-preserves-wellformed* N1 _ N2 _ _ _ _ _).
+
+
+%theorem join-preserves-wellformed :
+    forall* {M1} {M2} {M3}
+    forall  {WF-M1: wellformed M1}
+            {WF-M1: wellformed M2}
+            {J: join M1 M2 M3}
+    exists  {WF-M3: wellformed M3}
+    true.
+
+- : join-preserves-wellformed WF1 WF2 J WF3
+    <- size-total SZ1
+    <- size-total SZ2
+    <- join-preserves-wellformed* _ SZ1 _ SZ2 WF1 WF2 J WF3.
+
+%worlds () (join-preserves-wellformed _ _ _ _).
+%total  {} (join-preserves-wellformed _ _ _ _).
+
+
+%theorem wellformed-lookup-emptydata-implies-contradiction :
+    forall* {M} {N} 
+    forall  {WF: wellformed M}
+            {L: lookup M N data/0}
+    exists  {F:void}
+    true.
+
+- : wellformed-lookup-emptydata-implies-contradiction 
+    (wellformed/+ WF SZ) (lookup/= nat`eq/) F
+    <- size-succ-contradiction SZ F.
+
+- : wellformed-lookup-emptydata-implies-contradiction
+    (wellformed/+ WF _) (lookup/> L P) F
+    <- wellformed-lookup-emptydata-implies-contradiction WF L F.
+
+%worlds () (wellformed-lookup-emptydata-implies-contradiction _ _ _).
+%total (WF) (wellformed-lookup-emptydata-implies-contradiction WF _ _).
