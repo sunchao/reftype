@@ -1,0 +1,175 @@
+%%% Well-Formed Map: all values are well-formed.
+%%% $Id$
+
+
+%%%% Definition
+
+wf : map -> type.
+
+wf/0 : wf map/0.
+
+wf/+ : data`wf D
+       -> wf M
+       -> wf (map/+ _ D M)
+       -> type.
+
+
+%%%% Theorems
+
+%theorem update-wf-preserves-wf :
+    forall* {M} {MP} {S} {N} {B}
+    forall  {WF: wf M} 
+            {SZ: data`wf D}
+            {U: update M N S MP}
+    exists  {WF: wf MP}
+    true.
+
+- : update-wf-preserves-wf wf/0 SZ _ (wf/+ wf/0 SZ.)
+    
+
+- : update-wf-preserves-wf
+    (wf/+ WF SZ) SZP (update/= NE) (wf/+ WF SZP).
+
+- : update-wf-preserves-wf
+    (wf/+ WF SZ) SZP (update/< P)
+    (wf/+ (wf/+ WF SZ) SZP).
+
+- : update-wf-preserves-wf
+    (wf/+ WF SZ) SZP (update/> UD P) (wf/+ WFP SZ)
+    <- update-wf-preserves-wf WF SZP UD WFP.
+
+%worlds () (update-wf-preserves-wf _ _ _ _).
+%total (U) (update-wf-preserves-wf _ _ U _).
+
+
+%theorem shift-preserves-wf : 
+    forall* {M} {N} {MP}
+    forall  {WF: wf M}
+            {SH: shift N M MP}
+    exists  {WF: wf MP}
+    true.
+
+- : shift-preserves-wf wf/0 _ wf/0.
+
+- : shift-preserves-wf (wf/+ WF SZ)
+    (shift/+ P) (wf/+ WF SZ).
+
+%worlds () (shift-preserves-wf _ _ _).
+%total  {} (shift-preserves-wf _ _ _).
+
+
+%theorem join-preserves-wf* :
+    forall* {M1} {M2} {M3}
+    forall  {N1} {SZ1: size M1 N1} {N2} {SZ2: size M2 N2}
+            {WF-M1: wf M1}
+            {WF-M1: wf M2}
+            {J: join M1 M2 M3}
+    exists  {WF-M3: wf M3}
+    true.
+
+- : join-preserves-wf* _ _ _ _ _ WF join/L WF.
+
+- : join-preserves-wf* _ _ _ _ WF _ join/R WF.
+
+
+%theorem ge-implies-succ :
+    forall* {N1} {N2}
+    forall  {GE: ge N1 (s N2)}
+    exists  {N3} {EQ: nat`eq N1 (s N3)}
+    true.
+
+- : ge-implies-succ (ge/= _) _ nat`eq/.
+
+- : ge-implies-succ (ge/> _) _ nat`eq/.
+
+%worlds () (ge-implies-succ _ _ _).
+%total  {} (ge-implies-succ _ _ _).
+
+
+- : join-preserves-wf* _ (size/+ MSZ1) _ (size/+ MSZ2)
+    (wf/+ WF1 SZ1) (wf/+ WF2 SZ2) 
+    (join/= J U nat`eq/) (wf/+ WF3 SZ3P)
+    <- join-preserves-wf* _ MSZ1 _ MSZ2 WF1 WF2 J WF3
+    <- data`join-implies-leq* U LE
+    <- data`size-total SZ3
+    <- data`leq-implies-size-le LE SZ1 SZ3 GE
+    <- ge-implies-succ GE _ EQ
+    <- data`size-respects-eq SZ3 data`eq/ EQ SZ3P.
+
+- : join-preserves-wf* _ (size/+ MSZ1)
+    _ (size/+ MSZ2)
+    (wf/+ WF1 SZ1) WF2
+    (join/< J P) WF3
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- shift-total SH1
+    <- shift-preserves-wf WF1 SH1 WF1P
+    <- shift-preserves-size MSZ1 SH1 MSZ1S
+    <- shift-preserves-join J SH1 (shift/+ P2) _ SH3 JS
+    <- join-preserves-wf*  _ MSZ1S _ (size/+ MSZ2) WF1P WF2 JS WF3P
+    <- shift-implies-update SH3 UD
+    <- update-wf-preserves-wf WF3P SZ1 UD WF3.
+
+- : join-preserves-wf* _ (size/+ MSZ1)
+    _ (size/+ MSZ2) WF1 (wf/+ WF2 SZ2)
+    (join/> J P) WF3
+    <- nat`plus-swap-succ P P1
+    <- nat`plus-commutative P1 P2
+    <- shift-total SH2
+    <- shift-preserves-wf WF2 SH2 WF2P
+    <- shift-preserves-size MSZ2 SH2 MSZ2S
+    <- shift-preserves-join J (shift/+ P2) SH2 _ SH3 JS
+    <- join-preserves-wf* _ (size/+ MSZ1) _ MSZ2S WF1 WF2P JS WF3P
+    <- shift-implies-update SH3 UD
+    <- update-wf-preserves-wf WF3P SZ2 UD WF3.
+
+%worlds () (join-preserves-wf* _ _ _ _ _ _ _ _).
+%total {N1 N2} (join-preserves-wf* N1 _ N2 _ _ _ _ _).
+
+
+%theorem join-preserves-wf :
+    forall* {M1} {M2} {M3}
+    forall  {WF-M1: wf M1}
+            {WF-M1: wf M2}
+            {J: join M1 M2 M3}
+    exists  {WF-M3: wf M3}
+    true.
+
+- : join-preserves-wf WF1 WF2 J WF3
+    <- size-total SZ1
+    <- size-total SZ2
+    <- join-preserves-wf* _ SZ1 _ SZ2 WF1 WF2 J WF3.
+
+%worlds () (join-preserves-wf _ _ _ _).
+%total  {} (join-preserves-wf _ _ _ _).
+
+
+%{%
+#ifdef DATA_NOT_WF
+%}%
+
+wf-lookup-not-wf-implies-false
+  : wf M
+    -> lookup M N D
+    -> not-wf D
+    -> void
+    -> type.
+%mode wf-lookup-not-wf-implies-false +WF +L +NWF -V.
+
+- : wf-lookup-emptydata-implies-contradiction 
+    (wf/+ WF SZ) (lookup/= nat`eq/) F
+    <- size-succ-contradiction SZ F.
+
+- : wf-lookup-emptydata-implies-contradiction
+    (wf/+ WF _) (lookup/> L P) F
+    <- wf-lookup-emptydata-implies-contradiction WF L F.
+
+%worlds () (wf-lookup-emptydata-implies-contradiction _ _ _).
+%total (WF) (wf-lookup-emptydata-implies-contradiction WF _ _).
+
+%{%
+#endif
+%}%
+
+wf-lookup-implies-wf
+  : 
