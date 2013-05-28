@@ -1,26 +1,89 @@
-%%% remove operation on map.
-%%% all these definitions and theorems are
-%%% similar to set`remove. 
-%%% HOWEVER, we need to define what is a 
-%%% "well-formed" map: a map that doesn't have data/0 as value.
-%%% $Id$
+%%% Remove operation on map.
+%%% all these definitions and theorems are similar to set`remove. 
+%%% HOWEVER, we need to define what is a "well-formed" map: a map
+%%% that doesnt have set/0 as value.
+%%% $Id: map-remove.elf,v 1.1 2013/05/22 20:19:29 csun Exp csun $
 
 
-wellformed : map -> type.
+data`wf : data -> type.
 
-wellformed/0 : wellformed map/0.
+data`wf/ : data`wf D <- data`size D (nat`s _).
 
-wellformed/+ 
-  : wellformed (map/+ _ S M)
-    <- data`size S (s _)
-    <- wellformed M.
+
+data`nwf : data -> type.
+
+data`nwf/ : data`nwf D <- data`size D nat`z.
+
+
+data`join-preserves-wf
+  : data`wf D1
+    -> data`wf D2
+    -> data`join D1 D2 D3
+    -> data`wf D3
+    -> type.
+%mode data`join-preserves-wf +W1 +W2 +J -W3.
+
+- : data`join-preserves-wf 
+    (data`wf/ SZ1) (data`wf/ SZ2) J (data`wf/ SZ3P)
+    <- data`join-implies-leq J LE _
+    <- data`size-total SZ3
+    <- data`leq-implies-size-le LE SZ1 SZ3 GE
+    <- nat`ge-implies-plus GE _ P
+    <- nat`plus-right-preserves-positive P nat`eq/ _ EQ
+    <- data`size-respects-eq SZ3 data`eq/ EQ SZ3P.
+
+%worlds () (data`join-preserves-wf _ _ _ _).
+%total { } (data`join-preserves-wf _ _ _ _).
+
+
+data`wf-nwf-contradiction
+  : data`wf D
+    -> data`nwf D
+    -> void 
+    -> type.
+%mode data`wf-nwf-contradiction +W +NW -V.
+
+- : data`wf-nwf-contradiction 
+    (data`wf/ SZ1) (data`nwf/ SZ2) V
+    <- data`size-unique SZ2 SZ1 data`eq/ E
+    <- nat`eq-contradiction E V.
+
+%worlds () (data`wf-nwf-contradiction _ _ _).
+%total { } (data`wf-nwf-contradiction _ _ _).
+
+
+data`leq-preserves-wf
+  : data`wf D
+    -> data`leq D DP
+    -> data`wf DP
+    -> type.
+%mode data`leq-preserves-wf +W +L -WP.
+
+- : data`leq-preserves-wf
+    (data`wf/ SZ) LE (data`wf/ SZ2)
+    <- data`size-total SZP
+    <- data`leq-implies-size-le LE SZ SZP GE
+    <- nat`ge-implies-plus GE _ P
+    <- nat`plus-right-preserves-positive P nat`eq/ _ EQ
+    <- data`size-respects-eq SZP data`eq/ EQ SZ2.
+
+%worlds () (data`leq-preserves-wf _ _ _).
+%total { } (data`leq-preserves-wf _ _ _).
+
+
+%{%
+BEGIN_ELF
+#include "map-wf.elf"
+END_ELF
+%}%
+
 
 remove : map -> map -> map -> type.
 
 remove/
-  : wellformed M1 ->
-    wellformed M2 ->
-    wellformed M3 -> 
+  : wf M1 ->
+    wf M2 ->
+    wf M3 -> 
     leq M3 M1 -> 
     deep-disjoint M2 M3 ->
     join M2 M3 M4 ->
@@ -29,330 +92,6 @@ remove/
 		   
 
 %%%% theorems
-
-%%% theorem about wellformed-ness
-
-%theorem update-non-empty-preserves-wellformed :
-    forall* {GM} {GMP} {S} {N} {B}
-    forall  {WF: wellformed GM} 
-            {SZ: data`size S (s B)}
-            {U: update GM N S GMP}
-    exists  {WF: wellformed GMP}
-    true.
-
-- : update-non-empty-preserves-wellformed 
-    wellformed/0 SZ _ (wellformed/+ wellformed/0 SZ).
-
-- : update-non-empty-preserves-wellformed
-    (wellformed/+ WF SZ) SZ' (update/= NE) (wellformed/+ WF SZ').
-
-- : update-non-empty-preserves-wellformed
-    (wellformed/+ WF SZ) SZ' (update/< P)
-    (wellformed/+ (wellformed/+ WF SZ) SZ').
-
-- : update-non-empty-preserves-wellformed
-    (wellformed/+ WF SZ) SZ' (update/> UD P) (wellformed/+ WF' SZ)
-    <- update-non-empty-preserves-wellformed WF SZ' UD WF'.
-
-%worlds () (update-non-empty-preserves-wellformed _ _ _ _).
-%total (U) (update-non-empty-preserves-wellformed _ _ U _).
-
-
-%theorem shift-preserves-wellformed : 
-    forall* {GM} {N} {GMP}
-    forall  {WF: wellformed GM}
-            {SH: shift N GM GMP}
-    exists  {WF: wellformed GMP}
-    true.
-
-- : shift-preserves-wellformed wellformed/0 _ wellformed/0.
-
-- : shift-preserves-wellformed (wellformed/+ WF SZ)
-    (shift/+ P) (wellformed/+ WF SZ).
-
-%worlds () (shift-preserves-wellformed _ _ _).
-%total  {} (shift-preserves-wellformed _ _ _).
-
-
-%theorem join-preserves-wellformed* :
-    forall* {M1} {M2} {M3}
-    forall  {N1} {SZ1: size M1 N1} {N2} {SZ2: size M2 N2}
-            {WF-M1: wellformed M1}
-            {WF-M1: wellformed M2}
-            {J: join M1 M2 M3}
-    exists  {WF-M3: wellformed M3}
-    true.
-
-- : join-preserves-wellformed* _ _ _ _ _ WF join/L WF.
-
-- : join-preserves-wellformed* _ _ _ _ WF _ join/R WF.
-
-
-%theorem ge-implies-succ :
-    forall* {N1} {N2}
-    forall  {GE: ge N1 (s N2)}
-    exists  {N3} {EQ: nat`eq N1 (s N3)}
-    true.
-
-- : ge-implies-succ (ge/= _) _ nat`eq/.
-
-- : ge-implies-succ (ge/> _) _ nat`eq/.
-
-%worlds () (ge-implies-succ _ _ _).
-%total  {} (ge-implies-succ _ _ _).
-
-
-- : join-preserves-wellformed* _ (size/+ MSZ1) _ (size/+ MSZ2)
-    (wellformed/+ WF1 SZ1) (wellformed/+ WF2 SZ2) 
-    (join/= J U nat`eq/) (wellformed/+ WF3 SZ3')
-    <- join-preserves-wellformed* _ MSZ1 _ MSZ2 WF1 WF2 J WF3
-    <- data`join-implies-leq* U LE
-    <- data`size-total SZ3
-    <- data`leq-implies-size-le LE SZ1 SZ3 GE
-    <- ge-implies-succ GE _ EQ
-    <- data`size-respects-eq SZ3 data`eq/ EQ SZ3'.
-
-- : join-preserves-wellformed* _ (size/+ MSZ1)
-    _ (size/+ MSZ2)
-    (wellformed/+ WF1 SZ1) WF2
-    (join/< J P) WF3
-    <- nat`plus-swap-succ P P1
-    <- nat`plus-commutative P1 P2
-    <- shift-total SH1
-    <- shift-preserves-wellformed WF1 SH1 WF1P
-    <- shift-preserves-size MSZ1 SH1 MSZ1S
-    <- shift-preserves-join J SH1 (shift/+ P2) _ SH3 JS
-    <- join-preserves-wellformed*  _ MSZ1S _ (size/+ MSZ2) WF1P WF2 JS WF3P
-    <- shift-implies-update SH3 UD
-    <- update-non-empty-preserves-wellformed WF3P SZ1 UD WF3.
-
-- : join-preserves-wellformed* _ (size/+ MSZ1)
-    _ (size/+ MSZ2) WF1 (wellformed/+ WF2 SZ2)
-    (join/> J P) WF3
-    <- nat`plus-swap-succ P P1
-    <- nat`plus-commutative P1 P2
-    <- shift-total SH2
-    <- shift-preserves-wellformed WF2 SH2 WF2P
-    <- shift-preserves-size MSZ2 SH2 MSZ2S
-    <- shift-preserves-join J (shift/+ P2) SH2 _ SH3 JS
-    <- join-preserves-wellformed* _ (size/+ MSZ1) _ MSZ2S WF1 WF2P JS WF3P
-    <- shift-implies-update SH3 UD
-    <- update-non-empty-preserves-wellformed WF3P SZ2 UD WF3.
-
-%worlds () (join-preserves-wellformed* _ _ _ _ _ _ _ _).
-%total {N1 N2} (join-preserves-wellformed* N1 _ N2 _ _ _ _ _).
-
-
-%theorem join-preserves-wellformed :
-    forall* {M1} {M2} {M3}
-    forall  {WF-M1: wellformed M1}
-            {WF-M1: wellformed M2}
-            {J: join M1 M2 M3}
-    exists  {WF-M3: wellformed M3}
-    true.
-
-- : join-preserves-wellformed WF1 WF2 J WF3
-    <- size-total SZ1
-    <- size-total SZ2
-    <- join-preserves-wellformed* _ SZ1 _ SZ2 WF1 WF2 J WF3.
-
-%worlds () (join-preserves-wellformed _ _ _ _).
-%total  {} (join-preserves-wellformed _ _ _ _).
-
-
-
-%theorem size-succ-contradiction :
-    forall* {N}
-    forall  {SZ: data`size data/0 (s N)}
-    exists  {F: void}
-    true.
-
-%worlds () (size-succ-contradiction _ _).
-%total  {} (size-succ-contradiction _ _).
-
-
-
-%theorem remove-implies-wellformed :
-    forall* {A} {B} {C}
-    forall  {R: remove A B C}
-    exists  {WF-A: wellformed A} {WF-B: wellformed B}
-            {WF-C: wellformed C}
-    true.
-
-- : remove-implies-wellformed (remove/ WF-A WF-B WF-C _ _ _ _) 
-    WF-A WF-B WF-C.
-
-%worlds () (remove-implies-wellformed _ _ _ _).
-%total  {} (remove-implies-wellformed _ _ _ _).
-
-
-%theorem wellformed-lookup-emptydata-implies-contradiction :
-    forall* {M} {N} 
-    forall  {WF: wellformed M}
-            {L: lookup M N data/0}
-    exists  {F:void}
-    true.
-
-- : wellformed-lookup-emptydata-implies-contradiction 
-    (wellformed/+ WF SZ) (lookup/= nat`eq/) F
-    <- size-succ-contradiction SZ F.
-
-- : wellformed-lookup-emptydata-implies-contradiction
-    (wellformed/+ WF _) (lookup/> L P) F
-    <- wellformed-lookup-emptydata-implies-contradiction WF L F.
-
-%worlds () (wellformed-lookup-emptydata-implies-contradiction _ _ _).
-%total (WF) (wellformed-lookup-emptydata-implies-contradiction WF _ _).
-
-
-%theorem join-is-lub :
-        forall* {M1} {M2} {M3} {M4}
-        forall {J:join M1 M2 M3}
-               {L1:leq M1 M4} {L2:leq M2 M4}
-        exists {L3:leq M3 M4}
-        true.
-
-- : join-is-lub join/L _ L L.
-
-- : join-is-lub join/R L _ L.
-
-- : join-is-lub
-    (join/= M1+M2=M3 D1+D2=D3 nat`eq/)
-    (leq/= M1<=M4 D1<=D4 nat`eq/)
-    (leq/= M2<=M4 D2<=D4 nat`eq/)
-    (leq/= M3<=M4 D3<=D4 nat`eq/)
-    <- data`join-is-lub D1+D2=D3 D1<=D4 D2<=D4 D3<=D4
-    <- join-is-lub M1+M2=M3 M1<=M4 M2<=M4 M3<=M4.
-
-- : join-is-lub (join/= _ _ nat`eq/)
-    (leq/= _ _ nat`eq/) (leq/> _ N3+1+N=N) L
-    <- nat`plus-implies-gt N3+1+N=N nat`eq/ N>N
-    <- gt-anti-reflexive N>N F
-    <- false-implies-leq F L.
-
-- : join-is-lub (join/= _ _ nat`eq/)
-    (leq/> _ N3+1+N=N) (leq/= _ _ nat`eq/) L
-    <- nat`plus-implies-gt N3+1+N=N nat`eq/ N>N
-    <- gt-anti-reflexive N>N F
-    <- false-implies-leq F L.
-
-- : join-is-lub
-    (join/= M1+M2=M3 D1+D2=D3 nat`eq/)
-    (leq/> M511<=M4 N5+1+N4=N)
-    (leq/> M622<=M4 N6+1+N4=N)
-    (leq/> M633<=M4 N6+1+N4=N)
-    <- nat`plus-right-cancels N5+1+N4=N N6+1+N4=N nat`eq/ nat`eq/ N5+1=N6+1
-    <- nat`succ-cancels N5+1=N6+1 N5=N6
-    <- map/+-preserves-eq N5=N6 data`eq/ eq/ M511=M611
-    <- leq-respects-eq M511<=M4 M511=M611 eq/ M611<=M4
-    <- join-is-lub (join/= M1+M2=M3 D1+D2=D3 nat`eq/)
-                   M611<=M4 M622<=M4 M633<=M4.
-
-- : join-is-lub (join/< _ N0+1+N=N)
-    (leq/= _ _ nat`eq/) (leq/= _ _ nat`eq/) L
-    <- nat`plus-implies-gt N0+1+N=N nat`eq/ N>N
-    <- gt-anti-reflexive N>N F
-    <- false-implies-leq F L.
-
-- : join-is-lub
-    (join/< M1+M022=M3 N0+1+N1=N2)
-    (leq/= M1<=M4 D1<=D4 nat`eq/)
-    (leq/> M622<=M4 N6+1+N1=N2)
-    (leq/= M3<=M4 D1<=D4 nat`eq/)
-    <- nat`plus-right-cancels
-      N6+1+N1=N2 N0+1+N1=N2 nat`eq/ nat`eq/ N6+1=N0+1
-    <- succ-cancels N6+1=N0+1 N6=N0
-    <- map/+-preserves-eq N6=N0 data`eq/ eq/ M622=M022
-    <- leq-respects-eq M622<=M4 M622=M022 eq/ M022<=M4
-    <- join-is-lub M1+M022=M3 M1<=M4 M022<=M4 M3<=M4.
-
-- : join-is-lub (join/< _ N0+1+N1=N2)
-    (leq/> _ N3+1+N2=N1) (leq/= _ _ nat`eq/) L
-    <- nat`plus-implies-gt N3+1+N2=N1 nat`eq/ N1>N2
-    <- nat`plus-implies-gt N0+1+N1=N2 nat`eq/ N2>N1
-    <- nat`gt-anti-symmetric N1>N2 N2>N1 F
-    <- false-implies-leq F L.
-
-- : join-is-lub
-    (join/< M1+M022=M3 N0+1+N1=N2)
-    (leq/> M511<=M4 N5+1+N4=N1)
-    (leq/> M622<=M4 N6+1+N4=N2)
-    (leq/> M513<=M4 N5+1+N4=N1)
-    <- nat`plus-swap-succ N5+1+N4=N1 N5+N4+1=N1
-    <- nat`plus-associative-converse
-      N5+N4+1=N1 N0+1+N1=N2 N6P N0+1+N5=N6P N6P+N4+1=N2
-    <- nat`plus-swap-succ-converse N6P+N4+1=N2 N6P+1+N4=N2
-    <- nat`plus-right-cancels
-      N6P+1+N4=N2 N6+1+N4=N2 nat`eq/ nat`eq/ N6P+1=N6+1
-    <- nat`succ-cancels N6P+1=N6+1 N6P=N6
-    <- nat`plus-respects-eq N0+1+N5=N6P nat`eq/ nat`eq/ N6P=N6 N0+1+N5=N6
-    <- join-is-lub (join/< M1+M022=M3 N0+1+N5=N6) 
-      M511<=M4 M622<=M4 M513<=M4.
-
-- : join-is-lub (join/> _ N3+1+N=N)
-    (leq/= _ _ nat`eq/) (leq/= _ _ nat`eq/) L
-    <- nat`plus-implies-gt N3+1+N=N nat`eq/ N>N
-    <- gt-anti-reflexive N>N F
-    <- false-implies-leq F L.
-
-- : join-is-lub (join/> _ N3+1+N2=N1)
-    (leq/= _ _ nat`eq/) (leq/> _ N0+1+N1=N2) L
-    <- nat`plus-implies-gt N3+1+N2=N1 nat`eq/ N1>N2
-    <- nat`plus-implies-gt N0+1+N1=N2 nat`eq/ N2>N1
-    <- nat`gt-anti-symmetric N1>N2 N2>N1 F
-    <- false-implies-leq F L.
-
-- : join-is-lub
-    (join/> M311+M2=M3 N3+1+N2=N1)
-    (leq/> M511<=M4 N5+1+N2=N1)
-    (leq/= M2<=M4 D2<=D4 nat`eq/)
-    (leq/= M3<=M4 D2<=D4 nat`eq/)
-    <- nat`plus-right-cancels
-      N3+1+N2=N1 N5+1+N2=N1 nat`eq/ nat`eq/ N3+1=N5+1
-    <- nat`succ-cancels N3+1=N5+1 N3=N5
-    <- map/+-preserves-eq N3=N5 data`eq/ eq/ M311=M511
-    <- join-respects-eq 
-      M311+M2=M3 M311=M511 eq/ eq/ M511+M2=M3
-    <- join-is-lub M511+M2=M3 M511<=M4 M2<=M4 M3<=M4.
-
-- : join-is-lub
-    (join/> M311+M2=M3 N3+1+N2=N1)
-    (leq/> M511<=M4 N5+1+N4=N1)
-    (leq/> M622<=M4 N6+1+N4=N2)
-    (leq/> M623<=M4 N6+1+N4=N2)
-    <- nat`plus-swap-succ N6+1+N4=N2 N6+N4+1=N2
-    <- nat`plus-associative-converse
-      N6+N4+1=N2 N3+1+N2=N1 N5P N3+1+N6=N5P N5P+N4+1=N1
-    <- nat`plus-swap-succ N5+1+N4=N1 N5+N4+1=N1
-    <- nat`plus-right-cancels N5P+N4+1=N1 N5+N4+1=N1 nat`eq/ nat`eq/ N5P=N5
-    <- nat`plus-respects-eq N3+1+N6=N5P nat`eq/ nat`eq/ N5P=N5 N3+1+N6=N5
-    <- join-is-lub (join/> M311+M2=M3 N3+1+N6=N5) 
-      M511<=M4 M622<=M4 M623<=M4.
-
-%worlds () (join-is-lub _ _ _ _).
-%total (L) (join-is-lub _ L _ _).
-
-
-%theorem fresh-implies-unit-deep-disjoint :
-    forall* {N} {M} {D}
-    forall  {F:fresh M N}
-    exists  {D: deep-disjoint M (map/+ N D map/0)}
-    true.
-
-- : fresh-implies-unit-deep-disjoint 
-    fresh/0 deep-disjoint/L.
-
-- : fresh-implies-unit-deep-disjoint
-    (fresh/< G) (deep-disjoint/> deep-disjoint/R P)
-    <- gt-implies-plus G _ P.
-
-- : fresh-implies-unit-deep-disjoint
-    (fresh/> F P) (deep-disjoint/< D P)
-    <- fresh-implies-unit-deep-disjoint F D.
-
-%worlds () (fresh-implies-unit-deep-disjoint _ _).
-%total (F) (fresh-implies-unit-deep-disjoint F _).
-
 
 %theorem data`leq-implies-remove-all-converse :
     forall* {A} {B}
@@ -367,80 +106,94 @@ remove/
 %total  {} (data`leq-implies-remove-all-converse _ _).
     
 
+false-implies-remove* : {S1} {S2} {S3} void -> remove S1 S2 S3 -> type.
+%mode false-implies-remove* +S1 +S2 +S3 +V -R.
+
+%worlds () (false-implies-remove* _ _ _ _ %{=>}% S1-S2=S3).
+%total {} (false-implies-remove* _ _ _ _ _).
+
+%abbrev false-implies-remove = false-implies-remove* _ _ _.
+
+
+remove-implies-wf 
+  : remove A B C
+    -> wf A 
+    -> wf B
+    -> wf C
+    -> type.
+%mode remove-implies-wf +R -W1 -W2 -W3.
+
+- : remove-implies-wf
+    (remove/ WF-A WF-B WF-C _ _ _ _) WF-A WF-B WF-C.
+
+%worlds () (remove-implies-wf _ _ _ _).
+%total  {} (remove-implies-wf _ _ _ _).
+
+
 %theorem can-remove :
     forall* {M} {S} {N} {D}
-    forall  {WF: wellformed M} {SZ:size M S} {L:lookup M N D}
-    exists  {M-} {S-} {K} {WF: wellformed M-}
+    forall  {WF: wf M} {SZ:size M S} {L:lookup M N D}
+    exists  {M-} {S-} {WF: wf M-}
             {SZ-:size M- S-} {E:nat`eq (s S-) S}
-            {U:update M- N D M} {SZ: data`size D (s K)}
+            {U:update M- N D M} {DW: data`wf D}
             {F:fresh M- N}
     true.
 
 - : can-remove 
-    (wellformed/+ _ SZ) (size/+ _) (lookup/= _) 
-    _ _ _ wellformed/0 size/0 nat`eq/ update/0 SZ fresh/0.
+    (wf/+ DW _) (size/+ _) (lookup/= _) 
+    _ _ wf/0 size/0 nat`eq/ update/0 DW fresh/0.
 
 - : can-remove
-    (wellformed/+ WF S-SZ) (size/+ (size/+ SZ))
-    (lookup/= nat`eq/) _ _ _ WF2
-    (size/+ SZ) nat`eq/
-    (update/< N3+1+N2=N1) S-SZ (fresh/< N1>N2)
+    (wf/+ S-DW WF) (size/+ (size/+ DW))
+    (lookup/= nat`eq/) _ _ WF2
+    (size/+ DW) nat`eq/
+    (update/< N3+1+N2=N1) S-DW (fresh/< N1>N2)
     <- plus-total N3+1+N2=N1
     <- plus-implies-gt N3+1+N2=N1 nat`eq/ N1>N2
     <- nat`plus-swap-succ N3+1+N2=N1 P
     <- nat`plus-commutative P P1
-    <- shift-preserves-wellformed WF (shift/+ P1) WF2.
+    <- shift-preserves-wf WF (shift/+ P1) WF2.
 
-- : can-remove (wellformed/+ WF S-SZ)
-    (size/+ SZ) (lookup/> LK N0+1+N1=N2) _ _ _ 
-    (wellformed/+ WF2 S-SZ) (size/+ SZ2) E
-    (update/> U2 N0+1+N1=N2) SS-SZ (fresh/> F2 N0+1+N1=N2)
-    <- can-remove WF SZ LK M- S- _ WF2 SZ2 E2 U2 SS-SZ F2
+- : can-remove (wf/+ S-DW WF)
+    (size/+ DW) (lookup/> LK N0+1+N1=N2) _ _
+    (wf/+ S-DW WF2) (size/+ DW2) E
+    (update/> U2 N0+1+N1=N2) SS-DW (fresh/> F2 N0+1+N1=N2)
+    <- can-remove WF DW LK M- S- WF2 DW2 E2 U2 SS-DW F2
     <- succ-deterministic E2 E.
 
-%worlds () (can-remove _ _ _ _ _ _ _ _ _ _ _ _).
-%total (L) (can-remove _ _ L _ _ _ _ _ _ _ _ _).
+%worlds () (can-remove _ _ _ _ _ _ _ _ _ _ _).
+%total (L) (can-remove _ _ L _ _ _ _ _ _ _ _).
 
 
 %theorem can-remove* :
     forall* {M} {S}
-    forall  {WF: wellformed M} {SZ:size M (s S)}
-    exists  {MP} {N} {D} {K}
-            {WF: wellformed MP}
+    forall  {WF: wf M} {SZ:size M (s S)}
+    exists  {MP} {N} {D}
+            {WF: wf MP}
             {SZP:size MP S}
             {U:update MP N D M}
-            {SZS: data`size D (s K)}
+            {SZS: data`wf D}
             {F:fresh MP N}
     true.
 
-- : can-remove* (wellformed/+ SS-SZ WF-M)
-    (size/+ SZ) MP N D K WF SZP U S-SZ F
-    <- can-remove (wellformed/+ SS-SZ WF-M) (size/+ SZ)
-      (lookup/= nat`eq/) MP NP K WF SZPP EQ U S-SZ F
+- : can-remove* (wf/+ SS-SZ WF-M)
+    (size/+ SZ) MP N D WF SZP U S-SZ F
+    <- can-remove (wf/+ SS-SZ WF-M) (size/+ SZ)
+      (lookup/= nat`eq/) MP NP WF SZPP EQ U S-SZ F
     <- succ-cancels EQ EQP
     <- size-respects-eq SZPP eq/ EQP SZP.
 
-%worlds () (can-remove* _ _ _ _ _ _ _ _ _ _ _).
-%total { } (can-remove* _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem false-implies-remove :
-        forall* {S1} {S2} {S3}
-        forall {F:void}
-        exists {D:remove S1 S2 S3}
-        true.
-
-%worlds () (false-implies-remove _ %{=>}% S1-S2=S3).
-%total {} (false-implies-remove _ _).
+%worlds () (can-remove* _ _ _ _ _ _ _ _ _ _).
+%total { } (can-remove* _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem remove-respects-eq :
-        forall* {S1} {S2} {S3} {T1} {T2} {T3}
-        forall  {DS:remove S1 S2 S3}
-                {E1:eq S1 T1} {E2:eq S2 T2} 
-                {E3:eq S3 T3}
-        exists  {DT:remove T1 T2 T3}
-        true.
+    forall* {S1} {S2} {S3} {T1} {T2} {T3}
+    forall  {DS:remove S1 S2 S3}
+            {E1:eq S1 T1} {E2:eq S2 T2} 
+            {E3:eq S3 T3}
+    exists  {DT:remove T1 T2 T3}
+    true.
 
 - : remove-respects-eq R eq/ eq/ eq/ R.
 
@@ -451,14 +204,14 @@ remove/
 
 %theorem remove-total* :
         forall* {S1} {S2} 
-        forall {WF-S1: wellformed S1} {WF-S2: wellformed S2}
+        forall {WF-S1: wf S1} {WF-S2: wf S2}
         exists {S3} {R:remove S1 S2 S3}
         true.
 
 %theorem remove-total/L1 :
         forall* {A} {B}
         forall  {N} {S: size A N}
-                {WF: wellformed A} {WF: wellformed B}
+                {WF: wf A} {WF: wf B}
         exists  {C} {R:remove A B C}
         true.
 
@@ -472,53 +225,53 @@ remove/
         true.
 
 %theorem remove-total/L3 :
-    forall* {S} {S'} {DP} {AP} {A} {B} {X} {CP} {Q}
+    forall* {S} {SP} {DP} {AP} {A} {B} {X} {CP} {Q}
     forall  {N} {SZ-Q: data`size Q N} 
-            {R: data`remove S' S Q} {WF-AP: wellformed AP}
-            {WF-B: wellformed B} {WF-CP: wellformed CP} 
+            {R: data`remove SP S Q} {WF-AP: wf AP}
+            {WF-B: wf B} {WF-CP: wf CP} 
             {L: lookup B X S} {LE: leq CP AP}
             {DX: deep-disjoint B CP}
             {U: join B CP DP} {LE: leq AP DP}
-            {FS: fresh AP X} {UD: update AP X S' A}
-    exists  {CP'} {WF-CP: wellformed CP'}
+            {FS: fresh AP X} {UD: update AP X SP A}
+    exists  {CP'} {WF-CP: wf CP'}
             {LE: leq CP' A} {DX: deep-disjoint B CP'}
             {DP'} {U: join B CP' DP'} {LE: leq A DP'}
     true.
 
 - : remove-total/L3 _ data`size/0
-    (data`remove/ data`leq/0 _ _ S'<=S) WF-AP WF-B
-    WF-CP B<X>=S CP<=AP B^CP BUCP=DP AP<=DP X!<AP AP+S'=A %{=>}%
+    (data`remove/ data`leq/0 _ _ SP<=S) WF-AP WF-B
+    WF-CP B<X>=S CP<=AP B^CP BUCP=DP AP<=DP X!<AP AP+SP=A %{=>}%
     CP WF-CP CP<=A B^CP DP BUCP=DP A<=DP
-    <- fresh-update-implies-unit-join X!<AP AP+S'=A APUS'=A
-    <- join-implies-leq APUS'=A AP<=A S'<=A
+    <- fresh-update-implies-unit-join X!<AP AP+SP=A APUSP=A
+    <- join-implies-leq APUSP=A AP<=A SP<=A
     <- leq-transitive CP<=AP AP<=A CP<=A
     <- join-implies-leq BUCP=DP B<=DP CP<=DP
     <- lookup-respects-leq B<X>=S B<=DP S1 DP<X>=S1 S<=S1
     <- lookup-implies-unit-leq DP<X>=S1 S1<=DP
-    <- data`leq-transitive S'<=S S<=S1 S'<=S1
-    <- leq-transitive (leq/= leq/0 S'<=S1 nat`eq/)
-      S1<=DP S'<=DP
-    <- fresh-implies-unit-disjoint X!<AP AP^S'
-    <- disjoint-leq-implies-join-leq* AP^S' AP<=DP S'<=DP APUS'=A A<=DP.
+    <- data`leq-transitive SP<=S S<=S1 SP<=S1
+    <- leq-transitive (leq/= leq/0 SP<=S1 nat`eq/)
+      S1<=DP SP<=DP
+    <- fresh-implies-unit-disjoint X!<AP AP^SP
+    <- disjoint-leq-implies-join-leq* AP^SP AP<=DP SP<=DP APUSP=A A<=DP.
     
 - : remove-total/L3 (s _) SZQ
-    (data`remove/ Q<=S' S^Q SUQ=R S'<=R) WF-AP WF-B WF-CP
-    B<X>=S CP<=AP B^CP BUCP=DP AP<=DP X!<AP AP+S'=A %{=>}% 
-    _ WF-CP' CP'<=A B^CP' DP' BUCP'=DP' A<=DP'
-    <- update-total CP+Q=CP'
-    <- update-non-empty-preserves-wellformed WF-CP SZQ CP+Q=CP' WF-CP'
+    (data`remove/ Q<=SP S^Q SUQ=R SP<=R) WF-AP WF-B WF-CP
+    B<X>=S CP<=AP B^CP BUCP=DP AP<=DP X!<AP AP+SP=A %{=>}% 
+    _ WF-CPx CPx<=A B^CPx DPx BUCPx=DPx A<=DPx
+    <- update-total CP+Q=CPx
+    <- update-preserves-wf WF-CP (data`wf/ SZQ) CP+Q=CPx WF-CPx
     <- fresh-respects-geq X!<AP CP<=AP X!<CP
-    <- fresh-update-implies-leq X!<CP CP+Q=CP' CP<=CP'
-    <- update-preserves-leq* CP<=AP Q<=S' CP+Q=CP' AP+S'=A CP'<=A
-    <- update-implies-lookup CP+Q=CP' CP'<X>=Q
+    <- fresh-update-implies-leq X!<CP CP+Q=CPx CP<=CPx
+    <- update-preserves-leq* CP<=AP Q<=SP CP+Q=CPx AP+SP=A CPx<=A
+    <- update-implies-lookup CP+Q=CPx CPx<X>=Q
     <- lookup-implies-update B<X>=S B+S=B
-    <- update-disjoint-implies-disjoint B^CP B+S=B CP+Q=CP' S^Q B^CP'
-    <- join-total* _ _ DP' BUCP'=DP'
-    <- join-joins-lookup* B<X>=S CP'<X>=Q BUCP'=DP' SUQ=R DP'<X>=R
-    <- lookup-implies-update DP'<X>=R DP'+R=DP'
-    <- join-left-preserves-leq* CP<=CP' BUCP=DP BUCP'=DP' DP<=DP'
-    <- leq-transitive AP<=DP DP<=DP' AP<=DP'
-    <- update-preserves-leq* AP<=DP' S'<=R AP+S'=A DP'+R=DP' A<=DP'.
+    <- update-disjoint-implies-disjoint B^CP B+S=B CP+Q=CPx S^Q B^CPx
+    <- join-total* _ _ DPx BUCPx=DPx
+    <- join-joins-lookup* B<X>=S CPx<X>=Q BUCPx=DPx SUQ=R DPx<X>=R
+    <- lookup-implies-update DPx<X>=R DPx+R=DPx
+    <- join-left-preserves-leq* CP<=CPx BUCP=DP BUCPx=DPx DP<=DPx
+    <- leq-transitive AP<=DP DP<=DPx AP<=DPx
+    <- update-preserves-leq* AP<=DPx SP<=R AP+SP=A DPx+R=DPx A<=DPx.
 
 %worlds () (remove-total/L3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total  {} (remove-total/L3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
@@ -526,14 +279,14 @@ remove/
 
 - : remove-total/L2 SZ X!<AP AP+X=A
     (remove/ WF-AP WF-B WF-CP CP<=AP B^CP BUCP=DP AP<=DP) 
-    (domain?/in X<-B) CP'
-    (remove/ WF-A WF-B WF-CP' CP'<=A B^CP' BUCP'=DP' A<=DP')
-    <- data`remove-total S'/S=Q
+    (domain?/in X<-B) CPx
+    (remove/ WF-A WF-B WF-CPx CPx<=A B^CPx BUCPx=DPx A<=DPx)
+    <- data`remove-total SP/S=Q
     <- data`size-total SZQ
-     <- remove-total/L3 _ SZQ S'/S=Q WF-AP WF-B WF-CP X<-B
-       CP<=AP B^CP BUCP=DP AP<=DP X!<AP AP+X=A CP' WF-CP' CP'<=A 
-       B^CP' DP' BUCP'=DP' A<=DP'
-     <- update-non-empty-preserves-wellformed WF-AP SZ AP+X=A WF-A. 
+     <- remove-total/L3 _ SZQ SP/S=Q WF-AP WF-B WF-CP X<-B
+       CP<=AP B^CP BUCP=DP AP<=DP X!<AP AP+X=A CPx WF-CPx CPx<=A 
+       B^CPx DPx BUCPx=DPx A<=DPx
+     <- update-preserves-wf WF-AP (data`wf/ SZ) AP+X=A WF-A. 
 
 - : remove-total/L2 SZ X!<AP AP+X=A
     (remove/ WF-AP WF-B WF-CP CP<=AP B^CP BUCP=DP AP<=DP)
@@ -542,7 +295,7 @@ remove/
     <- join-total* CP (map/+ X S map/0) C CPUX=C
     <- fresh-respects-geq X!<AP CP<=AP X!<CP
     <- fresh-unit-join-implies-update X!<CP CPUX=C CP+X=C
-    <- update-non-empty-preserves-wellformed WF-CP SZ CP+X=C WF-C
+    <- update-preserves-wf WF-CP (data`wf/ SZ) CP+X=C WF-C
     <- join-right-preserves-deep-disjoint* B^CP B^X CPUX=C B^C
      <- fresh-update-implies-unit-join X!<AP AP+X=A APUX=A
     <- join-implies-leq APUX=A AP<=A X<=A
@@ -553,18 +306,18 @@ remove/
     <- join-implies-leq DPUX=D DP<=D X<=D
     <- leq-transitive AP<=DP DP<=D AP<=D
     <- join-is-lub APUX=A AP<=D X<=D A<=D
-     <- update-non-empty-preserves-wellformed WF-AP SZ AP+X=A WF-A. 
+     <- update-preserves-wf WF-AP (data`wf/ SZ) AP+X=A WF-A. 
 
 %worlds () (remove-total/L2 _ _ _ _ _ _ _).
 %total { } (remove-total/L2 _ _ _ _ _ _ _).
 
-- : remove-total/L1 _ size/0 wellformed/0 
+- : remove-total/L1 _ size/0 wf/0 
     WF-B map/0
-    (remove/ wellformed/0 WF-B wellformed/0 leq/0 
+    (remove/ wf/0 WF-B wf/0 leq/0 
       deep-disjoint/R join/R leq/0).
 
 - : remove-total/L1 _ SZ-A WF-A WF-B C A-B=C
-    <- can-remove* WF-A SZ-A _ _ _ _ WF-AP SZP AP+X=A SZ-S X!<AP
+    <- can-remove* WF-A SZ-A _ _ _ WF-AP SZP AP+X=A (data`wf/ SZ-S) X!<AP
     <- remove-total/L1 _ SZP WF-AP WF-B CP AP-B=CP
     <- domain?-total M?
     <- remove-total/L2 SZ-S X!<AP AP+X=A AP-B=CP M? C A-B=C. 
@@ -593,33 +346,32 @@ remove/
 %abbrev remove-unique = remove-deterministic.
 
 
-
-%theorem test/L : 
-    forall* {C} {E} {SC} {SE} {N} {X} {B} {F}
+%theorem remove-deterministic/domain? : 
+    forall* {C} {E} {SC} {SE} {N} {X} {B} {F} {D}
     forall  {K} {MB?: domain? B X K} 
             {LC: lookup C X SC}
             {LE: lookup E X SE}
-            {MB: data`member SC N}
+            {MB: data`lookup SC N D}
             {NM: data`not-member SE N}
             {D: deep-disjoint B C}
             {BUE: join B E F}
     exists  {SF} {LF: lookup F X SF} {NM: data`not-member SF N}
     true.
 
-- : test/L true (domain?/in B<X>=SB)
+- : remove-deterministic/domain? true (domain?/in B<X>=SB)
     C<X>=SC E<X>=SE N<-SC N!<SE B^C BUE=F SF F<X>=SF N!<SF
     <- deep-disjoint-lookup-implies-disjoint B^C B<X>=SB C<X>=SC SB^SC
     <- data`disjoint-symmetric SB^SC SC^SB
     <- data`disjoint-member-implies-not-member N<-SC SC^SB N!<SB
     <- join-joins-lookup B<X>=SB E<X>=SE BUE=F SF SBUSE=SF F<X>=SF
-    <- data`join-preserves-fresh* N!<SB N!<SE SBUSE=SF N!<SF.
+    <- data`union-preserves-not-member* N!<SB N!<SE SBUSE=SF N!<SF.
 
-- : test/L false (domain?/out X!<B)
+- : remove-deterministic/domain? false (domain?/out X!<B)
     C<X>=SC E<X>=SE N<-SC N!<SE B^C BUE=F _ F<X>=SE N!<SE
     <- fresh-join-left-preserves-lookup* X!<B E<X>=SE BUE=F F<X>=SE.
 
-%worlds () (test/L _ _ _ _ _ _ _ _ _ _ _).
-%total  {} (test/L _ _ _ _ _ _ _ _ _ _ _).
+%worlds () (remove-deterministic/domain? _ _ _ _ _ _ _ _ _ _ _).
+%total  {} (remove-deterministic/domain? _ _ _ _ _ _ _ _ _ _ _).
 
 %theorem remove-deterministic/L :
         forall* {S1} {S2} {S3} {T3} {B}
@@ -640,7 +392,8 @@ remove/
     <- lookup-respects-leq C<X>=S1 C<=A S1P A<X>=S1P S1<=S1P
     <- data`member-respects-leq N<-S1 S1<=S1P N<-S1P
     <- domain?-total X<-B?
-    <- test/L _ X<-B? C<X>=S1 E<X>=S2 N<-S1 N!<S2 B^C BUE=F _ F<X>=SF N!<SF
+    <- remove-deterministic/domain?
+      _ X<-B? C<X>=S1 E<X>=S2 N<-S1 N!<S2 B^C BUE=F _ F<X>=SF N!<SF
     <- lookup-respects-leq* A<X>=S1P A<=F F<X>=SF S1P<=SF
     <- data`not-member-respects-geq N!<SF S1P<=SF N!<S1P
     <- data`member-not-member-contradiction N<-S1P N!<S1P F
@@ -653,7 +406,8 @@ remove/
     <- lookup-respects-leq C<X>=S1 C<=A S1P A<X>=S1P S1<=S1P
     <- data`member-respects-leq N<-S1 S1<=S1P N<-S1P
     <- domain?-total X<-B?
-    <- test/L _ X<-B? C<X>=S1 E<X>=S2 N<-S1 N!<S2 B^C BUE=F _ F<X>=SF N!<SF
+    <- remove-deterministic/domain?
+      _ X<-B? C<X>=S1 E<X>=S2 N<-S1 N!<S2 B^C BUE=F _ F<X>=SF N!<SF
     <- lookup-respects-leq* A<X>=S1P A<=F F<X>=SF S1P<=SF
     <- data`not-member-respects-geq N!<SF S1P<=SF N!<S1P
     <- data`member-not-member-contradiction N<-S1P N!<S1P F
@@ -672,7 +426,7 @@ remove/
     <- data`disjoint-leq-implies-empty S^S2 S<=S2 E=S
     <- data`eq-symmetric E=S S=E
     <- lookup-respects-eq C<X>=S eq/ nat`eq/ S=E C<X>=E
-    <- wellformed-lookup-emptydata-implies-contradiction WF-C C<X>=E F
+    <- wf-lookup-nwf-implies-false WF-C C<X>=E (data`nwf/ data`size/0) F
     <- false-implies-eq F C=E.
 
 - : remove-deterministic/L
@@ -688,7 +442,7 @@ remove/
     <- data`disjoint-leq-implies-empty S^S2 S<=S2 E=S
     <- data`eq-symmetric E=S S=E
     <- lookup-respects-eq C<X>=S eq/ nat`eq/ S=E C<X>=E
-    <- wellformed-lookup-emptydata-implies-contradiction WF-C C<X>=E F
+    <- wf-lookup-nwf-implies-false WF-C C<X>=E (data`nwf/ data`size/0) F
     <- false-implies-eq F E=C.
 
 %worlds () (remove-deterministic/L _ _ _ _).
@@ -736,8 +490,7 @@ remove/
 
 - : remove-implies-leq-join
     (remove/ _ _ _ M3<=M1 M2^M3 M2UM3=M4 M1<=M4) M2UM3=M5 M1<=M5
-    <- join-deterministic 
-      M2UM3=M4 M2UM3=M5 eq/ eq/ M4=M5
+    <- join-deterministic M2UM3=M4 M2UM3=M5 eq/ eq/ M4=M5
     <- leq-respects-eq M1<=M4 eq/ M4=M5 M1<=M5.
 
 %worlds () (remove-implies-leq-join _ _ _).
@@ -746,13 +499,13 @@ remove/
 
 %theorem leq-implies-remove-all :
     forall* {M1} {M2}
-    forall  {WF-M1: wellformed M1} {WF-M2: wellformed M2}
+    forall  {WF-M1: wf M1} {WF-M2: wf M2}
             {L: leq M1 M2}
     exists  {R: remove M1 M2 map/0}
     true.
 
 - : leq-implies-remove-all WF-M1 WF-M2 M1<=M2
-    (remove/ WF-M1 WF-M2 wellformed/0 leq/0 
+    (remove/ WF-M1 WF-M2 wf/0 leq/0 
       deep-disjoint/R join/R M1<=M2).
 
 %worlds () (leq-implies-remove-all _ _ _ _).
@@ -761,9 +514,9 @@ remove/
 
 %theorem remove-characterization:
         forall* {A} {B} {C} {D}
-        forall  {WF-A: wellformed A}
-                {WF-B: wellformed B}
-                {WF-B: wellformed C}
+        forall  {WF-A: wf A}
+                {WF-B: wf B}
+                {WF-B: wf C}
                 {L: leq C A}
                 {I: deep-disjoint B C}
                 {U: join B C D}
@@ -823,7 +576,7 @@ remove/
         (remove/ WF-A WF-B WF-C C<=A B^C BUC=G A<=G)
         (remove/ WF-C WF-D WF-E E<=C D^E DUE=H C<=H) BUD=F
         (remove/ WF-A WF-F WF-E E<=A F^E FUE=I A<=I)
-    <- join-preserves-wellformed WF-B WF-D BUD=F WF-F
+    <- join-preserves-wf WF-B WF-D BUD=F WF-F
     <- leq-transitive E<=C C<=A E<=A
     <- join-total BUH=I
     <- join-associative-converse* DUE=H BUH=I BUD=F FUE=I
@@ -856,14 +609,14 @@ remove/
 
 %theorem remove-associates-join-converse* :
         forall* {A} {B} {C} {D} {E} {F}
-        forall  {WF-D: wellformed D} {U: join B D F}
+        forall  {WF-D: wf D} {U: join B D F}
                 {R3: remove A F E}
                 {R1: remove A B C}
         exists  {R2: remove C D E}
         true.
 
 - : remove-associates-join-converse* WF-D BUD=F A-F=E A-B=C C-D=E
-    <- remove-implies-wellformed A-B=C _ _ WF-C
+    <- remove-implies-wf A-B=C _ _ WF-C
     <- remove-total WF-C WF-D _ C-D=EP
     <- remove-associates-join* A-B=C C-D=EP BUD=F A-F=EP
     <- remove-unique A-F=EP A-F=E eq/ eq/ EP=E
@@ -875,7 +628,7 @@ remove/
 
 %theorem remove-associates-join-converse :
         forall* {A} {B} {D} {E} {F}
-        forall  {WF-B: wellformed B} {WF-D: wellformed D}
+        forall  {WF-B: wf B} {WF-D: wf D}
                 {U: join B D F}
                 {R3: remove A F E}
         exists {C}
@@ -884,7 +637,7 @@ remove/
         true.
 
 - : remove-associates-join-converse WF-B WF-D BUD=F A-F=E C A-B=C C-D=E
-    <- remove-implies-wellformed A-F=E WF-A _ _ 
+    <- remove-implies-wf A-F=E WF-A _ _ 
     <- remove-total WF-A WF-B _ A-B=C
     <- remove-associates-join-converse* WF-D BUD=F A-F=E A-B=C C-D=E.
 
@@ -903,8 +656,8 @@ remove/
 - : remove-reorders* A-B=C C-D=E A-D=G G-B=E
     <- remove-associates-join A-B=C C-D=E F BUD=F A-F=E
     <- join-commutative BUD=F DUB=F
-    <- remove-implies-wellformed A-B=C _ WF-B _
-    <- remove-implies-wellformed C-D=E _ WF-D _
+    <- remove-implies-wf A-B=C _ WF-B _
+    <- remove-implies-wf C-D=E _ WF-D _
     <- remove-associates-join-converse* WF-B DUB=F A-F=E A-D=G G-B=E.
       
 %worlds () (remove-reorders* _ _ _ _).
@@ -921,8 +674,8 @@ remove/
         true.
 
 - : remove-reorders A-B=C C-D=E G A-D=G G-B=E
-    <- remove-implies-wellformed A-B=C WF-A _ _
-    <- remove-implies-wellformed C-D=E _ WF-D _
+    <- remove-implies-wf A-B=C WF-A _ _
+    <- remove-implies-wf C-D=E _ WF-D _
     <- remove-total WF-A WF-D _ A-D=G
     <- remove-reorders* A-B=C C-D=E A-D=G G-B=E.
 
@@ -933,7 +686,7 @@ remove/
 
 %theorem deep-disjoint-implies-remove-nothing :
         forall* {A} {B}
-        forall {WF-A: wellformed A} {WF-B: wellformed B}
+        forall {WF-A: wf A} {WF-B: wf B}
                {D: deep-disjoint A B}
         exists {R: remove A B A}
         true.
@@ -979,10 +732,10 @@ remove/
         true.
 
 - : join-right-commutes-remove* A-B=C AUG=D B-G=E CUG=F D-E=F
-    <- remove-implies-wellformed A-B=C WF-A WF-B WF-C
-    <- remove-implies-wellformed B-G=E _ WF-G WF-E
-    <- join-preserves-wellformed WF-A WF-G AUG=D WF-D
-    <- join-preserves-wellformed WF-C WF-G CUG=F WF-F
+    <- remove-implies-wf A-B=C WF-A WF-B WF-C
+    <- remove-implies-wf B-G=E _ WF-G WF-E
+    <- join-preserves-wf WF-A WF-G AUG=D WF-D
+    <- join-preserves-wf WF-C WF-G CUG=F WF-F
     <- remove-implies-leq A-B=C C<=A
     <- join-implies-leq AUG=D A<=D G<=D
     <- leq-transitive C<=A A<=D C<=D
@@ -1015,7 +768,7 @@ remove/
 
 %theorem join-right-commutes-remove :
         forall* {A} {B} {C} {G}
-        forall {WF-G: wellformed G} {R: remove A B C}
+        forall {WF-G: wf G} {R: remove A B C}
         exists {D} {E} {F}
                 {U1: join A G D}
                 {R2: remove B G E}
@@ -1024,7 +777,7 @@ remove/
         true.
 
 - : join-right-commutes-remove WF-G A-B=C D E F AUG=D B-G=E CUG=F D-E=F
-    <- remove-implies-wellformed A-B=C WF-A WF-B WF-C
+    <- remove-implies-wf A-B=C WF-A WF-B WF-C
     <- join-total AUG=D
     <- remove-total WF-B WF-G _ B-G=E
     <- join-total CUG=F
@@ -1036,15 +789,15 @@ remove/
 
 %theorem join-right-preserves-remove :
         forall* {A} {B} {C} {D} {G}
-        forall {WF-G: wellformed G} {R: remove A B C}
+        forall {WF-G: wf G} {R: remove A B C}
                 {U1: join A G D}
                 {R2: leq G B}
         exists {EP: remove D B C}
         true.
 
 - : join-right-preserves-remove WF-G A-B=C AUG=D G<=B D-B=C
-    <- remove-implies-wellformed A-B=C WF-A WF-B WF-C
-    <- join-preserves-wellformed WF-A WF-G AUG=D WF-D
+    <- remove-implies-wf A-B=C WF-A WF-B WF-C
+    <- join-preserves-wf WF-A WF-G AUG=D WF-D
     <- join-total* B C E BUC=E
     <- remove-implies-leq A-B=C C<=A
     <- remove-implies-leq-join A-B=C BUC=E A<=E
@@ -1246,8 +999,8 @@ remove/
 %theorem remove-right-preserves-deep-disjoint :
         forall* {A} {B} {C} {D} {E}
         forall {L: deep-disjoint A D}
-                {R: remove A B C}
-                {RP: remove D B E}
+               {R: remove A B C}
+               {RP: remove D B E}
         exists {LP: deep-disjoint C E}
         true.
 
@@ -1261,9 +1014,9 @@ remove/
 
 
 %theorem fresh-update-implies-remove :
-        forall* {A} {N} {B} {D} {K}
-        forall {SZ: data`size D (s K)} {NM: fresh A N}
-               {WF-A: wellformed A} {AD: update A N D B}
+        forall* {A} {N} {B} {D} 
+        forall {SZ: data`wf D} {NM: fresh A N}
+               {WF-A: wf A} {AD: update A N D B}
         exists {R: remove B (map/+ N D map/0) A}
         true.
 
@@ -1274,8 +1027,8 @@ remove/
     <- fresh-implies-unit-deep-disjoint NM A^N
     <- deep-disjoint-symmetric A^N N^A
     <- leq-reflexive B B<=B
-    <- update-non-empty-preserves-wellformed WF-A SZ A+N=B WF-B
-    <- remove-characterization WF-B (wellformed/+ wellformed/0 SZ)
+    <- update-preserves-wf WF-A SZ A+N=B WF-B
+    <- remove-characterization WF-B (wf/+ SZ wf/0)
       WF-A A<=B N^A NUA=B B<=B SR.
 
 %worlds () (fresh-update-implies-remove _ _ _ _ _).
@@ -1291,7 +1044,7 @@ remove/
 - : remove-idempotent A-B=C C-B=C
     <- remove-implies-deep-disjoint A-B=C B^C
     <- deep-disjoint-symmetric B^C C^B
-    <- remove-implies-wellformed A-B=C WF-A WF-B WF-C
+    <- remove-implies-wf A-B=C WF-A WF-B WF-C
     <- deep-disjoint-implies-remove-nothing WF-C WF-B C^B C-B=C.
 
 %worlds () (remove-idempotent _ _).
