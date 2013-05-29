@@ -1,15 +1,147 @@
-% Restrict efxmap on a tgtmap
-% $Id$
+%%% Restrict efxmap on a tgtmap
+%%% Filter out all entries in efxmap that have 
+%%% a corresponding target in tgtmap.
+%%% $Id: efxmap-restrict-tgtmap.elf,v 1.1 2013/05/22 21:44:20 csun Exp csun $
+
+
+%%% Definition
 
 efxmap`restrict-tgtmap : efxmap -> tgtmap -> efxmap -> type.
 
+%% efxmap`restrict is needed in order to keep output efxmap wellformed.
 efxmap`restrict-tgtmap/
-  : efxmap`restrict-tgtmap XM GM XMS
-    <- tgtmap`domain GM S
-    <- efxmap`restrict XM S XMP
-    <- efxmap`trans XMP GM XMS.
+  : tgtmap`domain GM S
+    -> efxmap`restrict XM S XMP
+    -> efxmap`alltrans XMP GM XMS
+    -> efxmap`restrict-tgtmap XM GM XMS.
 
 
+%%% Theorems
+
+
+%%% Some extra theorems about alltrans
+
+efxmap`alltrans-implies-leq
+  : efxmap`alltrans XM GM XMP
+    -> efxmap`leq XMP XM
+    -> type.
+%mode efxmap`alltrans-implies-leq +T -LE.
+
+- : efxmap`alltrans-implies-leq efxmap`alltrans/0 efxmap`leq/0.
+
+- : efxmap`alltrans-implies-leq 
+    (efxmap`alltrans/U TS DT _ U1 U2) LE
+    <- trans-implies-leq DT DLE
+    <- efxmap`alltrans-implies-leq TS LE1
+    <- efxmap`update-preserves-leq* LE1 DLE U2 U1 LE.
+
+%worlds () (efxmap`alltrans-implies-leq _ _).
+%total (T) (efxmap`alltrans-implies-leq T _).
+
+
+efxmap`fresh-update-preserves-alltrans-converse
+  : efxmap`alltrans XM GM XMP
+    -> efxmap`fresh XM N
+    -> tgtmap`fresh GMP N
+    -> tgtmap`update GMP N S GM
+    -> efxmap`alltrans XM GMP XMP
+    -> type.
+%mode efxmap`fresh-update-preserves-alltrans-converse +T1 +F1 +F2 +U -T2.
+
+- : efxmap`fresh-update-preserves-alltrans-converse
+    efxmap`alltrans/0 _ _ _ efxmap`alltrans/0.
+
+- : efxmap`fresh-update-preserves-alltrans-converse
+    (efxmap`alltrans/U T1 DT F U1 U2) N!<XM N!<GMP GMP+N+S=GM
+    (efxmap`alltrans/U T2 DT2 F U1 U2)
+    <- efxmap`fresh-update-implies-leq F U1 LE
+    <- efxmap`fresh-respects-geq N!<XM LE N!<XMx
+    <- efxmap`fresh-update-preserves-alltrans-converse T1 N!<XMx N!<GMP
+    GMP+N+S=GM T2
+    <- efxmap`update-implies-lookup U1 L
+    <- efxmap`fresh-lookup-not-equal N!<XM L NE
+    <- nat`ne-symmetric NE NE2
+    <- efxmap`fresh-update-preserves-trans-converse 
+      DT N!<GMP GMP+N+S=GM NE2 DT2.
+
+%worlds () (efxmap`fresh-update-preserves-alltrans-converse _ _ _ _ _).
+%total (T) (efxmap`fresh-update-preserves-alltrans-converse T _ _ _ _).
+
+
+efxmap`alltrans-leq-implies-efxmap2tgtmap/L
+  : {N} efxmap`size XM1 N
+    -> efxmap`alltrans XM1 GM XM2
+    -> efxmap`domain XM1 S
+    -> tgtmap`domain GM S
+    -> tgtmap`leq-efxmap GM XM1
+    -> efxmap2tgtmap XM2 GM
+    -> type.
+%mode efxmap`alltrans-leq-implies-efxmap2tgtmap/L +N +SZ +T +D1 +D2 +LE -TP.
+
+- : efxmap`alltrans-leq-implies-efxmap2tgtmap/L _ _
+    efxmap`alltrans/0 _ _ _ efxmap2tgtmap/0.
+
+- : efxmap`alltrans-leq-implies-efxmap2tgtmap/L _ SZ-XM1
+    (efxmap`alltrans/U 
+      XM1P+GM=>XM2P (trans/in GM->N=GS M1+GS=>M2) 
+      N!<XM1P XM1P+N+M1=XM1 XM2P+N+M2=XM2) DM-XM1=S DM-GM=S GM<=XM1 XM2=>GM
+    <- tgtmap`lookup-implies-fresh-update GM->N=GS GMP N!<GMP GMP+N+GS=GM
+    <- efxmap`fresh-update-preserves-alltrans-converse
+      XM1P+GM=>XM2P N!<XM1P N!<GMP GMP+N+GS=GM XM1P+GMP=>XM2P
+    <- efxmap`fresh-update-increases-size-converse 
+      SZ-XM1 N!<XM1P XM1P+N+M1=XM1 SZ-XM1P
+    <- tgtmap`domain-preserves-lookup GM->N=GS DM-GM=S N<-S
+    <- set`member-implies-not-member-add N<-S SP N!<SP SP+N=S
+    <- efxmap`domain-commute-fresh-update-converse
+      DM-XM1=S N!<XM1P XM1P+N+M1=XM1 N!<SP SP+N=S DM-XM1P=SP
+    <- tgtmap`domain-commute-fresh-update-converse
+      DM-GM=S N!<GMP GMP+N+GS=GM N!<SP SP+N=S DM-GMP=SP
+    <- tgtmap`fresh-update-preserves-leq-efxmap-converse
+      GM<=XM1 N!<GMP GMP+N+GS=GM N!<XM1P XM1P+N+M1=XM1 GMP<=XM1P
+    <- efxmap`alltrans-leq-implies-efxmap2tgtmap/L _ SZ-XM1P
+      XM1P+GMP=>XM2P DM-XM1P=SP DM-GMP=SP GMP<=XM1P XM2P=>GMP
+    <- efxmap`update-implies-lookup XM1P+N+M1=XM1 XM1->N=M1 
+    <- tgtmap`lookup-respects-leq-efxmap*
+      GM->N=GS GM<=XM1 XM1->N=M1 GSP DM-M1=GSP GS<=GSP
+    <- inner-efxmap`restrict-leq-implies-domain 
+      M1+GS=>M2 DM-M1=GSP GS<=GSP DM-M2=GS
+    <- efxmap2tgtmap-preserves-update*
+      XM2P=>GMP XM2P+N+M2=XM2 GMP+N+GS=GM DM-M2=GS XM2=>GM.
+
+- : efxmap`alltrans-leq-implies-efxmap2tgtmap/L _ SZ-XM1
+    (efxmap`alltrans/U 
+      XM1P+GM=>XM2P (trans/out N!<GM) N!<XM1P XM1P+N+M1=XM1 XM2P+N+M2=XM2) 
+    DM-XM1=S DM-GM=S _ XM2=>GM
+    <- tgtmap`domain-preserves-fresh N!<GM DM-GM=S N!<S
+    <- efxmap`domain-preserves-fresh-converse N!<S DM-XM1=S N!<XM1
+    <- efxmap`update-implies-lookup XM1P+N+M1=XM1 XM1->N
+    <- efxmap`fresh-lookup-not-equal N!<XM1 XM1->N NE
+    <- nat`eq-ne-implies-false nat`eq/ NE V
+    <- false-implies-efxmap2tgtmap V XM2=>GM.
+
+%worlds () (efxmap`alltrans-leq-implies-efxmap2tgtmap/L _ _ _ _ _ _ _).
+%total (N) (efxmap`alltrans-leq-implies-efxmap2tgtmap/L N _ _ _ _ _ _).
+
+
+efxmap`alltrans-leq-implies-efxmap2tgtmap
+  : efxmap`alltrans XM1 GM XM2
+    -> efxmap`domain XM1 S
+    -> tgtmap`domain GM S
+    -> tgtmap`leq-efxmap GM XM1
+    -> efxmap2tgtmap XM2 GM
+    -> type.
+%mode efxmap`alltrans-leq-implies-efxmap2tgtmap +T +D1 +D2 +LE -TP.
+
+- : efxmap`alltrans-leq-implies-efxmap2tgtmap T1 DM1 DM2 LE T2
+    <- efxmap`size-total SZ
+    <- efxmap`alltrans-leq-implies-efxmap2tgtmap/L _ SZ T1 DM1 DM2 LE T2.
+
+%worlds () (efxmap`alltrans-leq-implies-efxmap2tgtmap _ _ _ _ _).
+%total { } (efxmap`alltrans-leq-implies-efxmap2tgtmap _ _ _ _ _).
+
+
+
+%%% Now theorems about restrict-tgtmap
 
 efxmap`false-implies-restrict-tgtmap
   : void -> efxmap`restrict-tgtmap XM GM XMP -> type.
@@ -28,19 +160,113 @@ efxmap`restrict-tgtmap-unique
     -> tgtmap`eq GM1 GM2
     -> efxmap`eq XMP1 XMP2
     -> type.
-
 %mode efxmap`restrict-tgtmap-unique +R1 +R2 +E1 +E2 -E3.
 
 - : efxmap`restrict-tgtmap-unique 
-    (efxmap`restrict-tgtmap/ XMS1=>XMP1 XM1|S1=XMS1 DM-GM1=S1)
-    (efxmap`restrict-tgtmap/ XMS2=>XMP2 XM2|S2=XMS2 DM-GM2=S2)
+    (efxmap`restrict-tgtmap/ DM-GM1=S1 XM1|S1=XMS1 XMS1=>XMP1)
+    (efxmap`restrict-tgtmap/ DM-GM2=S2 XM2|S2=XMS2 XMS2=>XMP2)
     XM1=XM2 GM1=GM2 XMP1=XMP2
     <- tgtmap`domain-unique DM-GM1=S1 DM-GM2=S2 GM1=GM2 S1=S2
     <- efxmap`restrict-unique XM1|S1=XMS1 XM2|S2=XMS2 XM1=XM2 S1=S2 XMS1=XMS2
-    <- efxmap`trans-unique XMS1=>XMP1 XMS2=>XMP2 XMS1=XMS2 GM1=GM2 XMP1=XMP2.
+    <- efxmap`alltrans-unique XMS1=>XMP1 XMS2=>XMP2 XMS1=XMS2 GM1=GM2 XMP1=XMP2.
 
 %worlds () (efxmap`restrict-tgtmap-unique _ _ _ _ _).
-%total R (efxmap`restrict-tgtmap-unique R _ _ _ _).
+%total (R) (efxmap`restrict-tgtmap-unique R _ _ _ _).
+
+
+efxmap`restrict-tgtmap-total*
+  : {XM} {GM} {XM1} efxmap`restrict-tgtmap XM GM XM1 -> type.
+%mode efxmap`restrict-tgtmap-total* +XM +GM -XM1 -R.
+
+- : efxmap`restrict-tgtmap-total* XM GM XM1 
+    (efxmap`restrict-tgtmap/ DM-GM=S XM|S=XMP XMP=>XMS)
+    <- tgtmap`domain-total DM-GM=S
+    <- efxmap`restrict-total XM|S=XMP
+    <- efxmap`alltrans-total XMP=>XMS.
+
+%worlds () (efxmap`restrict-tgtmap-total* _ _ _ _).
+%total { } (efxmap`restrict-tgtmap-total* _ _ _ _).
+
+%abbrev efxmap`restrict-tgtmap-total = efxmap`restrict-tgtmap-total* _ _ _.
+
+
+efxmap`restrict-tgtmap-respects-eq
+  : efxmap`restrict-tgtmap XM1 GM1 XM1P
+    -> efxmap`eq XM1 XM2
+    -> tgtmap`eq GM1 GM2
+    -> efxmap`eq XM1P XM2P
+    -> efxmap`restrict-tgtmap XM2 GM2 XM2P
+    -> type.
+%mode efxmap`restrict-tgtmap-respects-eq +R1 +E1 +E2 +E3 -R2.
+
+- : efxmap`restrict-tgtmap-respects-eq 
+    (efxmap`restrict-tgtmap/ DM-GM1=S1 XM1|S1=XM1S XM1S=>XM1P) 
+    XM1=XM2 GM1=GM2 XM1P=XM2P 
+    (efxmap`restrict-tgtmap/ DM-GM2=S1 XM2|S1=XM1S XM1S=>XM2P)
+    <- tgtmap`domain-respects-eq DM-GM1=S1 GM1=GM2 set`eq/ DM-GM2=S1
+    <- efxmap`restrict-respects-eq
+      XM1|S1=XM1S XM1=XM2 set`eq/ efxmap`eq/ XM2|S1=XM1S
+    <- efxmap`alltrans-respects-eq 
+      XM1S=>XM1P efxmap`eq/ GM1=GM2 XM1P=XM2P XM1S=>XM2P.
+
+%worlds () (efxmap`restrict-tgtmap-respects-eq _ _ _ _ _).
+%total { } (efxmap`restrict-tgtmap-respects-eq R _ _ _ RP).
+
+
+efxmap`shift-preserves-restrict-tgtmap
+  : efxmap`restrict-tgtmap XM1 GM XM2
+    -> efxmap`shift N XM1 XM1P
+    -> tgtmap`shift N GM GMP
+    -> {XM2P} efxmap`shift N XM2 XM2P
+    -> efxmap`restrict-tgtmap XM1P GMP XM2P
+    -> type.
+%mode efxmap`shift-preserves-restrict-tgtmap +R1 +S1 +S2 -XM -S3 -R2.
+
+%worlds () (efxmap`shift-preserves-restrict-tgtmap _ _ _ _ _ _).
+%trustme %total {} (efxmap`shift-preserves-restrict-tgtmap _ _ _ _ _ _).
+
+    
+efxmap`restrict-tgtmap-implies-leq
+  : efxmap`restrict-tgtmap XM GM XMP
+    -> efxmap`leq XMP XM
+    -> type.
+%mode efxmap`restrict-tgtmap-implies-leq +R -LE.
+
+- :  efxmap`restrict-tgtmap-implies-leq 
+    (efxmap`restrict-tgtmap/ DM-GM=S XM|S=XMS XMS+GM=>XMP) XMP<=XM
+    <- efxmap`restrict-implies-leq XM|S=XMS XMS<=XM
+    <- efxmap`alltrans-implies-leq XMS+GM=>XMP XMP<=XMS
+    <- efxmap`leq-transitive XMP<=XMS XMS<=XM XMP<=XM.
+
+%worlds () (efxmap`restrict-tgtmap-implies-leq _ _).
+%total { } (efxmap`restrict-tgtmap-implies-leq _ _).
+
+
+efxmap`fresh-update-preserves-restrict-tgtmap-converse
+  : efxmap`restrict-tgtmap XM GM XMP
+    -> efxmap`fresh XM N
+    -> tgtmap`fresh GMP N
+    -> tgtmap`update GMP N S GM
+    -> efxmap`restrict-tgtmap XM GMP XMP
+    -> type.
+%mode efxmap`fresh-update-preserves-restrict-tgtmap-converse +R1 +F1 +F2 +U -R2.
+
+- : efxmap`fresh-update-preserves-restrict-tgtmap-converse
+    (efxmap`restrict-tgtmap/ DM-GM=S XM|S=XMS XMS+GM=>XMP)
+    N!<XM N!<GMP GMP+N+S=GM 
+    (efxmap`restrict-tgtmap/ DM-GMP=SP XM|SP=XMS XMS+GMP=>XMP)
+    <- tgtmap`domain-total DM-GMP=SP
+    <- tgtmap`domain-preserves-fresh N!<GMP DM-GMP=SP N!<SP
+    <- tgtmap`update-commute-domain GMP+N+S=GM DM-GMP=SP DM-GM=S SP+N=S
+    <- efxmap`fresh-add-preserves-restrict-converse
+      XM|S=XMS N!<XM SP+N=S XM|SP=XMS
+    <- efxmap`restrict-implies-leq XM|SP=XMS XMS<=XM
+    <- efxmap`fresh-respects-geq N!<XM XMS<=XM N!<XMS
+    <- efxmap`fresh-update-preserves-alltrans-converse
+      XMS+GM=>XMP N!<XMS N!<GMP GMP+N+S=GM XMS+GMP=>XMP.
+      
+%worlds () (efxmap`fresh-update-preserves-restrict-tgtmap-converse _ _ _ _ _).
+%total { } (efxmap`fresh-update-preserves-restrict-tgtmap-converse _ _ _ _ _).
 
 
 tgtmap`restrict-preserves-leq-efxmap/L
@@ -50,7 +276,6 @@ tgtmap`restrict-preserves-leq-efxmap/L
     -> efxmap`restrict XM S XMP
     -> tgtmap`leq-efxmap GM XMP
     -> type.
-
 %mode tgtmap`restrict-preserves-leq-efxmap/L +N +SZ +LE1 +DM +R -LE2.
 
 - : tgtmap`restrict-preserves-leq-efxmap/L _ _
@@ -94,7 +319,6 @@ tgtmap`restrict-preserves-leq-efxmap
     -> efxmap`restrict XM S XMP
     -> tgtmap`leq-efxmap GM XMP
     -> type.
-
 %mode tgtmap`restrict-preserves-leq-efxmap +LE1 +DM +R -LE2.
 
 - : tgtmap`restrict-preserves-leq-efxmap LE1 DM R LE2
@@ -103,3 +327,22 @@ tgtmap`restrict-preserves-leq-efxmap
 
 %worlds () (tgtmap`restrict-preserves-leq-efxmap _ _ _ _).
 %total { } (tgtmap`restrict-preserves-leq-efxmap _ _ _ _).
+
+
+efxmap`restrict-tgtmap-implies-efxmap2tgtmap
+  : tgtmap`leq-efxmap GM XM
+    -> efxmap`restrict-tgtmap XM GM XMP
+    -> efxmap2tgtmap XMP GM
+    -> type.
+%mode efxmap`restrict-tgtmap-implies-efxmap2tgtmap +LE +R -T.
+
+- : efxmap`restrict-tgtmap-implies-efxmap2tgtmap GM<=XM
+    (efxmap`restrict-tgtmap/ DM-GM=S XM|S=XMS XMS+GM=>XMP) XMP=>GM
+    <- tgtmap`domain-preserves-leq-efxmap GM<=XM DM-GM=S SP DM-XM=SP S<=SP
+    <- efxmap`restrict-leq-implies-domain XM|S=XMS DM-XM=SP S<=SP DM-XMS=S
+    <- tgtmap`restrict-preserves-leq-efxmap GM<=XM DM-GM=S XM|S=XMS GM<=XMS
+    <- efxmap`alltrans-leq-implies-efxmap2tgtmap
+      XMS+GM=>XMP DM-XMS=S DM-GM=S GM<=XMS XMP=>GM.
+
+%worlds () (efxmap`restrict-tgtmap-implies-efxmap2tgtmap _ _ _).
+%total { } (efxmap`restrict-tgtmap-implies-efxmap2tgtmap _ _ _).
