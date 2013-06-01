@@ -1,21 +1,16 @@
 %%% Effects 
-%%% $Id: efx.elf,v 1.4 2013/05/17 16:41:12 csun Exp csun $
-
-%abbrev 0 = z.
-%abbrev 1 = s 0.
-%abbrev 2 = s 1.
-%abbrev 2>0 = (nat`gt/> nat`gt/1).
-
+%%% $Id: efx.elf,v 1.5 2013/05/18 01:36:31 csun Exp csun $
 
 %%% Definitions
 
 efx : type.	%name efx X.
 
-efx/ : nat -> efx.
+efx/read : efx.
 
-%abbrev efx/read = efx/ 0.
-%abbrev efx/write = efx/ 1.
-%abbrev efx/consume = efx/ 2.
+efx/write : efx.
+
+efx/consume : efx.
+
 
 %{ 2013.05.17: we treat expose effects on field target
 as consume effects, which is not too precise. Another 
@@ -30,28 +25,35 @@ eq : efx -> efx -> type.
 eq/ : eq X X.
 
 
-% well-formed efx 
-
-wf-efx : efx -> type.
-
-wf-efx/ : wf-efx (efx/ N) <- nat`le N 2.
-
-
 % less-eq
 
 leq : efx -> efx -> type.
 
-leq/ : leq (efx/ N1) (efx/ N2)
-    <- nat`le N1 N2.
+leq/rw : leq efx/read efx/write.
+
+leq/rc : leq efx/read efx/consume.
+
+leq/wc : leq efx/write efx/consume.
+
+leq/eq : leq X1 X2 <- eq X1 X2.
 
 
 % join
 
 join : efx -> efx -> efx -> type.
 
-join/ : join (efx/ N) (efx/ M) (efx/ P) 
-        <- nat`lt N 2
-        <- nat`max N M P.
+join/rr : join efx/read efx/read efx/read.
+
+join/rw : join efx/read efx/write efx/write.
+
+join/rc : join efx/read efx/consume efx/consume.
+
+join/wr : join efx/write efx/read efx/write.
+
+join/ww : join efx/write efx/write efx/write.
+
+join/wc : join efx/write efx/consume efx/consume.
+
 
 %{ we CAN'T allow write /\ expose = expose (really sucks).
 expose get converted to:
@@ -68,103 +70,11 @@ for shared, but which will make it unsound.) }%
 %%% Theorems
 
 
-% lemmas about nat`max
-
-max-zero-right : nat`max N 0 M -> nat`eq N M -> type.
-%mode max-zero-right +MX -EQ.
-
-- : max-zero-right (nat`max/> GT) nat`eq/.
-
-- : max-zero-right nat`max/= nat`eq/.
-
-%worlds () (max-zero-right _ _).
-%total  {} (max-zero-right _ _).
-
-
-max-zero-left : nat`max 0 N M -> nat`eq N M -> type.
-%mode max-zero-left +MX -EQ.
-
-- : max-zero-left (nat`max/< GT) nat`eq/.
-
-- : max-zero-left nat`max/= nat`eq/.
-
-%worlds () (max-zero-left _ _).
-%total  {} (max-zero-left _ _).
-
-
-max-zero : {N:nat} nat`max 0 N N -> type.
-%mode max-zero +N -MX.
-
-- : max-zero 0 nat`max/=.
-
-- : max-zero (s N) (nat`max/< GT)
-    <- nat`succ-implies-gt-zero N GT.
-
-%worlds () (max-zero _ _).
-%total {}  (max-zero _ _).
-
-
-max-equal : nat`max N N M -> nat`eq N M -> type.
-%mode max-equal +MX -EQ.
-
-- : max-equal nat`max/= nat`eq/.
-
-- : max-equal (nat`max/> GT) EQ
-    <- nat`gt-anti-reflexive GT V
-    <- nat`false-implies-eq V EQ.
-
-- : max-equal (nat`max/< GT) EQ
-    <- nat`gt-anti-reflexive GT V
-    <- nat`false-implies-eq V EQ.
-
-%worlds () (max-equal _ _).
-%total  {} (max-equal _ _).
-
-
-max-ge-lt-implies-eq
-  : nat`max N M P -> nat`ge P H -> nat`lt N H -> nat`eq M P -> type.
-
-%mode max-ge-lt-implies-eq +MX +GE +LT -EQ.
-
-- : max-ge-lt-implies-eq (nat`max/< _) _ _ nat`eq/.
-
-- : max-ge-lt-implies-eq nat`max/= _ _ nat`eq/.
-
-- : max-ge-lt-implies-eq nat`max/= (nat`ge/= nat`eq/) _ nat`eq/.
-
-- : max-ge-lt-implies-eq (nat`max/> _) (nat`ge/= nat`eq/) LT EQ
-    <- nat`gt-anti-reflexive LT V
-    <- nat`false-implies-eq V EQ.
-
-- : max-ge-lt-implies-eq (nat`max/> _) (nat`ge/> GT) LT EQ
-    <- nat`gt-anti-symmetric GT LT V
-    <- nat`false-implies-eq V EQ.
-
-%worlds () (max-ge-lt-implies-eq _ _ _ _).
-%total  {} (max-ge-lt-implies-eq _ _ _ _).
-
-
-max-gt-implies-eq : nat`max N M P -> nat`gt P N -> nat`eq M P -> type.
-%mode max-gt-implies-eq +MX +GT -EQ.
-
-- : max-gt-implies-eq (nat`max/< N<M) P>N nat`eq/.
-
-- : max-gt-implies-eq (nat`max/> _) GT EQ
-    <- nat`gt-anti-reflexive GT V
-    <- nat`false-implies-eq V EQ.
-
-- : max-gt-implies-eq nat`max/= GT EQ
-    <- nat`gt-anti-reflexive GT V
-    <- nat`false-implies-eq V EQ.
-
-%worlds () (max-gt-implies-eq _ _ _).
-%total  {} (max-gt-implies-eq _ _ _).
-
-
 % equality
 
 false-implies-eq : {F:void} eq X1 X2 -> type.
 %mode +{X1} +{X2} +{V:void} -{E:eq X1 X2} false-implies-eq V E.
+
 %worlds () (false-implies-eq _ _).
 %total  {} (false-implies-eq _ _).
 
@@ -174,32 +84,16 @@ eq-transitive : eq X1 X2 -> eq X2 X3 -> eq X1 X3 -> type.
 - : eq-transitive eq/ eq/ eq/.
 
 %mode eq-transitive +E1 +E2 -E.
+
 %worlds () (eq-transitive _ _ _).
 %total  {} (eq-transitive _ _ _).
-
-
-efx-eq-implies-eq : eq (efx/ N1) (efx/ N2) -> nat`eq N1 N2 -> type.
-%mode efx-eq-implies-eq +XE -NE.
-
-- : efx-eq-implies-eq eq/ nat`eq/.
-
-%worlds () (efx-eq-implies-eq _ _).
-%total  {} (efx-eq-implies-eq _ _).
-
-
-efx-preserves-eq : nat`eq N1 N2 -> eq (efx/ N1) (efx/ N2) -> type.
-%mode efx-preserves-eq +NE -XE.
-
-- : efx-preserves-eq nat`eq/ eq/.
-
-%worlds () (efx-preserves-eq _ _).
-%total  {} (efx-preserves-eq _ _).
 
 
 % leq
 
 false-implies-leq : {F:void} leq X1 X2 -> type.
 %mode +{X1} +{X2} +{V} -{LE: leq X1 X2} false-implies-leq V LE.
+
 %worlds () (false-implies-leq _ _).
 %total  {} (false-implies-leq _ _).
 
@@ -216,8 +110,7 @@ leq-respects-eq : leq X1 X2 -> eq X1 Y1 -> eq X2 Y2 -> leq Y1 Y2 -> type.
 leq-reflexive : {X} leq X X -> type.
 %mode leq-reflexive +X -LE.
 
-- : leq-reflexive (efx/ N) (leq/ LE)
-    <- nat`ge-reflexive N LE.
+- : leq-reflexive _ (leq/eq eq/) .
 
 %worlds () (leq-reflexive _ _).
 %total {} (leq-reflexive _ _).
@@ -226,9 +119,7 @@ leq-reflexive : {X} leq X X -> type.
 leq-anti-symmetric : leq X1 X2 -> leq X2 X1 -> eq X1 X2 -> type.
 %mode leq-anti-symmetric +LE1 +LE2 -E.
 
-- : leq-anti-symmetric (leq/ GE1) (leq/ GE2) NE
-    <- nat`ge-anti-symmetric GE2 GE1 XE
-    <- efx-preserves-eq XE NE.
+- : leq-anti-symmetric (leq/eq eq/) (leq/eq eq/) eq/.
 
 %worlds () (leq-anti-symmetric _ _ _).
 %total  {} (leq-anti-symmetric _ _ _).
@@ -237,17 +128,24 @@ leq-anti-symmetric : leq X1 X2 -> leq X2 X1 -> eq X1 X2 -> type.
 leq-transitive : leq X1 X2 -> leq X2 X3 -> leq X1 X3 -> type.
 %mode leq-transitive +LE1 +LE2 -LE3.
 
-- : leq-transitive (leq/ GE1) (leq/ GE2) (leq/ GE3)
-    <- nat`ge-transitive GE2 GE1 GE3.
+- : leq-transitive (leq/eq eq/) LE LE.
+
+- : leq-transitive LE (leq/eq eq/) LE.
+
+- : leq-transitive (leq/eq eq/) (leq/eq eq/) (leq/eq eq/).
+
+- : leq-transitive leq/rw leq/wc leq/rc.
 
 %worlds () (leq-transitive _ _ _).
 %total  {} (leq-transitive _ _ _).
+
 
 
 % join
 
 false-implies-join* : {F:void} join X1 X2 X3 -> type.
 %mode +{X1} +{X2} -{X3} +{V} -{J:join X1 X2 X3} false-implies-join* V J.
+
 %worlds () (false-implies-join* _ _).
 %total  {} (false-implies-join* _ _).
 
@@ -261,8 +159,17 @@ false-implies-join : {F:void} join X1 X2 X3 -> type.
 join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 %mode join-implies-leq* +J -LE.
 
-- : join-implies-leq* (join/ MX _) (leq/ GE)
-    <- nat`max-implies-ge MX GE _.
+- : join-implies-leq* join/rr (leq/eq eq/).
+
+- : join-implies-leq* join/rw leq/rw.
+
+- : join-implies-leq* join/rc leq/rc.
+
+- : join-implies-leq* join/wr (leq/eq eq/).
+
+- : join-implies-leq* join/ww (leq/eq eq/).
+
+- : join-implies-leq* join/wc leq/wc.
 
 %worlds () (join-implies-leq* _ _).
 %total  {} (join-implies-leq* _ _).
@@ -271,8 +178,17 @@ join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 join-implies-leq : join X1 X2 X3 -> leq X1 X3 -> leq X2 X3 -> type.
 %mode join-implies-leq +J -LE1 -LE2.
 
-- : join-implies-leq (join/ MX _) (leq/ GE1) (leq/ GE2)
-    <- nat`max-implies-ge MX GE1 GE2.
+- : join-implies-leq join/rr (leq/eq eq/) (leq/eq eq/).
+
+- : join-implies-leq join/rw leq/rw (leq/eq eq/).
+
+- : join-implies-leq join/rc leq/rc (leq/eq eq/).
+
+- : join-implies-leq join/wr (leq/eq eq/) leq/rw.
+
+- : join-implies-leq join/ww (leq/eq eq/) (leq/eq eq/).
+
+- : join-implies-leq join/wc leq/wc (leq/eq eq/).
 
 %worlds () (join-implies-leq _ _ _).
 %total  {} (join-implies-leq _ _ _).
@@ -304,9 +220,7 @@ join-deterministic
 
 %mode join-deterministic +J1 +J2 +E1 +E2 -E3.
 
-- : join-deterministic (join/ MX1 LT1) (join/ MX2 LT2) eq/ eq/ EQ
-    <- nat`max-deterministic MX1 MX2 nat`eq/ nat`eq/ E
-    <- efx-preserves-eq E EQ.
+- : join-deterministic J J eq/ eq/ eq/.
 
 %worlds () (join-deterministic _ _ _ _ _).
 %total  {} (join-deterministic _ _ _ _ _).
@@ -321,12 +235,29 @@ join-associative
 
 %mode join-associative +J1 +J2 -X6 -J3 -J4.
 
-- : join-associative
-    (join/ MX1 LT1) (join/ MX2 LT2) (efx/ N) 
-    (join/ MX3 LT3) (join/ MX4 LT1)
-    <- nat`max-associative MX1 MX2 N MX3 MX4
-    <- nat`max-implies-ge MX1 _ GE
-    <- nat`gt-transitive-ge LT2 GE LT3.
+- : join-associative join/rr join/rr _ join/rr join/rr.
+
+- : join-associative join/rr join/rw _ join/rw join/rw.
+
+- : join-associative join/rr join/rc _ join/rc join/rc.
+
+- : join-associative join/rw join/wr _ join/wr join/rw.
+
+- : join-associative join/rw join/ww _ join/ww join/rw.
+
+- : join-associative join/rw join/wc _ join/wc join/rc.
+
+- : join-associative join/wr join/wr _ join/rr join/wr.
+
+- : join-associative join/wr join/ww _ join/rw join/ww.
+
+- : join-associative join/wr join/wc _ join/rc join/wc.
+
+- : join-associative join/ww join/wr _ join/wr join/ww.
+
+- : join-associative join/ww join/ww _ join/ww join/ww.
+
+- : join-associative join/ww join/wc _ join/wc join/wc.
 
 %worlds () (join-associative _ _ _ _ _).
 %total  {} (join-associative _ _ _ _ _).
@@ -339,31 +270,31 @@ join-associative-converse
     -> join X3 X4 X7
     -> type.
 
-nat`max-is-lub-lt
-  : nat`max N1 N2 N3
-    -> nat`lt N1 N0
-    -> nat`lt N2 N0
-    -> nat`lt N3 N0
-    -> type.
-
-%mode nat`max-is-lub-lt +MX +LT1 +LT2 -LT3.
-
-- : nat`max-is-lub-lt nat`max/= _ G G.
-
-- : nat`max-is-lub-lt (nat`max/> N1>N2) G _ G.
-
-- : nat`max-is-lub-lt (nat`max/< N2>N1) _ G G.
-
-%worlds () (nat`max-is-lub-lt _ _ _ _).
-%total { } (nat`max-is-lub-lt _ _ _ _).
-
 %mode join-associative-converse +J1 +J2 -X -J3 -J4.
 
-- : join-associative-converse
-    (join/ MX24 LT24) (join/ MX16 LT16) %{=>}%
-    (efx/ N) (join/ MX12 LT16) (join/ MX34 LT34)
-    <- nat`max-associative-converse MX24 MX16 N MX12 MX34
-    <- nat`max-is-lub-lt MX12 LT16 LT24 LT34.
+- : join-associative-converse join/rr join/rr _ join/rr join/rr.
+
+- : join-associative-converse join/rw join/rw _ join/rr join/rw.
+
+- : join-associative-converse join/wr join/rw _ join/rw join/wr.
+
+- : join-associative-converse join/ww join/rw _ join/rw join/ww.
+
+- : join-associative-converse join/rc join/rc _ join/rr join/rc.
+
+- : join-associative-converse join/wc join/rc _ join/rw join/wc.
+
+- : join-associative-converse join/rr join/wr _ join/wr join/wr.
+
+- : join-associative-converse join/rw join/ww _ join/wr join/ww.
+
+- : join-associative-converse join/wr join/ww _ join/ww join/wr.
+
+- : join-associative-converse join/ww join/ww _ join/ww join/ww.
+
+- : join-associative-converse join/rc join/wc _ join/wr join/wc.
+
+- : join-associative-converse join/wc join/wc _ join/ww join/wc.
 
 %worlds () (join-associative-converse _ _ _ _ _).
 %total { } (join-associative-converse _ _ _ _ _).
@@ -373,12 +304,9 @@ nat`max-is-lub-lt
 
 %abbrev efx`eq = eq.
 %abbrev efx`eq/ = eq/.
-%abbrev efx`wf-efx = wf-efx.
-%abbrev efx`wf-efx/ = wf-efx/.
 %abbrev efx`leq = leq.
 %abbrev efx`leq/ = leq/.
 %abbrev efx`join = join.
-%abbrev efx`join/ = join/.
 %abbrev efx`false-implies-eq = false-implies-eq.
 %abbrev efx`eq-transitive = eq-transitive.
 %abbrev efx`false-implies-leq = false-implies-leq.
