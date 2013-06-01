@@ -1,0 +1,155 @@
+%%% consistency relation between clsmap, methmap and fldmap
+%%% Chao Sun
+%%% $Id: consistency.elf,v 1.4 2013/05/17 16:59:10 csun Exp $
+%%% Created at Feb, 8th 2012
+
+%%% check if a type is in clsmap
+
+clsmap-ty : clsmap -> ty -> type.
+
+clsmap-ty/notnull
+  : clsmap-ty CM (ty/ _ _ C) 
+    <- clsmap`domain? CM C true.
+
+clsmap-ty/null : clsmap-ty CM ty/null.
+
+
+clsmap-reftype : clsmap -> reftype -> type.
+
+clsmap-reftype/
+   : clsmap-reftype CM (reftype/ T _ _) 
+     <- clsmap-ty CM T.
+
+
+% check if all types appear in methty is also in clsmap
+
+clsmap-methty : clsmap -> methty -> type.
+
+% nothing to check for shared effect
+clsmap-methty/base
+  : clsmap-methty CM (methty/base T _) 
+    <- clsmap-ty CM T.
+
+% should we worried that effect sets are not
+% subsets of class's field set?
+clsmap-methty/args
+  : clsmap-methty CM (methty/arg A T _ _)
+    <- clsmap-ty CM T
+    <- clsmap-methty CM A.
+
+
+% check if a fldmap is consistent with a clsmap
+
+clsmap-fldmap : clsmap -> fldmap -> type.
+
+clsmap-fldmap/0 : clsmap-fldmap _ fldmap/0.
+
+clsmap-fldmap/+
+  : clsmap-fldmap CM (fldmap/+ _ T FM)
+    <- clsmap-ty CM T
+    <- clsmap-fldmap CM FM.
+
+
+% check if a clsmap is consistent with itself
+
+clsmap-clsmap : clsmap -> clsmap -> type.
+
+clsmap-clsmap/0 : clsmap-clsmap _ clsmap`map/0.
+
+clsmap-clsmap/+
+  : clsmap-clsmap CM0 (clsmap`map/+ C FM CM)
+    <- clsmap`lookup CM0 C FM
+    <- clsmap-fldmap CM0 FM
+    <- clsmap`shift C CM CMS
+    <- clsmap-clsmap CM0 CMS.
+
+
+% check if a clsmap is consistent with a methmap
+
+clsmap-methmap : clsmap -> methmap -> type.
+
+clsmap-methmap/0 : clsmap-methmap _ methmap`map/0.
+
+clsmap-methmap/meth
+  : clsmap-methmap CM (methmap`map/+ N MT MM)
+    <- clsmap`fresh CM N
+    <- clsmap-methty CM MT
+    <- methmap`shift N MM MMS
+    <- clsmap-methmap CM MMS.
+
+clsmap-methmap/const
+  : clsmap-methmap CM
+    (methmap`map/+ N (methty/arg MT (ty/ nonnull/yes _ N) _ _) MM)
+    <- clsmap`lookup CM N _
+    <- clsmap-methty CM MT
+    <- methmap`shift N MM MMS
+    <- clsmap-methmap CM MMS.
+
+
+% consistency between clsmap and context
+
+clsmap-cxt : clsmap -> cxt -> type.
+
+clsmap-cxt/nil : clsmap-cxt _ cxt/nil.
+
+clsmap-cxt/cons
+  : cxt`fresh BP N
+    -> cxt`update BP N (cxtv/ O T) B
+    -> clsmap-ty CM T
+    -> clsmap-cxt CM BP
+    -> clsmap-cxt CM B.
+
+
+% consistency between location set and cxt
+
+cxt-set : cxt -> set -> type.
+
+cxt-set/0 : cxt-set _ set/0.
+
+cxt-set/U
+  : set`not-member SP N
+    -> set`add SP N S
+    -> cxt`lookup B N _
+    -> cxt-set B SP
+    -> cxt-set B S.
+
+
+% for each index of F -> X in inner-efxmap, F must be in fldmap.
+
+fldmap-inner-efxmap : fldmap -> inner-efxmap -> type.
+
+fldmap-inner-efxmap/0 : fldmap-inner-efxmap _ inner-efxmap/0.
+
+fldmap-inner-efxmap/U
+  : inner-efxmap`fresh MP F
+    -> inner-efxmap`update MP F _ M
+    -> fldmap`lookup FM F _
+    -> fldmap-inner-efxmap FM MP
+    -> fldmap-inner-efxmap FM M.
+
+
+% for each entry (L -> M) in efxmap, L must be in cxt, and M must 
+% be consistent with SOME fldmap in clsmap.
+
+cxt-efxmap : cxt -> clsmap -> efxmap -> type.
+
+cxt-efxmap/0 : cxt-efxmap _ _ efxmap/0.
+
+%{ Need to handle the special "shared" case:
+the 0 index should be mapped to a inner-efxmap
+with only one value: (0 -> X) }% 
+
+cxt-efxmap/S
+  : efxmap`fresh XMP z
+    -> efxmap`update XMP z (inner-efxmap/+ z _ inner-efxmap/0) XM
+    -> cxt-efxmap B CM XMP
+    -> cxt-efxmap B CM XM.
+
+cxt-efxmap/U
+  : efxmap`fresh XMP (s N)
+    -> efxmap`update XMP (s N) M XM
+    -> cxt`lookup B (s N) (cxtv/ _ (ty/ _ _ C))
+    -> clsmap`lookup CM C FM
+    -> fldmap-inner-efxmap FM M
+    -> cxt-efxmap B CM XMP
+    -> cxt-efxmap B CM XM.
