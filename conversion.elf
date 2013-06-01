@@ -1,5 +1,5 @@
 %%% converting *map to permission
-%%% $Id: conversion.elf,v 1.2 2013/05/08 04:34:29 csun Exp $
+%%% $Id: conversion.elf,v 1.3 2013/05/08 16:49:55 csun Exp csun $
 
 % make disjunction of objequal facts for object targets.
 
@@ -17,25 +17,19 @@ set2facts/+
     <- set2facts B O S' G.
 
 
-% preprocessing ty by considering input/output effect
+% apply efx on given permission, and get a altered permission
 
-trans-ty : bool -> efx -> ty -> ty -> type.
+apply-efx : bool -> efx -> permission -> fracperm -> type.
 
-trans-ty/expose : trans-ty _ efx/expose (ty/ NN A C) (ty/ NN annot/shared C).
+apply-efx/read
+  : apply-efx _ efx/read Pi ([z] (scale z Pi)).
 
-trans-ty/consume/true : trans-ty true efx/consume T T.
+apply-efx/write : apply-efx _ efx/write Pi ([_] Pi).
 
-trans-ty/consume/false
-  : trans-ty false efx/consume (ty/ NN A C) (ty/ NN annot/borrow C).
+apply-efx/consume/true : apply-efx true efx/consume Pi ([_] Pi).
 
-trans-ty/other : trans-ty _ (efx/ N) T T <- nat`lt N 3.
-                 
+apply-efx/consume/false : apply-efx false efx/consume Pi ([_] empty).
 
-apply-fraction : efx -> permission -> fracperm -> type.
-
-apply-fraction/read : apply-fraction efx/read Pi ([z] scale z Pi).
-
-apply-fraction/other : apply-fraction (efx/ N) Pi ([_] Pi) <- nat`ne N 1.
 
 
 % convert a efxmap to a set of permissions.
@@ -57,13 +51,11 @@ inner-efxmap2perm/0 : inner-efxmap2perm _ _ _ _ inner-efxmap/0 ([_] empty).
 inner-efxmap2perm/+ 
   : inner-efxmap2perm P O FM PM
     (inner-efxmap/+ F X M) ([z] (Pi1 z) , (Pi2 z)) 
-    <- fldmap`lookup FM F TP
-    <- trans-ty P X TP T
+    <- fldmap`lookup FM F T
     <- ty2perm PM T PF
     <- inner-efxmap`shift F M MP
     <- inner-efxmap2perm P O FM PM MP ([z] Pi2 z)
-    <- apply-fraction X (unitperm (precise-exists O F PF)) ([z] Pi1 z).
-
+    <- apply-efx P X (unitperm (precise-exists O F PF)) ([z] Pi1 z).
 
 efxmap2perm/0 : efxmap2perm _ _ _ _ efxmap/0 ([_] empty).
 
@@ -112,10 +104,8 @@ reftype+efxmap2output : clsmap -> predmap -> cxt ->
     reftype -> efxmap -> (fraction -> expr-output) -> type.
 
 reftype+efxmap2output/
-  : reftype+efxmap2output CM PM B (reftype/ T (targets/ S GM1 SB)) XM OUT
-    <- ty2perm PM T ([r] PF r)
-    <- bool2tgtmap SB GM2
-    <- tgtmap`join GM1 GM2 GM
+  : reftype+efxmap2output CM PM B (reftype/ T S GM) XM OUT
+    <- ty2perm PM T PF
     <- efxmap`remove-tgtmap XM GM XM1 XM2
     <- efxmap2perm false CM PM B XM1 ([z] Pi1 z)
     <- efxmap2perm false CM PM B XM2 ([z] Pi2 z)
@@ -127,6 +117,38 @@ cxt2facts : predmap -> cxt -> permission -> type.
 
 % TODO
 
+set2nesting-facts : cxt -> set -> permission -> type.
+
+set2nesting-facts/0 : set2nesting-facts _ set/0 empty.
+
+set2nesting-facts/+
+  : set2nesting-facts B S
+    (unitperm (nonlinear (nested (allperm O) null all)) , Pi) 
+    <- set`not-member S' N
+    <- set`add S' N S
+    <- cxt-lookup-loc B N O T
+    <- set2nesting-facts B S' Pi.
+
+
+effects2input : clsmap -> predmap -> cxt -> effects -> fracperm -> type.
+
+effects2input/
+  : effects2input CM PM B (effects/ S XM) ([z] (FA , (FP z)))
+    <- set2nesting-facts B S FA
+    <- efxmap2perm true CM PM B XM ([z] FP z).
+
+
+effects2output : clsmap -> predmap -> cxt -> reftype 
+  -> effects -> (fraction -> expr-output) -> type.
+
+effects2output/
+  : effects2output CM PM B RT (effects/ S XM) Out'
+    <- reftype+efxmap2output CM PM B RT XM Out
+    <- set2nesting-facts B S FA
+    <- ({z} envadd FA (Out z) (Out' z)). 
+
+
+% TODO
 
 methty2proctype* : clsmap -> predmap -> permission
   -> permission -> methty -> proctype -> type.
@@ -179,7 +201,8 @@ env2progtype/
     exists  {EQ: permission`eq (Pi1 , Pi2) (Pi3 , Pi4)}
     true.
 
-- : permission`combine-preserves-eq permission`eq/ permission`eq/ permission`eq/.
+- : permission`combine-preserves-eq 
+    permission`eq/ permission`eq/ permission`eq/.
 
 %worlds (objvar) (permission`combine-preserves-eq _ _ _).
 %total  {} (permission`combine-preserves-eq _ _ _).
@@ -211,7 +234,6 @@ env2progtype/
 %total  {} (permission`implies-respects-eq-right _ _ _).
 
 
-
 % set2facts
 
 %theorem cxt-set-implies-set2facts :
@@ -235,7 +257,7 @@ env2progtype/
     forall* {S1} {G1} {S2} {G2} {B1} {B2} {O1} {O2}
     forall  {S2G1: set2facts B1 O1 S1 G1}
             {S2G2: set2facts B2 O2 S2 G2}
-            {EQ: cxt-eq B1 B2} {EQ: object`eq O1 O2}
+            {EQ: cxt`eq B1 B2} {EQ: object`eq O1 O2}
             {EQ: set`eq S1 S2}
     exists  {EQ: permission`eq (unitperm (nonlinear G1))
                  (unitperm (nonlinear G2))}
@@ -255,11 +277,43 @@ env2progtype/
 - : set2facts-deterministic/L
     object`eq/ object`eq/ permission`eq/ permission`eq/.
 
+- : set2facts-deterministic set2facts/0 set2facts/0 
+    cxt`eq/ object`eq/ set`eq/ permission`eq/.
+
+- : set2facts-deterministic
+    (set2facts/+ S2G1 B-L1 WF-B1 SH-SS1)
+    (set2facts/+ S2G2 B-L2 WF-B2 SH-SS2) B-EQ O-EQ S-EQ P-EQ
+    <- set`map/+-preserves-eq-converse S-EQ N-EQ _ SS-EQ
+    <- set`shift-deterministic SH-SS1 SH-SS2 N-EQ SS-EQ SSS-EQ
+    <- set2facts-deterministic S2G1 S2G2 B-EQ O-EQ SSS-EQ G-EQ
+    <- cxt-lookup-loc-unique WF-B1 WF-B2 B-L1 B-L2 B-EQ N-EQ O2-EQ _
+    <- set2facts-deterministic/L O-EQ O2-EQ G-EQ P-EQ.
+    
 %worlds (objvar | fracvar) (set2facts-deterministic/L _ _ _ _).
 %total {} (set2facts-deterministic/L _ _ _ _).
 
 %worlds (objvar | fracvar) (set2facts-deterministic _ _ _ _ _ _).
-%trustme %total (S2G) (set2facts-deterministic S2G _ _ _ _ _).
+%total (S2G) (set2facts-deterministic S2G _ _ _ _ _).
+
+
+% apply-efx
+
+apply-efx-deterministic 
+  : apply-efx P1 X1 Pi1 FPi1
+    -> apply-efx P2 X2 Pi2 FPi2
+    -> bool`eq P1 P2
+    -> efx`eq X1 X2
+    -> permission`eq Pi1 Pi2
+    -> ({z} permission`eq (FPi1 z) (FPi2 z))
+    -> type.
+
+%mode apply-efx-deterministic +AX1 +AX2 +E1 +E2 +E3 -E4.
+
+- : apply-efx-deterministic
+    AX1 AX2 bool`eq/ efx`eq/ permission`eq/ ([_] permission`eq/).
+
+%worlds () (apply-efx-deterministic _ _ _ _ _ _).
+%total { } (apply-efx-deterministic _ _ _ _ _ _).
 
 
 % inner-efxmap2perm
@@ -270,7 +324,7 @@ false-implies-inner-efxmap2perm
 %mode +{P} +{O} +{FM} +{PM} +{M} +{V} -{Pi}
 -{M2Pi: inner-efxmap2perm P O FM PM M Pi} 
 false-implies-inner-efxmap2perm V M2Pi.
-%worlds () (false-implies-inner-efxmap2perm _ _).
+%worlds (fracvar) (false-implies-inner-efxmap2perm _ _).
 %total { } (false-implies-inner-efxmap2perm _ _).
 
 
@@ -291,7 +345,7 @@ inner-efxmap2perm-respects-eq
     M=>Pi bool`eq/ object`eq/ fldmap`eq/ 
     predmap`eq/ inner-efxmap`eq/ ([_] permission`eq/) M=>Pi.
 
-%worlds () (inner-efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
+%worlds (fracvar) (inner-efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 %total { } (inner-efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 
 
@@ -321,7 +375,8 @@ inner-efxmap2perm-respects-eq
     exists  {EQ: {z} permission`eq (Pi1 z) (Pi2 z)}
     true.
 
-%worlds (objvar | fracvar) (inner-efxmap2perm-deterministic _ _ _ _ _ _ _ _).
+%worlds (objvar | fracvar) 
+(inner-efxmap2perm-deterministic _ _ _ _ _ _ _ _).
 %trustme %total (L) (inner-efxmap2perm-deterministic L _ _ _ _ _ _ _).
 
 
@@ -343,13 +398,13 @@ inner-efxmap2perm-respects-eq
     forall  {XM1=>Pi1: efxmap2perm P1 CM1 PM1 B1 XM1 Pi1}
             {EQ: bool`eq P1 P2} 
             {EQ: clsmap`eq CM1 CM2} {EQ: predmap`eq PM1 PM2}
-            {EQ: cxt-eq B1 B2} {EQ: efxmap`eq XM1 XM2}
+            {EQ: cxt`eq B1 B2} {EQ: efxmap`eq XM1 XM2}
             {EQ: {z} permission`eq (Pi1 z) (Pi2 z)}
     exists  {XM2=>Pi2: efxmap2perm P2 CM2 PM2 B2 XM2 Pi2} 
     true.
 
 - : efxmap2perm-respects-eq XM=>Pi bool`eq/ clsmap`eq/ predmap`eq/
-    cxt-eq/ efxmap`eq/ ([_] permission`eq/) XM=>Pi.
+    cxt`eq/ efxmap`eq/ ([_] permission`eq/) XM=>Pi.
 
 %worlds (fracvar) (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 %total  {} (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
@@ -362,15 +417,15 @@ inner-efxmap2perm-respects-eq
             {XM2=>Pi2: efxmap2perm P2 CM2 PM2 B2 XM2 Pi2}
             {EQ: bool`eq P1 P2}
             {EQ: clsmap`eq CM1 CM2} {EQ: predmap`eq PM1 PM2}
-            {EQ: cxt-eq B1 B2} {EQ: efxmap`eq XM1 XM2}
+            {EQ: cxt`eq B1 B2} {EQ: efxmap`eq XM1 XM2}
     exists  {EQ: {z} permission`eq (Pi1 z) (Pi2 z)}
     true.
 
-- : efxmap2perm-deterministic efxmap2perm/0 efxmap2perm/0 bool`eq/
-    clsmap`eq/ predmap`eq/ cxt-eq/ efxmap`eq/ ([_] permission`eq/).
+% - : efxmap2perm-deterministic efxmap2perm/0 efxmap2perm/0 bool`eq/
+%     clsmap`eq/ predmap`eq/ cxt`eq/ efxmap`eq/ ([_] permission`eq/).
 
 %worlds (objvar | fracvar) (efxmap2perm-deterministic _ _ _ _ _ _ _ _).
-%trustme %total (L) (efxmap2perm-deterministic L _ _ _ _ _ _ _).
+%trustme %total {} (efxmap2perm-deterministic _ _ _ _ _ _ _ _).
 
 
 %theorem fldmap-inner-efxmap-implies-inner-efxmap2perm :
@@ -382,8 +437,10 @@ inner-efxmap2perm-respects-eq
     exists  {Pi} {M2P: inner-efxmap2perm P O FM PM M Pi}
     true.
 
-%worlds (fracvar) (fldmap-inner-efxmap-implies-inner-efxmap2perm _ _ _ _ _ _).
-%trustme %total (M) (fldmap-inner-efxmap-implies-inner-efxmap2perm _ _ _ M _ _).
+%worlds (fracvar) 
+(fldmap-inner-efxmap-implies-inner-efxmap2perm _ _ _ _ _ _).
+%trustme %total (M) 
+(fldmap-inner-efxmap-implies-inner-efxmap2perm _ _ _ M _ _).
 
 
 %theorem efxmap-clsmap-implies-efxmap2perm :
@@ -395,7 +452,7 @@ inner-efxmap2perm-respects-eq
     true.
 
 - : efxmap-clsmap-implies-efxmap2perm _ _ cxt-efxmap/0 _ efxmap2perm/0.
-   
+
 - : efxmap-clsmap-implies-efxmap2perm CM-CM CM2PM
     (cxt-efxmap/+ B-XMP SH FM-M CM-L B-L B-O) _
     (efxmap2perm/+ XMP=>Pi2 SH M=>Pi1 CM-L B-L B-O)
@@ -436,10 +493,11 @@ inner-efxmap2perm-respects-eq
             {IMP: {z} equiv (Pi2 z) ((Pi1 z) , (Pi3 z))}
     true.
 
-%worlds (fracvar) 
+%worlds (fracvar | objvar) 
 (inner-efxmap`leq-implies-permission-leq/L _ _ _ _ _ _ _ _ _ _ _ _ _).
-%trustme 
-%total (N) (inner-efxmap`leq-implies-permission-leq/L N _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme  % this is tricky because of expose
+%total (N) 
+(inner-efxmap`leq-implies-permission-leq/L N _ _ _ _ _ _ _ _ _ _ _ _).
     
 
 %theorem inner-efxmap`leq-implies-permission-leq :
@@ -488,7 +546,8 @@ inner-efxmap2perm-respects-eq
     <- efxmap-clsmap-implies-efxmap2perm CM-CM CM2PM B-XM2 _ XM2=>Pi2.
 
 - : efxmap`leq-implies-permission-leq/L _ (efxmap`size/+ SZ)
-    CM-CM CM2PM B-XM1 (cxt-efxmap/+ B-XMP2 L<<XM2=XMP2 FM-M2 CM-L B-L B-O)
+    CM-CM CM2PM B-XM1
+    (cxt-efxmap/+ B-XMP2 L<<XM2=XMP2 FM-M2 CM-L B-L B-O)
     XM1=>Pi1 (efxmap`leq/> N5XM1<=XM2 P) _ _ 
     (efxmap2perm/+ XM2=>Pi2 L<<XM2=XMP2 M2=>Pi2 CM-L B-L B-O)
     ([z] equiv/transitive
@@ -516,27 +575,29 @@ inner-efxmap2perm-respects-eq
       (equiv/symmetric equiv/associate)
       (equiv/combine equiv/reflexive equiv/roll2)
       (equiv/associate))
-    <- efxmap`shift-preserves-leq XM1<=XM2 L<<XM1=XMP1 L<<XM2=XMP2 XMP1<=XMP2
+    <- efxmap`shift-preserves-leq
+      XM1<=XM2 L<<XM1=XMP1 L<<XM2=XMP2 XMP1<=XMP2
     <- efxmap`shift-deterministic 
       L<<XM1=XMP1 L<<XM1=XMP1' nat`eq/ efxmap`eq/ XMP1=XMP1'
     <- efxmap`eq-symmetric XMP1=XMP1' XMP1'=XMP1
     <- efxmap2perm-respects-eq XMP1'=>Pi1 bool`eq/ clsmap`eq/ predmap`eq/
-      cxt-eq/ XMP1'=XMP1 ([_] permission`eq/) XMP1=>Pi1
+      cxt`eq/ XMP1'=XMP1 ([_] permission`eq/) XMP1=>Pi1
     <- efxmap`shift-preserves-size SZ L<<XM2=XMP2 SZP
     <- efxmap`leq-implies-permission-leq/L _ SZP CM-CM CM2PM 
       B-XMP1 B-XMP2 XMP1=>Pi1 XMP1<=XMP2 _ _ XMP2=>Pi2 EQV
-    <- cxt-lookup-loc-unique WF-B1 WF-B3 B-L1 B-L3 cxt-eq/ nat`eq/ _ TEQ
+    <- cxt-lookup-loc-unique WF-B1 WF-B3 B-L1 B-L3 cxt`eq/ nat`eq/ _ TEQ
     <- ty-eq-inversion TEQ _ _ NEQ
     <- clsmap`lookup-deterministic CM-L1 CM-L3 clsmap`eq/ NEQ FMEQ
     <- fldmap-inner-efxmap-respects-eq FM-M1 FMEQ inner-efxmap`eq/ FM-M1'
-    <- cxt-lookup-loc-unique WF-B2 WF-B3 B-L2 B-L3 cxt-eq/ nat`eq/ _ TEQ'
+    <- cxt-lookup-loc-unique WF-B2 WF-B3 B-L2 B-L3 cxt`eq/ nat`eq/ _ TEQ'
     <- ty-eq-inversion TEQ' _ _ NEQ'
     <- clsmap`lookup-deterministic CM-L2 CM-L3 clsmap`eq/ NEQ' FMEQ'
     <- fldmap-inner-efxmap-respects-eq FM-M2 FMEQ' inner-efxmap`eq/ FM-M2'
     <- inner-efxmap`leq-implies-permission-leq
       CM-CM CM2PM CM-L3 FM-M1' FM-M2' M1=>Pi1 M1<=M2 _ _ M2=>Pi2 IMP.
 
-%worlds (fracvar) (efxmap`leq-implies-permission-leq/L _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (fracvar) 
+(efxmap`leq-implies-permission-leq/L _ _ _ _ _ _ _ _ _ _ _ _).
 %total (N) (efxmap`leq-implies-permission-leq/L N _ _ _ _ _ _ _ _ _ _ _).
 
 
@@ -562,6 +623,28 @@ efxmap`leq-implies-permission-leq
 %total  {} (efxmap`leq-implies-permission-leq _ _ _ _ _ _ _ _ _ ).
 
 
+%theorem false-implies-equiv :
+	forall* {Pi1} {Pi2}
+	forall {F:void}
+	exists {EQ:equiv Pi1 Pi2}
+	true.
+
+%worlds (fracvar | objvar) (false-implies-equiv _ _).
+%total { } (false-implies-equiv _ _).
+
+
+%theorem equiv-respects-eq :
+	forall* {Pi1} {Pi1'} {Pi2} {Pi2'}
+	forall {E1:equiv Pi1 Pi1'} {E:permission`eq Pi1 Pi2} {E':permission`eq Pi1' Pi2'}
+	exists {E2:equiv Pi2 Pi2'}
+	true.
+
+- : equiv-respects-eq EQ permission`eq/ permission`eq/ EQ.
+
+%worlds (fracvar | objvar) (equiv-respects-eq _ _ _ _).
+%total { } (equiv-respects-eq _ _ _ _).
+
+
 %theorem efxmap`leq-implies-permission-leq-converse :
     forall* {CM} {PM} {B} {XM1} {XM2} {Pi2} {P}
     forall  {CM-CM: clsmap-clsmap CM CM}
@@ -580,7 +663,7 @@ efxmap`leq-implies-permission-leq
     <- efxmap`leq-implies-permission-leq 
       CM-CM CM2PM B-XM2 XM1=>Pi1 XM1<=XM2 _ _ XM2=>Pi2' EQV'
     <- efxmap2perm-deterministic XM2=>Pi2' XM2=>Pi2
-       bool`eq/ clsmap`eq/ predmap`eq/ cxt-eq/ efxmap`eq/ PEQ
+       bool`eq/ clsmap`eq/ predmap`eq/ cxt`eq/ efxmap`eq/ PEQ
     <- ({z} equiv-respects-eq (EQV' z) (PEQ z) permission`eq/ (EQV z)).
 
 %worlds (fracvar)
@@ -648,8 +731,8 @@ efxmap`leq-implies-permission-leq
     _ (inner-efxmap`size/+ SZ1) _ (inner-efxmap`size/+ SZ2)
     (inner-efxmap`disjoint/< DP P)
     (inner-efxmap`join/< J Q) 
-    (inner-efxmap2perm/+ AP-Z M1S=>Pi1 F<<M1=M1S T2PF TR-T FM-L)
-    M2=>Pi2 _ (inner-efxmap2perm/+ AP-Z M=>Pi F<<M=MS T2PF TR-T FM-L) 
+    (inner-efxmap2perm/+ AP-Z M1S=>Pi1 F<<M1=M1S T2PF FM-L)
+    M2=>Pi2 _ (inner-efxmap2perm/+ AP-Z M=>Pi F<<M=MS T2PF FM-L) 
     ([z] equiv/transitive
       (equiv/symmetric equiv/associate)
       (equiv/combine equiv/reflexive (EQV z)))
@@ -672,8 +755,8 @@ efxmap`leq-implies-permission-leq
     _ (inner-efxmap`size/+ SZ1) _ (inner-efxmap`size/+ SZ2)
     (inner-efxmap`disjoint/> DP P)
     (inner-efxmap`join/> J Q)
-    M1=>Pi1 (inner-efxmap2perm/+ AP-Z M2S=>Pi2 F<<M2=M2S T2PF TR-T FM-L)
-    _ (inner-efxmap2perm/+ AP-Z M=>Pi F<<M=MS T2PF TR-T FM-L) 
+    M1=>Pi1 (inner-efxmap2perm/+ AP-Z M2S=>Pi2 F<<M2=M2S T2PF FM-L)
+    _ (inner-efxmap2perm/+ AP-Z M=>Pi F<<M=MS T2PF FM-L) 
     ([z] equiv/transitive
       (equiv/roll2)
       (equiv/combine equiv/reflexive (EQV z)))
@@ -692,7 +775,8 @@ efxmap`leq-implies-permission-leq
     <- inner-efxmap`disjoint-join-implies-equiv/L
       _ (inner-efxmap`size/+ SZ1) _ SZ2S DS JS M1=>Pi1 M2S=>Pi2 _ M=>Pi EQV.
       
-%worlds () (inner-efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _).
+%worlds (fracvar) 
+(inner-efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _).
 %total {N1 N2} 
 (inner-efxmap`disjoint-join-implies-equiv/L N1 _ N2 _ _ _ _ _ _ _ _).
       
@@ -714,7 +798,7 @@ efxmap`leq-implies-permission-leq
     <- inner-efxmap`disjoint-join-implies-equiv/L
       _ SZ-M1 _ SZ-M2 M1^M2 M1UM2=M M1=>Pi1 M2=>Pi2 Pi M=>Pi EQV.
 
-%worlds () (inner-efxmap`disjoint-join-implies-equiv _ _ _ _ _ _ _).
+%worlds (fracvar) (inner-efxmap`disjoint-join-implies-equiv _ _ _ _ _ _ _).
 %total  {} (inner-efxmap`disjoint-join-implies-equiv _ _ _ _ _ _ _).
 
 
@@ -761,7 +845,7 @@ efxmap`leq-implies-permission-leq
     <- efxmap`shift-preserves-size SZ2 L<<XM2=XM2S SZ2S
     <- efxmap`deep-disjoint-join-implies-equiv/L _ SZ1S _ SZ2S
       XM1S^XM2S XM1SUXM2S=XMS XM1S=>Pi12 XM2S=>Pi22 _ XMS=>Pi2 EQV2
-    <- cxt-lookup-loc-unique WF-B1 WF-B2 B-L1 B-L2 cxt-eq/ nat`eq/ OEQ TEQ
+    <- cxt-lookup-loc-unique WF-B1 WF-B2 B-L1 B-L2 cxt`eq/ nat`eq/ OEQ TEQ
     <- ty-eq-inversion TEQ NNEQ AEQ CEQ
     <- clsmap`lookup-deterministic CM-L1 CM-L2 clsmap`eq/ CEQ FMEQ
     <- inner-efxmap2perm-respects-eq 
@@ -870,7 +954,8 @@ efxmap`leq-implies-permission-leq
     <- false-implies-efxmap2perm V _ XM=>Pi
     <- ({z} false-implies-equiv V (EQV z)).
 
-%worlds () (efxmap`deep-disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _).
+%worlds (fracvar) 
+(efxmap`deep-disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _).
 %total {N1 N2}
 (efxmap`deep-disjoint-join-implies-equiv/L N1 _ N2 _ _ _ _ _ _ _ _).
 
@@ -892,7 +977,7 @@ efxmap`leq-implies-permission-leq
     <- efxmap`deep-disjoint-join-implies-equiv/L 
       _ SZ1 _ SZ2 XM1^XM2 XM1UXM2=XM XM1=>Pi1 XM2=>Pi2 Pi XM=>Pi EQV.
 
-%worlds () (efxmap`deep-disjoint-join-implies-equiv _ _ _ _ _ _ _).
+%worlds (fracvar) (efxmap`deep-disjoint-join-implies-equiv _ _ _ _ _ _ _).
 %total  {} (efxmap`deep-disjoint-join-implies-equiv _ _ _ _ _ _ _).
 
 
@@ -911,8 +996,25 @@ efxmap`leq-implies-permission-leq
     <- efxmap`deep-disjoint-join-implies-equiv
     XM1^XM2 XM1UXM2=XM XM1=>Pi1 XM2=>Pi2 _ XM=>Pi' EQV'
     <- efxmap2perm-deterministic XM=>Pi' XM=>Pi
-      bool`eq/ clsmap`eq/ predmap`eq/ cxt-eq/ efxmap`eq/ ([z] Pi'=Pi z)
+      bool`eq/ clsmap`eq/ predmap`eq/ cxt`eq/ efxmap`eq/ ([z] Pi'=Pi z)
     <- ({z} equiv-respects-eq (EQV' z) permission`eq/ (Pi'=Pi z) (EQV z)).
 
-%worlds () (efxmap`deep-disjoint-join-implies-equiv* _ _ _ _ _ _).
+%worlds (fracvar) (efxmap`deep-disjoint-join-implies-equiv* _ _ _ _ _ _).
 %total  {} (efxmap`deep-disjoint-join-implies-equiv* _ _ _ _ _ _).
+
+
+efxmap`leq-partition
+  : efxmap`leq XM1 XM
+    -> efxmap`domain XM1 S
+    -> {XM2} {XM3} efxmap`deep-disjoint XM2 XM3
+    -> efxmap`join XM2 XM3 XM
+    -> efxmap`domain XM2 S
+    -> type.
+
+%mode efxmap`leq-partition +LE +DM1 -XM2 -XM3 -DJ -J -DM2.
+
+%worlds () (efxmap`leq-partition _ _ _ _ _ _ _).
+%trustme %total { } (efxmap`leq-partition _ _ _ _ _ _ _).
+
+
+%name map M.
