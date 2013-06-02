@@ -1,9 +1,50 @@
 % Subtyping Rules
-% $Id: subtyping.elf,v 1.2 2013/05/14 15:32:34 csun Exp csun $
+% $Id: subtyping.elf,v 1.3 2013/05/17 17:09:26 csun Exp csun $
+
+
+%%% Some extra theorems about set => map
+
+set+nat2tgtmap : set -> nat -> tgtmap -> type.
+
+set+nat2tgtmap/0 : set+nat2tgtmap set/0 _ tgtmap/0.
+
+set+nat2tgtmap/+
+  : set+nat2tgtmap (set/+ L S) F (tgtmap/+ L (set/1 F) GM)
+     <- set+nat2tgtmap S F GM.
+
+
+set+nat2efxmap : set -> nat -> efx -> efxmap -> type.
+
+set+nat2efxmap/0 : set+nat2efxmap set/0 _ _ efxmap/0.
+
+set+nat2efxmap/+
+  : set+nat2efxmap (set/+ L S) F X
+    (efxmap/+ L (inner-efxmap/+ F X inner-efxmap/0) XM)
+    <- set+nat2efxmap S F X XM.
+
+  
+% extend the object target set with a field set and generate a field target map.
+
+set+set2tgtmap : set -> set -> tgtmap -> type.
+
+set+set2tgtmap/0 : set+set2tgtmap set/0 _ tgtmap/0.
+
+set+set2tgtmap/+
+  : set+set2tgtmap GS S GM
+    <- set`add SP F S
+    <- set+nat2tgtmap GS F M
+    <- set+set2tgtmap GS SP GMP
+    <- tgtmap`join GMP M GM.
+
+
+%%% Abbreviations
 
 %abbrev shared-tgtmap = (tgtmap/+ nat`z (set/1 nat`z) tgtmap/0). 
 
 %abbrev shared-efxmap = [X] (efxmap/1 nat`z nat`z X).
+
+
+%%% Definitions
 
 
 % set: set of object targets that are exposed.
@@ -12,7 +53,6 @@
 effects : type.
 
 effects/ : set -> efxmap -> effects.
-
 
 
 % determine the max effect from these two sets.
@@ -95,3 +135,64 @@ subtype/
     <- clsmap`lookup CM C1 FM
     <- fldmap`domain FM FS
     <- sub-annot S GM FS RS WS A1 A2 XX.
+
+
+%%% Theorems
+
+%% set+nat2tgtmap
+
+%theorem set+nat2tgtmap-preserves-size
+  : forall* 
+    {S} {F} {GM} {N}
+    forall
+    {-: set+nat2tgtmap S F GM}
+    {-: set`size S N}
+    exists
+    {-: tgtmap`size GM N}
+    true.
+
+- : set+nat2tgtmap-preserves-size 
+    set+nat2tgtmap/0 set`size/0 tgtmap`size/0.
+
+- : set+nat2tgtmap-preserves-size 
+    (set+nat2tgtmap/+ S2GM) (set`size/+ SSZ) (tgtmap`size/+ GMSZ)
+    <- set+nat2tgtmap-preserves-size S2GM SSZ GMSZ.
+    
+%worlds () (set+nat2tgtmap-preserves-size _ _ _).
+%total (D) (set+nat2tgtmap-preserves-size D _ _).
+
+
+%theorem set+nat2tgtmap-preserves-size-converse
+  : forall* 
+    {S} {F} {GM} {N}
+    forall
+    {-: set+nat2tgtmap S F GM}
+    {-: tgtmap`size GM N}
+    exists
+    {-: set`size S N}
+    true.
+
+- : set+nat2tgtmap-preserves-size-converse 
+    set+nat2tgtmap/0 tgtmap`size/0 set`size/0.
+
+- : set+nat2tgtmap-preserves-size-converse 
+    (set+nat2tgtmap/+ S2GM) (tgtmap`size/+ GMSZ) (set`size/+ SSZ)
+    <- set+nat2tgtmap-preserves-size-converse S2GM GMSZ SSZ.
+    
+%worlds () (set+nat2tgtmap-preserves-size-converse _ _ _).
+%total (D) (set+nat2tgtmap-preserves-size-converse D _ _).
+
+
+%theorem shift-preserves-set+nat2efxmap
+  : forall* 
+    {N} {S} {SP} {F} {X} {XM} {XMP}
+    forall
+    {-: set+nat2efxmap S F X XM}
+    {-: set`shift N S SP}
+    {-: efxmap`shift N XM XMP}
+    exists
+    {-: set+nat2efxmap SP F X XMP}
+    true.
+
+%worlds () (shift-preserves-set+nat2efxmap _ _ _ _).
+%trustme %total {} (shift-preserves-set+nat2efxmap _ _ _ _).
