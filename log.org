@@ -1,4 +1,4 @@
-$Id: log.org,v 1.4 2013/05/14 21:16:29 csun Exp csun $
+$Id: log.org,v 1.5 2013/05/18 15:39:18 csun Exp $
 
 This is the log I kept while writing proof for my type system.
 
@@ -313,3 +313,56 @@ that x refers to, we can search for all consume effects on
 
 and then remove them from the existing efxmap.
 
+
+<2013-06-02 Sun>
+
+I redefined cxt yesterday. Now it uses the map signature. One motivation
+for this is I don't need to carry wf-cxt around in each theorem about
+cxt. In cxt, every object is bound to a distinct location, a set and 
+a target map. 
+
+As usual, shared tgt needs special attention. My original idea is to
+use a empty set and a singleton tgtmap for shared tgt. However, this
+is not good because tgtmap needs to be associated with effects, and
+we don't want reading a literal shared object x produces any effect.
+
+A proposal is to treat shared tgts same as others while constructing cxt.
+Then, we handle them specially in set+nat2tgtmap. In this process,
+we check each location's type, and if it's shared, we insert a special
+value in the resulting tgtmap.
+
+We then need to prove that, given a set+nat2tgtmap relation, and 
+a tgtmap2efxmap relation. If we convert the result efxmap to a set of
+permissions, and if the set is of the same class. Then, we can 
+*transform* the permissions (say Pi) into the following format:
+
+  PF(x) , PF(x) --|- Pi
+
+while PF(x) is field permission.
+
+However, this proposal requires many changes on existing proof. Also,
+it doesn't look right. It is possible for a method to have effect 
+directly on x.f, where x is a shared parameter, instead of have effect
+on shared. Therefore, we'd better produce effect on the target x.f
+in this case, instead of converting to effects on shared in set+nat2tgtmap.
+But, if we have a effect on x.f.g, while f is a shared field, then 
+we need to produce a effect on shared, since getting from x.f to
+x.f.g requires permission on shared.
+
+This poses a problem: let's say we are checking 
+
+  let x = if 3 > y then a.f else b in x.g
+
+while f and g are both shared. In this example, following the above
+thought, we would generate "read b.g" effect from the "else" 
+branch, and generate "read shared" effect from the "then" branch.
+However, the input effect *cannot* include both, since they are
+not compatible. 
+
+In general, once we produced a effect on shared, we need to find out
+all other effects on shared parameters, and eliminate them. Sometimes,
+we need to promote the effect on shared too. For instance, if 
+we have a "read shared" effect, and another "write x.f" effect, then
+we need to eliminate the latter, and promote the former to "write shared".
+
+This looks like complex enough to implement. I need to think more on it.
