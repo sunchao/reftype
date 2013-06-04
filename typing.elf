@@ -1,12 +1,11 @@
 %%% Type judgments for conservative type system based on FP.
-%%% $Id: typing.elf,v 1.1 2013/03/04 21:39:55 csun Exp $
-
+%%% $Id: typing.elf,v 1.1 2013/05/11 23:17:19 csun Exp csun $
 
 % abbreviations
 
-%abbrev loc = nat. % location
-
 %abbrev null = (object/ nat`z).	% null object
+
+%abbrev loc = nat. % alias for location
 
 
 % output for type checking
@@ -20,185 +19,244 @@ out : kind -> type.
 %abbrev args-out = out argsk.
 
 
-out/expr : reftype -> efxmap -> expr-out.
+out/expr : reftype -> effects -> expr-out.
 
-out/cond : efxmap -> cond-out.
+out/cond : effects -> cond-out.
 
 out/args/0 : args-out.
 
 out/args/+ : expr-out -> args-out -> args-out.
 
 
+% simple conversion from maybe-efx to efxmap.
+
+maybe-efx2efxmap : maybe-efx -> efxmap -> type.
+
+maybe-efx2efxmap/nothing : maybe-efx2efxmap maybe-efx/nothing efxmap/0.
+
+maybe-efx2efxmap/just : maybe-efx2efxmap (maybe-efx/just X) (shared-efxmap X).
+
+
+%{ restriction on effects (effects/ XS XM) - if location L appears in
+XS, then if L also is a key in XM, the inner-efxmap M that L maps to
+must contain no consume effect }%
+
+not-consume-efx : efx -> type.
+
+not-consume-efx/read : not-consume-efx efx/read.
+
+not-consume-efx/write : not-consume-efx efx/write.
+
+
+no-consume : inner-efxmap -> type.
+
+no-consume/0 : no-consume inner-efxmap/0.
+
+no-consume/U 
+  : inner-efxmap`fresh MP F
+    -> inner-efxmap`update MP F X M
+    -> not-consume-efx X
+    -> no-consume MP
+    -> no-consume M.
+
+
+effects`good : set -> efxmap -> type.
+
+effects`good/0 : effects`good set/0 _.
+
+effects`good/+/in
+  : effects`good S XM
+    <- set`not-member S N
+    <- set`add SP N S
+    <- efxmap`lookup XM N M
+    <- no-consume M
+    <- effects`good SP XM.
+
+effects`good/+/out
+  : effects`good S XM
+    <- set`not-member S N
+    <- set`add SP N S
+    <- efxmap`fresh XM N
+    <- effects`good SP XM.
+
+
+% operations on effects - delegated to its two components.
+
+effects`join : effects -> effects -> effects -> type.
+
+effects`join/
+  : effects`join (effects/ S1 XM1) (effects/ S2 XM2) (effects/ S XM)
+    <- set`union S1 S2 S3
+    <- efxmap`join XM1 XM2 XM
+    <- effects`good S XM.
+
+effects`leq : effects -> effects -> type.
+
+effects`leq/ 
+  : effects`leq (effects/ S1 XM1) (effects/ S2 XM2)
+    <- set`leq S1 S2
+    <- efxmap`leq XM1 XM2.
+
+%abbrev no-effect = (effects/ set/0 efxmap/0).
+
+
 % type judgments
 
-reftyping
-  : loc -> clsmap -> methmap -> cxt -> term K -> out K -> loc -> type.
+reftyping : loc -> clsmap -> methmap -> cxt -> term K -> out K -> loc -> type.
 
-ref-calltyping : loc -> clsmap -> args-out -> methty -> expr-out -> type.
+ref-calltyping : loc -> cxt -> clsmap -> args-out -> methty -> expr-out -> type.
 
-
-% make a "degenerated" reftype depending on the input ty.
-
-make-reftype : loc -> ty -> reftype -> type.
-
-make-reftype/u
-  : make-reftype L (ty/ NN annot/unique C) 
-    (reftype/ (ty/ NN annot/unique C) (utargets L)).
-
-make-reftype/s
-  : make-reftype _ (ty/ NN annot/shared C)
-    (reftype/ (ty/ NN annot/shared C) stargets).
-
-make-reftype/b
-  : make-reftype _ (ty/ NN annot/borrow C)
-    (reftype/ (ty/ NN annot/borrow C) (utargets L)).
 
 ref-calltyping/call
-  : ref-calltyping L _ out/args/0
-    (methty/base T X) (out/expr RT (shared-efxmap X))
-    <- make-reftype L T RT.
+  : ref-calltyping L _ _ out/args/0 (methty/base T MX)
+    (out/expr (reftype/ T (set/1 L) tgtmap/0) (effects/ set/0 XM))
+    <- maybe-efx2efxmap MX XM.
 
-%{ 
-
-R and W are sets of fields being read and write, respectively.
+%{ R and W are sets of fields being read and write, respectively.
 here the order of efxmap`join matters: the effects of evaluating
 arguments should occur first, and then the effects generated
 by evaluating the method call.
 
 TODO: a single unique target cannot be assigned two more than
-      one write effects. 
-}%
+      one write effects. }%
 
-%{
-We could require methty to be well-formed. For (methty/arg _ T RS WS)
-if T is:
-unique - RS should be empty, WS should be domain of fldmap for T.
-shared - both RS and WS should be empty.
-borrow - no restriction on RS and WS.
-}%
-
-%{ wrong here - one unique reference cannot be passed to 
-(say) write effect more than once. }%
 ref-calltyping/args
-  : ref-calltyping L CM (out/args/+ (out/expr RT XM1) AO)
-    (methty/arg MT T RS WS) (out/expr A-RT XM)
-    <- ref-calltyping L CM AO MT (out/expr A-RT XM3)
-    <- subtype CM RT T RS WS XM2
-    <- efxmap`join XM1 XM3 XM4
-    <- efxmap`join XM4 XM2 XM. 
-% TODO: add check on efxmap
+  : ref-calltyping L B CM (out/args/+ (out/expr RT XX1) AO)
+    (methty/arg MT T RS WS) (out/expr A-RT XX)
+    <- ref-calltyping L B CM AO MT (out/expr A-RT XX3)
+    <- subtype B CM RT T RS WS XX2
+    <- effects`join XX1 XX3 XX4
+    <- effects`join XX4 XX2 XX.
 
 
 % expressions
 
 reftyping/lit
-  : reftyping L _ _ B (lit O) (out/expr RT efxmap/0) L
-    <- cxt-lookup B O RT.
+  : reftyping L _ _ B (lit O) 
+    (out/expr (reftype/ T (set/1 N) tgtmap/0) no-effect) L
+    <- cxt`lookup-object B O T N.
 
 reftyping/null
-  : reftyping L _ _ _ (lit null) (out/expr reftype/null efxmap/0) L.
+  : reftyping L _ _ _ (lit null) 
+    (out/expr (reftype/ ty/null set/0 tgtmap/0) no-effect) L.
 
 
-% TODO: how to simplify this?
 
-field-type : targets -> nat -> ty -> efx -> targets -> efxmap -> type.
+consider-fldtype : ty -> tgtmap -> tgtmap -> type.
 
-field-type/s
-  : field-type (targets/ S GM1 SB) 
-    F (ty/ NN annot/shared C) X (targets/ set/0 tgtmap/0 true) XM
-    <- tgtmap`domain GM1 SP
-    <- set`disjoint S SP
-    <- set+nat2tgtmap S F GM2
-    <- bool2tgtmap SB GM4
-    <- tgtmap`join GM1 GM2 GM3
-    <- tgtmap`join GM3 GM4 GM5
-    <- tgtmap2efxmap GM5 X XM.
+consider-fldtype/shared
+  : consider-fldtype (ty/ _ annot/shared _) _ shared-tgtmap.
 
-field-type/u
-  : field-type (targets/ S GM1 SB) 
-    F (ty/ NN annot/unique C) X (targets/ set/0 GM3 SB) XM
-    <- tgtmap`domain GM1 SP
-    <- set`disjoint S SP
-    <- set+nat2tgtmap S F GM2
-    <- bool2tgtmap SB GM4
-    <- tgtmap`join GM1 GM2 GM3
-    <- tgtmap`join GM3 GM4 GM5
-    <- tgtmap2efxmap GM5 X XM.
+consider-fldtype/unique
+  : consider-fldtype (ty/ _ annot/unique _) GM GM.
 
-reftyping/read
-  : reftyping L1 CM MM B (read E F) (out/expr (reftype/ T G1) XM) L2
-    <- reftyping L1 CM MM B E
-      (out/expr (reftype/ (ty/ nn/yes _ C) G2) XM1) L2
-    <- clsmap`lookup CM C FM
-    <- fldmap`lookup FM F T
-    <- field-type G2 F T efx/read G1 XM2
-    <- efxmap`join XM1 XM2 XM.
+
+reftyping/read/shared
+  : reftyping L1 CM MM B E
+    (out/expr (reftype/ (ty/ nn/yes annot/shared C) S GM1) XX1) L2
+    -> clsmap`lookup CM C FM
+    -> fldmap`lookup FM F T
+    -> effects`join XX1 (effects/right (shared-efxmap efx/read)) XX
+    -> reftyping L1 CM MM B (read E F)
+      (out/expr (reftype/ T set/0 shared-tgtmap) XX) L2.
+
+reftyping/read/unique
+  : reftyping L1 CM MM B E
+    (out/expr (reftype/ (ty/ nn/yes annot/unique C) S GM1) XX1) L2
+    -> clsmap`lookup CM C FM
+    -> fldmap`lookup FM F T
+    -> set+nat2tgtmap B S F GM2
+    -> tgtmap`join GM1 GM2 GM
+    -> tgtmap2efxmap GM efx/read XM
+    -> effects`join XX1 (effects/right XM) XX
+    -> consider-fldtype T GM GMP
+    -> reftyping L1 CM MM B (read E F)
+      (out/expr (reftype/ T set/0 GMP) XX) L2.
+
+
+% no field tgt for borrowed.
+
+reftyping/read/borrow
+  : reftyping L1 CM MM B E
+    (out/expr (reftype/ (ty/ nn/yes annot/borrow C) S tgtmap/0) XX1) L2
+    -> clsmap`lookup CM C FM
+    -> fldmap`lookup FM F T
+    -> set+nat2tgtmap B S F GM
+    -> tgtmap2efxmap GM efx/read XM
+    -> effects`join XX1 (effects/ set/0 XM) XX
+    -> consider-fldtype T GM GMP
+    -> reftyping L1 CM MM B (read E F)
+      (out/expr (reftype/ T set/0 GMP) XX) L2.
 
 
 %{ When checking E2, all permissions for E1.F will
  be encumbered and not available. THis is possibly
  too restrictive. But for now, I don't have good solution. }%
 
-% TODO: fix return type.
 reftyping/write
-  : reftyping L1 CM MM B (write E1 F E2) (out/expr RT XM7) L3
+  : reftyping L1 CM MM B (write E1 F E2)
+    (out/expr (reftype/ T set/0 GMP) XX7) L3
     <- reftyping L1 CM MM B E1
-      (out/expr (reftype/ (ty/ nn/yes _ C) G) XM1) L2
-    <- reftyping L2 CM MM B E2 (out/expr RT XM2) L3
+      (out/expr (reftype/ (ty/ nn/yes A C) S GM1) XX1) L2
+    <- reftyping L2 CM MM B E2 (out/expr RT XX2) L3
     <- clsmap`lookup CM C FM
     <- fldmap`lookup FM F T
-    <- field-type G F T efx/write _ XM3
-    <- subtype CM RT T set/0 set/0 XM4
-    <- efxmap`join XM1 XM2 XM5
-    <- efxmap`join XM5 XM3 XM6
-    <- efxmap`join XM6 XM4 XM7.
-      
+    <- set+nat2tgtmap B S F GM2
+    <- tgtmap`join GM1 GM2 GM
+    <- tgtmap2efxmap GM efx/write XM
+    <- subtype B CM RT T set/0 set/0 XX4
+    <- effects`join XX1 XX2 XX5
+    <- effects`join XX5 (effects/ set/0 XM3) XX6
+    <- effects`join XX6 XX4 XX7
+    <- consider-fldtype T GM GMP.
+
 
 %{% Should clear local effects at end
  first, clear effects on locations L1, L1+1, ... , L2-1
  then, remove locations appear in efxmap of T2. %}%
 
 reftyping/let
-  : reftyping L1 CM MM B (let E F) (out/expr RT XM) L3
-    <- reftyping L1 CM MM B E (out/expr (reftype/ T G) XM1) L2
-    <- make-reftype L2 T RT
-    <- ({x} reftyping (s L2)
-         CM MM (cxt/cons x RT B) (F x) (out/expr RT2 XM2) L3)
-    <- efxmap`join XM1 XM2 XM.
+  : reftyping L1 CM MM B (let E F) (out/expr RT XX) L3
+    <- reftyping L1 CM MM B E (out/expr (reftype/ T S GM) XX1) L2
+    <- ({x} reftyping (s L2) CM MM (BF x) (F x) (out/expr RT XX2) L3)
+    <- ({x} cxt`update B L2 (cxtv/ x T) (BF x))
+    <- effects`join XX1 XX2 XX.
+
+
 % TODO: subst
       
 reftyping/if
-  : reftyping L1 CM MM B (if C E1 E2) (out/expr RT XM2) L4
-    <- reftyping L1 CM MM B C (out/cond XM0) L2
-    <- reftyping L2 CM MM B E1 (out/expr RT XM1) L3
-    <- reftyping L3 CM MM B E2 (out/expr RT XM1) L4
-    <- efxmap`join XM0 XM1 XM2.
+  : reftyping L1 CM MM B (if C E1 E2) (out/expr RT XX2) L4
+    <- reftyping L1 CM MM B C (out/cond XX0) L2
+    <- reftyping L2 CM MM B E1 (out/expr RT XX1) L3
+    <- reftyping L3 CM MM B E2 (out/expr RT XX1) L4
+    <- effects`join XX0 XX1 XX2.
 
 
 % conditionals
  
 reftyping/eq
-  : reftyping L1 CM MM B (eql E1 E2) (out/cond XM) L3
-    <- reftyping L1 CM MM B E1 (out/expr _ XM1) L2
-    <- reftyping L2 CM MM B E2 (out/expr _ XM2) L3
-    <- efxmap`join XM1 XM2 XM.
+  : reftyping L1 CM MM B (eql E1 E2) (out/cond XX) L3
+    <- reftyping L1 CM MM B E1 (out/expr _ XX1) L2
+    <- reftyping L2 CM MM B E2 (out/expr _ XX2) L3
+    <- effects`join XX1 XX2 XX.
 
 reftyping/not
   : reftyping L1 CM MM B (not C) R L2
     <- reftyping L1 CM MM B C R L2.
 
 reftyping/and
-  : reftyping L1 CM MM B (and C1 C2) (out/cond XM) L3
-    <- reftyping L1 CM MM B C1 (out/cond XM1) L2
-    <- reftyping L2 CM MM B C2 (out/cond XM2) L3
-    <- efxmap`join XM1 XM2 XM.
+  : reftyping L1 CM MM B (and C1 C2) (out/cond XX) L3
+    <- reftyping L1 CM MM B C1 (out/cond XX1) L2
+    <- reftyping L2 CM MM B C2 (out/cond XX2) L3
+    <- effects`join XX1 XX2 XX.
 
 
 reftyping/args/0 : reftyping L _ _ _ args/0 out/args/0 L.
 
 reftyping/args/+
-  : reftyping L1 CM MM B (args/+ E A) (out/args/+ (out/expr RT XM) R) L3
-    <- reftyping L1 CM MM B E (out/expr RT XM) L2
+  : reftyping L1 CM MM B (args/+ E A) (out/args/+ (out/expr RT XX) R) L3
+    <- reftyping L1 CM MM B E (out/expr RT XX) L2
     <- reftyping L2 CM MM B A R L3.
 
 % return value takes one binding
@@ -207,40 +265,45 @@ reftyping/call
     <- clsmap`fresh CM M
     <- methmap`lookup MM M MT
     <- reftyping L1 CM MM B A AR L2
-    <- ref-calltyping L2 CM AR MT R.
+    <- ref-calltyping L2 B CM AR MT R.
 
 % constructor will have write effect on every field
 reftyping/const
   : reftyping L1 CM MM B
-    (call C (args/+ (alloc C S set/0) A)) (out/expr RT XM) (s L2)
+    (call C (args/+ (alloc C S set/0) A)) (out/expr RT XX) (s L2)
     <- clsmap`lookup CM C FM
     <- fldmap`domain FM S
     <- methmap`lookup MM C (methty/arg MT _ _ _)
     <- reftyping L1 CM MM B A AO L2
-    <- ref-calltyping L2 CM AO MT (out/expr RT XM).
+    <- ref-calltyping L2 B CM AO MT (out/expr RT XX).
+
+
+%{ initial context contains a mapping from null object to the
+special "null class" }%
 
 
 % methtymatch
 
 methtymatch*
-  : loc -> efxmap -> clsmap -> methmap -> cxt -> 
+  : loc -> effects -> clsmap -> methmap -> cxt -> 
     func -> methty -> loc -> type.
 
 methtymatch/base
-  : methtymatch* L1 XM CM MM B (func/0 E) (methty/base T X) L2
-    <- reftyping L1 CM MM B E (out/expr (reftype/ T _) XM2) L2
-    <- efxmap`join XM (shared-efxmap X) XM1 
-    <- efxmap`leq XM2 XM1.
+  : methtymatch* L1 XX CM MM B (func/0 E) (methty/base T MX) L2
+    <- reftyping L1 CM MM B E (out/expr (reftype/ T _ _) XX1) L2
+    <- maybe-efx2efxmap MX XM
+    <- effects`join XX (effects/ set/0 XM) XX2
+    <- effects`leq XX1 XX2.
 
 methtymatch/args
-  : methtymatch* L1 XM1 CM MM B (func/+ F) (methty/arg A T RS WS) L2
-    <- make-reftype L1 T RT
-    <- subtype CM RT T RS WS XM2
-    <- efxmap`join XM1 XM2 XM
-    <- ({o} methtymatch* (s L1) XM CM MM (cxt/cons o RT B) (F o) A L2).
+  : methtymatch* L1 XX1 CM MM B (func/+ F) (methty/arg A T RS WS) L2
+    <- ({x} methtymatch* (s L1) XX CM MM (BF x) (F x) A L2)
+    <- ({x} cxt`update B L1 (cxtv/ x T) (BF x))
+    <- subtype B CM RT T RS WS XX2
+    <- effects`join XX1 XX2 XX.
 
 %abbrev methtymatch 
-  = [CM][MM][F][MT] methtymatch* (s z) efxmap/0 CM MM cxt/nil F MT L.
+  = [CM][MM][F][MT] methtymatch* (s z) no-effect CM MM cxt/nil F MT L.
 
 
 % constructor type
@@ -250,7 +313,7 @@ constyping
   -> cxt -> set -> (object -> expr) -> efxmap -> loc -> type.
 
 % TODO: define later
-constyping/0 : constyping L XM _ _ _ _ set/0 ([t] lit t) XM L.
+constyping/0 : constyping L XX _ _ _ _ set/0 ([t] lit t) XX L.
 
 constymatch*
   : loc -> efxmap -> clsmap -> methmap -> fldmap -> cxt
@@ -286,22 +349,22 @@ methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
 methmapmatch/+/const
   : methmapmatch* CM MM0
     (methmap/+ C (methty/arg CT (ty/ nn/yes _ C) _ _) MM)
-    (prog`map/+ C (func/+ ([t] FF t)) XM)
+    (prog`map/+ C (func/+ ([t] FF t)) XX)
     <- clsmap`lookup CM C FM
     <- select-fields FM S
     <- constymatch CM MM0 FM S FF CT
     <- methmap`shift C MM MM'
-    <- prog`shift C XM XM'
-    <- methmapmatch* CM MM0 MM' XM'.
+    <- prog`shift C XX XX'
+    <- methmapmatch* CM MM0 MM' XX'.
 
 methmapmatch/+/meth
   : methmapmatch* CM MM0
-    (methmap/+ N MT MM) (prog`map/+ N FUN XM)
+    (methmap/+ N MT MM) (prog`map/+ N FUN XX)
     <- clsmap`fresh CM N
     <- methtymatch CM MM0 FUN MT
     <- methmap`shift N MM MM'
-    <- prog`shift N XM XM'
-    <- methmapmatch* CM MM0 MM' XM'.
+    <- prog`shift N XX XX'
+    <- methmapmatch* CM MM0 MM' XX'.
 
 %abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
 

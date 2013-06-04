@@ -1,50 +1,51 @@
 % Subtyping Rules
-% $Id: subtyping.elf,v 1.3 2013/05/17 17:09:26 csun Exp csun $
+% $Id: subtyping.elf,v 1.4 2013/06/02 14:49:11 csun Exp csun $
 
 
-%%% Some extra theorems about set => map
+%%% Definitions
 
-set+nat2tgtmap : set -> nat -> tgtmap -> type.
+set+nat2tgtmap : cxt -> set -> nat -> tgtmap -> type.
 
-set+nat2tgtmap/0 : set+nat2tgtmap set/0 _ tgtmap/0.
+set+nat2tgtmap/0 : set+nat2tgtmap B set/0 _ tgtmap/0.
 
-set+nat2tgtmap/+
-  : set+nat2tgtmap (set/+ L S) F (tgtmap/+ L (set/1 F) GM)
-     <- set+nat2tgtmap S F GM.
+set+nat2tgtmap/UU
+  : set+nat2tgtmap B SP F GMP
+    -> set`not-member SP N
+    -> set`add SP N S
+    -> cxt`lookup B N (cxtv/ _ (ty/ _ annot/unique _))
+    -> tgtmap`update GMP N (set/1 F) GM
+    -> set+nat2tgtmap B S F GM.
 
+set+nat2tgtmap/UB
+  : set+nat2tgtmap B SP F GMP
+    -> set`not-member SP N
+    -> set`add SP N S
+    -> cxt`lookup B N (cxtv/ _ (ty/ _ annot/borrow _))
+    -> tgtmap`update GMP N (set/1 F) GM
+    -> set+nat2tgtmap B S F GM.
 
-set+nat2efxmap : set -> nat -> efx -> efxmap -> type.
-
-set+nat2efxmap/0 : set+nat2efxmap set/0 _ _ efxmap/0.
-
-set+nat2efxmap/+
-  : set+nat2efxmap (set/+ L S) F X
-    (efxmap/+ L (inner-efxmap/+ F X inner-efxmap/0) XM)
-    <- set+nat2efxmap S F X XM.
+set+nat2tgtmap/US
+  : set+nat2tgtmap B SP F GMP
+    -> set`not-member SP N
+    -> set`add SP N S
+    -> cxt`lookup B N (cxtv/ _ (ty/ _ annot/shared _))
+    -> tgtmap`update GMP z (set/1 z) GM
+    -> set+nat2tgtmap B S F GM.
 
   
 % extend the object target set with a field set and generate a field target map.
 
-set+set2tgtmap : set -> set -> tgtmap -> type.
+set+set2tgtmap : cxt -> set -> set -> tgtmap -> type.
 
-set+set2tgtmap/0 : set+set2tgtmap set/0 _ tgtmap/0.
+set+set2tgtmap/0 : set+set2tgtmap _ set/0 _ tgtmap/0.
 
-set+set2tgtmap/+
-  : set+set2tgtmap GS S GM
-    <- set`add SP F S
-    <- set+nat2tgtmap GS F M
-    <- set+set2tgtmap GS SP GMP
-    <- tgtmap`join GMP M GM.
-
-
-%%% Abbreviations
-
-%abbrev shared-tgtmap = (tgtmap/+ nat`z (set/1 nat`z) tgtmap/0). 
-
-%abbrev shared-efxmap = [X] (efxmap/1 nat`z nat`z X).
-
-
-%%% Definitions
+set+set2tgtmap/U
+  : set+set2tgtmap B GS SP GM1
+    -> set`not-member SP F
+    -> set`add SP F S
+    -> set+nat2tgtmap B GS F GM2
+    -> tgtmap`join GM1 GM2 GM
+    -> set+set2tgtmap B GS S GM.
 
 
 % set: set of object targets that are exposed.
@@ -53,6 +54,20 @@ set+set2tgtmap/+
 effects : type.
 
 effects/ : set -> efxmap -> effects.
+
+
+%%% Abbreviations
+
+%abbrev shared-tgtmap = (tgtmap/+ nat`z (set/1 nat`z) tgtmap/0). 
+
+%abbrev shared-efxmap = [X] (efxmap/1 nat`z nat`z X).
+
+%abbrev effects/left = [S] (effects/ S efxmap/0).
+
+%abbrev effects/right = [XM] (effects/ set/0 XM).
+
+%abbrev effects/0 = (effects/ set/0 efxmap/0).
+
 
 
 % determine the max effect from these two sets.
@@ -72,17 +87,17 @@ maximum-effect/write
 This rule is so complicated, mainly because shared annotation.
 I don't know how to simplify it. }%
 
-sub-annot : set -> tgtmap -> set -> set -> set
+sub-annot : cxt -> set -> tgtmap -> set -> set -> set
 	-> annot -> annot -> effects -> type.
 
 %{ GM may contain shared, but it's ok to expose shared. }%
 sub-annot/unique2shared 
-  : sub-annot S GM _ _ _ annot/unique annot/shared (effects/ S XM)
+  : sub-annot _ S GM _ _ _ annot/unique annot/shared (effects/ S XM)
     <- tgtmap2efxmap GM efx/consume XM.
 
 sub-annot/unique2unique
-  : sub-annot S GM1 FS _ _ annot/unique annot/unique (effects/ set/0 XM)
-    <- set+set2tgtmap S FS GM2
+  : sub-annot _ S GM1 FS _ _ annot/unique annot/unique (effects/right XM)
+    <- set+set2tgtmap B S FS GM2
     <- tgtmap`join GM1 GM2 GM
     <- tgtmap2efxmap GM efx/consume XM.
 
@@ -93,9 +108,9 @@ unique/borrow - for shared, the effects should be directly
 mapped to "shared" object. }%
 
 sub-annot/unique2borrow
-  : sub-annot S GM _ RS WS annot/unique annot/borrow (effects/ set/0 XM)
-    <- set+set2tgtmap S RS RGM
-    <- set+set2tgtmap S WS WGM
+  : sub-annot B S GM _ RS WS annot/unique annot/borrow (effects/right XM)
+    <- set+set2tgtmap B S RS RGM
+    <- set+set2tgtmap B S WS WGM
     <- tgtmap`join RGM GM GM1
     <- tgtmap`join WGM GM GM2
     <- tgtmap2efxmap GM1 efx/read XM1
@@ -103,18 +118,18 @@ sub-annot/unique2borrow
     <- efxmap`join XM1 XM2 XM.
 
 sub-annot/shared2borrow
-  : sub-annot _ _ _ RS WS annot/shared annot/borrow (effects/ set/0 XM)
+ : sub-annot _ _ _ _ RS WS annot/shared annot/borrow (effects/right XM)
     <- maximum-effect RS WS XM.
 
 sub-annot/shared2shared
-  : sub-annot _ _ _ _ _ annot/shared annot/shared (effects/ set/0 efxmap/0).
+  : sub-annot _ _ _ _ _ _ annot/shared annot/shared effects/0.
 
 % GM should be empty, and SB should be false
 sub-annot/borrow2borrow
-  : sub-annot S tgtmap/0 
-    _ RS WS annot/borrow annot/borrow (effects/ set/0 XM)
-    <- set+set2tgtmap S RS RGM
-    <- set+set2tgtmap S WS WGM
+  : sub-annot B S tgtmap/0 
+    _ RS WS annot/borrow annot/borrow (effects/right XM)
+    <- set+set2tgtmap B S RS RGM
+    <- set+set2tgtmap B S WS WGM
     <- tgtmap2efxmap RGM efx/read XM1
     <- tgtmap2efxmap WGM efx/write XM2
     <- efxmap`join XM1 XM2 XM.
@@ -127,72 +142,16 @@ sub-nonnull/ : sub-nonnull nonnull/yes nonnull/may.
 
 %{ Subtyping: the two sets are for read and write effects on
 borrowed parameters. They are only used in checking method calls }%
-subtype : clsmap -> reftype -> ty -> set -> set -> effects -> type.
+subtype : cxt -> clsmap -> reftype -> ty -> set -> set -> effects -> type.
 
 subtype/
-  : subtype CM (reftype/ (ty/ NN1 A1 C1) S GM) (ty/ NN2 A2 C2) RS WS XX
-    <- nat`eq C1 C2
-    <- clsmap`lookup CM C1 FM
-    <- fldmap`domain FM FS
-    <- sub-annot S GM FS RS WS A1 A2 XX.
+  : nat`eq C1 C2
+    -> clsmap`lookup CM C1 FM
+    -> fldmap`domain FM FS
+    -> sub-annot B S GM FS RS WS A1 A2 XX
+    -> subtype B CM (reftype/ (ty/ NN1 A1 C1) S GM) (ty/ NN2 A2 C2) RS WS XX.
 
 
 %%% Theorems
 
 %% set+nat2tgtmap
-
-%theorem set+nat2tgtmap-preserves-size
-  : forall* 
-    {S} {F} {GM} {N}
-    forall
-    {-: set+nat2tgtmap S F GM}
-    {-: set`size S N}
-    exists
-    {-: tgtmap`size GM N}
-    true.
-
-- : set+nat2tgtmap-preserves-size 
-    set+nat2tgtmap/0 set`size/0 tgtmap`size/0.
-
-- : set+nat2tgtmap-preserves-size 
-    (set+nat2tgtmap/+ S2GM) (set`size/+ SSZ) (tgtmap`size/+ GMSZ)
-    <- set+nat2tgtmap-preserves-size S2GM SSZ GMSZ.
-    
-%worlds () (set+nat2tgtmap-preserves-size _ _ _).
-%total (D) (set+nat2tgtmap-preserves-size D _ _).
-
-
-%theorem set+nat2tgtmap-preserves-size-converse
-  : forall* 
-    {S} {F} {GM} {N}
-    forall
-    {-: set+nat2tgtmap S F GM}
-    {-: tgtmap`size GM N}
-    exists
-    {-: set`size S N}
-    true.
-
-- : set+nat2tgtmap-preserves-size-converse 
-    set+nat2tgtmap/0 tgtmap`size/0 set`size/0.
-
-- : set+nat2tgtmap-preserves-size-converse 
-    (set+nat2tgtmap/+ S2GM) (tgtmap`size/+ GMSZ) (set`size/+ SSZ)
-    <- set+nat2tgtmap-preserves-size-converse S2GM GMSZ SSZ.
-    
-%worlds () (set+nat2tgtmap-preserves-size-converse _ _ _).
-%total (D) (set+nat2tgtmap-preserves-size-converse D _ _).
-
-
-%theorem shift-preserves-set+nat2efxmap
-  : forall* 
-    {N} {S} {SP} {F} {X} {XM} {XMP}
-    forall
-    {-: set+nat2efxmap S F X XM}
-    {-: set`shift N S SP}
-    {-: efxmap`shift N XM XMP}
-    exists
-    {-: set+nat2efxmap SP F X XMP}
-    true.
-
-%worlds () (shift-preserves-set+nat2efxmap _ _ _ _).
-%trustme %total {} (shift-preserves-set+nat2efxmap _ _ _ _).
