@@ -1,5 +1,30 @@
 %%% Remove a tgtmap from a efxmap
-%%% $Id: efxmap-remove-tgtmap.elf,v 1.1 2013/05/29 16:55:50 csun Exp csun $
+%%% $Id: efxmap-remove-tgtmap.elf,v 1.2 2013/06/03 20:26:42 csun Exp csun $
+
+
+%%% Definitions
+
+% Project a efxmap on a tgtmap, and get another efxmap.
+
+efxmap`project : efxmap -> tgtmap -> efxmap -> type.
+
+efxmap`project/0 : efxmap`project efxmap/0 _ efxmap/0.
+
+efxmap`project/U/out
+  : efxmap`project XM1P GM XM2
+    -> efxmap`fresh XM1P N
+    -> efxmap`update XM1P N M XM1 
+    -> tgtmap`fresh GM N
+    -> efxmap`project XM1 GM XM2.
+
+efxmap`project/U/in
+  : efxmap`project XM1P GM XM2P
+    -> efxmap`fresh XM1P N
+    -> efxmap`update XM1P N M1 XM1
+    -> tgtmap`lookup GM N S
+    -> inner-efxmap`restrict M1 S M2
+    -> efxmap`update XM2P N M2 XM2
+    -> efxmap`project XM1 GM XM2.
 
 
 efxmap`remove-tgtmap : efxmap -> tgtmap -> efxmap -> efxmap -> type.
@@ -7,11 +32,243 @@ efxmap`remove-tgtmap : efxmap -> tgtmap -> efxmap -> efxmap -> type.
 efxmap`remove-tgtmap/
   : efxmap2tgtmap XM GM
     -> tgtmap`remove GM GM2 GM1
-    -> efxmap`restrict-tgtmap XM GM1 XM1
-    -> efxmap`restrict-tgtmap XM GM2 XM2
+    -> efxmap`project XM GM1 XM1
+    -> efxmap`project XM GM2 XM2
     -> efxmap`remove-tgtmap XM GM2 XM1 XM2.
 
-efxmap`false-implies-remove-tgtmap
+
+
+%%% Theorems on projection 
+
+efxmap`false-implies-project*
+  : {XM} {GM} {XMP} {V:void} efxmap`project XM GM XMP -> type.
+%mode efxmap`false-implies-project* +XM +GM +XMP +V -P.
+%worlds () (efxmap`false-implies-project* _ _ _ _ _).
+%total {} (efxmap`false-implies-project* _ _ _ _ _). 
+%abbrev efxmap`false-implies-project = efxmap`false-implies-project* _ _ _.
+
+
+efxmap`project-respects-eq 
+  : efxmap`project XM1 GM1 XM2
+    -> efxmap`eq XM1 XM1P
+    -> tgtmap`eq GM1 GM1P
+    -> efxmap`eq XM2 XM2P
+    -> efxmap`project XM1P GM1P XM2P
+    -> type.
+%mode efxmap`project-respects-eq +P1 +E1 +E2 +E3 -P2.
+
+- : efxmap`project-respects-eq P _ _ _ P.
+
+%worlds () (efxmap`project-respects-eq _ _ _ _ _).
+%total {} (efxmap`project-respects-eq _ _ _ _ _).
+
+
+efxmap`project-unique
+  : efxmap`project XM1 GM1 XM2
+    -> efxmap`project XM1P GM1P XM2P
+    -> efxmap`eq XM1 XM1P
+    -> tgtmap`eq GM1 GM1P
+    -> efxmap`eq XM2 XM2P
+    -> type.
+%mode efxmap`project-unique +P1 +P2 +E1 +E2 -E3.
+
+%worlds () (efxmap`project-unique _ _ _ _ _).
+%trustme %total {} (efxmap`project-unique _ _ _ _ _).
+
+
+efxmap`project-total* : {XM} {GM} {XMP} efxmap`project XM GM XMP -> type.
+%mode efxmap`project-total* +XM +GM -XMP -P.
+
+%worlds () (efxmap`project-total* _ _ _ _).
+%trustme %total {} (efxmap`project-total* _ _ _ _).
+
+%abbrev efxmap`project-total = efxmap`project-total* _ _ _.
+
+
+efxmap`project-implies-leq
+  : efxmap`project XM GM XMP -> efxmap`leq XMP XM -> type.
+
+%mode efxmap`project-implies-leq +P -LE.
+
+- : efxmap`project-implies-leq efxmap`project/0 efxmap`leq/0.
+
+- : efxmap`project-implies-leq 
+    (efxmap`project/U/out P F1 U F2) LE
+    <- efxmap`project-implies-leq P LE1
+    <- efxmap`fresh-update-implies-leq F1 U LE2
+    <- efxmap`leq-transitive LE1 LE2 LE.
+
+- : efxmap`project-implies-leq 
+    (efxmap`project/U/in P F U1 L R U2) LE
+    <- efxmap`project-implies-leq P LE1
+    <- inner-efxmap`restrict-implies-leq R LE2
+    <- efxmap`update-preserves-leq* LE1 LE2 U2 U1 LE. 
+
+%worlds () (efxmap`project-implies-leq _ _).
+%total (P) (efxmap`project-implies-leq P _).
+
+
+efxmap`fresh-update-preserves-project-converse
+  : efxmap`project XM GM XMP
+    -> efxmap`fresh XM N
+    -> tgtmap`fresh GMP N
+    -> tgtmap`update GMP N S GM
+    -> efxmap`project XM GMP XMP
+    -> type.
+%mode efxmap`fresh-update-preserves-project-converse +P1 +F1 +F2 +U -P2.
+
+%worlds () (efxmap`fresh-update-preserves-project-converse _ _ _ _ _).
+%trustme %total {} (efxmap`fresh-update-preserves-project-converse _ _ _ _ _).
+    
+
+efxmap`project-leq-implies-efxmap2tgtmap
+  : efxmap`project XM GM XMP
+    -> tgtmap`leq-efxmap GM XM
+    -> efxmap2tgtmap XMP GM
+    -> type.
+%mode efxmap`project-leq-implies-efxmap2tgtmap +P1 +L -T.
+
+%worlds () (efxmap`project-leq-implies-efxmap2tgtmap _ _ _).
+%trustme %total {} (efxmap`project-leq-implies-efxmap2tgtmap _ _ _).
+
+
+efxmap`project-empty : {XM} efxmap`project XM tgtmap/0 efxmap/0 -> type.
+%mode efxmap`project-empty +XM -P.
+
+efxmap`project-empty/L
+  : {N} efxmap`size XM N
+    -> efxmap`project XM tgtmap/0 efxmap/0 -> type.
+%mode efxmap`project-empty/L +N +SZ -P.
+    
+- : efxmap`project-empty/L z _ efxmap`project/0.
+
+- : efxmap`project-empty/L (s N) SZ
+    (efxmap`project/U/out P F U tgtmap`fresh/0)
+    <- efxmap`can-remove SZ (efxmap`lookup/= nat`eq/) _ K SZ- SEQ U F
+    <- nat`succ-cancels SEQ EQ
+    <- efxmap`size-respects-eq SZ- efxmap`eq/ EQ SZ--
+    <- efxmap`project-empty/L N SZ-- P.
+      
+- : efxmap`project-empty _ P
+    <- efxmap`size-total SZ
+    <- efxmap`project-empty/L _ SZ P.
+
+%worlds () (efxmap`project-empty/L _ _ _).
+%total (N) (efxmap`project-empty/L N _ _).
+
+%worlds () (efxmap`project-empty _ _).
+%total {} (efxmap`project-empty _ _).
+
+
+inner-efxmap`restrict-leq-implies-domain
+  : inner-efxmap`restrict M SP MP
+    -> inner-efxmap`domain M S
+    -> set`leq SP S
+    -> inner-efxmap`domain MP SP
+    -> type.
+%mode inner-efxmap`restrict-leq-implies-domain +R +D1 +L -D2.
+
+- : inner-efxmap`restrict-leq-implies-domain M|SP=MP DM-M=S SP<=S DM-MP=SP
+    <- inner-efxmap`domain-total DM-MP=SPP
+    <- inner-efxmap`restrict-implies-domain-intersection*
+      M|SP=MP DM-M=S DM-MP=SPP S^SP=SPP
+    <- set`intersection-commutative S^SP=SPP SP^S=SPP
+    <- set`leq-implies-intersection SP<=S SP^S=SP
+    <- set`intersection-unique SP^S=SPP SP^S=SP set`eq/ set`eq/ SPP=SP
+    <- inner-efxmap`domain-respects-eq 
+      DM-MP=SPP inner-efxmap`eq/ SPP=SP DM-MP=SP.
+
+%worlds () (inner-efxmap`restrict-leq-implies-domain _ _ _ _).
+%total {} (inner-efxmap`restrict-leq-implies-domain _ _ _ _). 
+    
+
+efxmap`project-preserves-wf/L 
+  : {N} efxmap`size XM N
+    -> tgtmap`leq-efxmap GM XM
+    -> efxmap`project XM GM XMP
+    -> tgtmap`wf GM
+    -> efxmap`wf XMP
+    -> type.
+%mode efxmap`project-preserves-wf/L +N +SZ +LE +P +W1 -W2.
+
+- : efxmap`project-preserves-wf/L _ _ _ P tgtmap`wf/0 WF
+    <- efxmap`project-empty _ P2
+    <- efxmap`project-unique P2 P efxmap`eq/ tgtmap`eq/ EQ
+    <- efxmap`wf-respects-eq efxmap`wf/0 EQ WF.
+
+- : efxmap`project-preserves-wf/L _ SZ GM<=XM
+    (efxmap`project/U/out XM1+GM=>XMP N!<XM1 XM1+N+M1=XM N!<GM) 
+    WF-GM (WF-XMP:efxmap`wf XMP)
+    <- efxmap`fresh-update-increases-size-converse SZ N!<XM1 XM1+N+M1=XM SZS
+    <- tgtmap`fresh-update2-preserves-leq-efxmap-converse
+      GM<=XM N!<GM N!<XM1 XM1+N+M1=XM GM<=XM1
+    <- efxmap`project-preserves-wf/L _ SZS GM<=XM1 XM1+GM=>XMP WF-GM WF-XMP.
+      
+- : efxmap`project-preserves-wf/L _ SZ GM<=XM
+    (efxmap`project/U/in XMP+GM=>XMPP N!<XMP XMP+N+M1=XM
+      GM->N=S M1|S=M2 XMPP+N+M2=XMP) WF-GM WF-XMP
+    <- tgtmap`lookup-implies-fresh-update GM->N=S GMP N!<GMP GMP+N+S=GM
+    <- tgtmap`fresh-update-preserves-leq-efxmap-converse
+      GM<=XM N!<GMP GMP+N+S=GM N!<XMP XMP+N+M1=XM GMP<=XMP
+    <- efxmap`fresh-update-preserves-project-converse
+      XMP+GM=>XMPP N!<XMP N!<GMP GMP+N+S=GM XMP+GMP=>XMPP
+    <- tgtmap`fresh-update-preserves-wf-converse WF-GM N!<GMP GMP+N+S=GM WF-GMP _
+    <- efxmap`fresh-update-increases-size-converse SZ N!<XMP XMP+N+M1=XM SZS
+    <- efxmap`project-preserves-wf/L _ SZS GMP<=XMP XMP+GMP=>XMPP WF-GMP WF-XMPP
+    <- efxmap`update-implies-lookup XMP+N+M1=XM XM->N=M1
+    <- tgtmap`wf-lookup-implies-non-empty WF-GM GM->N=S SZ-S>0
+    <- tgtmap`lookup-respects-leq-efxmap* GM->N=S GM<=XM XM->N=M1 SP DM-M1=SP S<=SP
+    <- inner-efxmap`restrict-leq-implies-domain M1|S=M2 DM-M1=SP S<=SP DM-M2=S
+    <- inner-efxmap`domain-preserves-size-converse SZ-S>0 DM-M2=S SZ-M2>0
+    <- efxmap`update-preserves-wf WF-XMPP SZ-M2>0 XMPP+N+M2=XMP WF-XMP.
+ 
+%worlds () (efxmap`project-preserves-wf/L _ _ _ _ _ _).
+%total (N) (efxmap`project-preserves-wf/L N _ _ _ _ _). 
+
+
+efxmap`project-preserves-wf
+  : tgtmap`wf GM
+    -> tgtmap`leq-efxmap GM XM
+    -> efxmap`project XM GM XMP
+    -> efxmap`wf XMP
+    -> type.
+%mode efxmap`project-preserves-wf +W1 +LE +P -W2.
+
+- : efxmap`project-preserves-wf WF LE P WF2
+    <- efxmap`size-total SZ
+    <- efxmap`project-preserves-wf/L _ SZ LE P WF WF2.
+
+%worlds () (efxmap`project-preserves-wf _ _ _ _).
+%total {} (efxmap`project-preserves-wf _ _ _ _).
+   
+    
+efxmap`fresh-update-preserves-project
+  : efxmap`project XM GM XMP
+    -> efxmap`fresh XM N
+    -> tgtmap`update GM N S GMP
+    -> efxmap`project XM GMP XMP
+    -> type.
+%mode efxmap`fresh-update-preserves-project +P1 +F +U -P2.
+
+%worlds () (efxmap`fresh-update-preserves-project _ _ _ _).
+%trustme %total {} (efxmap`fresh-update-preserves-project _ _ _ _).
+
+
+efxmap`project-no-change 
+  : efxmap2tgtmap XM GM -> efxmap`project XM GM XM -> type.
+
+%mode efxmap`project-no-change +T -P.
+
+%worlds () (efxmap`project-no-change _ _).
+%trustme %total {} (efxmap`project-no-change _ _).
+
+
+
+
+%%% Theorems on remove-tgtmap
+
+
+efxmap`false-implies-remove-tgtmap 
   : void -> efxmap`remove-tgtmap XM GM XM1 XM2 -> type.
 
 %mode +{V} +{XM} +{GM} +{XM1} +{XM2} -{R:efxmap`remove-tgtmap XM GM XM1 XM2}
@@ -46,19 +303,18 @@ efxmap`remove-tgtmap-unique
     -> efxmap`eq XM1 XM1P
     -> efxmap`eq XM2 XM2P
     -> type.
-
 %mode efxmap`remove-tgtmap-unique +D1 +D2 +E1 +E2 -E1 -E2.
 
 - : efxmap`remove-tgtmap-unique 
-    (efxmap`remove-tgtmap/ T R R1 R2)
-    (efxmap`remove-tgtmap/ TP RP R1P R2P) XM-E GM2-E XM1-E XM2-E
+    (efxmap`remove-tgtmap/ T R P1 P2)
+    (efxmap`remove-tgtmap/ TP RP P1P P2P) XM-E GM2-E XM1-E XM2-E
     <- efxmap2tgtmap-unique T TP XM-E GM-E
     <- tgtmap`remove-deterministic R RP GM-E GM2-E GM1-E
-    <- efxmap`restrict-tgtmap-unique R1 R1P XM-E GM1-E XM1-E
-    <- efxmap`restrict-tgtmap-unique R2 R2P XM-E GM2-E XM2-E.
+    <- efxmap`project-unique P1 P1P XM-E GM1-E XM1-E
+    <- efxmap`project-unique P2 P2P XM-E GM2-E XM2-E.
 
 %worlds () (efxmap`remove-tgtmap-unique _ _ _ _ _ _).
-%total R (efxmap`remove-tgtmap-unique R _ _ _ _ _).
+%total (R) (efxmap`remove-tgtmap-unique R _ _ _ _ _).
 
 
 efxmap`remove-tgtmap-total*
@@ -66,49 +322,20 @@ efxmap`remove-tgtmap-total*
     -> tgtmap`wf GM 
     -> {XM1} {XM2} efxmap`remove-tgtmap XM GM XM1 XM2 
     -> type.
-
-%mode +{XM} +{GM} +{WF1} +{WF2}
--{XM1} -{XM2} -{R:efxmap`remove-tgtmap XM GM XM1 XM2}
-efxmap`remove-tgtmap-total* XM GM WF1 WF2 XM1 XM2 R.
+%mode efxmap`remove-tgtmap-total* +XM +GM +WF1 +WF2 -XM1 -XM2 -R.
 
 - : efxmap`remove-tgtmap-total* 
     _ _ WF1 WF2  _ _ (efxmap`remove-tgtmap/ XM=>GM RM R1 R2)
     <- efxmap2tgtmap-total XM=>GM
     <- efxmap2tgtmap-preserves-wf WF1 XM=>GM WF1x
     <- tgtmap`remove-total WF1x WF2 _ RM
-    <- efxmap`restrict-tgtmap-total R1
-    <- efxmap`restrict-tgtmap-total R2.
+    <- efxmap`project-total R1
+    <- efxmap`project-total R2.
 
 %worlds () (efxmap`remove-tgtmap-total* _ _ _ _ _ _ _).
-%total { } (efxmap`remove-tgtmap-total* _ _ _ _ _ _ _).
+%total {} (efxmap`remove-tgtmap-total* _ _ _ _ _ _ _).
 
 %abbrev efxmap`remove-tgtmap-total = efxmap`remove-tgtmap-total* _ _.
-
-
-efxmap`shift-preserves-remove-tgtmap
-  : efxmap`remove-tgtmap XM GM XM1 XM2
-    -> efxmap`shift N XM XMP
-    -> tgtmap`shift N GM GMP
-    -> {XM1P} {XM2P} efxmap`shift N XM1 XM1P
-    -> efxmap`shift N XM2 XM2P
-    -> efxmap`remove-tgtmap XMP GMP XM1P XM2P
-    -> type.
-%mode efxmap`shift-preserves-remove-tgtmap +R1 +S1 +S2 -XM1 -XM2 -SH3 -SH4 -R3.
-
-- : efxmap`shift-preserves-remove-tgtmap
-    (efxmap`remove-tgtmap/ XM2GM GM/GM2=GM1 XM+GM1=>XM1 XM+GM2=>XM2)
-    N<<XM=XMP N<<GM2=GM2P XM1P XM2P N<<XM1=XM1P N<<XM2=XM2P 
-    (efxmap`remove-tgtmap/ XMP2GMP GMP/GM2P=GM1P XMP+GM1P=>XM1P XMP+GM2P=>XM2P)
-    <- shift-preserves-efxmap2tgtmap XM2GM N<<XM=XMP GMP N<<GM=GMP XMP2GMP
-    <- tgtmap`shift-preserves-remove
-      GM/GM2=GM1 N<<GM=GMP N<<GM2=GM2P GM1P N<<GM1=GM1P GMP/GM2P=GM1P
-    <- efxmap`shift-preserves-restrict-tgtmap
-      XM+GM1=>XM1 N<<XM=XMP N<<GM1=GM1P XM1P N<<XM1=XM1P XMP+GM1P=>XM1P
-    <- efxmap`shift-preserves-restrict-tgtmap
-      XM+GM2=>XM2 N<<XM=XMP N<<GM2=GM2P XM2P N<<XM2=XM2P XMP+GM2P=>XM2P.
-
-%worlds () (efxmap`shift-preserves-remove-tgtmap _ _ _ _ _ _ _ _).
-%total { } (efxmap`shift-preserves-remove-tgtmap _ _ _ _ _ _ _ _).
 
 
 efxmap`remove-tgtmap-implies-leq
@@ -119,13 +346,35 @@ efxmap`remove-tgtmap-implies-leq
 %mode efxmap`remove-tgtmap-implies-leq +XM/GM=XM1+XM2 -XM1<=XM -XM2<=XM.
 
 - : efxmap`remove-tgtmap-implies-leq
-    (efxmap`remove-tgtmap/ XM2GM GM/GM2=GM1 XM/GM1=XM1 XM/GM2=XM2)
+    (efxmap`remove-tgtmap/ XM2GM GM/GM2=GM1 XM+GM1=>XM1 XM+GM2=>XM2)
     XM1<=XM XM2<=XM
-    <- efxmap`restrict-tgtmap-implies-leq XM/GM1=XM1 XM1<=XM  
-    <- efxmap`restrict-tgtmap-implies-leq XM/GM2=XM2 XM2<=XM.
+    <- efxmap`project-implies-leq XM+GM1=>XM1 XM1<=XM
+    <- efxmap`project-implies-leq XM+GM2=>XM2 XM2<=XM.
 
 %worlds () (efxmap`remove-tgtmap-implies-leq _ _ _).
 %total { } (efxmap`remove-tgtmap-implies-leq _ _ _).
+
+
+efxmap`remove-tgtmap-implies-wf
+  : tgtmap`leq-efxmap GM2 XM
+    -> efxmap`remove-tgtmap XM GM2 XM1 XM2
+    -> efxmap`wf XM1
+    -> efxmap`wf XM2
+    -> type.
+%mode efxmap`remove-tgtmap-implies-wf +LE +R -W1 -W2.
+
+- : efxmap`remove-tgtmap-implies-wf GM2<=XM
+    (efxmap`remove-tgtmap/ XM=>GM GM/GM2=GM1 XM+GM1=>XM1 XM+GM2=>XM2)
+    WF-XM1 WF-XM2
+    <- tgtmap`remove-implies-wf GM/GM2=GM1 WF-GM WF-GM2 WF-GM1
+    <- efxmap2tgtmap-preserves-wf-converse WF-GM XM=>GM WF-XM
+    <- tgtmap`remove-implies-leq GM/GM2=GM1 GM1<=GM
+    <- efxmap`project-preserves-wf
+      WF-GM1 (tgtmap`leq-efxmap/ GM1<=GM XM=>GM) XM+GM1=>XM1 WF-XM1
+    <- efxmap`project-preserves-wf WF-GM2 GM2<=XM XM+GM2=>XM2 WF-XM2.
+      
+%worlds () (efxmap`remove-tgtmap-implies-wf _ _ _ _).
+%total {} (efxmap`remove-tgtmap-implies-wf _ _ _ _). 
 
 
 efxmap`fresh-update-preserves-remove-tgtmap-converse
@@ -181,7 +430,7 @@ efxmap`fresh-update-preserves-remove-tgtmap-converse/L
     <- efxmap2tgtmap-preserves-fresh XM2GM N!<XM N!<GM
     <- efxmap`fresh-update-preserves-remove-tgtmap-converse/L
       GM/GM2=GM1 N!<GM N!<GM2P GM2P+N+S=GM2 GM/GM2P=GM1
-    <- efxmap`fresh-update-preserves-restrict-tgtmap-converse
+    <- efxmap`fresh-update-preserves-project-converse 
       XM|GM2=XM2 N!<XM N!<GM2P GM2P+N+S=GM2 XM|GM2P=XM2.
 
 %worlds () (efxmap`fresh-update-preserves-remove-tgtmap-converse _ _ _ _ _).
@@ -196,12 +445,52 @@ efxmap`remove-tgtmap-implies-efxmap2tgtmap
 %mode efxmap`remove-tgtmap-implies-efxmap2tgtmap +R +LE -T.
 
 - : efxmap`remove-tgtmap-implies-efxmap2tgtmap
-    (efxmap`remove-tgtmap/ _ _ _ XM|GM2=XM2) GM2<=XM XM2=>GM2
-    <- efxmap`restrict-tgtmap-implies-efxmap2tgtmap 
-      GM2<=XM XM|GM2=XM2 XM2=>GM2.
+    (efxmap`remove-tgtmap/ _ _ _ XM|GM2=>XM2) GM2<=XM XM2=>GM2
+    <- efxmap`project-leq-implies-efxmap2tgtmap XM|GM2=>XM2 GM2<=XM XM2=>GM2.
 
 %worlds () (efxmap`remove-tgtmap-implies-efxmap2tgtmap _ _ _).
-%total { } (efxmap`remove-tgtmap-implies-efxmap2tgtmap _ _ _).
+%total {} (efxmap`remove-tgtmap-implies-efxmap2tgtmap _ _ _).
+
+
+% a dummy theorem which wraps upon
+% efxmap`restrict-tgtmap-implies-efxmap2tgtmap.
+
+efxmap`remove-tgtmap-leq-implies-domain
+  : efxmap`remove-tgtmap XM GM2 XM1 XM2
+    -> tgtmap`leq-efxmap GM2 XM
+    -> tgtmap`domain GM2 S
+    -> efxmap`domain XM2 S
+    -> type.
+%mode efxmap`remove-tgtmap-leq-implies-domain +R +LE +D1 -D2.
+
+- : efxmap`remove-tgtmap-leq-implies-domain
+    (efxmap`remove-tgtmap/ XM=>GM GM/GM2=GM1 XM|GM1=XM1 XM|GM2=XM2)
+    GM2<=XM DM-GM2=S DM-XM2=S
+    <- efxmap`project-leq-implies-efxmap2tgtmap
+      XM|GM2=XM2 GM2<=XM XM2=>GM2
+    <- efxmap2tgtmap-preserves-domain-converse XM2=>GM2 DM-GM2=S DM-XM2=S.
+
+%worlds () (efxmap`remove-tgtmap-leq-implies-domain _ _ _ _).
+%total {} (efxmap`remove-tgtmap-leq-implies-domain _ _ _ _).
+
+
+efxmap`remove-tgtmap-left-empty
+  : efxmap`wf XM2 
+    -> efxmap2tgtmap XM2 GM2
+    -> efxmap`remove-tgtmap XM2 GM2 efxmap/0 XM2
+    -> type.
+%mode efxmap`remove-tgtmap-left-empty +WF +T -R.
+
+- : efxmap`remove-tgtmap-left-empty WF-XM2 XM2=>GM2
+    (efxmap`remove-tgtmap/ XM2=>GM2 R XM2|0=0 XM2|GM2=XM2)
+    <- efxmap2tgtmap-preserves-wf WF-XM2 XM2=>GM2 WF-GM2
+    <- tgtmap`leq-reflexive _ GM2<=GM2 
+    <- tgtmap`leq-implies-remove-all WF-GM2 WF-GM2 GM2<=GM2 R
+    <- efxmap`project-no-change XM2=>GM2 XM2|GM2=XM2
+    <- efxmap`project-empty _ XM2|0=0.
+
+%worlds () (efxmap`remove-tgtmap-left-empty _ _ _).
+%total {} (efxmap`remove-tgtmap-left-empty _ _ _).
 
 
 efxmap`remove-tgtmap-implies-join
@@ -248,7 +537,6 @@ efxmap`fresh-update2-preserves-remove-tgtmap
 
 %worlds () (efxmap`fresh-update2-preserves-remove-tgtmap _ _ _ _ _).
 %trustme %total { } (efxmap`fresh-update2-preserves-remove-tgtmap _ _ _ _ _).
-
 
 
 efxmap2tgtmap-right-implies-remove-tgtmap
