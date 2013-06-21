@@ -1,22 +1,191 @@
-%%% effect map
+%%% Effect Map
 
-%%% I think we don't need efxmap-value/obj
-%%% since we can represent that as the set
-%%% of all fields.
+% Restricting a inner-efxmap according to a tgtmap 
+
+trans : nat -> inner-efxmap -> tgtmap -> inner-efxmap -> type.
+
+trans/in : tgtmap`lookup GM N S
+         -> inner-efxmap`restrict M S MP
+         -> trans N M GM MP.
+
+trans/out : tgtmap`fresh GM N
+            -> trans N M GM M.
+
+trans-unique
+  : trans N D1 X1 D1P
+    -> trans N D2 X2 D2P
+    -> inner-efxmap`eq D1 D2
+    -> tgtmap`eq X1 X2
+    -> inner-efxmap`eq D1P D2P
+    -> type.
+%mode trans-unique +T1 +T2 +E1 +E2 -E3.
+
+- : trans-unique 
+    (trans/in L1 R1) (trans/in L2 R2)
+    D1=D2 X1=X2 D1P=D2P
+    <- tgtmap`lookup-unique L1 L2 X1=X2 nat`eq/ S1=S2
+    <- inner-efxmap`restrict-unique R1 R2 D1=D2 S1=S2 D1P=D2P. 
+
+- : trans-unique
+    (trans/out _) (trans/out _) _ _ inner-efxmap`eq/.
+
+- : trans-unique
+    (trans/in L _) (trans/out F) D1=D2 X1=X2 D1P=D2P
+    <- tgtmap`lookup-respects-eq L X1=X2 nat`eq/ set`eq/ LP
+    <- tgtmap`fresh-lookup-not-equal F LP N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- inner-efxmap`false-implies-eq V D1P=D2P.
+
+- : trans-unique
+    (trans/out F) (trans/in L _) D1=D2 X1=X2 D1P=D2P
+    <- tgtmap`lookup-respects-eq L X1=X2 nat`eq/ set`eq/ LP
+    <- tgtmap`fresh-lookup-not-equal F LP N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- inner-efxmap`false-implies-eq V D1P=D2P.
+
+%worlds () (trans-unique _ _ _ _ _).
+%total  {} (trans-unique _ _ _ _ _).
+
+
+trans-total* : {N} {D} {X} {DP} trans N D X DP -> type.
+%mode trans-total* +N +D +X -DP -T.
+
+trans-total*/L : {N} {D} {X} {B} tgtmap`domain? X N B -> {DP} trans N D X DP -> type.
+%mode trans-total*/L +N +D +X +B +DM -DP -T.
+
+- : trans-total*/L _ _ _ true
+    (tgtmap`domain?/in L) _ (trans/in L R)
+    <- inner-efxmap`restrict-total R.
+
+- : trans-total*/L _ _ _ false
+    (tgtmap`domain?/out F) _ (trans/out F).
+
+%worlds () (trans-total*/L _ _ _ _ _ _ _).
+%total  {} (trans-total*/L _ _ _ _ _ _ _).
+
+- : trans-total* N D X DP T
+    <- tgtmap`domain?-total DM?
+    <- trans-total*/L N D X B DM? DP T.
+
+%worlds () (trans-total* _ _ _ _ _).
+%total  {} (trans-total* _ _ _ _ _).
+
+
+trans-right-preserves-leq*
+  : inner-efxmap`leq D1 D2
+    -> trans N D1 X D1P
+    -> trans N D2 X D2P
+    -> inner-efxmap`leq D1P D2P
+    -> type.
+%mode trans-right-preserves-leq* +LE1 +T1 +T2 -LE2.
+
+- : trans-right-preserves-leq*
+    D1<=D2 (trans/in L1 R1) (trans/in L2 R2) D1P<=D2P
+    <- tgtmap`lookup-unique L1 L2 tgtmap`eq/ nat`eq/ S1=S2
+    <- inner-efxmap`restrict-respects-eq R1 inner-efxmap`eq/ S1=S2
+    inner-efxmap`eq/ R1x
+    <- inner-efxmap`restrict-right-preserves-leq D1<=D2 R1x R2 D1P<=D2P.
+
+- : trans-right-preserves-leq*
+    D1<=D2 (trans/out _) (trans/out _) D1<=D2.
+
+- : trans-right-preserves-leq*
+    _ (trans/in L _) (trans/out F) LE
+    <- tgtmap`fresh-lookup-not-equal F L N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- inner-efxmap`false-implies-leq V LE.
+
+- : trans-right-preserves-leq*
+    _ (trans/out F) (trans/in L _) LE
+    <- tgtmap`fresh-lookup-not-equal F L N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- inner-efxmap`false-implies-leq V LE.
+
+%worlds () (trans-right-preserves-leq* _ _ _ _).
+%total  {} (trans-right-preserves-leq* _ _ _ _).
+
+
+% NO trans-left-preserves-leq*
+
+trans-implies-leq : trans N M1 GM M2 -> inner-efxmap`leq M2 M1 -> type.
+%mode trans-implies-leq +T -LE.
+
+- : trans-implies-leq (trans/in _ R) LE
+    <- inner-efxmap`restrict-implies-leq R LE.
+
+- : trans-implies-leq (trans/out F) LE
+    <- inner-efxmap`leq-reflexive _ LE.
+
+%worlds () (trans-implies-leq _ _).
+%total { } (trans-implies-leq _ _).
+
+
+update-preserves-trans
+  : trans N1 M GM MP
+    -> tgtmap`update GM N2 S GMP
+    -> nat`ne N1 N2
+    -> trans N1 M GMP MP
+    -> type.
+%mode update-preserves-trans +T1 +U1 +NE -T2.
+
+- : update-preserves-trans
+    (trans/in L R) U NE (trans/in LP R)
+    <- tgtmap`update-preserves-lookup L U NE LP.
+
+- : update-preserves-trans
+    (trans/out F) U NE (trans/out FP)
+    <- tgtmap`update-preserves-fresh F U NE FP.
+
+%worlds () (update-preserves-trans _ _ _ _).
+%total (T) (update-preserves-trans T _ _ _).
+
+
+fresh-update-preserves-trans-converse
+  : trans N1 M GM MP
+    -> tgtmap`fresh GMP N2
+    -> tgtmap`update GMP N2 S GM
+    -> nat`ne N1 N2 
+    -> trans N1 M GMP MP
+    -> type.
+%mode fresh-update-preserves-trans-converse +T1 +F1 +U1 +NE -T2.
+
+- : fresh-update-preserves-trans-converse
+    (trans/in L R) F U NE (trans/in LP R)
+    <- tgtmap`update-preserves-lookup-converse L U NE LP.
+
+- : fresh-update-preserves-trans-converse
+    (trans/out FP) F U _ (trans/out FPP)
+    <- tgtmap`fresh-update-implies-leq F U LE
+    <- tgtmap`fresh-respects-geq FP LE FPP.
+
+%worlds () (fresh-update-preserves-trans-converse _ _ _ _ _).
+%total { } (fresh-update-preserves-trans-converse _ _ _ _ _).
+
 
 %{%
 #define data inner-efxmap
+#define arg tgtmap
 #define DATA_JOIN_DETERMINISTIC 1
+#define DATA_JOIN_COMMUTATIVE 1
 #define DATA_JOIN_IMPLIES_LEQ 1
+#define DATA_JOIN_ASSOCIATIVE 1
+#define MAP_TRANS_UNIQUE 1
+#define MAP_TRANS_TOTAL 1
+#define DATA_JOIN_DISJOINT_RIGHT_LEQ_IMPLIES_LEQ 1
 BEGIN_ELF
 #include "map-base.elf"
 #include "map-leq.elf"
-#include "map-domain.elf"
 #include "map-join.elf"
+#include "map-join-extra.elf"
+#include "map-domain.elf"
+#include "map-wf.elf"
 #include "map-deep-disjoint.elf"
 #include "map-restrict.elf"
+#include "map-restrict-extra.elf"
+#include "map-trans.elf"
 END_ELF
 #undef data
+#undef arg
 %}%
 
 %%% Renamings
@@ -24,3 +193,5 @@ END_ELF
 %abbrev efxmap = map.
 %abbrev efxmap/0 = map/0.
 %abbrev efxmap/+ = map/+.
+%abbrev efxmap/1 : nat -> nat -> efx -> map
+  = [N][F][X] (map/+ N (inner-efxmap/+ F X inner-efxmap/0) map/0).

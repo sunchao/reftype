@@ -1,0 +1,519 @@
+$Id: log.org,v 1.6 2013/06/03 02:47:29 csun Exp csun $
+
+This is the log I kept while writing proof for my type system.
+
+<2013-02-19 Tue>
+
+Cannot check expression like:
+
+  let x = {a, a.f} in x.g end
+
+The reason is permission for a.f is encumbered while checking
+x.g.
+
+<2013-03-04 Mon>
+
+Right now I am using a special target 0.0 to represent 
+the world target. However, this causes much problem in 
+transformation. Maybe we don't need to represent the "world" target
+at all. 
+
+<2013-03-05 Tue>
+
+Looks like we need a special treatment on shared type. 
+For shared type, it should be associated with no target, since all
+effects are mapped to the world object, and we enforce that
+the input and output both have write shared effects.
+
+Checking shared targets should be pretty easy, suppose we have a 
+expression a.b.c...f, then on the path from f to a, any of them
+is shared type, then the target should be shared, otherwise it
+will be unique, and have a set and tgtmap associated.
+
+[after a lot of changes...]
+
+A problem occured when proving s.u, 
+we need to have this unique permission in the output. However,
+the current transformation only takes reftgts as input, and thus
+will produce a nesting fact about the result value, which is 
+not correct. 
+
+ 
+Let's consider the four possible cases:
+
+base (e)       field  (f)      result targets      result effects
+unique         unique          unique {e.f}        X e.f
+unique         shared          shared              X shared
+shared         unique          
+shared         shared         
+
+<2013-03-21 Thu>
+
+In the typing rules for read, we have a restriction
+that the object target set should be disjoint with the
+key sets of field target set. This is because the case:
+
+(if x < 3 then a else a.f).f
+
+To type check the above, we first need to type check
+if x < 3 then a else a.f, and get following permission as output:
+
+\exists z \exists r
+    (r == r_a \/ r == r' + 
+    z(r'.all -> 0 + P(r')) + z(r'.all -> 0 + P(r')) --+- 
+    \exists r_f z(r.f -> r_f + r_f.all -> 0 + P(r_f)))
+
+(assuming f is unique)
+
+The input effect for above is "read a.f"
+
+Then, to check the whole expression, we have "write a.f" as 
+input effect, and we have essentially the same permission
+as above except the fraction z is removed. 
+
+The problem is we cannot use this permission to read field f,
+since we need (\exists r_f (r.f -> r_f + r_f.all -> 0 + P(r_f)))
+to check the "then" case, but this permission is encumbered
+by the "else" case. 
+
+<2013-05-05 Sun>
+
+When checking E.F, we need to differentiate the cases when
+E is shared or borrow. When E is shared, we should produce a 
+read effect on the special "shared" target directly. When E 
+is unique (which only happens when E is a method parameter), then
+we should produce a read effect on E.F.
+
+(added later)
+
+I thought a lot about how to represent "shared" targets. There
+are three options initially:
+
+1) put it into set, using a special number, like 0
+2) put it into tgtmap, using a special entry, like 0->0
+3) use a extra bool, to indicate if resulting targets include shared.
+
+For option 1), the main problem is it adds extra complexity to the
+other operations and theorems. For instance, when we do methtymatch,
+we need to do extra check for each parameter, to see it's unique or
+shared. If later, we should use 0 as its target. When we converting
+tgtmap to efxmap, we need to do extra processing, so that the 
+converted efxmap can later generate the right permission 
+for shared: 0.0 -> 0. 
+
+For option 2), the main problem is some of existing 
+assumptions/proofs need to be redone. For instance, one important
+assumption right now is for every tgtmap GM and efxmap XM in 
+output/expr, GM <= XM. This won't be true if we allow 0->0 in GM.
+
+I chose option 3) at end. The biggest advantage is it won't violate
+many theorems I had so far, so it's easier to adapt. Also, it makes
+things more clear by using a distinct "shared" flag - if we put 
+shared target in either set or tgtmap, then many operations on 
+set/tgtmap need to treat the shared target differently than other
+values.
+
+
+<2013-05-07 Tue>
+
+I always had the wrong impression that for consume effect on a.f,
+it converts to:
+
+  input: \exists r_f (r_a.f -> r_f, r_f.all -> 0, P(r_f))
+  output: empty
+
+but instead, maybe we should keep the permission on r_a.f -> r_f.
+It doesn't like to make any difference for the current design, since
+once a unique field is consumed, it is never allowed to be read/write
+again. Therefore, it is safe to set it to be empty. But, it would
+be more precise to make output permission to be:
+
+  output: \exists r_f (r_a.f -> r.f, empty, P(r_f))
+
+Then, if the type system is flow-sensitive, we can restore
+the permission by assigning this field to something else.
+
+Maybe we can define a extra rule for efx`join
+
+  efx`join/X: efx`join efx/consume efx/write efx/write.
+
+Update (<2013-05-08 Wed>): This may not work. Suppose we pass
+the target to a method parameter on which there's write effect.
+Inside the method body, the target may not be written.
+
+Also, a direct affect from above is that, before I disallow join
+operations between consume and read/write. Instead, these should
+be legal (same for expose.)
+
+For expose effect on a.f, the input and output permission should both be:
+
+  \exists r_f (r_a.f -> r_f, r_f.all < null.all, P(r_f))
+
+Notice that here "f" is annoated as unique. With this expose effect,
+we cannot restore class invariant on object referred by "a". For instance,
+we cannot pass "a" to a unique method parameter. This is solved right now,
+because a unique method parameter is transformed into consume effects on
+all of a's fields, and a consume effect is incompatible with a expose
+effect.
+
+ABOUT FROM TYPE
+
+I think it should be able to bring "from" type into my current
+system. The "from" type is only used on method return value. Currently,
+method return value can be unique or shared. If the return value is typed
+unique, and we pass permission
+
+  r.all -> 0, r.all -> 0 ---+- (effects)
+
+to return value, then all permissions from effect are marked as consumed.
+
+<2013-05-09 Thu>
+
+There are two restrictions on tWrite.
+
+1. after a unique field is consumed, there's no way to "restore"
+the permission, even in some cases it is perfectly possible. 
+(for instance, assign a new object to the consumed immediately after.)
+
+2. expressions like a.f = a.f.g is not allowed. (checking a.f.g 
+requires a "packed" field permission on a.f, but the same permission
+should be kept unpacked on the left side.
+
+
+<2013-05-13 Mon>
+
+It turns out my current definition for reftype is still not precise
+enough. For shared reference, it doesn't actually need the
+target information,since its only target is the special "world" object. 
+For unique reference, its target is unchanged.
+
+Now I have two choices. First, I could define shared reftype as:
+
+  reftype/shared : nonnull -> nat -> reftype.
+
+and unique reftype as:
+  
+  reftype/unique : nonnull -> nat -> set -> tgtmap -> reftype.
+
+But the ugly part is, unique reference can also be coming from shared,
+and thus we need to encode shared target in reftype/unique. 
+Also, how about borrowed references? Can they use the same reftype/unique?
+Obviously NO!
+
+My current definition, instead, is as follows:
+
+  reftype/ : ty -> set -> tgtmap -> reftype.
+
+For a well-formed shared reftype, it should have empty set, and the
+only element in tgtmap is the shared target. 
+
+
+<2013-05-13 Mon>
+
+I was trying to prove that if XM1 <= XM2, XM1 => Pi1, XM2 => Pi2,
+then Pi1 implies Pi2. However, this doesn't apply to "expose"
+effect, as it produces shared permission for unique references.
+
+  expose: \exists r_f (r.f->r_f,r_f.all<null.all,P(r_f))
+
+Thinking again, I think I made a wrong definition for
+converting expose effect. For instance, write effect join
+expose effect "should" produce a expose effect. But, if we convert
+expose like above, we won't get permission for the write effect.
+
+
+<2013-05-14 Tue>
+
+I also made a wrong definition for consume effect.
+
+Currently, the output permission for consume effect on a.f is:
+
+  \exists r_f (r_a.f->r_f, P(r_f))
+
+However, if we consume the object a as whole, then we won't be able
+to keep the field permission on a.f. A more conservative way is to
+use empty permission as output. That is, once consumed, we lost
+every hope of restoring the permission.
+
+ A tricker question is about expose effect. Like consume, one could also
+expose a entire object, and thus the current definition:
+
+  \exists r_f (r_a.f->r_f, r_f.all < null.all, P(r_f))
+
+won't work. We can change it to the following:
+
+  \exists r_f (r_a.f->r_f, r_f.all->0, P(r_f)) < null.all
+
+And then, we need to be more conservative about expose: expose 
+will produce a write effect on shared target. We then can type check
+write /\ expose = expose.
+
+
+<2013-05-16 Thu>
+
+Yesterday's discussion with Prof. Boyland was helpful. Regarding
+expose effect, I ignored one fact: after exposing a target like
+x.u.v, x.u will be *totally messed up*, since the invariant for object
+refered by x.u will be broken. Therefore, we need to change our system
+to accomodate this case.
+
+The easiest way to handle this case is to only allow expose
+on the object level, all exposes on fields are treated as consume.
+It's hard to track expose effect on arbitrary level field, given
+current design of tgtmap in our system.
+
+For read and write effects, we only need to track on the first level
+because of the way method effects are declared. For consume and expose
+effects, it would be nice if we can track them on arbitrary level. 
+However, this poses problems:
+
+  how to convert these *arbitrary level* effects into permissions?
+I spend a longtime last summer trying to find a nice and elegant 
+solution to this, but failed.
+
+Also, it is important to remember that, read and write effects are 
+on field permission, i.e., r.f -> r_f, while expose and consume
+effects are on object permission, i.e., r_f.all -> 0.
+
+
+<2013-05-17 Fri>
+
+Another issue I neglected is *local effect*. When we have 
+expression like the following:
+
+  let x = new C in x
+
+In current system, expression *new C* will take a new location,
+and use it as result target. Then, this target needs to *flow* out
+of the let-expression, so that in future we can track effects on
+reference x (for instance, x.u won't get consumed twice). 
+
+The problem is, at the point that we are out of the let-expression,
+we lost track on the information on x: we don't know its type anymore.
+
+Looks like not a problem, if target indeed *flow* out of the 
+let-expression, for instance, like the following:
+
+  let y = 
+    let x = new C in x.f end
+  in a.u = y end
+
+then we don't need to know anything about x when we are in body
+of y. Same if we replace *x.f* with *x*. Therefore, our old approach
+to this problem still works.
+
+
+<2013-05-18 Sat>
+
+Looks like we can *restore* field permission in some limited way.
+If we have expression: x.u = new C, then for all object targets G
+that x refers to, we can search for all consume effects on
+
+  g.f \forall g \in G
+
+and then remove them from the existing efxmap.
+
+
+<2013-06-02 Sun>
+
+I redefined cxt yesterday. Now it uses the map signature. One motivation
+for this is I don't need to carry wf-cxt around in each theorem about
+cxt. In cxt, every object is bound to a distinct location, a set and 
+a target map. 
+
+As usual, shared tgt needs special attention. My original idea is to
+use a empty set and a singleton tgtmap for shared tgt. However, this
+is not good because tgtmap needs to be associated with effects, and
+we don't want reading a literal shared object x produces any effect.
+
+A proposal is to treat shared tgts same as others while constructing cxt.
+Then, we handle them specially in set+nat2tgtmap. In this process,
+we check each location's type, and if it's shared, we insert a special
+value in the resulting tgtmap.
+
+We then need to prove that, given a set+nat2tgtmap relation, and 
+a tgtmap2efxmap relation. If we convert the result efxmap to a set of
+permissions, and if the set is of the same class. Then, we can 
+*transform* the permissions (say Pi) into the following format:
+
+  PF(x) , PF(x) --|- Pi
+
+while PF(x) is field permission.
+
+However, this proposal requires many changes on existing proof. Also,
+it doesn't look right. It is possible for a method to have effect 
+directly on x.f, where x is a shared parameter, instead of have effect
+on shared. Therefore, we'd better produce effect on the target x.f
+in this case, instead of converting to effects on shared in set+nat2tgtmap.
+But, if we have a effect on x.f.g, while f is a shared field, then 
+we need to produce a effect on shared, since getting from x.f to
+x.f.g requires permission on shared.
+(edited: above paragraph is *wrong*, see <2013-06-03 Mon> log)
+
+This poses a problem: let's say we are checking 
+
+  let x = if 3 > y then a.f else b in x.g
+
+while f and g are both shared. In this example, following the above
+thought, we would generate "read b.g" effect from the "else" 
+branch, and generate "read shared" effect from the "then" branch.
+However, the input effect *cannot* include both, since they are
+not compatible. 
+
+In general, once we produced a effect on shared, we need to find out
+all other effects on shared parameters, and eliminate them. Sometimes,
+we need to promote the effect on shared too. For instance, if 
+we have a "read shared" effect, and another "write x.f" effect, then
+we need to eliminate the latter, and promote the former to "write shared".
+
+This looks like complex enough to implement. I need to think more on it.
+
+
+<2013-06-03 Mon>
+
+A continue from yesterday's thought. In turns of effects annotation, it 
+is *impossible* to have an effect annotation on a shared parameter. Since
+on the one hand, effects will be translated to field permissions on the
+parameter object, and on the other hand, the shared annotation is 
+translated to: x.all <- 0.owned, which is useless since we would never be
+able to get anything out of this (unless you know you have effects on
+all fields of x, then you can get permission for 0.owned, but this is
+incredibly unnecessary because why don't one just annotate x as shared?)
+
+Therefore, we should require shared parameter associated with no effect
+annotation (just like unique parameters). In other words, only borrowed
+parameter can have effect annotations.
+
+So now we are back to the old question, how should we handle shared parameters?
+We could associate them with (set/0, (tgtmap/1 z (set/1 z))) in cxt, but then
+we won't type check reftyping/lit, since it produces effects/0. Also, this 
+doesn't translate to permissions smoothly. When reading a object reference,
+it should produce a objequal relation. 
+
+
+Another topic: for unique parameter, we could use similar approach as shared
+parameter. That is, when a unique parameter is consumed, we mark it by putting
+it in a set (like the set for exposed unique parameter that we are using 
+right now) in output. Also, we check if this set is compatible with the result
+efxmap (the efxmap should not contain any consume effect on any field of any
+object in the set). Then, input permission could either contain some field
+permission for a object or the whole permission, depending on whether the object
+is in the set or in efxmap. One benefit for this approach is, we don't have
+to generate a encumbered permission for unique paramter, instead we can just
+use the whole permission, which reduces complexity.
+
+
+<2013-06-04 Tue>
+
+Problem when I try to prove reftyping-frame. Currently, I have output effects
+like this:
+
+ effects/ : set -> efxmap -> effects
+
+ set is all objects that are exposed, and efxmap is all effects on fields
+ (include read, write and consume).
+
+When converting effects into input permission, I take context into consideration
+too. For each unique parameter x in context, we check if it's in set. If so,
+we create a permission x.all <- 0.all. If not, we create an encumbered 
+permission:
+
+  \Pi_f --|- x.all 
+
+The problem is, reftyping-frame requires, if we have two effects:
+(effects/ S1 XM1) and (effects/ S2 XM2), and S1 <= S2, XM1 <= XM2.
+Then, after converting them seperately to permissions Pi1 and Pi2, we need to
+show that Pi2 implies Pi1, Pi3, for some Pi3. However, we cannot infer 
+x.all <- 0.all from \Pi_f --|- x.all. 
+
+One proposal is to have another set in effects:
+
+  effects/ : set -> set -> efxmap -> effects.
+
+which contains all parameters that are consumed. But, this still will not solve
+the problem. 
+
+
+<2013-06-06 Thu>
+
+My current way of converting targets is still wrong. For a field read, if
+the field is shared, we'll give it a shared-tgtmap as result type. However,
+this will get converted to a encumbered permission on shared permission, which
+is not good, since x.f shouldn't require any permission from shared, if
+x is unique and f is shared. Thus, a better way is to check f's type when
+producing output, and don't produce any encumbered permission if f is shared.
+
+
+<2013-06-10 Mon>
+
+Currently I am writing a test case for my type system. This raises questions
+about let-expression. First, I think it would be possible to handle chained
+field reads through let-expression. For instance, if we have a expression:
+
+  let x = a.u in E
+
+then, it *may* be possible to consume a.u.f1, and a.u.f2 in E, while both f1
+and f2 are unique fields. We need to implement this in the *substitution* rules.
+
+Another question is *whether we can handle expose effect in a simple way?*
+I still don't want to give up on expose effect, even if we can only handle
+a small subset of cases for it. But, I don't want to make any radical change
+on what I have right now. 
+
+
+<2013-06-14 Fri>
+
+While writing the test case, I found a problem in my current
+definition. For classes without any field, my system won't be able to
+handle them. This is because set+set2tgtmap is now a partial mapping.
+
+What I have is two options:
+
+1. Change how effects is defined. For instance, add an extra set
+   which contains all consumed objects. This approach should work.
+   However, it adds more complexity due to interactions between the
+   set and efxmap. For instance, we need to make sure there's no
+   overlapping between keys in efxmap and elements in the set, since
+   a object cannot be both consumed and read/write.
+
+2. Change set+set2tgtmap and other few things. We can represent this
+   if we allow empty inner-efxmap as entry in efxmap. It gets
+   converted to empty permission. On the other hand, the unique
+   parameter is converted to empty --+- Pi, so we can get the whole
+   permission for Pi easily. We need to empty inner-efxmap simply
+   because we have to keep a record when the object is consumed. 
+
+Another problem is checking method call. We need to check aliasing
+when passing arguments to a method call. For instance, argument a and
+b maybe aliasing, and if the method is annotated with, for instance, 
+read a.f and write b.f, then it should not check. 
+
+To make sure this won't happen, we can do a extra check in
+ref-calltyping. But it is quite tedious to do. Suppose we have two
+efxmaps M1 and M2, and we are ready to join them together. Then, we
+need to check that:
+
+  1. read effects in M1 do not overlap with write and consume
+     effects in M2,
+  2. read effects in M2 do not overlap with write and consume effects
+     in M1.
+
+And the result will be:
+
+  1. read effects in M1 plus read effects in M2, and read effects in 
+  2. 
+
+
+<2013-06-19 Wed>
+
+Think about how to check the following exps:
+
+1. x.head = new Node(3,x.head)
+
+2. n = new Node(3, x.head)
+   x.head = n
+
+3. for (n = x.head; n.next != null; n = n.next) { ... }
+
+4. n = new Node(3, x.head)
+   if (..) x.head = n

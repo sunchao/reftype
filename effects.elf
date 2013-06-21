@@ -1,0 +1,121 @@
+%%% Effects is just a wrapper on efxmap and maybe-efx (for effects on shared). 
+%%% $Id: effects.elf,v 1.1 2013/06/11 21:08:57 csun Exp csun $
+
+%%% Definitions
+
+maybe-efx : type.
+
+maybe-efx/nothing : maybe-efx.
+
+maybe-efx/just : efx -> maybe-efx.
+
+
+maybe-efx`join : maybe-efx -> maybe-efx -> maybe-efx -> type.
+
+maybe-efx`join/L : maybe-efx`join maybe-efx/nothing MX MX.
+  
+maybe-efx`join/R : maybe-efx`join MX maybe-efx/nothing MX.
+
+maybe-efx`join/J
+  : maybe-efx`join
+    (maybe-efx/just X1) (maybe-efx/just X2) (maybe-efx/just X)
+    <- efx`join X1 X2 X.
+
+
+maybe-efx`leq : maybe-efx -> maybe-efx -> type.
+
+maybe-efx`leq/1 : maybe-efx`leq maybe-efx/nothing _.
+
+maybe-efx`leq/2
+  : maybe-efx`leq (maybe-efx/just X1) (maybe-efx/just X2)
+    <- efx`leq X1 X2.
+
+
+maybe-efx`disjoint : maybe-efx -> maybe-efx -> type.
+
+maybe-efx`disjoint/L
+  : maybe-efx`disjoint maybe-efx/nothing (maybe-efx/just _).
+
+maybe-efx`disjoint/R 
+  : maybe-efx`disjoint (maybe-efx/just _) maybe-efx/nothing.
+
+maybe-efx`disjoint/=
+  : maybe-efx`disjoint maybe-efx/nothing maybe-efx/nothing.
+
+
+effects : type.
+
+effects/ : efxmap -> maybe-efx -> effects.
+
+%abbrev no-effect = effects/ efxmap/0 maybe-efx/nothing.
+
+%abbrev shared-effect = [X] (effects/ efxmap/0 (maybe-efx/just X)).
+
+
+
+effects`join : effects -> effects -> effects -> type.
+
+effects`join/
+  : efxmap`join XM1 XM2 XM
+    -> maybe-efx`join MX1 MX2 MX
+    -> effects`join
+      (effects/ XM1 MX1) (effects/ XM2 MX2) (effects/ XM MX).
+         
+effects`leq : effects -> effects -> type.
+
+effects`leq/
+  : efxmap`leq XM1 XM2 
+    -> maybe-efx`leq MX1 MX2 
+    -> effects`leq (effects/ XM1 MX1) (effects/ XM2 MX2).
+
+
+effects`disjoint : effects -> effects -> type.
+
+effects`disjoint/
+  : efxmap`deep-disjoint XM1 XM2
+    -> maybe-efx`disjoint MX1 MX2
+    -> effects`disjoint (effects/ XM1 MX1) (effects/ XM2 MX2).
+
+
+%theorem maybe-efx`join-implies-leq
+  : forall* {MX1} {MX2} {MX}
+    forall {J: maybe-efx`join MX1 MX2 MX}
+    exists {L1: maybe-efx`leq MX1 MX}
+    {L2: maybe-efx`leq MX2 MX}
+    true.
+
+- : maybe-efx`join-implies-leq
+    maybe-efx`join/L maybe-efx`leq/1 (maybe-efx`leq/2 (leq/eq efx`eq/)).
+
+- : maybe-efx`join-implies-leq
+    maybe-efx`join/L maybe-efx`leq/1 maybe-efx`leq/1.
+
+- : maybe-efx`join-implies-leq
+    maybe-efx`join/R (maybe-efx`leq/2 (leq/eq efx`eq/)) maybe-efx`leq/1.
+
+- : maybe-efx`join-implies-leq
+    maybe-efx`join/R maybe-efx`leq/1 maybe-efx`leq/1.
+
+- : maybe-efx`join-implies-leq
+    (maybe-efx`join/J XJ) (maybe-efx`leq/2 L1) (maybe-efx`leq/2 L2)
+    <- efx`join-implies-leq XJ L1 L2.
+
+%worlds () (maybe-efx`join-implies-leq _ _ _).
+%total {} (maybe-efx`join-implies-leq _ _ _).
+
+
+%theorem effects`join-implies-leq
+  : forall* {XX1} {XX2} {XX}
+    forall {J1: effects`join XX1 XX2 XX}
+    exists {L1: effects`leq XX1 XX}
+    {L2: effects`leq XX2 XX}
+    true.
+
+- : effects`join-implies-leq 
+    (effects`join/ XM1+XM2=XM MX1+MX2=MX) 
+    (effects`leq/ XM1<=XM MX1<=MX) (effects`leq/ XM2<=XM MX2<=MX)
+    <- efxmap`join-implies-leq XM1+XM2=XM XM1<=XM XM2<=XM
+    <- maybe-efx`join-implies-leq MX1+MX2=MX MX1<=MX MX2<=MX.
+
+%worlds () (effects`join-implies-leq _ _ _).
+%total {} (effects`join-implies-leq _ _ _).

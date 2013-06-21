@@ -1,475 +1,682 @@
-%%% extra operations on efxmap
+%%% Transform a tgtmap to a efxmap
+%%% I could use "alltrans" from library/map-trans.elf
+%%% However, what I need here is much simpler.
 
 
-% split tgtmap into two parts : object targets and 
-% field reference targets
+set2inner-efxmap : set -> efx -> inner-efxmap -> type.
 
-tgtmap`split : tgtmap -> set -> tgtmap -> type.
+set2inner-efxmap/0 : set2inner-efxmap set/0 _ inner-efxmap/0.
 
-tgtmap`split/0 : tgtmap`split tgtmap/0 set/0 tgtmap/0.
-
-tgtmap`split/+/empty
-  : tgtmap`split GM S' GM-F
-    <- tgtmap`update GM' L set/0 GM
-    <- tgtmap`fresh GM' L
-    <- tgtmap`split GM' S GM-F
-    <- set`add S L S'.
-
-tgtmap`split/+/nonempty
-  : tgtmap`split GM S GM-F'
-    <- tgtmap`update GM' L (set/+ F S') GM
-    <- tgtmap`fresh GM' L
-    <- tgtmap`split GM' S GM-F
-    <- tgtmap`update GM-F L (set/+ F S') GM-F'.
+set2inner-efxmap/+
+  : set2inner-efxmap S X M
+    -> set2inner-efxmap (set/+ N S) X (inner-efxmap/+ N X M).
 
 
-set`extend : set -> nat -> tgtmap -> type.
+tgtmap2efxmap : tgtmap -> efx -> efxmap -> type.
 
-set`extend/0 : set`extend set/0 _ tgtmap/0.
+tgtmap2efxmap/0 : tgtmap2efxmap tgtmap/0 _ efxmap/0.
 
-set`extend/+ 
-  : set`extend (set/+ L S) F (tgtmap/+ L (set/1 F) GM)
-    <- set`extend S F GM.
-
-
-tgtmap`extend : tgtmap -> nat -> tgtmap -> type.
-
-tgtmap`extend/0 : tgtmap`extend tgtmap/0 _ tgtmap/0.
-
-tgtmap`extend/+/obj
-  : tgtmap`extend
-    (tgtmap/+ L set/0 GM) F (tgtmap/+ L (set/1 F) GM')
-    <- tgtmap`extend GM F GM'.
-
-tgtmap`extend/+/fld
-  : tgtmap`extend
-    (tgtmap/+ L (set/+ F S) GM) F (tgtmap/+ L (set/+ F S) GM')
-    <- tgtmap`extend GM F GM'.
-
-
-%%% shouldn't call extend defined above. For instance,
-%%% if we have GM == { a -> \emptyset }, then extend-set
-%%% with {f, g} should return GM' == {a -> {f,g}}.
-
-tgtmap`extend-set : tgtmap -> set -> tgtmap -> type.
-
-tgtmap`extend-set/0 : tgtmap`extend-set GM set/0 GM.
-
-tgtmap`extend-set/+/obj
-  : tgtmap`extend-set (tgtmap/+ L set/0 GM) S (tgtmap/+ L S GM')
-    <- tgtmap`extend-set GM S GM'.
-
-tgtmap`extend-set/+/fld
-  : tgtmap`extend-set
-    (tgtmap/+ L (set/+ F Q) GM) S (tgtmap/+ L (set/+ F Q) GM')
-    <- tgtmap`extend-set GM S GM'.
-
-
-%%% convert a set of fields and a particular effect on those
-%%% fields to a inner-efxmap.
-
-set=>inner-efxmap : set -> efx -> inner-efxmap -> type.
-
-set=>inner-efxmap/0 : set=>inner-efxmap set/0 _ inner-efxmap/0.
-
-set=>inner-efxmap/+
-  : set=>inner-efxmap (set/+ F S) X (inner-efxmap/+ F X FM)
-    <- set=>inner-efxmap S X FM.
-
-
-inner-efxmap=>set : inner-efxmap -> set -> type.
-
-inner-efxmap=>set/0 : inner-efxmap=>set inner-efxmap/0 set/0.
-
-inner-efxmap=>set/+
-  : inner-efxmap=>set (inner-efxmap/+ F _ M) (set/+ F S)
-    <- inner-efxmap=>set M S.
+tgtmap2efxmap/+
+  : set2inner-efxmap S X M 
+    -> tgtmap2efxmap GM X XM
+    -> tgtmap2efxmap (tgtmap/+ N S GM) X (efxmap/+ N M XM).
 
 
 
-tgtmap=>efxmap : tgtmap -> efx -> efxmap -> type.
-
-tgtmap=>efxmap/0 : tgtmap=>efxmap tgtmap/0 _ efxmap/0.
-
-tgtmap=>efxmap/+
-  : tgtmap=>efxmap (tgtmap/+ L S GM) X (efxmap/+ L M XM)
-     <- set=>inner-efxmap S X M
-     <- tgtmap=>efxmap GM X XM.
+false-implies-set2inner-efxmap : {V:void} set2inner-efxmap S X M -> type.
+%mode +{V} +{S} +{X} +{M} -{T:set2inner-efxmap S X M}
+false-implies-set2inner-efxmap V T.
+%worlds () (false-implies-set2inner-efxmap _ _).
+%total  {} (false-implies-set2inner-efxmap _ _).
 
 
-efxmap=>tgtmap : efxmap -> tgtmap -> type.
+set2inner-efxmap-total* : {X} {S} {M} set2inner-efxmap S X M -> type.
+%mode set2inner-efxmap-total* +X +S -M -T.
 
-efxmap=>tgtmap/0 : efxmap=>tgtmap efxmap/0 tgtmap/0.
+- : set2inner-efxmap-total* _ set/0 inner-efxmap/0 set2inner-efxmap/0.
 
-efxmap=>tgtmap/+
-  : efxmap=>tgtmap (efxmap/+ L M XM) (tgtmap/+ L S GM)
-    <- inner-efxmap=>set M S
-    <- efxmap=>tgtmap XM GM.
+- : set2inner-efxmap-total* X (set/+ F S) (inner-efxmap/+ F X M)
+    (set2inner-efxmap/+ S+X=>M)
+    <- set2inner-efxmap-total* X S M S+X=>M.
 
+%worlds () (set2inner-efxmap-total* _ _ _ _).
+%total (S) (set2inner-efxmap-total* _ S _ _).
 
-% We need to prove that for any tgtmap and efxmap
-% in type checking output, the tgtmap should less-eq 
-% "be" than the efxmap.
-
-% First, we define the "less-eq" relation between
-% tgtmap and efxmap
-
-tgtmap<=efxmap : tgtmap -> efxmap -> type.
-
-tgtmap<=efxmap/0 : tgtmap<=efxmap tgtmap/0 _.
-
-tgtmap<=efxmap/+
-  : tgtmap<=efxmap GM XM
-    <- tgtmap`update GM' L S GM
-    <- tgtmap`fresh GM' L
-    <- efxmap`lookup XM L M
-    <- inner-efxmap`domain M MS
-    <- set`leq S MS
-    <- tgtmap<=efxmap GM' XM.
+%abbrev set2inner-efxmap-total = set2inner-efxmap-total* _ _ _.
 
 
-%%% "extend" this object target set with input field and
-%%% get a field target map.
+set2inner-efxmap-respects-eq
+  : set2inner-efxmap S1 X1 M1
+    -> set`eq S1 S2
+    -> efx`eq X1 X2
+    -> inner-efxmap`eq M1 M2
+    -> set2inner-efxmap S2 X2 M2
+    -> type.
+%mode set2inner-efxmap-respects-eq +T1 +E1 +E2 +E3 -T2.
 
-set+nat=>tgtmap : set -> nat -> tgtmap -> type.
+- : set2inner-efxmap-respects-eq 
+    set2inner-efxmap/0 _ _ _ set2inner-efxmap/0.
 
-set+nat=>tgtmap/0 : set+nat=>tgtmap set/0 _ tgtmap/0.
+- : set2inner-efxmap-respects-eq 
 
-set+nat=>tgtmap/+
-   : set+nat=>tgtmap (set/+ L S) F (tgtmap/+ L (set/1 F) GM)
-      <- set+nat=>tgtmap S F GM.
+    (set2inner-efxmap/+ S=>M) SE XE ME (set2inner-efxmap/+ S=>Mx)
+    <- set`map/+-preserves-eq-converse SE NE unit`eq/ SEx
+    <- inner-efxmap`map/+-preserves-eq-converse ME _ _ MEx
+    <- set2inner-efxmap-respects-eq S=>M SEx XE MEx S=>Mx.
+
+%worlds () (set2inner-efxmap-respects-eq _ _ _ _ _).
+%total (T) (set2inner-efxmap-respects-eq T _ _ _ _).
 
 
-set+nat=>efxmap : set -> nat -> efx -> efxmap -> type.
+shift-preserves-set2inner-efxmap*
+  : set2inner-efxmap S X M
+    -> set`shift N S SP
+    -> inner-efxmap`shift N M MP
+    -> set2inner-efxmap SP X MP
+    -> type.
+%mode shift-preserves-set2inner-efxmap* +T1 +S1 +S2 -T2.
 
-set+nat=>efxmap/0 : set+nat=>efxmap set/0 _ _ efxmap/0.
+- : shift-preserves-set2inner-efxmap* 
+    set2inner-efxmap/0 _ _ set2inner-efxmap/0.
 
-set+nat=>efxmap/+
-   : set+nat=>efxmap 
-      (set/+ L S) F X
-      (efxmap/+ L (inner-efxmap/+ F X inner-efxmap/0) XM)
-      <- set+nat=>efxmap S F X XM.
+- : shift-preserves-set2inner-efxmap*
+    (set2inner-efxmap/+ S=>M) _ _ (set2inner-efxmap/+ S=>M).
 
-  
-%%% "extend" the object target set with a field set and
-%%% generate a field target map.
+%worlds () (shift-preserves-set2inner-efxmap* _ _ _ _).
+%total  {} (shift-preserves-set2inner-efxmap* _ _ _ _).
 
-set+set=>tgtmap : set -> set -> tgtmap -> type.
 
-set+set=>tgtmap/0 : set+set=>tgtmap set/0 _ tgtmap/0.
+set2inner-efxmap-preserves-size
+  : set`size S N
+    -> set2inner-efxmap S X M
+    -> inner-efxmap`size M N
+    -> type.
+%mode set2inner-efxmap-preserves-size +SZ1 +T -SZ2.
 
-set+set=>tgtmap/+
-   : set+set=>tgtmap GS S GM
-      <- set`add S' F S
-      <- set+nat=>tgtmap GS F M
-      <- set+set=>tgtmap GS S' GM'
-      <- tgtmap`join GM' M GM.
+- : set2inner-efxmap-preserves-size
+    set`size/0 set2inner-efxmap/0 inner-efxmap`size/0.
+
+- : set2inner-efxmap-preserves-size
+    (set`size/+ S-SZ) (set2inner-efxmap/+ S=>M) 
+    (inner-efxmap`size/+ M-SZ)
+    <- set2inner-efxmap-preserves-size S-SZ S=>M M-SZ.
+
+%worlds () (set2inner-efxmap-preserves-size _ _ _).
+%total (T) (set2inner-efxmap-preserves-size _ T _).
+
+
+set2inner-efxmap-implies-domain
+  : set2inner-efxmap S _ M
+    -> inner-efxmap`domain M S
+    -> type.
+%mode set2inner-efxmap-implies-domain +T -DM.
+
+- :  set2inner-efxmap-implies-domain 
+    set2inner-efxmap/0 inner-efxmap`domain/0.
+
+- : set2inner-efxmap-implies-domain 
+    (set2inner-efxmap/+ S+X=>M) (inner-efxmap`domain/+ DM-M=S)
+    <- set2inner-efxmap-implies-domain S+X=>M DM-M=S.
+
+%worlds () (set2inner-efxmap-implies-domain _ _).
+%total (A) (set2inner-efxmap-implies-domain A _).
+
+
+set2inner-efxmap-preserves-disjoint-join
+  : set2inner-efxmap S X M
+    -> set`disjoint S1 S2
+    -> set`union S1 S2 S
+    -> {M1} {M2} set2inner-efxmap S1 X M1
+    -> set2inner-efxmap S2 X M2
+    -> inner-efxmap`disjoint M1 M2
+    -> inner-efxmap`join M1 M2 M
+    -> type.
+%mode set2inner-efxmap-preserves-disjoint-join +T1 +D1 +U1 -M1 -M2 -T2 -T3 -D2 -U2.
+
+- : set2inner-efxmap-preserves-disjoint-join S2M
+    set`disjoint/L set`union/L _ _ set2inner-efxmap/0 S2M 
+    inner-efxmap`disjoint/L inner-efxmap`join/L.
+
+- : set2inner-efxmap-preserves-disjoint-join S2M
+    set`disjoint/L set`union/R _ _ set2inner-efxmap/0 S2M 
+    inner-efxmap`disjoint/L inner-efxmap`join/R.
+
+
+- : set2inner-efxmap-preserves-disjoint-join S2M
+    set`disjoint/R set`union/L _ _ S2M set2inner-efxmap/0 
+    inner-efxmap`disjoint/R inner-efxmap`join/L.
+
+- : set2inner-efxmap-preserves-disjoint-join S2M
+    set`disjoint/R set`union/R _ _ S2M set2inner-efxmap/0 
+    inner-efxmap`disjoint/R inner-efxmap`join/R.
+
+- : set2inner-efxmap-preserves-disjoint-join (set2inner-efxmap/+ SS)
+    (set`disjoint/> D1P P1) (set`union/> U1 P2) _ _
+    S1=>M1' (set2inner-efxmap/+ S2=>M2) D3 J2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- set/+-preserves-eq EQ set`eq/ SEQ
+    <- set`disjoint-respects-eq D1P SEQ set`eq/ D1K
+    <- set2inner-efxmap-preserves-disjoint-join
+      SS D1K U1 V _ S1=>M1 S2=>M2 M1^M2 M1UM2=M
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- inner-efxmap`shift-total SH
+    <- shift-preserves-set2inner-efxmap*
+      S1=>M1 (set`shift/+ P2S) SH S1=>M1'
+    <- inner-efxmap`shift-left-preserves-disjoint M1^M2 SH D3
+    <- inner-efxmap`shift-left-preserves-join M1UM2=M SH J2.
+
+- : set2inner-efxmap-preserves-disjoint-join (set2inner-efxmap/+ SS)
+    (set`disjoint/< D1P P1) (set`union/< U1 P2) _ _
+    (set2inner-efxmap/+ S1=>M1) S2=>M2' D3 J2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- set/+-preserves-eq EQ set`eq/ SEQ
+    <- set`disjoint-respects-eq D1P set`eq/ SEQ D1
+    <- set2inner-efxmap-preserves-disjoint-join
+      SS D1 U1 _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- inner-efxmap`shift-total SH
+    <- shift-preserves-set2inner-efxmap*
+      S2=>M2 (set`shift/+ P2S) SH S2=>M2'
+    <- inner-efxmap`shift-right-preserves-disjoint M1^M2 SH D3
+    <- inner-efxmap`shift-right-preserves-join M1UM2=M SH J2.
+
+% impossible cases
+
+set2inner-efxmap-preserves-disjoint-join/L
+  : {V:void} {M1} {M2} set2inner-efxmap S1 X M1
+    -> set2inner-efxmap S2 X M2
+    -> inner-efxmap`disjoint M1 M2
+    -> inner-efxmap`join M1 M2 M
+    -> type.
+%mode +{V} +{S1} +{S2} +{X} +{M} -{M1} -{M2}
+-{T1:set2inner-efxmap S1 X M1}
+-{T2:set2inner-efxmap S2 X M2}
+-{D:inner-efxmap`disjoint M1 M2}
+-{J:inner-efxmap`join M1 M2 M}
+set2inner-efxmap-preserves-disjoint-join/L V M1 M2 T1 T2 D J.
+
+%worlds () (set2inner-efxmap-preserves-disjoint-join/L _ _ _ _ _ _ _).
+%total  {} (set2inner-efxmap-preserves-disjoint-join/L _ _ _ _ _ _ _).
+
+- : set2inner-efxmap-preserves-disjoint-join _
+    (set`disjoint/> _ P) (set`union/= _ nat`eq/) 
+    _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT V
+    <- set2inner-efxmap-preserves-disjoint-join/L 
+      V _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M.
+
+- : set2inner-efxmap-preserves-disjoint-join _
+    (set`disjoint/< _ P) (set`union/= _ nat`eq/) 
+    _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT V
+    <- set2inner-efxmap-preserves-disjoint-join/L 
+      V _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M.
+
+- : set2inner-efxmap-preserves-disjoint-join _
+    (set`disjoint/< _ P1) (set`union/> _ P2) 
+    _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 V
+    <- set2inner-efxmap-preserves-disjoint-join/L 
+      V _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M.
+
+- : set2inner-efxmap-preserves-disjoint-join _
+    (set`disjoint/> _ P1) (set`union/< _ P2) 
+    _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 V
+    <- set2inner-efxmap-preserves-disjoint-join/L 
+      V _ _ S1=>M1 S2=>M2 M1^M2 M1UM2=M.
+
+%worlds () (set2inner-efxmap-preserves-disjoint-join _ _ _ _ _ _ _ _ _).
+%total (D) (set2inner-efxmap-preserves-disjoint-join _ D _ _ _ _ _ _ _).
+
+
+%%% Theorems about tgtmap2efxmap
+
+
+false-implies-tgtmap2efxmap : {V:void} {XM} tgtmap2efxmap GM X XM -> type.
+%mode +{V} +{GM} +{X} -{XM} -{T:tgtmap2efxmap GM X XM}
+false-implies-tgtmap2efxmap V XM T.
+%worlds () (false-implies-tgtmap2efxmap V XM T).
+%total  {} (false-implies-tgtmap2efxmap V XM T).
+
+
+tgtmap2efxmap-respects-eq
+  : tgtmap2efxmap GM X XM
+    -> tgtmap`eq GM GMP
+    -> efx`eq X XP
+    -> efxmap`eq XM XMP
+    -> tgtmap2efxmap GMP XP XMP
+    -> type.
+%mode tgtmap2efxmap-respects-eq +T1 +E1 +E2 +E3 -T2.
+
+- : tgtmap2efxmap-respects-eq T tgtmap`eq/ efx`eq/ efxmap`eq/ T.
+
+%worlds () (tgtmap2efxmap-respects-eq _ _ _ _ _).
+%total  {} (tgtmap2efxmap-respects-eq _ _ _ _ _).
+
+
+tgtmap2efxmap-total* : {GM} {X} {XM} tgtmap2efxmap GM X XM -> type.
+%mode tgtmap2efxmap-total* +GM +X -XM -T.
+
+- : tgtmap2efxmap-total* tgtmap/0 _ efxmap/0 tgtmap2efxmap/0.
+
+- : tgtmap2efxmap-total* (tgtmap/+ N S GM) X (efxmap/+ N M XM) 
+    (tgtmap2efxmap/+ S=>M GM=>XM)
+    <- tgtmap2efxmap-total* GM X XM GM=>XM
+    <- set2inner-efxmap-total S=>M.
+
+%worlds () (tgtmap2efxmap-total* _ _ _ _).
+%total (GM) (tgtmap2efxmap-total* GM _ _ _).
+
+
+shift-preserves-tgtmap2efxmap 
+  : tgtmap2efxmap GM X XM
+    -> tgtmap`shift L GM GMP
+    -> efxmap`shift L XM XMP
+    -> tgtmap2efxmap GMP X XMP
+    -> type.
+%mode shift-preserves-tgtmap2efxmap +T1 +S1 +S2 -T2.
+
+- : shift-preserves-tgtmap2efxmap tgtmap2efxmap/0 _ _ tgtmap2efxmap/0.
+
+- : shift-preserves-tgtmap2efxmap
+    (tgtmap2efxmap/+ GM=>XM S=>M) _ _ (tgtmap2efxmap/+ GM=>XM S=>M).
+
+%worlds () (shift-preserves-tgtmap2efxmap _ _ _ _).
+%total  {} (shift-preserves-tgtmap2efxmap _ _ _ _).
+
+
+shift-preserves-tgtmap2efxmap-converse
+  : tgtmap2efxmap GMP X XMP
+    -> tgtmap`shift N GM GMP
+    -> efxmap`shift N XM XMP
+    -> tgtmap2efxmap GM X XM
+    -> type.
+%mode shift-preserves-tgtmap2efxmap-converse +T1 +S1 +S2 -T2.
+
+- : shift-preserves-tgtmap2efxmap-converse 
+     tgtmap2efxmap/0 _ _ tgtmap2efxmap/0.
+
+- : shift-preserves-tgtmap2efxmap-converse
+    (tgtmap2efxmap/+ GM=>XM S=>M) (tgtmap`shift/+ P1) (efxmap`shift/+ P2) G
+    <- nat`plus-left-cancels P1 P2 nat`eq/ nat`eq/ EQ
+    <- nat`eq-symmetric EQ EQ1
+    <- tgtmap`map/+-preserves-eq EQ1 set`eq/ tgtmap`eq/ EQP
+    <- tgtmap2efxmap-respects-eq
+      (tgtmap2efxmap/+ GM=>XM S=>M) EQP efx`eq/ efxmap`eq/ G.
+
+%worlds () (shift-preserves-tgtmap2efxmap-converse _ _ _ _).
+%total  {} (shift-preserves-tgtmap2efxmap-converse _ _ _ _).
+
+
+tgtmap2efxmap-preserves-wf
+  : tgtmap`wf GM
+    -> tgtmap2efxmap GM X XM
+    -> efxmap`wf XM
+    -> type.
+%mode tgtmap2efxmap-preserves-wf +W1 +T -W2.
+
+- : tgtmap2efxmap-preserves-wf 
+    tgtmap`wf/0 tgtmap2efxmap/0 efxmap`wf/0.
+
+- : tgtmap2efxmap-preserves-wf 
+    (tgtmap`wf/+ S-SZ WF-GM) 
+    (tgtmap2efxmap/+ S=>M GM=>XM)
+    (efxmap`wf/+ M-SZ WF-XM)
+    <- set2inner-efxmap-preserves-size S-SZ S=>M M-SZ
+    <- tgtmap2efxmap-preserves-wf WF-GM GM=>XM WF-XM.
+
+%worlds () (tgtmap2efxmap-preserves-wf _ _ _).
+%total (T) (tgtmap2efxmap-preserves-wf _ T _).
+
+
+tgtmap2efxmap-preserves-domain
+  : tgtmap2efxmap GM X XM
+    -> tgtmap`domain GM S
+    -> efxmap`domain XM S
+    -> type.
+%mode tgtmap2efxmap-preserves-domain +T1 +DM1 -DM2.
+
+- : tgtmap2efxmap-preserves-domain 
+    tgtmap2efxmap/0 tgtmap`domain/0 efxmap`domain/0.
+
+- : tgtmap2efxmap-preserves-domain 
+    (tgtmap2efxmap/+ S=>M GM=>XM) (tgtmap`domain/+ DM-GM)
+    (efxmap`domain/+ DM-XM)
+    <- tgtmap2efxmap-preserves-domain GM=>XM DM-GM DM-XM.
+
+%worlds () (tgtmap2efxmap-preserves-domain _ _ _).
+%total (T) (tgtmap2efxmap-preserves-domain T _ _).
+
+
+tgtmap2efxmap-preserves-domain-converse
+  : tgtmap2efxmap GM X XM
+    -> efxmap`domain XM S
+    -> tgtmap`domain GM S
+    -> type.
+%mode tgtmap2efxmap-preserves-domain-converse +T1 +DM2 -DM1.
+
+- : tgtmap2efxmap-preserves-domain-converse
+    tgtmap2efxmap/0 efxmap`domain/0 tgtmap`domain/0.
+
+- : tgtmap2efxmap-preserves-domain-converse 
+    (tgtmap2efxmap/+ S=>M GM=>XM) (efxmap`domain/+ DM-XM)
+    (tgtmap`domain/+ DM-GM)
+    <- tgtmap2efxmap-preserves-domain-converse GM=>XM DM-XM DM-GM.
+
+%worlds () (tgtmap2efxmap-preserves-domain-converse _ _ _).
+%total (T) (tgtmap2efxmap-preserves-domain-converse T _ _).
+
+
+tgtmap2efxmap-preserves-fresh
+  : tgtmap2efxmap GM X XM
+    -> tgtmap`fresh GM N
+    -> efxmap`fresh XM N
+    -> type.
+%mode tgtmap2efxmap-preserves-fresh +T +F1 -F2.
+
+- : tgtmap2efxmap-preserves-fresh GM=>XM FS FSP
+    <- tgtmap`domain-total DM-GM=S
+    <- tgtmap2efxmap-preserves-domain GM=>XM DM-GM=S DM-XM=S
+    <- tgtmap`domain-preserves-fresh FS DM-GM=S FSS
+    <- efxmap`domain-preserves-fresh-converse FSS DM-XM=S FSP.
+
+%worlds () (tgtmap2efxmap-preserves-fresh _ _ _).
+%total  {} (tgtmap2efxmap-preserves-fresh _ _ _).
+
+
+tgtmap2efxmap-preserves-disjoint 
+  : tgtmap`disjoint GM1 GM2
+    -> tgtmap2efxmap GM1 X XM1
+    -> tgtmap2efxmap GM2 X XM2
+    -> efxmap`disjoint XM1 XM2
+    -> type.
+%mode tgtmap2efxmap-preserves-disjoint +D1 +T1 +T2 -D2.
+
+- : tgtmap2efxmap-preserves-disjoint GM1^GM2 GM1=>XM1 GM2=>XM2 XM1^XM2
+    <- tgtmap`domain-total DM-GM1=S1
+    <- tgtmap`domain-total DM-GM2=S2
+    <- tgtmap2efxmap-preserves-domain GM1=>XM1 DM-GM1=S1 DM-XM1=S1
+    <- tgtmap2efxmap-preserves-domain GM2=>XM2 DM-GM2=S2 DM-XM2=S2
+    <- tgtmap`domain-preserves-disjoint GM1^GM2 DM-GM1=S1 DM-GM2=S2 S1^S2
+    <- efxmap`domain-preserves-disjoint-converse 
+      S1^S2 DM-XM1=S1 DM-XM2=S2 XM1^XM2.
+
+%worlds () (tgtmap2efxmap-preserves-disjoint _ _ _ _).
+%total  {} (tgtmap2efxmap-preserves-disjoint _ _ _ _).
+
+
+tgtmap2efxmap-preserves-disjoint-join
+  : tgtmap2efxmap GM X XM
+    -> tgtmap`disjoint GM1 GM2
+    -> tgtmap`join GM1 GM2 GM
+    -> {XM1} {XM2}
+      tgtmap2efxmap GM1 X XM1
+    -> tgtmap2efxmap GM2 X XM2
+    -> efxmap`disjoint XM1 XM2
+    -> efxmap`join XM1 XM2 XM
+    -> type.
+%mode tgtmap2efxmap-preserves-disjoint-join
++T1 +D1 +J1 -M1 -M2 -T2 -T3 -D2 -J2.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    GM=>XM tgtmap`disjoint/L tgtmap`join/L _ _ tgtmap2efxmap/0 GM=>XM 
+    efxmap`disjoint/L efxmap`join/L.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    GM=>XM tgtmap`disjoint/L tgtmap`join/R _ _ tgtmap2efxmap/0 GM=>XM 
+    efxmap`disjoint/L efxmap`join/R.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    GM=>XM tgtmap`disjoint/R tgtmap`join/L _ _ GM=>XM tgtmap2efxmap/0 
+    efxmap`disjoint/R efxmap`join/L.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    GM=>XM tgtmap`disjoint/R tgtmap`join/R _ _ GM=>XM tgtmap2efxmap/0 
+    efxmap`disjoint/R efxmap`join/R.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    (tgtmap2efxmap/+ S=>M GM=>XM)
+    (tgtmap`disjoint/> D1P P1) (tgtmap`join/> J1 P2) _ _
+    GM1=>XM1x (tgtmap2efxmap/+ S=>M GM2=>XM2) D3 J2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`disjoint-respects-eq D1P MEQ tgtmap`eq/ D1
+    <- tgtmap2efxmap-preserves-disjoint-join
+      GM=>XM D1 J1 V _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- efxmap`shift-total SH
+    <- shift-preserves-tgtmap2efxmap 
+      GM1=>XM1 (tgtmap`shift/+ P2S) SH GM1=>XM1x
+    <- efxmap`shift-left-preserves-disjoint XM1^XM2 SH D3
+    <- efxmap`shift-left-preserves-join XM1UXM2=XM SH J2.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    (tgtmap2efxmap/+ S=>M GM=>XM)
+    (tgtmap`disjoint/< D1P P1) (tgtmap`join/< J1 P2) _ _
+    (tgtmap2efxmap/+ S=>M GM1=>XM1) GM2=>XM2x D3 J2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`disjoint-respects-eq D1P tgtmap`eq/ MEQ D1
+    <- tgtmap2efxmap-preserves-disjoint-join
+      GM=>XM D1 J1 _ V GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- efxmap`shift-total SH
+    <- shift-preserves-tgtmap2efxmap 
+      GM2=>XM2 (tgtmap`shift/+ P2S) SH GM2=>XM2x
+    <- efxmap`shift-right-preserves-disjoint XM1^XM2 SH D3
+    <- efxmap`shift-right-preserves-join XM1UXM2=XM SH J2.
+
+tgtmap2efxmap-preserves-disjoint-join/V*
+  : {GM1} {GM2} {X} {XM} {V:void} {XM1} {XM2}
+    tgtmap2efxmap GM1 X XM1
+    -> tgtmap2efxmap GM2 X XM2
+    -> efxmap`disjoint XM1 XM2
+    -> efxmap`join XM1 XM2 XM
+    -> type.
+%mode tgtmap2efxmap-preserves-disjoint-join/V*
++GM1 +GM2 +X +XM +V -XM1 -XM2 -T1 -T2 -D -J.
+%worlds () (tgtmap2efxmap-preserves-disjoint-join/V* _ _ _ _ _ _ _ _ _ _ _).
+%total {} (tgtmap2efxmap-preserves-disjoint-join/V* _ _ _ _ _ _ _ _ _ _ _).
+
+%abbrev tgtmap2efxmap-preserves-disjoint-join/V = 
+tgtmap2efxmap-preserves-disjoint-join/V* _ _ _ _.
  
-
-
-%%% theorems
-
-%theorem shift-preserves-set=>inner-efxmap : 
-    forall* {S} {M} {SS} {MS} {N} {X}
-    forall  {S=>M: set=>inner-efxmap S X M}
-            {SH-S: set`shift N S SS}
-            {SH-M: inner-efxmap`shift N M MS}
-    exists  {SS=>MS: set=>inner-efxmap SS X MS}
-    true.
-
-- : shift-preserves-set=>inner-efxmap 
-    set=>inner-efxmap/0 set`shift/0 inner-efxmap`shift/0 set=>inner-efxmap/0.
-
-- : shift-preserves-set=>inner-efxmap
-    (set=>inner-efxmap/+ S=>M) _ _ (set=>inner-efxmap/+ S=>M).
-
-%worlds () (shift-preserves-set=>inner-efxmap _ _ _ _).
-%total  {} (shift-preserves-set=>inner-efxmap _ _ _ _).
-
-
-
-%%% theorems about tgtmap=>efxmap
-
-
-%theorem false-implies-tgtmap=>efxmap :
-    forall* {GM} {X}
-    forall  {F:void}
-    exists  {XM} {GM=>XM: tgtmap=>efxmap GM X XM}
-    true.
-
-%worlds () (false-implies-tgtmap=>efxmap _ _ _).
-%total  {} (false-implies-tgtmap=>efxmap _ _ _).
-
-
-%theorem shift-preserves-tgtmap=>efxmap :
-	forall* {GM} {XM} {X} {L} {GM'} {XM'}
-	forall  {GM=>XM: tgtmap=>efxmap GM X XM}
-    		{L<=GM=GM': tgtmap`shift L GM GM'}
-	        {L<=XM=XM': efxmap`shift L XM XM'}
-	exists  {GM'=>XM': tgtmap=>efxmap GM' X XM'}
-	true.
-
-- : shift-preserves-tgtmap=>efxmap tgtmap=>efxmap/0 _ _ tgtmap=>efxmap/0.
-
-- : shift-preserves-tgtmap=>efxmap
-     (tgtmap=>efxmap/+ GM=>XM S=>M) _ _ (tgtmap=>efxmap/+ GM=>XM S=>M).
-
-%worlds () (shift-preserves-tgtmap=>efxmap _ _ _ _).
-%total  {} (shift-preserves-tgtmap=>efxmap _ _ _ _).
-
-
-%theorem shift-preserves-tgtmap=>efxmap-converse :
-    forall* {GM} {XM} {X} {L} {GM'} {XM'}
-    forall  {GM=>XM: tgtmap=>efxmap GM' X XM'}
-            {L<=GM=GM': tgtmap`shift L GM GM'}
-	    {L<=XM=XM': efxmap`shift L XM XM'}
-    exists  {GM'=>XM': tgtmap=>efxmap GM X XM}
-    true.
-
-- : shift-preserves-tgtmap=>efxmap-converse 
-     tgtmap=>efxmap/0 _ _ tgtmap=>efxmap/0.
-
-- : shift-preserves-tgtmap=>efxmap-converse
-     (tgtmap=>efxmap/+ GM=>XM S=>M) _ _ (tgtmap=>efxmap/+ GM=>XM S=>M).
-
-%worlds () (shift-preserves-tgtmap=>efxmap-converse _ _ _ _).
-%trustme %total  {} (shift-preserves-tgtmap=>efxmap-converse _ _ _ _).
-
-
-%%% This theorem says if we can convert a set to 
-%%% inner-efxmap, then the set must be less-eq to
-%%% the domain of the resulting inner-efxmap.
-
-%theorem set=>inner-efxmap-implies-leq :
-	forall* {S} {X} {M} {MS}
-	forall  {S=>M: set=>inner-efxmap S X M}
-			{M-DM: inner-efxmap`domain M MS}
-	exists  {S<=MS: set`leq S MS}
-	true.
-
-- : set=>inner-efxmap-implies-leq set=>inner-efxmap/0 _ set`leq/0.
-
-- : set=>inner-efxmap-implies-leq
-    (set=>inner-efxmap/+ S=>M) (inner-efxmap`domain/+ S-DM)
-    (set`leq/= S<=MS unit`eq/ nat`eq/)
-    <- set=>inner-efxmap-implies-leq S=>M S-DM S<=MS.
-
-%worlds ( ) (set=>inner-efxmap-implies-leq _ _ _).
-%total  (A) (set=>inner-efxmap-implies-leq A _ _).
-
-
-%theorem tgtmap<=efxmap-right-transitive : 
-	forall* {GM} {XM1} {XM2}
-	forall  {GM<=XM1: tgtmap<=efxmap GM XM1}
-            {XM1<=XM2: efxmap`leq XM1 XM2}
-	exists  {GM<=XM2: tgtmap<=efxmap GM XM2}
-	true.
-
-- : tgtmap<=efxmap-right-transitive tgtmap<=efxmap/0 _ tgtmap<=efxmap/0.
-
-- : tgtmap<=efxmap-right-transitive
-    (tgtmap<=efxmap/+ GM'<=XM1 S<=MS1 DM-M1=MS1 XM1->L=M1 FS-GM' GM'-U=GM)
-    XM1<=XM2
-    (tgtmap<=efxmap/+ GM'<=XM2 S<=MS2 DM-M2=MS2 XM2->L=M2 FS-GM' GM'-U=GM)
-    <- efxmap`lookup-respects-leq XM1->L=M1 XM1<=XM2 M2 XM2->L=M2 M1<=M2
-    <- inner-efxmap`domain-preserves-leq 
-      M1<=M2 DM-M1=MS1 MS2 DM-M2=MS2 MS1<=MS2
-    <- set`leq-transitive S<=MS1 MS1<=MS2 S<=MS2
-    <- tgtmap<=efxmap-right-transitive GM'<=XM1 XM1<=XM2 GM'<=XM2.
-
-%worlds () (tgtmap<=efxmap-right-transitive _ _ _).
-%total  (GM<=XM1) (tgtmap<=efxmap-right-transitive GM<=XM1 _ _).
-
-
-%theorem tgtmap=>efxmap-imp-tgtmap<=efxmap/L :
-	forall* {GM} {X} {XM}
-	forall  {N} {GM-SZ: tgtmap`size GM N}
-			{GM=>XM: tgtmap=>efxmap GM X XM}
-	exists  {GM<=XM: tgtmap<=efxmap GM XM}
-	true.
-
-- : tgtmap=>efxmap-imp-tgtmap<=efxmap/L
-     _ _ tgtmap=>efxmap/0 tgtmap<=efxmap/0.
-
-- : tgtmap=>efxmap-imp-tgtmap<=efxmap/L (s N) (tgtmap`size/+ SZ-GM)
-    (tgtmap=>efxmap/+ GM=>XM S=>M)
-    (tgtmap<=efxmap/+ GM'<=LMXM S<=MS DM-M=MS (efxmap`lookup/= nat`eq/)
-      FS-L-GM' GM'-U=LSGM)
-    <- tgtmap`shift-total L<=GM=GM'
-    <- efxmap`shift-total L<=XM=XM'
-    <- tgtmap`shift-implies-update L<=GM=GM' GM'-U=LSGM
-    <- tgtmap`shift-implies-fresh L<=GM=GM' FS-L-GM'
-    <- inner-efxmap`domain-total DM-M=MS
-    <- set=>inner-efxmap-implies-leq S=>M DM-M=MS S<=MS
-    <- tgtmap`shift-preserves-size SZ-GM L<=GM=GM' SZ-GM'
-    <- shift-preserves-tgtmap=>efxmap GM=>XM L<=GM=GM' L<=XM=XM' GM'=>XM'
-    <- efxmap`leq-reflexive _ XM<=XM
-    <- efxmap`shift-left-preserves-leq* XM<=XM L<=XM=XM' XM'<=LMXM
-    <- tgtmap=>efxmap-imp-tgtmap<=efxmap/L N SZ-GM' GM'=>XM' GM'<=XM'
-    <- tgtmap<=efxmap-right-transitive GM'<=XM' XM'<=LMXM GM'<=LMXM.
-
-%worlds ( ) (tgtmap=>efxmap-imp-tgtmap<=efxmap/L _ _ _ _).
-%total  (N) (tgtmap=>efxmap-imp-tgtmap<=efxmap/L N _ GM=>XM _).
-
-
-%%% This theorem says if we can convert a tgtmap to efxmap
-%%% then the tgtmap must be less-eq the resulting efxmap.
-
-%theorem tgtmap=>efxmap-imp-tgtmap<=efxmap :
-	forall* {GM} {X} {XM}
-	forall  {GM=>XM: tgtmap=>efxmap GM X XM}
-	exists  {GM<=XM: tgtmap<=efxmap GM XM}
-	true.
-
-- : tgtmap=>efxmap-imp-tgtmap<=efxmap GM=>XM GM<=XM
-     <- tgtmap`size-total SZ-GM
-     <- tgtmap=>efxmap-imp-tgtmap<=efxmap/L _ SZ-GM GM=>XM GM<=XM.
-
-%worlds () (tgtmap=>efxmap-imp-tgtmap<=efxmap _ _).
-%total  {} (tgtmap=>efxmap-imp-tgtmap<=efxmap _ _).
-
-
-%%% This theorem says if we tgtmap GM0 is less-eq than 
-%%% efxmap XM, and tgtmap GM1 is a submap of GM0, then
-%%% GM1 is also less-eq than XM.
-
-%theorem tgtmap`fresh-update-right-preserves-leq-converse :
-	forall* {GM1} {GM2} {GM3} {L} {S}
-	forall  {GM1<=GM2: tgtmap`leq GM1 GM2}
-		{L!<GM1: tgtmap`fresh GM1 L}
-		{L!<GM3: tgtmap`fresh GM3 L}
-		{GM2+LS=GM3: tgtmap`update GM3 L S GM2}
-	exists  {GM1<=GM3: tgtmap`leq GM1 GM3}
-	true.
-
-- : tgtmap`fresh-update-right-preserves-leq-converse 
-     GM1<=GM2 L!<GM1 L!<GM3 GM3+LS=GM2 GM1<=GM3
-     <- tgtmap`update-total GM1+LS=GM4
-     <- tgtmap`fresh-update-implies-leq L!<GM1 GM1+LS=GM4 GM1<=GM4
-     <- tgtmap`update-implies-lookup GM3+LS=GM2 GM2->L=S
-     <- tgtmap`lookup-implies-update GM2->L=S GM2+LS=GM2
-     <- tgtmap`update-left-preserves-leq* 
-	GM1<=GM2 GM1+LS=GM4 GM2+LS=GM2 GM4<=GM2
-     <- tgtmap`fresh-update-preserves-leq-converse
-	GM4<=GM2 L!<GM1 GM1+LS=GM4 L!<GM3 GM3+LS=GM2 GM1<=GM3 _.
-
-%worlds () (tgtmap`fresh-update-right-preserves-leq-converse _ _ _ _ _).
-%total  {} (tgtmap`fresh-update-right-preserves-leq-converse _ _ _ _ _).
-
-
-%theorem tgtmap<=efxmap-left-transitive :
-	forall* {GM1} {GM2} {XM}
-	forall  {GM0<=XM: tgtmap<=efxmap GM1 XM}
-		{GM0<=GM1: tgtmap`leq GM2 GM1}
-	exists  {GM1<=XM: tgtmap<=efxmap GM2 XM}
-	true.
-
-%theorem tgtmap<=efxmap-left-transitive/L :
-	forall* {GM1'} {GM1} {S} {MS} {M} {XM} {L} {GM2}
-	forall  {B} {DM-L: tgtmap`domain? GM2 L B}
-		{GM2<=GM1: tgtmap`leq GM2 GM1}
-		{GM1'<=XM: tgtmap<=efxmap GM1' XM}
-		{S<=MS: set`leq S MS} {DM-M: inner-efxmap`domain M MS}
-		{XM-L: efxmap`lookup XM L M} {FS-GM1': tgtmap`fresh GM1' L}
-		{U-GM1': tgtmap`update GM1' L S GM1}
-	exists  {GM2<=XM: tgtmap<=efxmap GM2 XM}
-	true.
-
-- : tgtmap<=efxmap-left-transitive/L false (tgtmap`domain?/out L!<GM2)
-     GM2<=GM1 GM1'<=XM S<=MS DM-M=MS XM->L=M L!<GM1' GM1'+LS=GM1 GM2<=XM
-    <- tgtmap`fresh-update-right-preserves-leq-converse
-       GM2<=GM1 L!<GM2 L!<GM1' GM1'+LS=GM1 GM2<=GM1'
-    <- tgtmap<=efxmap-left-transitive GM1'<=XM GM2<=GM1' GM2<=XM.
-
-- : tgtmap<=efxmap-left-transitive/L true (tgtmap`domain?/in GM2->L=S2)
-     GM2<=GM1 GM1'<=XM S1<=MS DM-M=MS XM->L=M L!<GM1' GM1'+LS1=GM1
-     (tgtmap<=efxmap/+ GM2'<=XM S2<=MS DM-M=MS XM->L=M L!<GM2' GM2'+LS2=GM2)
-     <- tgtmap`lookup-implies-fresh-update GM2->L=S2 GM2' L!<GM2' GM2'+LS2=GM2
-     <- tgtmap`fresh-update-preserves-leq-converse
-	GM2<=GM1 L!<GM2' GM2'+LS2=GM2 L!<GM1' GM1'+LS1=GM1 GM2'<=GM1' S2<=S1
-     <- set`leq-transitive S2<=S1 S1<=MS S2<=MS
-     <- tgtmap<=efxmap-left-transitive GM1'<=XM GM2'<=GM1' GM2'<=XM.
-
-
-- : tgtmap<=efxmap-left-transitive tgtmap<=efxmap/0 _ tgtmap<=efxmap/0.
-
-- : tgtmap<=efxmap-left-transitive
-    (tgtmap<=efxmap/+ GM1'<=XM S1<=MS DM-M=MS XM->L=M FS-GM1' GM1'+LS=GM1)
-    GM2<=GM1 GM2<=XM
-     <- tgtmap`domain?-total DM
-     <- tgtmap<=efxmap-left-transitive/L _ DM GM2<=GM1 GM1'<=XM S1<=MS
-	DM-M=MS XM->L=M FS-GM1' GM1'+LS=GM1 GM2<=XM.
-
-%worlds ()
-(tgtmap<=efxmap-left-transitive _ _ _)
-(tgtmap<=efxmap-left-transitive/L _ _ _ _ _ _ _ _ _ _).
-
-%total (N1 N2)
-(tgtmap<=efxmap-left-transitive N1 _ _)
-(tgtmap<=efxmap-left-transitive/L _ _ _ N2 _ _ _ _ _ _).
-
-
-
-
-%% theorems about set+nat=>tgtmap
-
-%%% shift doesn't affect set+nat=>tgtmap since
-%%% we only look at values, not keys.
-
-%theorem shift-preserves-set+nat=>tgtmap :
-    forall* {S} {F} {GM} {SP} {GMP}
-    forall  {S+F=>GM: set+nat=>tgtmap S F GM}
-            {F<=S=SP: set`shift F S SP}
-            {F<=GM=GMP: tgtmap`shift F GM GMP}
-    exists  {SP+F=>GMP: set+nat=>tgtmap SP F GMP}
-    true.
-
-- : shift-preserves-set+nat=>tgtmap 
-     set+nat=>tgtmap/0 set`shift/0 tgtmap`shift/0 set+nat=>tgtmap/0.
-
-- : shift-preserves-set+nat=>tgtmap
-     (set+nat=>tgtmap/+ S+F=>GM) _ _ (set+nat=>tgtmap/+ S+F=>GM).
-
-%worlds () (shift-preserves-set+nat=>tgtmap _ _ _ _).
-%total  {} (shift-preserves-set+nat=>tgtmap _ _ _ _).
-
-
-%theorem shift-preserves-set+nat=>tgtmap-converse :
-    forall* {S} {F} {GM} {SP} {GMP} {L}
-    forall  {S+F=>GM: set+nat=>tgtmap SP F GMP}
-            {F<=S=SP: set`shift L S SP}
-            {F<=GM=GMP: tgtmap`shift L GM GMP}
-    exists  {SP+F=>GMP: set+nat=>tgtmap S F GM}
-    true.
-
-- : shift-preserves-set+nat=>tgtmap-converse 
-     set+nat=>tgtmap/0 set`shift/0 tgtmap`shift/0 set+nat=>tgtmap/0.
-
-- : shift-preserves-set+nat=>tgtmap-converse
-     (set+nat=>tgtmap/+ S+F=>GM) _ _ (set+nat=>tgtmap/+ S+F=>GM).
-
-%worlds () (shift-preserves-set+nat=>tgtmap-converse _ _ _ _).
-%trustme %total  {} (shift-preserves-set+nat=>tgtmap-converse _ _ _ _).
-
-
-%%% theorems about set+nat=>efxmap
-
-%%% shift doesn't affect set+nat=>efxmap since
-%%% we only look at values, not keys.
-
-%theorem shift-preserves-set+nat=>efxmap :
-    forall* {S} {F} {XM} {SP} {XMP} {X} {L}
-    forall  {S+F=>XM: set+nat=>efxmap S F X XM}
-            {F<=S=SP: set`shift L S SP}
-            {F<=XM=XMP: efxmap`shift L XM XMP}
-    exists  {SP+F=>XMP: set+nat=>efxmap SP F X XMP}
-    true.
-
-- : shift-preserves-set+nat=>efxmap 
-     set+nat=>efxmap/0 set`shift/0 efxmap`shift/0 set+nat=>efxmap/0.
-
-- : shift-preserves-set+nat=>efxmap
-     (set+nat=>efxmap/+ S+F=>XM) _ _ (set+nat=>efxmap/+ S+F=>XM).
-
-%worlds () (shift-preserves-set+nat=>efxmap _ _ _ _).
-%total  {} (shift-preserves-set+nat=>efxmap _ _ _ _).
+- : tgtmap2efxmap-preserves-disjoint-join
+    _ (tgtmap`disjoint/< _ P) (tgtmap`join/= _ _ nat`eq/) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap2efxmap-preserves-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    _ (tgtmap`disjoint/> _ P) (tgtmap`join/= _ _ nat`eq/) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap2efxmap-preserves-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    _ (tgtmap`disjoint/> _ P1) (tgtmap`join/< _ P2) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap2efxmap-preserves-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-disjoint-join
+    _ (tgtmap`disjoint/< _ P1) (tgtmap`join/> _ P2) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap2efxmap-preserves-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+%worlds () (tgtmap2efxmap-preserves-disjoint-join _ _ _ _ _ _ _ _ _).
+%total (D) (tgtmap2efxmap-preserves-disjoint-join _ D _ _ _ _ _ _ _).
+
+
+tgtmap2efxmap-preserves-deep-disjoint-join
+  : tgtmap2efxmap GM X XM
+    -> tgtmap`deep-disjoint GM1 GM2
+    -> tgtmap`join GM1 GM2 GM
+    -> {XM1} {XM2}
+      tgtmap2efxmap GM1 X XM1
+    -> tgtmap2efxmap GM2 X XM2
+    -> efxmap`deep-disjoint XM1 XM2
+    -> efxmap`join XM1 XM2 XM
+    -> type.
+%mode tgtmap2efxmap-preserves-deep-disjoint-join
++T1 +D1 +J1 -M1 -M2 -T2 -T3 -D2 -J2.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    GM=>XM tgtmap`deep-disjoint/L tgtmap`join/L _ _ tgtmap2efxmap/0 GM=>XM 
+    efxmap`deep-disjoint/L efxmap`join/L.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    GM=>XM tgtmap`deep-disjoint/L tgtmap`join/R _ _ tgtmap2efxmap/0 GM=>XM 
+    efxmap`deep-disjoint/L efxmap`join/R.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    GM=>XM tgtmap`deep-disjoint/R tgtmap`join/L _ _ GM=>XM tgtmap2efxmap/0 
+    efxmap`deep-disjoint/R efxmap`join/L.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    GM=>XM tgtmap`deep-disjoint/R tgtmap`join/R _ _ GM=>XM tgtmap2efxmap/0 
+    efxmap`deep-disjoint/R efxmap`join/R.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join 
+    (tgtmap2efxmap/+ S=>M GM=>XM) 
+    (tgtmap`deep-disjoint/= GM1^GM2 S1^S2 nat`eq/)
+    (tgtmap`join/= GM1UGM2=GM S1US2=S nat`eq/) _ _ 
+    (tgtmap2efxmap/+ S1=>M1 GM1=>XM1) 
+    (tgtmap2efxmap/+ S2=>M2 GM2=>XM2) 
+    (efxmap`deep-disjoint/= XM1^XM2 M1^M2 nat`eq/) 
+    (efxmap`join/= XM1UXM2=XM M1UM2=M nat`eq/)
+    <- tgtmap2efxmap-preserves-deep-disjoint-join 
+      GM=>XM GM1^GM2 GM1UGM2=GM _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- set2inner-efxmap-preserves-disjoint-join 
+      S=>M S1^S2 S1US2=S M1 M2 S1=>M1 S2=>M2 M1^M2 M1UM2=M.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    (tgtmap2efxmap/+ S=>M GM=>XM)
+    (tgtmap`deep-disjoint/> D1P P1) (tgtmap`join/> J1 P2) _ _
+    GM1=>XM1x (tgtmap2efxmap/+ S=>M GM2=>XM2) D3 J2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`deep-disjoint-respects-eq D1P MEQ tgtmap`eq/ D1
+    <- tgtmap2efxmap-preserves-deep-disjoint-join
+      GM=>XM D1 J1 V _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- efxmap`shift-total SH
+    <- shift-preserves-tgtmap2efxmap 
+      GM1=>XM1 (tgtmap`shift/+ P2S) SH GM1=>XM1x
+    <- efxmap`shift-left-preserves-deep-disjoint XM1^XM2 SH D3
+    <- efxmap`shift-left-preserves-join XM1UXM2=XM SH J2.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    (tgtmap2efxmap/+ S=>M GM=>XM)
+    (tgtmap`deep-disjoint/< D1P P1) (tgtmap`join/< J1 P2) _ _
+    (tgtmap2efxmap/+ S=>M GM1=>XM1) GM2=>XM2x D3 J2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`deep-disjoint-respects-eq D1P tgtmap`eq/ MEQ D1
+    <- tgtmap2efxmap-preserves-deep-disjoint-join
+      GM=>XM D1 J1 _ V GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- efxmap`shift-total SH
+    <- shift-preserves-tgtmap2efxmap 
+      GM2=>XM2 (tgtmap`shift/+ P2S) SH GM2=>XM2x
+    <- efxmap`shift-right-preserves-deep-disjoint XM1^XM2 SH D3
+    <- efxmap`shift-right-preserves-join XM1UXM2=XM SH J2.
+
+tgtmap2efxmap-preserves-deep-disjoint-join/V*
+  : {GM1} {GM2} {X} {XM} {V:void} {XM1} {XM2}
+    tgtmap2efxmap GM1 X XM1
+    -> tgtmap2efxmap GM2 X XM2
+    -> efxmap`deep-disjoint XM1 XM2
+    -> efxmap`join XM1 XM2 XM
+    -> type.
+%mode tgtmap2efxmap-preserves-deep-disjoint-join/V*
++GM1 +GM2 +X +XM +V -XM1 -XM2 -T1 -T2 -D -J.
+%worlds () (tgtmap2efxmap-preserves-deep-disjoint-join/V* _ _ _ _ _ _ _ _ _ _ _).
+%total {} (tgtmap2efxmap-preserves-deep-disjoint-join/V* _ _ _ _ _ _ _ _ _ _ _).
+
+%abbrev tgtmap2efxmap-preserves-deep-disjoint-join/V = 
+tgtmap2efxmap-preserves-deep-disjoint-join/V* _ _ _ _.
+
+ 
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    _ (tgtmap`deep-disjoint/< _ P) (tgtmap`join/= _ _ nat`eq/) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap2efxmap-preserves-deep-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    _ (tgtmap`deep-disjoint/> _ P) (tgtmap`join/= _ _ nat`eq/) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap2efxmap-preserves-deep-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    _ (tgtmap`deep-disjoint/= _ _ nat`eq/) (tgtmap`join/> _ P) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap2efxmap-preserves-deep-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    _ (tgtmap`deep-disjoint/= _ _ nat`eq/) (tgtmap`join/< _ P) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap2efxmap-preserves-deep-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    _ (tgtmap`deep-disjoint/> _ P1) (tgtmap`join/< _ P2) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap2efxmap-preserves-deep-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+- : tgtmap2efxmap-preserves-deep-disjoint-join
+    _ (tgtmap`deep-disjoint/< _ P1) (tgtmap`join/> _ P2) _ _
+    GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap2efxmap-preserves-deep-disjoint-join/V
+      F _ _ GM1=>XM1 GM2=>XM2 XM1^XM2 XM1UXM2=XM.
+
+%worlds () (tgtmap2efxmap-preserves-deep-disjoint-join _ _ _ _ _ _ _ _ _).
+%total (D) (tgtmap2efxmap-preserves-deep-disjoint-join _ D _ _ _ _ _ _ _).

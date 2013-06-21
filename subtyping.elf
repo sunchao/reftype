@@ -1,0 +1,152 @@
+% Subtyping Rules
+% $Id: subtyping.elf,v 1.6 2013/06/11 16:39:23 csun Exp csun $
+
+%%% Definitions
+
+set+nat2tgtmap : set -> nat -> tgtmap -> type.
+
+set+nat2tgtmap/0 : set+nat2tgtmap set/0 _ tgtmap/0.
+
+set+nat2tgtmap/+
+  : set+nat2tgtmap (set/+ N S) F (tgtmap/+ N (set/1 F) GM)
+    <- set+nat2tgtmap S F GM.
+
+
+%{
+06-16-13: a special case here is when field set is empty, the
+result will contain keys that are mapped to set/0, and thus we 
+will eventually end up with efxmap in which some keys are mapped
+to inner-efxmap/0. This is necessary since object may have 
+no field, but we still need to record consume effect on it. tgtmap
+in targets should never have set/0 as value.
+ 
+When we remove a tgtmap from a efxmap, we need to first remove all 
+entries with inner-efxmap/0 from the efxmap.
+}%
+
+set+set2tgtmap : set -> set -> tgtmap -> type.
+
+set+set2tgtmap/0 : set+set2tgtmap set/0 _ tgtmap/0.
+
+set+set2tgtmap/+
+  : set`not-member SP N
+    -> set`add SP N S
+    -> set+set2tgtmap SP FS GMP
+    -> tgtmap`update GMP N FS GM
+    -> set+set2tgtmap S FS GM.
+
+
+% determine the max effect from these two sets.
+
+read-or-write : set -> set -> maybe-efx -> type.
+
+read-or-write/none : read-or-write set/0 set/0 maybe-efx/nothing.
+
+read-or-write/read 
+  : read-or-write (set/+ _ _) set/0 (maybe-efx/just efx/read).
+
+read-or-write/write
+  : read-or-write (set/+ _ _) (set/+ _ _) (maybe-efx/just efx/write).
+
+
+% determine if we should generate any effect on shared.
+
+efx-on-shared : bool -> maybe-efx -> maybe-efx -> type.
+
+efx-on-shared/true : efx-on-shared true MX MX.
+
+efx-on-shared/false : efx-on-shared false _ maybe-efx/nothing.
+
+
+%%% Sub-Annotating Rules
+
+sub-annot : targets -> set -> set -> set -> annot -> effects -> type.
+
+
+%% the unique targets CANNOT be from shared.
+
+sub-annot/unique2shared 
+  : set+set2tgtmap S CS GM2
+    -> tgtmap`join GM1 GM2 GM
+    -> tgtmap2efxmap GM efx/consume XM
+    -> sub-annot (targets/unique S GM1 false)
+      _ _ CS annot/shared (effects/ XM maybe-efx/nothing).
+
+sub-annot/unique2unique
+  : set+set2tgtmap S CS GM2
+    -> tgtmap`join GM1 GM2 GM
+    -> tgtmap2efxmap GM efx/consume XM
+    -> sub-annot (targets/unique S GM1 false)
+      _ _ CS annot/unique (effects/ XM maybe-efx/nothing).
+
+sub-annot/unique2borrow
+  : set+set2tgtmap S RS GM1
+    -> set+set2tgtmap S WS GM2
+    -> tgtmap`join GM GM1 GM1P
+    -> tgtmap`join GM GM2 GM2P
+    -> tgtmap2efxmap GM1P efx/read XM1
+    -> tgtmap2efxmap GM2P efx/write XM2
+    -> efxmap`join XM1 XM2 XM
+    -> read-or-write RS WS MX1
+    -> efx-on-shared B MX1 MX
+    -> sub-annot (targets/unique S GM B) 
+      RS WS set/0 annot/borrow (effects/ XM MX).
+
+sub-annot/shared2borrow
+ : sub-annot targets/shared RS WS set/0 annot/borrow (effects/ efxmap/0 MX)
+    <- read-or-write RS WS MX.
+
+sub-annot/shared2shared
+  : sub-annot targets/shared set/0 set/0 set/0 annot/shared no-effect.
+
+% sub-annot/borrow2borrow
+%   : set+set2tgtmap S RS GM1
+%     -> set+set2tgtmap S WS GM2
+%     -> tgtmap2efxmap GM1 efx/read XM1
+%     -> tgtmap2efxmap GM2 efx/write XM2
+%     -> efxmap`join XM1 XM2 XM
+%     -> sub-annot (targets/borrow S)
+%       RS WS set/0 annot/borrow (effects/ XM maybe-efx/nothing).
+
+
+%%% Sub-Nonnull Rules
+
+sub-nonnull : nonnull -> nonnull -> type.
+
+sub-nonnull/< : sub-nonnull nonnull/yes nonnull/may.
+
+sub-nonnull/= : sub-nonnull NN1 NN2 <- nonnull`eq NN1 NN2.
+
+
+%%% Subtyping Rules
+
+% The three sets are read, write and consumed fields respectively.
+
+subtype : reftype -> ty -> set -> set -> set -> effects -> type.
+
+subtype/
+  : sub-nonnull NN1 NN2
+    -> nat`eq C1 C2
+    -> sub-annot GS RS WS CS A2 XX
+    -> subtype (reftype/ NN1 C1 GS) (ty/ NN2 A2 C2) RS WS CS XX.
+
+
+%%% Theorems
+
+
+set+nat2tgtmap-implies-wf 
+  : set+nat2tgtmap S F GM
+    -> tgtmap`wf GM
+    -> type.
+%mode set+nat2tgtmap-implies-wf +T -WF.
+
+- : set+nat2tgtmap-implies-wf 
+    set+nat2tgtmap/0 tgtmap`wf/0.
+
+- : set+nat2tgtmap-implies-wf 
+    (set+nat2tgtmap/+ S+F=>GM) 
+    (tgtmap`wf/+ (set`size/+ set`size/0) WF-GM)
+    <- set+nat2tgtmap-implies-wf S+F=>GM WF-GM.
+
+%worlds () (set+nat2tgtmap-implies-wf _ _).
+%total (T) (set+nat2tgtmap-implies-wf T _).

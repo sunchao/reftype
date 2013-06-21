@@ -1,0 +1,503 @@
+%%% Test Cases for Reftyping
+
+%{ 
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  Example 1 (from Bill's thesis, page 60) 
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  class ListItem {
+    @notnull @unique Object item;
+    @notnull @unique ListItem next;
+    ListItem(@unique Object o, @unique ListItem n) {
+      item = o; next = n;
+    }
+
+    @writes this.item
+    @unique Object getItem() {
+      Object temp = item;
+      item = null;
+      return temp;
+    }
+  }
+
+  class Bad {
+    @notnull @unique ListItem a;
+    @notnull @unique Object b;
+ 
+    Bad(@unique Object o, @unique ListItem n) {
+      a = new ListItem(o,n);
+      b = null;
+    }
+
+    @writes this.a
+    @unique ListItem getList() {
+      ListItem temp = a;
+      a = null;
+      return temp;
+    }
+
+    // GOOD
+
+    @writes this.a, this.b
+    @nonnull unique ListItem send() {
+      ListItem bad = a; 
+      this.b = bad.getItem(); // write this.a.item, write this.b
+      ListItem t = this.getList();  // write this.a
+      ListItem ret = new ListItem(t,null); // consume t
+      return ret;
+    }
+
+    // BAD
+
+    @writes this.a, this.b
+    @nonnull unique ListItem send() {
+      ListItem bad = a; 
+      ListItem t = this.getList();  // write this.a - cannot check since 
+      ListItem ret = new ListItem(t,null); // consume t
+      this.b = bad.getItem(); // write bad.item, write this.b
+      return ret;
+    }
+  } 
+
+  send() method can be translated to (roughly):
+  
+  // GOOD
+
+  let _ = 
+    let 
+      bad = this.a // write this.a
+    in 
+      this.b = bad.getItem() // write this.b, (write bad.item => write this.a)
+    end
+  in
+    let 
+      t = this.getList() // write this.a
+    in
+      let 
+        ret = new ListItem(t,null) // consume t
+      in
+        ret // consume ret
+      end
+    end
+  end
+   
+  // BAD
+
+  let 
+    bad = this.a 
+  in
+    let 
+      t = this.getList()
+    in
+      let
+        ret = new ListItem(t,null)
+      in
+        let 
+          _ = this.b = bad.getItem()
+        in
+          ret
+        end
+      end
+     end
+   end
+
+  This example code can be checked with a little bit restructuring
+and the help of "destructive-read" rule.
+
+}%
+
+
+%%% abbreviation for nats
+
+%abbrev 0 = z.
+%abbrev 1 = s 0.
+%abbrev 2 = s 1.
+%abbrev 3 = s 2.
+%abbrev 4 = s 3.
+%abbrev 5 = s 4.
+%abbrev 6 = s 5.
+%abbrev 7 = s 6.
+%abbrev 8 = s 7.
+%abbrev 9 = s 8.
+%abbrev 10 = s 9.
+%abbrev 11 = s 10.
+
+
+
+%% class IDs
+
+%abbrev ObjectClassID = 0.
+%abbrev ListItemClassID = 1.
+%abbrev BadClassID = 2.
+
+% field IDs
+
+% in ListItem class
+
+%abbrev itemField = 0.
+%abbrev nextField = 1.
+
+% in Object class
+
+% in Bad class
+
+%abbrev aField = 0.
+%abbrev bField = 1.
+
+%% method IDs
+
+%abbrev objectMethID = 0.
+%abbrev listItemMethID = 1.
+%abbrev badMethID = 2.
+%abbrev getItemMethID = 3.
+%abbrev getListMethID = 4.
+%abbrev sendMethID = 5.
+
+
+% fldmap
+
+%abbrev ObjectFields : fldmap = 
+  (fldmap/+ 0 (ty/ nn/may annot/unique ObjectClassID) fldmap/0).
+                                
+%abbrev ListItemFields : fldmap =
+  (fldmap/+ 0 (ty/ nn/may annot/unique ObjectClassID) % item
+    (fldmap/+ 0 (ty/ nn/may annot/unique ListItemClassID) % next
+      fldmap/0)).
+
+%abbrev BadFields : fldmap =
+  (fldmap/+ 0 (ty/ nn/may annot/unique ListItemClassID)
+    (fldmap/+ 0 (ty/ nn/may annot/unique ObjectClassID)
+      fldmap/0)).
+
+
+% clsmap
+
+%abbrev Classes : clsmap =
+  (clsmap/+ 0 ObjectFields
+    (clsmap/+ 0 ListItemFields 
+      (clsmap/+ 0 BadFields
+        clsmap/0))).
+
+
+% method bodies
+
+%abbrev ObjectConst : func = 
+  func/+ ([this] func/0 (lit this)).
+          
+
+%abbrev ListItemConst : func = 
+  func/+ ([this]
+    func/+ ([o]
+      func/+ ([n]
+        func/0 
+          (seq 
+            (write (lit this) itemField (lit o))
+            (write (lit this) nextField (lit n)))))).
+
+%abbrev BadConst : func =
+  func/+ ([this]
+    func/+ ([o]
+      func/+ ([n]
+        func/0
+          (seq
+            (write (lit this) aField
+              (call ListItemClassID
+                (args/+
+                  (alloc ListItemClassID (set/+ 0 (set/+ 0 set/0)) set/0)
+                  (args/+ (lit o)
+                    (args/+ (lit n) 
+                      args/0)))))
+            (write (lit this) bField (lit null)))))).
+      
+%abbrev getItemMeth : func =
+  func/+ ([this]
+    func/0
+      (let (read (lit this) itemField) 
+        ([temp]
+          (seq
+            (write (lit this) itemField (lit null))
+            (lit temp))))).
+
+
+
+%abbrev getListMeth : func =
+  func/+ ([this]
+    func/0 
+      (let (read (lit this) aField)
+        ([temp]
+          (seq
+            (write (lit this) aField (lit null))
+            (lit temp))))).
+
+%abbrev sendMeth : func = 
+  func/+ ([this]
+    func/0
+      (seq
+        (let (read (lit this) aField)
+          ([bad]
+            (write (lit this) bField 
+              (call getItemMethID
+                (args/+ (lit bad) args/0)))))
+        (let (call getListMethID
+               (args/+ (lit this) args/0))
+          ([t]
+            (let (call ListItemClassID
+                   (args/+ 
+                     (alloc ListItemClassID (set/+ 0 (set/+ 0 set/0)) set/0)
+                     (args/+
+                       (lit t)
+                       (args/+ 
+                         (lit null)
+                         args/0))))
+              ([ret]
+                (lit ret))))))).
+
+% prog
+
+%abbrev Program : prog =
+  (prog`map/+ 0 ObjectConst
+    (prog`map/+ 0 ListItemConst
+      (prog`map/+ 0 BadMeth
+        (prog`map/+ 0 getItemMeth
+          (prog`map/+ 0 getListMeth
+            (prog`map/+ 0 sendMeth prog`map/0)))))).
+
+
+%%% methtypes
+
+%abbrev ObjectConstType : methty =
+  (methty/arg
+    (ty/ nn/yes annot/borrow ObjectClassID)
+    set/0 (set/+ 0 set/0) set/0
+    (methty/base (ty/ nn/yes annot/unique ObjectClassID)
+      maybe-efx/nothing)).
+
+%abbrev ListItemConstType : methty =
+  (methty/arg
+    (ty/ nn/yes annot/borrow ListItemClassID)
+    set/0 (set/+ 0 (set/+ 0 set/0)) set/0
+    (methty/arg
+      (ty/ nn/may annot/unique ObjectClassID)
+        set/0 set/0 (set/+ 0 set/0)
+      (methty/arg
+        (ty/ nn/may annot/unique ListItemClassID)
+        set/0 set/0 (set/+ 0 (set/+ 0 set/0))
+        (methty/base
+          (ty/ nn/yes annot/unique ListItemClassID)
+            (maybe-efx/nothing))))).
+
+%abbrev BadConstType : methty =
+  (methty/arg
+    (ty/ nn/yes annot/borrow BadClassID)
+    set/0 (set/+ 0 (set/+ 0 set/0)) set/0
+    (methty/arg
+      (ty/ nn/may annot/unique ObjectClassID)
+      set/0 set/0 (set/+ 0 set/0)
+      (methty/arg
+        (ty/ nn/may annot/unique ListItemClassID)
+        set/0 set/0 (set/+ 0 (set/+ 0 set/0))
+        (methty/base
+          (ty/ nn/yes annot/unique BadClassID)
+          maybe-efx/nothing)))).
+
+%abbrev getItemMethType : methty =
+  (methty/arg
+    (ty/ nn/yes annot/borrow ListItemClassID)
+      set/0 (set/+ 0 set/0) set/0
+      (methty/base 
+        (ty/ nn/may annot/unique ObjectClassID)
+        maybe-efx/nothing)).
+
+%abbrev getListMethType : methty =
+  (methty/arg
+    (ty/ nn/yes annot/borrow ListItemClassID)
+    set/0 (set/+ 0 set/0) set/0
+    (methty/base 
+      (ty/ nn/may annot/unique ListItemClassID)
+      maybe-efx/nothing)).
+
+%abbrev sendMethType : methty =
+  (methty/arg
+    (ty/ nn/yes annot/borrow BadClassID)
+    set/0 (set/+ 0 (set/+ 0 set/0)) set/0
+    (methty/base
+      (ty/ nn/yes annot/unique ListItemClassID)
+      maybe-efx/nothing)).
+
+% methmap
+
+%abbrev MethodTypes : methmap =
+  (methmap/+ 0 ObjectConstType
+    (methmap/+ 0 ListItemConstType
+      (methmap/+ 0 BadConstType
+        (methmap/+ 0 getItemMethType 
+          (methmap/+ 0 getListMethType
+            (methmap/+ 0 sendMethType
+              methmap/0)))))).
+
+%abbrev 1+0=1 : plus 1 0 1 = plus/s plus/z.
+
+%abbrev lit-target : nat -> targets = [N] (targets/unique (set/1 N) tgtmap/0 false).
+
+%abbrev check-getItem-body
+  : {this} reftyping 1 Classes MethodTypes 
+    (cxt/cons 0 (cxtv/ this (ty/ nn/yes annot/borrow ListItemClassID)) cxt/nil)
+    (let (read (lit this) itemField) 
+      ([temp]
+        (seq
+          (write (lit this) itemField (lit null))
+          (lit temp))))
+    (out/expr
+      (reftype/ nn/may ObjectClassID (lit-target 1))
+      (effects/ 
+        (efxmap/+ 0
+          (inner-efxmap/+ 0 efx/write inner-efxmap/0)
+          efxmap/0)
+        maybe-efx/nothing))
+    2
+    = [this]
+      (reftyping/destructive-read
+        (cxt`lookup-object/
+          (cxt`lookup/= nat`eq/))
+        (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+        (fldmap`lookup/= nat`eq/)
+        ([temp] (cxt`update/> cxt`update/0 1+0=1))
+        ([temp]
+          (reftyping/lit
+            (ty2reftype/unique)
+            (cxt`lookup-object/
+              (cxt`lookup/> (cxt`lookup/= nat`eq/) 1+0=1))))
+        (effects`join/ efxmap`join/R maybe-efx`join/R)).
+
+%abbrev check-getItem-args
+  : {this} {bad} reftyping/args N Classes MethodTypes
+    (cxt/cons 0 (cxtv/ this (ty/ nn/yes annot/borrow BadClassID))
+      (cxt/cons 1 (cxtv/ bad (ty/ nn/yes annot/unique ObjectClassID))
+        cxt/nil)) no-effect 
+    (args/+ (lit bad) args/0)
+    (out/args/+
+      (reftype/ nn/yes BadClassID (lit-target 1))
+      (out/args/0 no-effect)) N
+    = ([this] [bad] 
+        (reftyping/args/+
+          (reftyping/lit KK1 KK2)
+          (effects`join/ efxmap`join/L maybe-efx`join/L)
+          (reftyping/args/0))).
+          
+          (reftyping/lit ty2reftype/unique (LLL))
+%abbrev check-call-getItem
+  : ref-calltyping N no-effect 
+    (out/args/+ (reftype/ nn/yes BadClassID (lit-target N))
+      (out/args/0) getItemMethType.
+    
+
+%abbrev check-send-body
+  : {this} reftyping 1 Classes MethodTypes
+    (cxt/cons 0 (cxtv/ this (ty/ nn/yes annot/borrow BadClassID)) cxt/nil)
+    (seq
+      (let (read (lit this) aField)
+        ([bad]
+          (write (lit this) bField 
+            (call getItemMethID
+              (args/+ (lit bad) args/0)))))
+      (let (call getListMethID
+             (args/+ (lit this) args/0))
+        ([t]
+          (let (call ListItemClassID
+                 (args/+ 
+                   (alloc ListItemClassID (set/+ 0 (set/+ 0 set/0)) set/0)
+                   (args/+
+                     (lit t)
+                     (args/+ 
+                       (lit null)
+                       args/0))))
+            ([ret]
+              (lit ret))))))
+    (out/expr
+      (reftype/ nn/yes ListItemClassID 
+        (targets/unique (set/1 6) tgtmap/0 false))
+      (effects/
+        (efxmap/+ 0
+          (inner-efxmap/+ 0 efx/write
+            (inner-efxmap/+ 0 efx/write inner-efxmap/0))
+          efxmap/0)
+        maybe-efx/nothing))
+    7
+    = [this]
+      (
+    
+
+
+%{
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  Example 2 (from oo-permission paper)
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  class UNode {
+    @unique UNode next;
+    @shared Object datum;
+  }
+
+  @write n.next
+  void append(@borrow UNode n, @unique UNode m) {
+    m.next = n.next; // write m.next, consume n.next
+    n.next = m; // write n.next, consume m
+  }
+
+  This could be checked if we allow a little bit flow-sensitivity
+in our system - that is, allow join of write and consume, but not
+
+both "consume n.next" and "write n.next".
+
+  We could make a little change on this code and adopt it to the 
+destructive-read rule:
+
+  let x = n.next in (n.next = null; m.next = x; n.next = m) end  
+
+However, this still cannot be checked since it has both "write m.next"
+and "consume m".
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  Example 3 (from oo-permission paper)
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  class Foo {
+    @unique Object u;
+    @shared Object o;
+
+    @write this.u, this.o
+    void bar() { 
+      this.o = this.u;
+    }
+
+  this can be checked since method body for bar() generates consume 
+effect on this.u, but this is borrowed.
+
+  
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Example 4 (from permission-type.elf)
+
+  class Node {
+    @shared Object val;
+    @unique Node next;
+  }
+
+
+  @maynull @unique Node 
+  member(@maynull @unique Node l, @notnull @shared Object x) {
+    let frame = new { Node p } in
+      seq
+        frame.p = l // writes frame.p
+        while (!(frame.p == 0) && !(frame.p.val == x)) {
+          frame.p = frame.p.next; // write frame.p, consume frame.p.next
+        }
+        frame.p
+    end
+  }
+  
+}%
+
+
