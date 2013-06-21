@@ -7,7 +7,7 @@ GEN = clsmap.elf methmap.elf fldmap.elf predmap.elf tgtmap.elf \
 HELP = clsmap-base.elf methmap-base.elf fldmap-base.elf predmap-base.elf \
 	tgtmap-base.elf inner-efxmap-base.elf efxmap-base.elf
 HAND = tgtmap-efxmap.elf reftype.elf cxt.elf consistency.elf \
-	subst.elf typing.elf consistency.thm clsmap2predmap.elf \
+	subst.elf subtyping.elf typing.elf consistency.thm clsmap2predmap.elf \
 	clsmap2predmap.thm conversion.elf consume.thm conversion.thm
 
 CSRC = clsmap.cpp methmap.cpp fldmap.cpp predmap.cpp tgtmap.cpp \
@@ -22,7 +22,7 @@ all : ${SUBDIRS} ${SRC} ${GEN}
 
 CAT = cat
 CPP = cpp
-CPPFLAGS = -DBEGIN_ELF="%}%" -DEND_ELF="%{%" -I../library
+CPPFLAGS = -DBEGIN_ELF="%}%" -DEND_ELF="%{%" -I../library -I../library-extra
 REC = ../library/remove-empty-comments.pl
 GN = ../library/get-names.pl
 
