@@ -1,26 +1,39 @@
 % Subtyping Rules
-% $Id: subtyping.elf,v 1.5 2013/06/04 20:42:15 csun Exp csun $
+% $Id: subtyping.elf,v 1.6 2013/06/11 16:39:23 csun Exp csun $
 
 %%% Definitions
 
 set+nat2tgtmap : set -> nat -> tgtmap -> type.
 
-set+nat2tgtmap/
-  : set+nat2tgtmap S F GM
-    -> set+nat2tgtmap (set/+ N S) F (tgtmap/+ N (set/1 F) GM).
+set+nat2tgtmap/0 : set+nat2tgtmap set/0 _ tgtmap/0.
 
+set+nat2tgtmap/+
+  : set+nat2tgtmap (set/+ N S) F (tgtmap/+ N (set/1 F) GM)
+    <- set+nat2tgtmap S F GM.
+
+
+%{
+06-16-13: a special case here is when field set is empty, the
+result will contain keys that are mapped to set/0, and thus we 
+will eventually end up with efxmap in which some keys are mapped
+to inner-efxmap/0. This is necessary since object may have 
+no field, but we still need to record consume effect on it. tgtmap
+in targets should never have set/0 as value.
+ 
+When we remove a tgtmap from a efxmap, we need to first remove all 
+entries with inner-efxmap/0 from the efxmap.
+}%
 
 set+set2tgtmap : set -> set -> tgtmap -> type.
 
 set+set2tgtmap/0 : set+set2tgtmap set/0 _ tgtmap/0.
 
-set+set2tgtmap/U
-  : set+set2tgtmap GS SP GM1
-    -> set`not-member SP F
-    -> set`add SP F S
-    -> set+nat2tgtmap GS F GM2
-    -> tgtmap`join GM1 GM2 GM
-    -> set+set2tgtmap GS S GM.
+set+set2tgtmap/+
+  : set`not-member SP N
+    -> set`add SP N S
+    -> set+set2tgtmap SP FS GMP
+    -> tgtmap`update GMP N FS GM
+    -> set+set2tgtmap S FS GM.
 
 
 % determine the max effect from these two sets.
@@ -86,14 +99,14 @@ sub-annot/shared2borrow
 sub-annot/shared2shared
   : sub-annot targets/shared set/0 set/0 set/0 annot/shared no-effect.
 
-sub-annot/borrow2borrow
-  : set+set2tgtmap S RS GM1
-    -> set+set2tgtmap S WS GM2
-    -> tgtmap2efxmap GM1 efx/read XM1
-    -> tgtmap2efxmap GM2 efx/write XM2
-    -> efxmap`join XM1 XM2 XM
-    -> sub-annot (targets/borrow S)
-      RS WS set/0 annot/borrow (effects/ XM maybe-efx/nothing).
+% sub-annot/borrow2borrow
+%   : set+set2tgtmap S RS GM1
+%     -> set+set2tgtmap S WS GM2
+%     -> tgtmap2efxmap GM1 efx/read XM1
+%     -> tgtmap2efxmap GM2 efx/write XM2
+%     -> efxmap`join XM1 XM2 XM
+%     -> sub-annot (targets/borrow S)
+%       RS WS set/0 annot/borrow (effects/ XM maybe-efx/nothing).
 
 
 %%% Sub-Nonnull Rules
@@ -119,3 +132,21 @@ subtype/
 
 
 %%% Theorems
+
+
+set+nat2tgtmap-implies-wf 
+  : set+nat2tgtmap S F GM
+    -> tgtmap`wf GM
+    -> type.
+%mode set+nat2tgtmap-implies-wf +T -WF.
+
+- : set+nat2tgtmap-implies-wf 
+    set+nat2tgtmap/0 tgtmap`wf/0.
+
+- : set+nat2tgtmap-implies-wf 
+    (set+nat2tgtmap/+ S+F=>GM) 
+    (tgtmap`wf/+ (set`size/+ set`size/0) WF-GM)
+    <- set+nat2tgtmap-implies-wf S+F=>GM WF-GM.
+
+%worlds () (set+nat2tgtmap-implies-wf _ _).
+%total (T) (set+nat2tgtmap-implies-wf T _).

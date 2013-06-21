@@ -1,4 +1,4 @@
-$Id: log.org,v 1.5 2013/05/18 15:39:18 csun Exp $
+$Id: log.org,v 1.6 2013/06/03 02:47:29 csun Exp csun $
 
 This is the log I kept while writing proof for my type system.
 
@@ -235,7 +235,7 @@ to keep the field permission on a.f. A more conservative way is to
 use empty permission as output. That is, once consumed, we lost
 every hope of restoring the permission.
 
-A tricker question is about expose effect. Like consume, one could also
+ A tricker question is about expose effect. Like consume, one could also
 expose a entire object, and thus the current definition:
 
   \exists r_f (r_a.f->r_f, r_f.all < null.all, P(r_f))
@@ -348,6 +348,7 @@ in this case, instead of converting to effects on shared in set+nat2tgtmap.
 But, if we have a effect on x.f.g, while f is a shared field, then 
 we need to produce a effect on shared, since getting from x.f to
 x.f.g requires permission on shared.
+(edited: above paragraph is *wrong*, see <2013-06-03 Mon> log)
 
 This poses a problem: let's say we are checking 
 
@@ -366,3 +367,153 @@ we have a "read shared" effect, and another "write x.f" effect, then
 we need to eliminate the latter, and promote the former to "write shared".
 
 This looks like complex enough to implement. I need to think more on it.
+
+
+<2013-06-03 Mon>
+
+A continue from yesterday's thought. In turns of effects annotation, it 
+is *impossible* to have an effect annotation on a shared parameter. Since
+on the one hand, effects will be translated to field permissions on the
+parameter object, and on the other hand, the shared annotation is 
+translated to: x.all <- 0.owned, which is useless since we would never be
+able to get anything out of this (unless you know you have effects on
+all fields of x, then you can get permission for 0.owned, but this is
+incredibly unnecessary because why don't one just annotate x as shared?)
+
+Therefore, we should require shared parameter associated with no effect
+annotation (just like unique parameters). In other words, only borrowed
+parameter can have effect annotations.
+
+So now we are back to the old question, how should we handle shared parameters?
+We could associate them with (set/0, (tgtmap/1 z (set/1 z))) in cxt, but then
+we won't type check reftyping/lit, since it produces effects/0. Also, this 
+doesn't translate to permissions smoothly. When reading a object reference,
+it should produce a objequal relation. 
+
+
+Another topic: for unique parameter, we could use similar approach as shared
+parameter. That is, when a unique parameter is consumed, we mark it by putting
+it in a set (like the set for exposed unique parameter that we are using 
+right now) in output. Also, we check if this set is compatible with the result
+efxmap (the efxmap should not contain any consume effect on any field of any
+object in the set). Then, input permission could either contain some field
+permission for a object or the whole permission, depending on whether the object
+is in the set or in efxmap. One benefit for this approach is, we don't have
+to generate a encumbered permission for unique paramter, instead we can just
+use the whole permission, which reduces complexity.
+
+
+<2013-06-04 Tue>
+
+Problem when I try to prove reftyping-frame. Currently, I have output effects
+like this:
+
+ effects/ : set -> efxmap -> effects
+
+ set is all objects that are exposed, and efxmap is all effects on fields
+ (include read, write and consume).
+
+When converting effects into input permission, I take context into consideration
+too. For each unique parameter x in context, we check if it's in set. If so,
+we create a permission x.all <- 0.all. If not, we create an encumbered 
+permission:
+
+  \Pi_f --|- x.all 
+
+The problem is, reftyping-frame requires, if we have two effects:
+(effects/ S1 XM1) and (effects/ S2 XM2), and S1 <= S2, XM1 <= XM2.
+Then, after converting them seperately to permissions Pi1 and Pi2, we need to
+show that Pi2 implies Pi1, Pi3, for some Pi3. However, we cannot infer 
+x.all <- 0.all from \Pi_f --|- x.all. 
+
+One proposal is to have another set in effects:
+
+  effects/ : set -> set -> efxmap -> effects.
+
+which contains all parameters that are consumed. But, this still will not solve
+the problem. 
+
+
+<2013-06-06 Thu>
+
+My current way of converting targets is still wrong. For a field read, if
+the field is shared, we'll give it a shared-tgtmap as result type. However,
+this will get converted to a encumbered permission on shared permission, which
+is not good, since x.f shouldn't require any permission from shared, if
+x is unique and f is shared. Thus, a better way is to check f's type when
+producing output, and don't produce any encumbered permission if f is shared.
+
+
+<2013-06-10 Mon>
+
+Currently I am writing a test case for my type system. This raises questions
+about let-expression. First, I think it would be possible to handle chained
+field reads through let-expression. For instance, if we have a expression:
+
+  let x = a.u in E
+
+then, it *may* be possible to consume a.u.f1, and a.u.f2 in E, while both f1
+and f2 are unique fields. We need to implement this in the *substitution* rules.
+
+Another question is *whether we can handle expose effect in a simple way?*
+I still don't want to give up on expose effect, even if we can only handle
+a small subset of cases for it. But, I don't want to make any radical change
+on what I have right now. 
+
+
+<2013-06-14 Fri>
+
+While writing the test case, I found a problem in my current
+definition. For classes without any field, my system won't be able to
+handle them. This is because set+set2tgtmap is now a partial mapping.
+
+What I have is two options:
+
+1. Change how effects is defined. For instance, add an extra set
+   which contains all consumed objects. This approach should work.
+   However, it adds more complexity due to interactions between the
+   set and efxmap. For instance, we need to make sure there's no
+   overlapping between keys in efxmap and elements in the set, since
+   a object cannot be both consumed and read/write.
+
+2. Change set+set2tgtmap and other few things. We can represent this
+   if we allow empty inner-efxmap as entry in efxmap. It gets
+   converted to empty permission. On the other hand, the unique
+   parameter is converted to empty --+- Pi, so we can get the whole
+   permission for Pi easily. We need to empty inner-efxmap simply
+   because we have to keep a record when the object is consumed. 
+
+Another problem is checking method call. We need to check aliasing
+when passing arguments to a method call. For instance, argument a and
+b maybe aliasing, and if the method is annotated with, for instance, 
+read a.f and write b.f, then it should not check. 
+
+To make sure this won't happen, we can do a extra check in
+ref-calltyping. But it is quite tedious to do. Suppose we have two
+efxmaps M1 and M2, and we are ready to join them together. Then, we
+need to check that:
+
+  1. read effects in M1 do not overlap with write and consume
+     effects in M2,
+  2. read effects in M2 do not overlap with write and consume effects
+     in M1.
+
+And the result will be:
+
+  1. read effects in M1 plus read effects in M2, and read effects in 
+  2. 
+
+
+<2013-06-19 Wed>
+
+Think about how to check the following exps:
+
+1. x.head = new Node(3,x.head)
+
+2. n = new Node(3, x.head)
+   x.head = n
+
+3. for (n = x.head; n.next != null; n = n.next) { ... }
+
+4. n = new Node(3, x.head)
+   if (..) x.head = n

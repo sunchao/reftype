@@ -1,6 +1,6 @@
 %%% consistency relation between clsmap, methmap and fldmap
 %%% Chao Sun
-%%% $Id: consistency.elf,v 1.4 2013/05/17 16:59:10 csun Exp csun $
+%%% $Id: consistency.elf,v 1.5 2013/06/01 18:37:23 csun Exp csun $
 %%% Created at Feb, 8th 2012
 
 
@@ -18,8 +18,8 @@ clsmap-ty/null : clsmap-ty CM ty/null.
 clsmap-reftype : clsmap -> reftype -> type.
 
 clsmap-reftype/
-   : clsmap-reftype CM (reftype/ T _ _) 
-     <- clsmap-ty CM T.
+  : clsmap-reftype CM (reftype/ _ C GS)
+    <- clsmap`domain? CM C true.
 
 
 % check if all types appear in methty is also in clsmap
@@ -34,7 +34,7 @@ clsmap-methty/base
 % should we worried that effect sets are not
 % subsets of class's field set?
 clsmap-methty/args
-  : clsmap-methty CM (methty/arg A T _ _)
+  : clsmap-methty CM (methty/arg T _ _ _ A)
     <- clsmap-ty CM T
     <- clsmap-methty CM A.
 
@@ -80,7 +80,7 @@ clsmap-methmap/meth
 
 clsmap-methmap/const
   : clsmap-methmap CM
-    (methmap`map/+ N (methty/arg MT (ty/ nonnull/yes _ N) _ _) MM)
+    (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) _ _ _ MT) MM)
     <- clsmap`lookup CM N _
     <- clsmap-methty CM MT
     <- methmap`shift N MM MMS
@@ -136,20 +136,10 @@ cxt-efxmap : cxt -> clsmap -> efxmap -> type.
 
 cxt-efxmap/0 : cxt-efxmap _ _ efxmap/0.
 
-%{ Need to handle the special "shared" case:
-the 0 index should be mapped to a inner-efxmap
-with only one value: (0 -> X) }% 
-
-cxt-efxmap/S
-  : efxmap`fresh XMP z
-    -> efxmap`update XMP z (inner-efxmap/+ z _ inner-efxmap/0) XM
-    -> cxt-efxmap B CM XMP
-    -> cxt-efxmap B CM XM.
-
 cxt-efxmap/U
-  : efxmap`fresh XMP (s N)
-    -> efxmap`update XMP (s N) M XM
-    -> cxt`lookup B (s N) (cxtv/ _ (ty/ _ _ C))
+  : efxmap`fresh XMP N
+    -> efxmap`update XMP N M XM
+    -> cxt`lookup B N (cxtv/ _ (ty/ _ _ C))
     -> clsmap`lookup CM C FM
     -> fldmap-inner-efxmap FM M
     -> cxt-efxmap B CM XMP

@@ -1,0 +1,93 @@
+%%% effect & target substitution 
+
+
+%%% Substitution for Targets
+
+subst-targets : targets -> nat -> targets -> targets -> type.
+
+
+% for shared targets, no substitution is needed since all 
+% effects are mapped directly to "world". 
+
+subst-targets/shared1 : subst-targets targets/shared _ GS GS.
+
+subst-targets/shared2
+  : subst-targets (targets/unique _ _ _) _ targets/shared targets/shared.
+
+subst-targets/unique/in/set
+  : set`not-member S2P N
+    -> set`add S2P N S2
+    -> tgtmap`fresh GM2 N
+    -> set`union S1 S2P S3
+    -> tgtmap`join GM1 GM2 GM3
+    -> bool`or SB1 SB2 SB3
+    -> subst-targets (targets/unique S1 GM1 SB1) N (targets/unique S2 GM2 SB2)
+      (targets/unique S3 GM3 SB3).
+
+subst-targets/unique/in/tgtmap
+  : set`not-member S2 N
+    -> tgtmap`fresh GM2P N
+    -> tgtmap`update GM2P N FS GM2
+    -> set+set2tgtmap S1 FS GM3
+    -> tgtmap`join GM2P GM3 GM4
+    -> bool`or SB1 SB2 SB3
+    -> subst-targets (targets/unique S1 GM1 SB1) N (targets/unique S2 GM2 SB2)
+      (targets/unique S2 GM4 SB3).
+
+subst-targets/unique/out 
+  : set`not-member S2 N
+    -> tgtmap`fresh GM2 N
+    -> subst-targets (targets/unique S1 GM1 SB1) N (targets/unique S2 GM2 SB2)
+      (targets/unique S2 GM2 SB2).
+
+
+%%% Substitution for Effects
+
+% a direct translation from set to efxmap.
+
+set+inner-efxmap2efxmap : set -> inner-efxmap -> efxmap -> type.
+
+set+inner-efxmap2efxmap/0 : set+inner-efxmap2efxmap set/0 _ efxmap/0.
+
+set+inner-efxmap2efxmap/+
+  : set+inner-efxmap2efxmap (set/+ N S) M (efxmap/+ N M XM)
+    <- set+inner-efxmap2efxmap S M XM.
+
+
+%{ for tgtmap, we need to find out the maximum effect in
+inner-efxmap and then extend the tgtmap with that effect.
+This is not too precise. For instance, if we have two effects:
+"read a.f.u1", and "consume a.f.u2", it will be merged into 
+effect "consume a.f" }%
+
+tgtmap+inner-efxmap2efxmap
+  : tgtmap -> inner-efxmap -> efxmap -> type.
+
+tgtmap+inner-efxmap2efxmap/0
+  : tgtmap+inner-efxmap2efxmap _ inner-efxmap/0 efxmap/0.
+
+tgtmap+inner-efxmap2efxmap/+
+  : inner-efxmap`fresh MS F
+    -> inner-efxmap`update MS F X M
+    -> tgtmap2efxmap GM X XM
+    -> tgtmap+inner-efxmap2efxmap GM MS XMS
+    -> efxmap`join XM XMS XMP
+    -> tgtmap+inner-efxmap2efxmap GM M XMP.
+
+
+subst-effects : targets -> nat -> effects -> effects -> type.
+
+subst-effects/shared : subst-effects targets/shared _ XX XX.
+
+subst-effects/unique/in
+  : efxmap`fresh XMP N 
+    -> efxmap`update XMP N M XM
+    -> set+inner-efxmap2efxmap S M XM1
+    -> tgtmap+inner-efxmap2efxmap GM M XM2
+    -> efxmap`join XM1 XM2 XM3
+    -> efxmap`join XM3 XMP XM4
+    -> subst-effects (targets/unique S GM SB) N (effects/ XM MX) (effects/ XM4 MX).
+
+subst-effects/unique/out
+  : efxmap`fresh XM N
+    -> subst-effects _ N (effects/ XM MX) (effects/ XM MX).
