@@ -45,9 +45,14 @@ join/rr : join efx/read efx/read efx/read.
 
 join/rw : join efx/read efx/write efx/write.
 
+join/rc : join efx/read efx/consume efx/consume.
+
 join/wr : join efx/write efx/read efx/write.
 
 join/ww : join efx/write efx/write efx/write.
+
+join/wc : join efx/write efx/consume efx/consume.
+
 
 
 %{ we CAN'T allow write /\ expose = expose (really sucks).
@@ -69,10 +74,9 @@ for shared, but which will make it unsound.) }%
 
 false-implies-eq : {F:void} eq X1 X2 -> type.
 %mode +{X1} +{X2} +{V:void} -{E:eq X1 X2} false-implies-eq V E.
->>>>>>> masterb5
 
 %worlds () (false-implies-eq _ _).
-%total  {} (false-implies-eq _ _).
+%total {} (false-implies-eq _ _).
 
 
 eq-transitive : eq X1 X2 -> eq X2 X3 -> eq X1 X3 -> type.
@@ -82,7 +86,7 @@ eq-transitive : eq X1 X2 -> eq X2 X3 -> eq X1 X3 -> type.
 %mode eq-transitive +E1 +E2 -E.
 
 %worlds () (eq-transitive _ _ _).
-%total  {} (eq-transitive _ _ _).
+%total {} (eq-transitive _ _ _).
 
 
 % leq
@@ -91,7 +95,7 @@ false-implies-leq : {F:void} leq X1 X2 -> type.
 %mode +{X1} +{X2} +{V} -{LE: leq X1 X2} false-implies-leq V LE.
 
 %worlds () (false-implies-leq _ _).
-%total  {} (false-implies-leq _ _).
+%total {} (false-implies-leq _ _).
 
 
 leq-respects-eq : leq X1 X2 -> eq X1 Y1 -> eq X2 Y2 -> leq Y1 Y2 -> type.
@@ -100,7 +104,7 @@ leq-respects-eq : leq X1 X2 -> eq X1 Y1 -> eq X2 Y2 -> leq Y1 Y2 -> type.
 - : leq-respects-eq LE eq/ eq/ LE.
 
 %worlds () (leq-respects-eq _ _ _ _).
-%total  {} (leq-respects-eq _ _ _ _).
+%total {} (leq-respects-eq _ _ _ _).
 
 
 leq-reflexive : {X} leq X X -> type.
@@ -118,7 +122,7 @@ leq-anti-symmetric : leq X1 X2 -> leq X2 X1 -> eq X1 X2 -> type.
 - : leq-anti-symmetric (leq/eq eq/) (leq/eq eq/) eq/.
 
 %worlds () (leq-anti-symmetric _ _ _).
-%total  {} (leq-anti-symmetric _ _ _).
+%total {} (leq-anti-symmetric _ _ _).
 
 
 leq-transitive : leq X1 X2 -> leq X2 X3 -> leq X1 X3 -> type.
@@ -133,7 +137,7 @@ leq-transitive : leq X1 X2 -> leq X2 X3 -> leq X1 X3 -> type.
 - : leq-transitive leq/rw leq/wc leq/rc.
 
 %worlds () (leq-transitive _ _ _).
-%total  {} (leq-transitive _ _ _).
+%total {} (leq-transitive _ _ _).
 
 
 
@@ -143,18 +147,17 @@ false-implies-join* : {F:void} join X1 X2 X3 -> type.
 %mode +{X1} +{X2} -{X3} +{V} -{J:join X1 X2 X3} false-implies-join* V J.
 
 %worlds () (false-implies-join* _ _).
-%total  {} (false-implies-join* _ _).
+%total {} (false-implies-join* _ _).
 
 
 false-implies-join : {F:void} join X1 X2 X3 -> type.
 %mode +{X1} +{X2} +{X3} +{V} -{J:join X1 X2 X3} false-implies-join V J.
 %worlds () (false-implies-join _ _).
-%total  {} (false-implies-join _ _).
+%total {} (false-implies-join _ _).
 
 
 join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 %mode join-implies-leq* +J -LE.
->>>>>>> masterb5
 
 - : join-implies-leq* join/rr (leq/eq eq/).
 
@@ -164,8 +167,12 @@ join-implies-leq* : join X1 X2 X3 -> leq X1 X3 -> type.
 
 - : join-implies-leq* join/ww (leq/eq eq/).
 
+- : join-implies-leq* join/rc leq/rc.
+
+- : join-implies-leq* join/wc leq/wc.
+
 %worlds () (join-implies-leq* _ _).
-%total  {} (join-implies-leq* _ _).
+%total {} (join-implies-leq* _ _).
 
 
 join-implies-leq : join X1 X2 X3 -> leq X1 X3 -> leq X2 X3 -> type.
@@ -179,26 +186,12 @@ join-implies-leq : join X1 X2 X3 -> leq X1 X3 -> leq X2 X3 -> type.
 
 - : join-implies-leq join/ww (leq/eq eq/) (leq/eq eq/).
 
+- : join-implies-leq join/rc leq/rc (leq/eq eq/).
+
+- : join-implies-leq join/wc leq/wc (leq/eq eq/).
+
 %worlds () (join-implies-leq _ _ _).
-%total  {} (join-implies-leq _ _ _).
-
-
-%theorem join-commutative
-  : forall* {X1} {X2} {X}
-    forall {J: join X1 X2 X}
-    exists {J: join X2 X1 X}
-    true.
-
-- : join-commutative join/rw join/wr.
-
-- : join-commutative join/wr join/rw.
-
-- : join-commutative join/rr join/rr.
-
-- : join-commutative join/ww join/ww.
-
-%worlds () (join-commutative _ _).
-%total {} (join-commutative _ _).
+%total {} (join-implies-leq _ _ _).
 
 
 join-respects-eq
@@ -258,6 +251,14 @@ join-associative
 
 - : join-associative join/ww join/ww _ join/ww join/ww.
 
+- : join-associative join/rr join/rc _ join/rc join/rc.
+
+- : join-associative join/rw join/wc _ join/wc join/rc.
+
+- : join-associative join/wr join/wc _ join/rc join/wc.
+
+- : join-associative join/ww join/wc _ join/wc join/wc.
+
 %worlds () (join-associative _ _ _ _ _).
 %total  {} (join-associative _ _ _ _ _).
 
@@ -286,6 +287,14 @@ join-associative-converse
 - : join-associative-converse join/wr join/ww _ join/ww join/wr.
 
 - : join-associative-converse join/ww join/ww _ join/ww join/ww.
+
+- : join-associative-converse join/wc join/rc _ join/rw join/wc.
+
+- : join-associative-converse join/rc join/wc _ join/wr join/wc.
+
+- : join-associative-converse join/rc join/rc _ join/rr join/rc.
+
+- : join-associative-converse join/wc join/wc _ join/ww join/wc.
 
 %worlds () (join-associative-converse _ _ _ _ _).
 %total { } (join-associative-converse _ _ _ _ _).
