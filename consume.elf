@@ -1,0 +1,263 @@
+%%% Facts about consuming effects
+
+
+%%% Definitions
+
+efx`not-consume : efx -> type.
+
+efx`not-consume/read : efx`not-consume efx/read.
+
+efx`not-consume/write : efx`not-consume efx/write.
+
+
+inner-efxmap`no-consume : inner-efxmap -> type.
+
+inner-efxmap`no-consume/0 : inner-efxmap`no-consume inner-efxmap/0.
+
+inner-efxmap`no-consume/U
+  : inner-efxmap`no-consume MP
+    -> inner-efxmap`fresh MP N
+    -> inner-efxmap`update MP N X M
+    -> efx`not-consume X
+    -> inner-efxmap`no-consume M.
+
+
+efxmap`no-consume : efxmap -> type.
+
+efxmap`no-consume/0 : efxmap`no-consume efxmap/0.
+
+efxmap`no-consume/U
+  : efxmap`no-consume XMP
+    -> efxmap`fresh XMP N
+    -> efxmap`update XMP N M XM
+    -> inner-efxmap`no-consume M
+    -> efxmap`no-consume XM.
+
+
+%%% Theorems
+
+
+%%% efx`not-consume
+
+efx`not-consume-respects-eq
+  : efx`not-consume X1
+    -> efx`eq X1 X2
+    -> efx`not-consume X2
+    -> type.
+%mode efx`not-consume-respects-eq +NC1 +E -NC2.
+
+- : efx`not-consume-respects-eq NC efx`eq/ NC.
+
+%worlds () (efx`not-consume-respects-eq _ _ _).
+%total {} (efx`not-consume-respects-eq _ _ _).
+
+
+efx`join-not-consume
+  : efx`join X1 X2 X
+    -> efx`not-consume X2
+    -> efx`not-consume X
+    -> type.
+%mode efx`join-not-consume +J +NC2 -NC.
+
+- : efx`join-not-consume
+    efx`join/rr efx`not-consume/read efx`not-consume/read.
+
+- : efx`join-not-consume
+    efx`join/wr efx`not-consume/read efx`not-consume/write.
+
+- : efx`join-not-consume
+    efx`join/rw efx`not-consume/write efx`not-consume/write.
+
+- : efx`join-not-consume
+    efx`join/ww efx`not-consume/write efx`not-consume/write.
+
+%worlds () (efx`join-not-consume _ _ _).
+%total {} (efx`join-not-consume _ _ _). 
+
+
+inner-efxmap`join-lookup-not-consume
+  : inner-efxmap`join M1 M2 M
+    -> inner-efxmap`lookup M2 N X
+    -> efx`not-consume X
+    -> inner-efxmap`lookup M N XP
+    -> efx`not-consume XP
+    -> type.
+%mode inner-efxmap`join-lookup-not-consume +J1 +L1 +NC1 -L2 -NC2.
+
+inner-efxmap`join-lookup-not-consume/L
+  : inner-efxmap`domain? M1 N B 
+    -> inner-efxmap`join M1 M2 M
+    -> inner-efxmap`lookup M2 N X2
+    -> efx`not-consume X2
+    -> inner-efxmap`lookup M N X
+    -> efx`not-consume X
+    -> type.
+%mode inner-efxmap`join-lookup-not-consume/L +DM? +J +L2 +NC1 -L -NC.
+
+- : inner-efxmap`join-lookup-not-consume/L
+    (inner-efxmap`domain?/in M1->N=X1) M1+M2=M M2->N=X2 NC-X2 M->N=X NC-X
+    <- inner-efxmap`join-joins-lookup 
+      M1->N=X1 M2->N=X2 M1+M2=M X X1+X2=X M->N=X
+    <- efx`join-not-consume X1+X2=X NC-X2 NC-X.
+    
+- : inner-efxmap`join-lookup-not-consume/L
+    (inner-efxmap`domain?/out N!<M1) M1+M2=M M2->N=X2 NC-X2 M->N=X2 NC-X2
+    <- inner-efxmap`fresh-join-left-preserves-lookup*
+      N!<M1 M2->N=X2 M1+M2=M M->N=X2.
+
+%worlds () (inner-efxmap`join-lookup-not-consume/L _ _ _ _ _ _).
+%total {} (inner-efxmap`join-lookup-not-consume/L _ _ _ _ _ _).
+
+
+- : inner-efxmap`join-lookup-not-consume J L NC LP NCP
+    <- inner-efxmap`domain?-total DM?
+    <- inner-efxmap`join-lookup-not-consume/L DM? J L NC LP NCP.
+
+%worlds () (inner-efxmap`join-lookup-not-consume _ _ _ _ _).
+%total {} (inner-efxmap`join-lookup-not-consume _ _ _ _ _).
+
+
+
+%%% inner-efxmap`no-consume
+
+inner-efxmap`false-implies-no-consume
+  : {V:void} {M:inner-efxmap} inner-efxmap`no-consume M -> type.
+%mode inner-efxmap`false-implies-no-consume +V +M -NC.
+
+%worlds () (inner-efxmap`false-implies-no-consume _ _ _).
+%total {} (inner-efxmap`false-implies-no-consume _ _ _).
+
+
+
+inner-efxmap`lookup-implies-not-consume
+  : inner-efxmap`no-consume M
+    -> inner-efxmap`lookup M N X
+    -> efx`not-consume X
+    -> type.
+%mode inner-efxmap`lookup-implies-not-consume +NC-M +L -NC-X.
+
+inner-efxmap`lookup-implies-not-consume/L
+  : nat`eq? N1 N2 B
+    -> inner-efxmap`no-consume MP
+    -> inner-efxmap`fresh MP N1
+    -> inner-efxmap`update MP N1 X1 M
+    -> efx`not-consume X1
+    -> inner-efxmap`lookup M N2 X2
+    -> efx`not-consume X2
+    -> type.
+%mode inner-efxmap`lookup-implies-not-consume/L +EQ? +NC-MP +F +U +NC-X1 +L -NC-X2.
+
+- : inner-efxmap`lookup-implies-not-consume/L nat`eq?/yes 
+    _ _ MP+N+X1=M NC-X1 M->N=X2 NC-X2
+    <- inner-efxmap`update-implies-lookup MP+N+X1=M M->N=X1
+    <- inner-efxmap`lookup-unique M->N=X1 M->N=X2 inner-efxmap`eq/ nat`eq/ X1=X2
+    <- efx`not-consume-respects-eq NC-X1 X1=X2 NC-X2.
+
+- : inner-efxmap`lookup-implies-not-consume/L (nat`eq?/no N1<>N2)
+    NC-MP N1!<MP MP+N1+X1=M NC-X1 M->N2=X2 NC-X2
+    <- nat`ne-symmetric N1<>N2 N2<>N1
+    <- inner-efxmap`update-preserves-lookup-converse M->N2=X2 MP+N1+X1=M N2<>N1 MP->N2=X2
+    <- inner-efxmap`lookup-implies-not-consume NC-MP MP->N2=X2 NC-X2.
+
+- : inner-efxmap`lookup-implies-not-consume
+    (inner-efxmap`no-consume/U NC-MP N1!<MP MP+N1+X1=M NC-X1) M->N2=X2 NC-X2
+    <- nat`eq?-total N1==N2?
+    <- inner-efxmap`lookup-implies-not-consume/L N1==N2?
+      NC-MP N1!<MP MP+N1+X1=M NC-X1 M->N2=X2 NC-X2.
+
+%worlds () (inner-efxmap`lookup-implies-not-consume _ _ _)
+(inner-efxmap`lookup-implies-not-consume/L _ _ _ _ _ _ _).
+
+%total (NC1 NC2) (inner-efxmap`lookup-implies-not-consume NC1 _ _)
+(inner-efxmap`lookup-implies-not-consume/L _ NC2 _ _ _ _ _).
+
+
+inner-efxmap`update-preserves-no-consume
+  : inner-efxmap`no-consume MP
+    -> inner-efxmap`update MP N X M
+    -> efx`not-consume X
+    -> inner-efxmap`no-consume M
+    -> type.
+%mode inner-efxmap`update-preserves-no-consume +NC-MP +U +NC-X -NC-M.
+
+- : inner-efxmap`update-preserves-no-consume
+    inner-efxmap`no-consume/0 inner-efxmap`update/0 NC-X 
+    (inner-efxmap`no-consume/U inner-efxmap`no-consume/0 
+      inner-efxmap`fresh/0 inner-efxmap`update/0 NC-X).
+
+inner-efxmap`update-preserves-no-consume/L
+  : nat`eq? N1 N2 B
+    -> inner-efxmap`no-consume MPP
+    -> inner-efxmap`fresh MPP N1
+    -> inner-efxmap`update MPP N1 X1 MP
+    -> efx`not-consume X1
+    -> inner-efxmap`update MP N2 X2 M
+    -> efx`not-consume X2
+    -> inner-efxmap`no-consume M
+    -> type.
+%mode inner-efxmap`update-preserves-no-consume/L 
++EQ? +NC-MPP +F +U1 +NC-X1 +U2 +NC-X2 -NC-M.
+
+- : inner-efxmap`update-preserves-no-consume/L 
+    nat`eq?/yes NC-MPP N!<MPP MPP+N+X1=MP _ MP+N+X2=M NC-X2 
+    (inner-efxmap`no-consume/U NC-MPP N!<MPP MPP+N+X2=M NC-X2)
+    <- inner-efxmap`update-overwrites MPP+N+X1=MP MP+N+X2=M nat`eq/ MPP+N+X2=M.
+
+- : inner-efxmap`update-preserves-no-consume/L 
+    (nat`eq?/no N1<>N2) NC-MPP N1!<MPP MPP+N1+X1=MP NC-X1 MP+N2+X2=M NC-X2
+    (inner-efxmap`no-consume/U NC-MPS N1!<MPS MPS+N1+X1=M NC-X1)
+    <- inner-efxmap`update-commutes
+       MPP+N1+X1=MP MP+N2+X2=M N1<>N2 MPS MPP+N2+X2=MPS MPS+N1+X1=M
+    <- inner-efxmap`update-preserves-fresh N1!<MPP MPP+N2+X2=MPS N1<>N2 N1!<MPS
+    <- inner-efxmap`update-preserves-no-consume NC-MPP MPP+N2+X2=MPS NC-X2 NC-MPS.
+
+- : inner-efxmap`update-preserves-no-consume
+    (inner-efxmap`no-consume/U NC-MPP N1!<MPP MPP+N1+X1=MP NC-X1)
+    MP+N2+X2=M NC-X2 NC-M
+    <- nat`eq?-total N1==N2?
+    <- inner-efxmap`update-preserves-no-consume/L
+      N1==N2? NC-MPP N1!<MPP MPP+N1+X1=MP NC-X1 MP+N2+X2=M NC-X2 NC-M.
+
+%worlds ()
+(inner-efxmap`update-preserves-no-consume _ _ _ _)
+(inner-efxmap`update-preserves-no-consume/L _ _ _ _  _ _ _ _).
+
+%total (NC1 NC2)  (inner-efxmap`update-preserves-no-consume NC1 _ _ _)
+(inner-efxmap`update-preserves-no-consume/L _ NC2 _ _ _ _ _ _).
+
+
+
+%%% efxmap`no-consume
+
+efxmap`false-implies-no-consume
+  : {V:void} {M:efxmap} efxmap`no-consume M -> type.
+%mode efxmap`false-implies-no-consume +V +M -NC.
+
+%worlds () (efxmap`false-implies-no-consume _ _ _).
+%total {} (efxmap`false-implies-no-consume _ _ _).
+
+
+efxmap`no-consume-respects-eq
+  : efxmap`no-consume M
+    -> efxmap`eq M MP
+    -> efxmap`no-consume MP
+    -> type.
+%mode efxmap`no-consume-respects-eq +NC-M +E -NC-MP.
+
+- : efxmap`no-consume-respects-eq NC _ NC.
+
+%worlds () (efxmap`no-consume-respects-eq _ _ _).
+%total {} (efxmap`no-consume-respects-eq _ _ _).
+
+
+efxmap`fresh-update-preserves-no-consume
+  : efxmap`no-consume XMS
+    -> efxmap`fresh XMS N
+    -> efxmap`update XMS N M XM
+    -> inner-efxmap`no-consume M
+    -> efxmap`no-consume XM
+    -> type.
+%mode efxmap`fresh-update-preserves-no-consume +NC1 +F +U +M-NC -NC2.
+
+%worlds () (efxmap`fresh-update-preserves-no-consume _ _ _ _ _).
+%trustme %total {} (efxmap`fresh-update-preserves-no-consume _ _ _ _ _).
