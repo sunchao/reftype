@@ -22,7 +22,7 @@ all : ${SUBDIRS} ${SRC} ${GEN}
 
 CAT = cat
 CPP = cpp
-CPPFLAGS = -DBEGIN_ELF="%}%" -DEND_ELF="%{%" -I../library -I../library-extra
+CPPFLAGS = -DBEGIN_ELF="%}%" -DEND_ELF="%{%" -I../library -Ilibrary-extra
 REC = ../library/remove-empty-comments.pl
 GN = ../library/get-names.pl
 
