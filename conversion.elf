@@ -44,12 +44,13 @@ Entry 0.0 should be converted to shared permission.
 clsmap should contain a special key 0, which maps
 to a special fldmap. }%
 
+
 inner-efxmap2perm : bool -> object -> fldmap -> predmap -> 
   inner-efxmap -> fracperm -> type.
 
 inner-efxmap2perm/0 : inner-efxmap2perm _ _ _ _ inner-efxmap/0 ([_] empty).
 
-inner-efxmap2perm/U/in
+inner-efxmap2perm/U
   : inner-efxmap`fresh MP F
     -> inner-efxmap`update MP F X M
     -> fldmap`lookup FM F T
@@ -58,23 +59,17 @@ inner-efxmap2perm/U/in
     -> inner-efxmap2perm P O FM PM MP Pi2
     -> inner-efxmap2perm P O FM PM M ([f] (Pi1 f), Pi2 f).
 
-inner-efxmap2perm/U/out
-  : inner-efxmap`fresh MP F
-    -> inner-efxmap`update MP F X M
-    -> fldmap`fresh FM F
-    -> inner-efxmap2perm P O FM PM MP Pi
-    -> inner-efxmap2perm P O FM PM M ([f] Pi f).
-
 
 %{ converting a efxmap to fractional permissions
 note that here to make this judgment total, we need
 to have the context consistent with the clsmap. }%
 
-efxmap2perm : bool -> clsmap -> predmap -> cxt -> efxmap -> fracperm -> type.
- 
+efxmap2perm : bool -> clsmap -> predmap -> cxt ->
+  efxmap -> fracperm -> type.
+
 efxmap2perm/0 : efxmap2perm _ _ _ _ efxmap/0 ([_] empty).
 
-efxmap2perm/U/in
+efxmap2perm/U
   : efxmap`fresh XMP N
     -> efxmap`update XMP N M XM
     -> cxt`lookup B N (cxtv/ O (ty/ _ _ C))
@@ -82,20 +77,6 @@ efxmap2perm/U/in
     -> inner-efxmap2perm P O FM PM M Pi1
     -> efxmap2perm P CM PM B XMP Pi2
     -> efxmap2perm P CM PM B XM ([f] (Pi1 f) , Pi2 f).
-
-efxmap2perm/U/out
-  : efxmap`fresh XMP N
-    -> efxmap`update XMP N M XM
-    -> cxt`fresh B N
-    -> efxmap2perm P CM PM B XMP Pi
-    -> efxmap2perm P CM PM B XM ([f] (Pi f)).
-
-efxmap2perm/U/null
-  : efxmap`fresh XMP N
-    -> efxmap`update XMP N M XM
-    -> cxt`lookup B N (cxtv/ O ty/null)
-    -> efxmap2perm P CM PM B XMP Pi
-    -> efxmap2perm P CM PM B XM ([f] (Pi f)).
 
 
 %abbrev nested-perm : object -> permission =
@@ -572,138 +553,51 @@ consistent with the clsmap. }%
 %total (CM-B) (clsmap-cxt-implies-cxt2perm _ _ CM-B _ _).
 
 
-%theorem clsmap-fldmap-implies-inner-efxmap2perm
-  : forall* {CM} {PM} {FM} {P} {O} {M} 
-    forall {CM2PM: clsmap2predmap CM PM}
-    {CM-FM: clsmap-fldmap CM FM}
-    exists {FP:fracperm} {M=>FP: inner-efxmap2perm P O FM PM M FP}
-    true.
 
-%theorem clsmap-fldmap-implies-inner-efxmap2perm/L
-  : forall* {P} {O} {M} {CM} {PM} {FM}
-    forall {N} {SZ: inner-efxmap`size M N}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-FM: clsmap-fldmap CM FM}
-    exists {FP:fracperm} {M=>Pi: inner-efxmap2perm P O FM PM M FP}
-    true.
-
-- : clsmap-fldmap-implies-inner-efxmap2perm/L
-    _ inner-efxmap`size/0 _ _ _ inner-efxmap2perm/0.
-
-%theorem clsmap-fldmap-implies-inner-efxmap2perm/U
-  : forall* {FM} {CM} {PM} {M} {MP} {F} {B} {X} {P} {O} {Pi2}
-    forall {IN?: fldmap`domain? FM F B}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-FM: clsmap-fldmap CM FM}
-    {FS: inner-efxmap`fresh MP F}
-    {U: inner-efxmap`update MP F X M}
-    {MP=>Pi2: inner-efxmap2perm P O FM PM MP Pi2}
+%theorem fldmap-inner-efxmap-implies-inner-efxmap2perm
+  : forall* {CM} {PM} {C} {FM} {M} {P} {O} 
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM} {CM-L: clsmap`lookup CM C FM}
+    {FM-M: fldmap-inner-efxmap FM M}
     exists {Pi} {M=>Pi: inner-efxmap2perm P O FM PM M Pi}
     true.
 
-- : clsmap-fldmap-implies-inner-efxmap2perm/U (fldmap`domain?/in FM-L)
-    CM2PM CM-FM FS U TP _ (inner-efxmap2perm/U/in FS U FM-L T2PF AP TP)
-    <- lookup-implies-clsmap-ty CM-FM FM-L CM-T
-    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
-    <- apply-efx-total AP.
+- : fldmap-inner-efxmap-implies-inner-efxmap2perm
+    _ _ _ fldmap-inner-efxmap/0 ([_] empty) inner-efxmap2perm/0.
 
-- : clsmap-fldmap-implies-inner-efxmap2perm/U (fldmap`domain?/out FM-F)
-    CM2PM CM-FM FS U TP _ (inner-efxmap2perm/U/out FS U FM-F TP).
-
-- : clsmap-fldmap-implies-inner-efxmap2perm/L (s N) SZ CM2PM CM-FM _ M=>FP
-    <- fldmap`domain?-total DM?
-    <- inner-efxmap`lookup-implies-fresh-update
-      (inner-efxmap`lookup/= nat`eq/) _ FS U
-    <- inner-efxmap`fresh-update-increases-size-converse SZ FS U SZP
-    <- clsmap-fldmap-implies-inner-efxmap2perm/L N SZP CM2PM CM-FM _ MP=>Pi2
-    <- clsmap-fldmap-implies-inner-efxmap2perm/U DM? CM2PM CM-FM FS U MP=>Pi2 _ M=>FP.
-
-
-- : clsmap-fldmap-implies-inner-efxmap2perm CM2PM CM-FM _ M=>FP
-    <- inner-efxmap`size-total SZ
-    <- clsmap-fldmap-implies-inner-efxmap2perm/L _ SZ CM2PM CM-FM _ M=>FP.
-
-%worlds (fracvar) (clsmap-fldmap-implies-inner-efxmap2perm/U _ _ _ _ _ _ _ _).
-%total {} (clsmap-fldmap-implies-inner-efxmap2perm/U _ _ _ _ _ _ _ _). 
-
-%worlds (fracvar) (clsmap-fldmap-implies-inner-efxmap2perm/L _ _ _ _ _ _).
-%total (N) (clsmap-fldmap-implies-inner-efxmap2perm/L N _ _ _ _ _).
-
-%worlds (fracvar) (clsmap-fldmap-implies-inner-efxmap2perm _ _ _ _).
-%total {} (clsmap-fldmap-implies-inner-efxmap2perm _ _ _ _). 
+- : fldmap-inner-efxmap-implies-inner-efxmap2perm CM-CM CM2PM CM-L
+    (fldmap-inner-efxmap/U F U L FIE) _
+    (inner-efxmap2perm/U F U L T2P AP M2P)
+    <- lookup-implies-clsmap-fldmap CM-CM CM-L CM-FM
+    <- lookup-implies-clsmap-ty CM-FM L CM-T
+    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2P
+    <- apply-efx-total AP
+    <- fldmap-inner-efxmap-implies-inner-efxmap2perm CM-CM CM2PM CM-L FIE _ M2P.
+      
+%worlds (fracvar)
+(fldmap-inner-efxmap-implies-inner-efxmap2perm _ _ _ _ _ _).
+%total (I) (fldmap-inner-efxmap-implies-inner-efxmap2perm _ _ _ I _ _).
 
 
-%% efxmap2perm is NOT total - needs to have cxt-efxmap
-
-
-%theorem clsmap-cxt-implies-efxmap2perm
-  : forall* {P} {B} {CM} {PM} {XM}
+%theorem cxt-efxmap-implies-efxmap2perm
+  : forall* {P} {CM} {PM} {B} {XM}
     forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
+    {CM2PM: clsmap2predmap CM PM} {B-XM: cxt-efxmap B CM XM}
     exists {Pi} {XM=>Pi: efxmap2perm P CM PM B XM Pi}
     true.
 
-%theorem clsmap-cxt-implies-efxmap2perm/L
-  : forall* {P} {XM} {CM} {PM} {B}
-    forall {N} {SZ: efxmap`size XM N}
-    {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    exists {Pi} {XM=>Pi: efxmap2perm P CM PM B XM Pi}
-    true.
+- : cxt-efxmap-implies-efxmap2perm _ _ cxt-efxmap/0 _ efxmap2perm/0.
 
-- : clsmap-cxt-implies-efxmap2perm/L z efxmap`size/0 _ _ _ _ efxmap2perm/0.
+- : cxt-efxmap-implies-efxmap2perm CM-CM CM2PM
+    (cxt-efxmap/U F U BL L FIE B-XM)
+    ([f] (Pi1 f) , Pi2 f) (efxmap2perm/U F U BL L M2P XM2P)
+    <- fldmap-inner-efxmap-implies-inner-efxmap2perm
+      CM-CM CM2PM L FIE Pi1 M2P
+    <- cxt-efxmap-implies-efxmap2perm CM-CM CM2PM B-XM Pi2 XM2P.
 
-%theorem clsmap-cxt-implies-efxmap2perm/U
-  : forall* {B} {N} {P} {XM} {BP} {CM} {PM} {XMP} {M} {Pi2}
-    forall {IN?: cxt`domain? B N BP}
-    {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {FS: efxmap`fresh XMP N}
-    {UD: efxmap`update XMP N M XM}
-    {XMP=>Pi2: efxmap2perm P CM PM B XMP Pi2}
-    exists {Pi} {XM=>Pi: efxmap2perm P CM PM B XM Pi}
-    true.
+%worlds (fracvar) (cxt-efxmap-implies-efxmap2perm _ _ _ _ _).
+%total (T) (cxt-efxmap-implies-efxmap2perm _ _ T _ _).
 
-- : clsmap-cxt-implies-efxmap2perm/U
-    (cxt`domain?/in (B->N:cxt`lookup B N (cxtv/ O (ty/ NN A C))))
-    CM-CM CM2PM CM-B FS U TP _
-    (efxmap2perm/U/in FS U B->N CM->C M=>Pi1 TP)
-    <- clsmap-cxt-lookup CM-B B->N (clsmap-ty/notnull (clsmap`domain?/in CM->C))
-    <- lookup-implies-clsmap-fldmap CM-CM CM->C CM-FM
-    <- clsmap-fldmap-implies-inner-efxmap2perm CM2PM CM-FM _ M=>Pi1.
-
-- : clsmap-cxt-implies-efxmap2perm/U
-    (cxt`domain?/in (B->N:cxt`lookup B N (cxtv/ O ty/null)))
-    CM-CM CM2PM CM-B FS U TP _ (efxmap2perm/U/null FS U B->N TP).
-    
-- : clsmap-cxt-implies-efxmap2perm/U
-    (cxt`domain?/out N!<B) CM-CM CM2PM CM-B FS U TP _
-    (efxmap2perm/U/out FS U N!<B TP).
-
-- : clsmap-cxt-implies-efxmap2perm/L (s N) SZ CM-CM CM2PM CM-B _ T
-    <- cxt`domain?-total IN?
-    <- efxmap`lookup-implies-fresh-update (efxmap`lookup/= nat`eq/) XMP FS U
-    <- efxmap`fresh-update-increases-size-converse SZ FS U SZP
-    <- clsmap-cxt-implies-efxmap2perm/L N SZP CM-CM CM2PM CM-B _ TP
-    <- clsmap-cxt-implies-efxmap2perm/U IN? CM-CM CM2PM CM-B FS U TP _ T.
-
-
-- : clsmap-cxt-implies-efxmap2perm CM-CM CM2PM CM-B _ XM=>Pi
-    <- efxmap`size-total SZ
-    <- clsmap-cxt-implies-efxmap2perm/L _ SZ CM-CM CM2PM CM-B _ XM=>Pi.
-
-%worlds (fracvar) (clsmap-cxt-implies-efxmap2perm/U _ _ _ _ _ _ _ _ _).
-%total {} (clsmap-cxt-implies-efxmap2perm/U _ _ _ _ _ _ _ _ _).
-
-%worlds (fracvar) (clsmap-cxt-implies-efxmap2perm/L _ _ _ _ _ _ _).
-%total (N) (clsmap-cxt-implies-efxmap2perm/L N _ _ _ _  _ _).
-
-%worlds () (clsmap-cxt-implies-efxmap2perm _ _ _ _ _).
-%total {} (clsmap-cxt-implies-efxmap2perm _ _ _ _ _).
- 
 
 
 % ===================
@@ -839,6 +733,181 @@ consistent with the clsmap. }%
 
 
 
+% ==========================
+% XX-fresh-update-implies-XX
+% ==========================
+
+
+%% fresh-update-implies-equiv-converse
+
+%theorem inner-efxmap`fresh-update-implies-equiv-converse
+  : forall* {M} {MP} {F} {X} {P} {O} {FM} {PM} {Pi1}
+    forall {FS: inner-efxmap`fresh MP F}
+    {U: inner-efxmap`update MP F X M}
+    {M=>Pi1: inner-efxmap2perm P O FM PM M Pi1}
+    exists {T} {Pi2} {Pi3} {FM-L: fldmap`lookup FM F T}
+    {PF} {T2PF: ty2perm PM T PF}
+    {AP: apply-efx P X (unitperm (precise-exists O F PF)) Pi2}
+    {MP=>Pi3: inner-efxmap2perm P O FM PM MP Pi3}
+    {EQV: ({f} equiv (Pi1 f) ((Pi2 f) , Pi3 f))}
+    true.
+
+- : inner-efxmap`fresh-update-implies-equiv-converse
+    inner-efxmap`fresh/0 inner-efxmap`update/0 %{=>}%
+    (inner-efxmap2perm/U 
+      inner-efxmap`fresh/0 inner-efxmap`update/0
+      FM-L T2P AP inner-efxmap2perm/0)
+    _ _ _ FM-L _ T2P AP inner-efxmap2perm/0 ([_] equiv/reflexive).
+
+%theorem inner-efxmap`fresh-update-implies-equiv-converse/U
+  : forall* {M} {MP} {MS} {F1} {F2} {X1} {X2} {FM} {T2} 
+    {PM} {PF2} {P} {O} {Pi1} {Pi2} {B} 
+    forall {FS1: inner-efxmap`fresh MP F1}
+    {U1: inner-efxmap`update MP F1 X1 M}
+    {FS2: inner-efxmap`fresh MS F2}
+    {U2: inner-efxmap`update MS F2 X2 M}
+    {FM-L2: fldmap`lookup FM F2 T2}
+    {T2PF2: ty2perm PM T2 PF2}
+    {AP2: apply-efx P X2 (unitperm (precise-exists O F2 PF2)) Pi1}
+    {MS=>Pi2: inner-efxmap2perm P O FM PM MS Pi2}
+    {E?: nat`eq? F1 F2 B}
+    exists {T1} {FM-L1: fldmap`lookup FM F1 T1}
+    {PF1} {T2PF1: ty2perm PM T1 PF1}
+    {Pi3} {AP: apply-efx P X1 (unitperm (precise-exists O F1 PF1)) Pi3}
+    {Pi4} {MP=>Pi4: inner-efxmap2perm P O FM PM MP Pi4}
+    {EQV: ({f} equiv ((Pi1 f) , Pi2 f) ((Pi3 f) , Pi4 f))}
+    true.
+
+- : inner-efxmap`fresh-update-implies-equiv-converse/U
+    F!<MP MP+F=M F!<MS MS+F=M FM->F T=>PF PF+X1=>P1 MS=>P2
+    (nat`eq?/yes) %{=>}% _ FM->F _ T=>PF _ PF+X2=>P1 _ MP=>P2 ([_] equiv/reflexive)
+    <- inner-efxmap`fresh-update-cancels F!<MS MS+F=M F!<MP MP+F=M 
+      nat`eq/ inner-efxmap`eq/ X2=X1 MS=MP
+    <- apply-efx-respects-eq 
+      PF+X1=>P1 bool`eq/ X2=X1 permission`eq/ ([_] permission`eq/) PF+X2=>P1
+    <- inner-efxmap2perm-respects-eq 
+      MS=>P2 bool`eq/ object`eq/ fldmap`eq/ predmap`eq/ MS=MP
+      ([_] permission`eq/) MP=>P2.
+    
+- : inner-efxmap`fresh-update-implies-equiv-converse/U
+     F1!<MP MP+F1=M F2!<MS MS+F2=M FM->F2 T2=>PF2 PF2=>P1 MS=>P2
+    (nat`eq?/no F1!=F2) %{=>}% _ FM->F1 _ T1=>PF1 _ PF1=>P3
+    _ (inner-efxmap2perm/U F2!<MK MK+F2=MP FM->F2 T2=>PF2 PF2=>P1 MK=>P5)
+    ([f] equiv/transitive
+      (equiv/combine
+        equiv/reflexive (EQV f))
+      (equiv/roll2))
+    <- inner-efxmap`update-commutes-converse
+      MP+F1=M MS+F2=M F1!=F2 MK MK+F2=MP MK+F1=MS
+    <- inner-efxmap`update-preserves-fresh-converse F1!<MP MK+F2=MP F1!<MK
+    <- inner-efxmap`update-preserves-fresh-converse F2!<MS MK+F1=MS F2!<MK
+    <- inner-efxmap`fresh-update-implies-equiv-converse
+      F1!<MK MK+F1=MS MS=>P2 _ _ _ FM->F1 _ T1=>PF1 PF1=>P3 MK=>P5 EQV.
+
+- : inner-efxmap`fresh-update-implies-equiv-converse F1!<MP MP+F1=M
+    (inner-efxmap2perm/U F2!<MS MS+F2=M T1 T2 T3 T4) _ _ _ Q1 _ Q2 Q3 Q4 EQV
+    <- nat`eq?-total EQ?
+    <- inner-efxmap`fresh-update-implies-equiv-converse/U
+      F1!<MP MP+F1=M F2!<MS MS+F2=M T1 T2 T3 T4 EQ? _ Q1 _ Q2 _ Q3 _ Q4 EQV. 
+
+%worlds () 
+(inner-efxmap`fresh-update-implies-equiv-converse
+  _ _ _ _ _ _ _ _ _ _ _ _)
+(inner-efxmap`fresh-update-implies-equiv-converse/U
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (T1 T2)
+(inner-efxmap`fresh-update-implies-equiv-converse
+  _ _ T1 _ _ _ _ _ _ _ _ _)
+(inner-efxmap`fresh-update-implies-equiv-converse/U
+  _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem efxmap`fresh-update-implies-equiv-converse
+  : forall* {CM} {PM} {B} {MP} {N} {D} {P} {M} {Pi3} 
+    forall {FS: efxmap`fresh MP N}
+    {U: efxmap`update MP N D M}
+    {M=>Pi3: efxmap2perm P CM PM B M Pi3}
+    exists {Pi1} {Pi2} 
+    {O} {NN} {A} {C} {B-L: cxt`lookup B N (cxtv/ O (ty/ NN A C))}
+    {FM} {CM-L: clsmap`lookup CM C FM}
+    {D=>Pi1: inner-efxmap2perm P O FM PM D Pi1}
+    {MP=>Pi2: efxmap2perm P CM PM B MP Pi2}
+    {EQV: ({f} equiv (Pi3 f) ((Pi1 f) , (Pi2 f)))}
+    true.
+
+- : efxmap`fresh-update-implies-equiv-converse
+    efxmap`fresh/0 efxmap`update/0 %{=>}%
+    (efxmap2perm/U 
+      efxmap`fresh/0 efxmap`update/0
+      B-L CM-L DT efxmap2perm/0)
+    _ _ _ _ _ _ B-L _ CM-L DT efxmap2perm/0 ([_] equiv/reflexive).
+
+%theorem efxmap`fresh-update-implies-equiv-converse/U
+  : forall* {M} {MP} {MS} {N1} {N2} {D1} {D2} {B}
+    {O2} {NN2} {A2} {C2} {CM} {FM2} {PM} {Pi1} {P} {Pi2} {IN?}
+    forall {FS1: efxmap`fresh MP N1}
+    {U1: efxmap`update MP N1 D1 M}
+    {FS2: efxmap`fresh MS N2}
+    {U2: efxmap`update MS N2 D2 M}
+    {B-L2: cxt`lookup B N2 (cxtv/ O2 (ty/ NN2 A2 C2))}
+    {CM-L2: clsmap`lookup CM C2 FM2}
+    {D2=>Pi1: inner-efxmap2perm P O2 FM2 PM D2 Pi1}
+    {MS=>Pi2: efxmap2perm P CM PM B MS Pi2}
+    {E?: nat`eq? N1 N2 IN?}
+    exists {O1} {NN1} {A1} {C1}
+    {B-L1: cxt`lookup B N1 (cxtv/ O1 (ty/ NN1 A1 C1))}
+    {FM1} {CM-L1: clsmap`lookup CM C1 FM1}
+    {Pi3} {Pi4} {D1=>Pi3: inner-efxmap2perm P O1 FM1 PM D1 Pi3}
+    {MP=>Pi4: efxmap2perm P CM PM B MP Pi4}
+    {EQV: ({z} equiv ((Pi1 z) , Pi2 z) ((Pi3 z) , Pi4 z))}
+    true.
+
+- : efxmap`fresh-update-implies-equiv-converse/U
+    N!<MP MP+N=M N!<MS MS+N=M B-L2 CM-L2 M2P2 XM2P2 nat`eq?/yes
+    %{=>}% _ _ _ _ B-L2 _ CM-L2 _ _ M2P1 XM2P1 ([_] equiv/reflexive)
+    <- efxmap`fresh-update-cancels
+      N!<MS MS+N=M N!<MP MP+N=M nat`eq/ efxmap`eq/ D2=D1 MS=MP
+    <- inner-efxmap2perm-respects-eq M2P2
+      bool`eq/ object`eq/ fldmap`eq/ predmap`eq/ 
+      D2=D1 ([_] permission`eq/) M2P1
+    <- efxmap2perm-respects-eq XM2P2
+      bool`eq/ clsmap`eq/ predmap`eq/ 
+      cxt`eq/ MS=MP ([_] permission`eq/) XM2P1.
+
+- : efxmap`fresh-update-implies-equiv-converse/U
+    N1!<MP MP+N1=M N2!<MS MS+N2=M B->N2 CM->C2 D2=>P1 MS=>P2
+    (nat`eq?/no N1!=N2) %{=>}% _ _ _ _ B->N1 _ CM->C1 _ _ D1=>P3 
+    (efxmap2perm/U N2!<MK MK+N2=MP B->N2 CM->C2 D2=>P1 MK=>P5)
+    ([f] equiv/transitive
+      (equiv/combine
+        equiv/reflexive (EQV f))
+      (equiv/roll2))
+    <- efxmap`update-commutes-converse
+      MP+N1=M MS+N2=M N1!=N2 MK MK+N2=MP MK+N1=MS
+    <- efxmap`update-preserves-fresh-converse N1!<MP MK+N2=MP N1!<MK
+    <- efxmap`update-preserves-fresh-converse N2!<MS MK+N1=MS N2!<MK
+    <- efxmap`fresh-update-implies-equiv-converse
+      N1!<MK MK+N1=MS MS=>P2 _ _ _ _ _ _ B->N1 _ CM->C1 D1=>P3 MK=>P5 EQV.
+
+- : efxmap`fresh-update-implies-equiv-converse F1!<MP MP+F1=M
+    (efxmap2perm/U F2!<MS MS+F2=M T1 T2 T3 T4) _ _ _ _ _ _ Q1 _ Q2 Q3 Q4 EQV
+    <- nat`eq?-total EQ?
+    <- efxmap`fresh-update-implies-equiv-converse/U
+      F1!<MP MP+F1=M F2!<MS MS+F2=M T1 T2 T3 T4 EQ? _ _ _ _ Q1 _ Q2 _ _ Q3 Q4 EQV. 
+
+%worlds (fracvar) 
+(efxmap`fresh-update-implies-equiv-converse
+  _ _ _ _ _  _ _ _ _ _ _ _ _ _ _)
+(efxmap`fresh-update-implies-equiv-converse/U
+  _ _ _ _ _ _ _ _ _ _ _ _  _ _ _ _ _ _ _ _ _).
+%total (T1 T2)
+(efxmap`fresh-update-implies-equiv-converse
+  _ _ T1 _ _ _ _ _ _ _ _ _  _ _ _)
+(efxmap`fresh-update-implies-equiv-converse/U
+  _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _ _ _  _ _ _ _).
+
+
+
 % ============================================
 % theorems about leq - basically:
 %
@@ -869,18 +938,240 @@ consistent with the clsmap. }%
 %% This turns out to be unprovable: we have no information
 %% about the fraction variable - it could even be greater than 1!
 
-% %theorem apply-efx-preserves-permission-leq
-%   : forall* {X1} {X2} {Pi} {Pi1} {Pi2}
-%     forall {X1<=X2: efx`leq X1 X2}
-%     {AP-X1: apply-efx true X1 Pi Pi1}
-%     {AP-X2: apply-efx true X2 Pi Pi2}
-%     exists {Pi3}
-%     {Pi2=>Pi1+Pi3: {f} equiv (Pi2 f) (Pi1 f , Pi3 f)}
-%     true.
+%theorem apply-efx-preserves-permission-leq
+  : forall* {X1} {X2} {Pi} {Pi1} {Pi2}
+    forall {X1<=X2: efx`leq X1 X2}
+    {AP-X1: apply-efx true X1 Pi Pi1}
+    {AP-X2: apply-efx true X2 Pi Pi2}
+    exists {Pi3}
+    {Pi2=>Pi1+Pi3: {f} equiv (Pi2 f) (Pi1 f , Pi3 f)}
+    true.
 
-% %worlds (fracvar) (apply-efx-preserves-permission-leq _ _ _ _ _).
-% %trustme %total {} (apply-efx-preserves-permission-leq _ _ _ _ _).
+%worlds (fracvar) (apply-efx-preserves-permission-leq _ _ _ _ _).
+%trustme %total {} (apply-efx-preserves-permission-leq _ _ _ _ _).
     
+
+%theorem inner-efxmap`leq-implies-permission-leq
+  : forall* {CM} {PM} {FM} {C} {MP} {P} {O} {M} {P1}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-L: clsmap`lookup CM C FM}
+    {FM-MP: fldmap-inner-efxmap FM MP}
+    {M=>P1: inner-efxmap2perm P O FM PM M P1}
+    {M<=MP: inner-efxmap`leq M MP}
+    exists {P2} {P3} {MP=>P2: inner-efxmap2perm P O FM PM MP P2}
+    {EQV: ({f} equiv (P2 f) ((P1 f) , (P3 f)))}
+    true.
+
+%theorem inner-efxmap`leq-implies-permission-leq/L 
+  : forall* {CM} {PM} {FM} {C} {M1} {M2} {Pi1} {P} {O}
+    forall {N} {SZ: inner-efxmap`size M2 N}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-L: clsmap`lookup CM C FM}
+    {FM-M2: fldmap-inner-efxmap FM M2}
+    {M1=>Pi1: inner-efxmap2perm P O FM PM M1 Pi1}
+    {M1<=M2: inner-efxmap`leq M1 M2}
+    exists {Pi2} {Pi3} {M2=>Pi2: inner-efxmap2perm P O FM PM M2 Pi2}
+    {EQV: ({f} equiv (Pi2 f) ((Pi1 f) , (Pi3 f)))}
+    true.
+
+%worlds (fracvar | objvar) 
+(inner-efxmap`leq-implies-permission-leq/L _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (N) 
+(inner-efxmap`leq-implies-permission-leq/L N _ _ _ _ _ _ _ _ _ _ _).
+
+- : inner-efxmap`leq-implies-permission-leq A B C D E G _ _ H I
+    <- inner-efxmap`size-total SZ
+    <- inner-efxmap`leq-implies-permission-leq/L _ SZ A B C D E G _ _ H I.
+
+%worlds (fracvar) 
+(inner-efxmap`leq-implies-permission-leq _ _ _ _ _ _ _ _ _ _).
+%total {} (inner-efxmap`leq-implies-permission-leq _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem efxmap`leq-implies-permission-leq/L
+  : forall* {XM1} {XM2} {CM} {PM} {B} {P} {Pi1}
+    forall {N} {SZ: efxmap`size XM2 N}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B-XM2: cxt-efxmap B CM XM2}
+    {XM1=>Pi1: efxmap2perm P CM PM B XM1 Pi1}
+    {XM1<=XM2: efxmap`leq XM1 XM2}
+    exists {Pi2} {Pi3} {XM2=>Pi2: efxmap2perm P CM PM B XM2 Pi2}
+    {EQV: ({f} equiv (Pi2 f) ((Pi1 f) , Pi3 f))}
+    true.
+
+- : efxmap`leq-implies-permission-leq/L _ _
+    CM-CM CM2PM B-XM2 efxmap2perm/0 efxmap`leq/0 _ _ XM=>Pi
+    ([_] equiv/transitive
+      (equiv/symmetric equiv/identity)
+      (equiv/commute))
+    <- cxt-efxmap-implies-efxmap2perm CM-CM CM2PM B-XM2 _ XM=>Pi.
+    
+%theorem efxmap`leq-implies-permission-leq/U
+  : forall* {CM} {PM} {FM} {XM1} {XM2} {XM2P} 
+    {P} {N} {M} {B} {O} {NN} {A} {C} {Pi1} {IN?} 
+    forall {K} {SZ: efxmap`size XM2 K}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {FS: efxmap`fresh XM2P N}
+    {U: efxmap`update XM2P N M XM2}
+    {B-L: cxt`lookup B N (cxtv/ O (ty/ NN A C))}
+    {CM-L: clsmap`lookup CM C FM}
+    {FM-M: fldmap-inner-efxmap FM M}
+    {B-XM2P: cxt-efxmap B CM XM2P}
+    {XM1=>Pi1: efxmap2perm P CM PM B XM1 Pi1}
+    {XM1<=XM2: efxmap`leq XM1 XM2}
+    {IN?: efxmap`domain? XM1 N IN?}
+    exists {Pi2} {Pi3} {XM2=>Pi2: efxmap2perm P CM PM B XM2 Pi2}
+    {EQV: ({z} equiv (Pi2 z) ((Pi1 z) , (Pi3 z)))}
+    true.
+
+- : efxmap`leq-implies-permission-leq/U _ SZ-XM2
+    CM-CM CM2PM N!<XM2P (XM2P+N+M=XM2:efxmap`update XM2P N M XM2)
+    B-L CM-L FM-M B-XM2P XM1=>Pi1 XM1<=XM2
+    (efxmap`domain?/out N!<XM1) %{=>}% _ _
+    (efxmap2perm/U N!<XM2P XM2P+N+M=XM2 B-L CM-L M=>P XM2P=>P) 
+    ([f] equiv/transitive
+      (equiv/combine equiv/reflexive (EQV f))
+      (equiv/roll2))
+    <- efxmap`fresh-update2-preserves-leq-converse
+      XM1<=XM2 N!<XM1 N!<XM2P XM2P+N+M=XM2 XM1<=XM2P
+    <- efxmap`fresh-update-increases-size-converse 
+      SZ-XM2 N!<XM2P XM2P+N+M=XM2 SZ-XM2P
+    <- efxmap`leq-implies-permission-leq/L _ SZ-XM2P
+      CM-CM CM2PM B-XM2P XM1=>Pi1 XM1<=XM2P _ _ XM2P=>P EQV
+    <- fldmap-inner-efxmap-implies-inner-efxmap2perm 
+      CM-CM CM2PM CM-L FM-M _ M=>P.
+
+- : efxmap`leq-implies-permission-leq/U _ SZ-XM2
+    CM-CM CM2PM N!<XM2P (XM2P+N+M=XM2:efxmap`update XM2P N M XM2)
+    B-L CM-L FM-M B-XM2P XM1=>Pi1 XM1<=XM2
+    (efxmap`domain?/in XM1->N=M1) %{=>}% _ _
+    (efxmap2perm/U N!<XM2P XM2P+N+M=XM2 B-L CM-L M=>P XM2P=>P2) 
+    ([f] equiv/transitive3
+      (equiv/combine (EQV3 f) (EQV f))
+      (equiv/transitive3
+        (equiv/symmetric equiv/associate)
+        (equiv/combine equiv/reflexive equiv/roll2)
+        (equiv/associate))
+      (equiv/combine (equiv/symmetric (EQV2 f)) equiv/reflexive))
+    <- efxmap`lookup-implies-fresh-update
+      XM1->N=M1 XM1P N!<XM1P (XM1P+N+M1=XM1:efxmap`update XM1P N M1 XM1)
+    <- efxmap`fresh-update-preserves-leq-converse
+      XM1<=XM2 N!<XM1P XM1P+N+M1=XM1 N!<XM2P XM2P+N+M=XM2 XM1P<=XM2P M1<=M
+    <- efxmap`fresh-update-increases-size-converse 
+      SZ-XM2 N!<XM2P XM2P+N+M=XM2 SZ-XM2P
+    <- efxmap`fresh-update-implies-equiv-converse
+      N!<XM1P XM1P+N+M1=XM1 XM1=>Pi1 
+      _ _ _ _ _ _ B-L' _ CM-L' M1=>P' XM1P=>Pi1 EQV2
+    <- cxt`lookup-unique B-L' B-L cxt`eq/ nat`eq/ CVE 
+    <- cxtv-eq-inversion CVE OE TE
+    <- ty-eq-inversion TE _ _ CE
+    <- clsmap`lookup-unique CM-L' CM-L clsmap`eq/ CE FME
+    <- inner-efxmap2perm-respects-eq M1=>P' bool`eq/ OE FME 
+      predmap`eq/ inner-efxmap`eq/ ([_] permission`eq/) M1=>P
+    <- efxmap`leq-implies-permission-leq/L _ SZ-XM2P
+      CM-CM CM2PM B-XM2P XM1P=>Pi1 XM1P<=XM2P _ _ XM2P=>P2 EQV
+    <- inner-efxmap`leq-implies-permission-leq 
+      CM-CM CM2PM CM-L FM-M M1=>P M1<=M _ _ M=>P EQV3.
+
+- : efxmap`leq-implies-permission-leq/L _ SZ-XM2 CM-CM CM2PM
+    (cxt-efxmap/U N!<XM2P (XM2P+N+M=XM2:efxmap`update XM2P N M XM2)
+      B->N=C CM->C=FM FM-M B-XM2P) XM1=>Pi1 XM1<=XM2 %{=>}% _ _ XM2=>Pi2 EQV
+    <- efxmap`domain?-total IN?
+    <- efxmap`leq-implies-permission-leq/U 
+      _ SZ-XM2 CM-CM CM2PM N!<XM2P XM2P+N+M=XM2 B->N=C CM->C=FM
+      FM-M B-XM2P XM1=>Pi1 XM1<=XM2 IN? _ _ XM2=>Pi2 EQV.
+
+%worlds (fracvar) 
+(efxmap`leq-implies-permission-leq/L _ _ _ _ _ _ _ _ _ _ _)
+(efxmap`leq-implies-permission-leq/U _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N1 N2) 
+(efxmap`leq-implies-permission-leq/U N2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+(efxmap`leq-implies-permission-leq/L N1 _ _ _ _ _ _ _ _ _ _).
+
+
+% the major theorem
+
+%theorem efxmap`leq-implies-permission-leq
+  : forall* {CM} {PM} {B} {XM1} {XM2} {P} {Pi1} 
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B-XM2: cxt-efxmap B CM XM2}
+    {XM1=>Pi1: efxmap2perm P CM PM B XM1 Pi1}
+    {XM1<=XM2: efxmap`leq XM1 XM2}
+    exists {Pi2} {Pi3} {XM2=>Pi2: efxmap2perm P CM PM B XM2 Pi2}
+    {EQV: ({z} equiv (Pi2 z) ((Pi1 z) , (Pi3 z)))}
+    true.
+
+- : efxmap`leq-implies-permission-leq CM-CM CM2PM
+    B-XM2 XM1=>Pi1 XM1<=XM2 Pi2 Pi3 XM2=>Pi2 EQV
+    <- efxmap`size-total SZ
+    <- leq-preserves-cxt-efxmap B-XM2 XM1<=XM2 B-XM1
+    <- efxmap`leq-implies-permission-leq/L _ SZ CM-CM CM2PM 
+      B-XM2 XM1=>Pi1 XM1<=XM2 _ _ XM2=>Pi2 EQV.
+
+%worlds (fracvar) (efxmap`leq-implies-permission-leq _ _ _ _ _ _ _ _ _).
+%total {} (efxmap`leq-implies-permission-leq _ _ _ _ _ _ _ _ _).
+
+
+% conversed version of the major theorem
+
+%theorem efxmap`leq-implies-permission-leq-converse
+  : forall* {B} {P} {Pi2} {CM} {PM} {XM1} {XM2} 
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B-XM2: cxt-efxmap B CM XM2}
+    {XM2=>Pi2: efxmap2perm P CM PM B XM2 Pi2}
+    {XM1<=XM2: efxmap`leq XM1 XM2}
+    exists {Pi1} {Pi3} {XM1=>Pi1: efxmap2perm P CM PM B XM1 Pi1}
+    {EQV: ({f} equiv (Pi2 f) ((Pi1 f) , (Pi3 f)))}
+    true.
+
+- : efxmap`leq-implies-permission-leq-converse
+    CM-CM CM2PM B-XM2 XM2=>Pi2 XM1<=XM2 Pi1 _ XM1=>Pi1 
+    ([f] equiv/transitive (equiv/symmetric (EQV2 f)) (EQV1 f))
+    <- leq-preserves-cxt-efxmap B-XM2 XM1<=XM2 B-XM1
+    <- cxt-efxmap-implies-efxmap2perm CM-CM CM2PM B-XM1 Pi1 XM1=>Pi1
+    <- efxmap`leq-implies-permission-leq
+      CM-CM CM2PM B-XM2 XM1=>Pi1 XM1<=XM2 Pi2 Pi3 XM2=>Pi2' EQV1
+    <- efxmap2perm-equiv XM2=>Pi2' XM2=>Pi2
+       bool`eq/ clsmap`eq/ predmap`eq/ cxt`eq/ efxmap`eq/ EQV2.
+
+%worlds (fracvar)
+(efxmap`leq-implies-permission-leq-converse _ _ _ _ _ _ _ _ _).
+%total {} (efxmap`leq-implies-permission-leq-converse _ _ _ _ _ _ _ _ _).
+
+
+%theorem maybe-efx-leq-implies-permission-leq
+  : forall* {MX1} {MX2} {P1} {P2}
+    forall {LE: maybe-efx`leq MX1 MX2}
+    {MX1=>P1: maybe-efx2perm MX1 P1}
+    {MX2=>P2: maybe-efx2perm MX2 P2}
+    exists {P3}
+    {EQV: {f} equiv (P2 f) (P1 f , P3 f)}
+    true.
+
+- : maybe-efx-leq-implies-permission-leq
+    maybe-efx`leq/1 maybe-efx2perm/nothing maybe-efx2perm/nothing
+    _ ([_] equiv/symmetric equiv/identity).
+             
+- : maybe-efx-leq-implies-permission-leq
+    maybe-efx`leq/1 maybe-efx2perm/nothing 
+    (maybe-efx2perm/just AP-X) _
+    ([_] (equiv/transitive
+           (equiv/symmetric equiv/identity)
+           (equiv/commute))).
+
+- : maybe-efx-leq-implies-permission-leq
+    (maybe-efx`leq/2 X1<=X2) (maybe-efx2perm/just AP-X1)
+    (maybe-efx2perm/just AP-X2) _ EQV
+    <- apply-efx-preserves-permission-leq X1<=X2 AP-X1 AP-X2 _ EQV.
+
+%worlds () (maybe-efx-leq-implies-permission-leq _ _ _ _ _).
+%total (L) (maybe-efx-leq-implies-permission-leq L _ _ _ _).
 
 
 % =======================================
@@ -1069,21 +1360,14 @@ consistent with the clsmap. }%
     inner-efxmap`no-consume/0 inner-efxmap2perm/0 inner-efxmap2perm/0.
 
 - : inner-efxmap`no-consume-same-permission NC-M
-    (inner-efxmap2perm/U/in N!<MP MP+N+X=M FM->N=T T=>PF X=>PF MP=>P2)
-    (inner-efxmap2perm/U/in N!<MP MP+N+X=M FM->N=T T=>PF X=>PF2 MP=>P2P)
+    (inner-efxmap2perm/U N!<MP MP+N+X=M FM->N=T T=>PF X=>PF MP=>P2)
+    (inner-efxmap2perm/U N!<MP MP+N+X=M FM->N=T T=>PF X=>PF2 MP=>P2P)
     <- inner-efxmap`update-implies-lookup MP+N+X=M M->N=X
     <- inner-efxmap`lookup-implies-not-consume NC-M M->N=X NC-X
     <- inner-efxmap`fresh-update-preserves-no-consume-converse
       NC-M N!<MP MP+N+X=M NC-MP
     <- inner-efxmap`no-consume-same-permission NC-MP MP=>P2 MP=>P2P
     <- apply-efx-no-consume-same-permission NC-X X=>PF X=>PF2.
-
-- : inner-efxmap`no-consume-same-permission NC-M
-    (inner-efxmap2perm/U/out N!<MP MP+N+X=M F!<FM MP=>P2)
-    (inner-efxmap2perm/U/out N!<MP MP+N+X=M F!<FM MP=>P2P)
-    <- inner-efxmap`fresh-update-preserves-no-consume-converse
-      NC-M N!<MP MP+N+X=M NC-MP
-    <- inner-efxmap`no-consume-same-permission NC-MP MP=>P2 MP=>P2P.
 
 %worlds () (inner-efxmap`no-consume-same-permission _ _ _).
 %total (T) (inner-efxmap`no-consume-same-permission _ T _).
@@ -1100,25 +1384,11 @@ consistent with the clsmap. }%
     efxmap`no-consume/0 efxmap2perm/0 efxmap2perm/0.
 
 - : efxmap`no-consume-same-permission NC-XM
-    (efxmap2perm/U/in N!<XMP XMP+N+M=XM B->N CM->C=FM T+M=>Pi1 T+XMP=>Pi2)
-    (efxmap2perm/U/in N!<XMP XMP+N+M=XM B->N CM->C=FM F+M=>Pi1 F+XMP=>Pi2)
+    (efxmap2perm/U N!<XMP XMP+N+M=XM B->N CM->C=FM T+M=>Pi1 T+XMP=>Pi2)
+    (efxmap2perm/U N!<XMP XMP+N+M=XM B->N CM->C=FM F+M=>Pi1 F+XMP=>Pi2)
     <- efxmap`update-implies-lookup XMP+N+M=XM XM->N=M
     <- efxmap`lookup-implies-no-consume NC-XM XM->N=M NC-M
     <- inner-efxmap`no-consume-same-permission NC-M T+M=>Pi1 F+M=>Pi1
-    <- efxmap`fresh-update-preserves-no-consume-converse 
-      NC-XM N!<XMP XMP+N+M=XM NC-XMP
-    <- efxmap`no-consume-same-permission NC-XMP T+XMP=>Pi2 F+XMP=>Pi2.
-
-- : efxmap`no-consume-same-permission NC-XM
-    (efxmap2perm/U/out N!<XMP XMP+N+M=XM N!<B T+XMP=>Pi2)
-    (efxmap2perm/U/out N!<XMP XMP+N+M=XM N!<B F+XMP=>Pi2)
-    <- efxmap`fresh-update-preserves-no-consume-converse 
-      NC-XM N!<XMP XMP+N+M=XM NC-XMP
-    <- efxmap`no-consume-same-permission NC-XMP T+XMP=>Pi2 F+XMP=>Pi2.
-
-- : efxmap`no-consume-same-permission NC-XM
-    (efxmap2perm/U/null N!<XMP XMP+N+M=XM B->N T+XMP=>Pi2)
-    (efxmap2perm/U/null N!<XMP XMP+N+M=XM B->N F+XMP=>Pi2)
     <- efxmap`fresh-update-preserves-no-consume-converse 
       NC-XM N!<XMP XMP+N+M=XM NC-XMP
     <- efxmap`no-consume-same-permission NC-XMP T+XMP=>Pi2 F+XMP=>Pi2.
