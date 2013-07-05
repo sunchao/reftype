@@ -5,13 +5,13 @@
 
 %{
 06-16-13: a special case here is when field set is empty, the
-result will contain keys that are mapped to set/0, and thus we 
+result will contain keys that are mapped to set/0, and thus we
 will eventually end up with efxmap in which some keys are mapped
-to inner-efxmap/0. This is necessary since object may have 
+to inner-efxmap/0. This is necessary since object may have
 no field, but we still need to record consume effect on it. tgtmap
 in targets should never have set/0 as value.
- 
-When we remove a tgtmap from a efxmap, we need to first remove all 
+
+When we remove a tgtmap from a efxmap, we need to first remove all
 entries with inner-efxmap/0 from the efxmap.
 }%
 
@@ -33,7 +33,7 @@ read-or-write : set -> set -> maybe-efx -> type.
 
 read-or-write/none : read-or-write set/0 set/0 maybe-efx/nothing.
 
-read-or-write/read 
+read-or-write/read
   : read-or-write (set/+ _ _) set/0 (maybe-efx/just efx/read).
 
 read-or-write/write
@@ -56,7 +56,7 @@ sub-annot : targets -> set -> set -> set -> annot -> effects -> type.
 
 %% the unique targets CANNOT be from shared.
 
-sub-annot/unique2shared 
+sub-annot/unique2shared
   : set+set2tgtmap S CS GM2
     -> tgtmap`join GM1 GM2 GM
     -> tgtmap2efxmap GM efx/consume XM
@@ -80,7 +80,7 @@ sub-annot/unique2borrow
     -> efxmap`join XM1 XM2 XM
     -> read-or-write RS WS MX1
     -> efx-on-shared B MX1 MX
-    -> sub-annot (targets/unique S GM B) 
+    -> sub-annot (targets/unique S GM B)
       RS WS set/0 annot/borrow (effects/ XM MX).
 
 sub-annot/shared2borrow
@@ -111,52 +111,14 @@ sub-nonnull/= : sub-nonnull NN1 NN2 <- nonnull`eq NN1 NN2.
 
 %%% Subtyping Rules
 
-% The three sets are read, write and consumed fields respectively.
+% The two sets are read and write fields respectively.
 
-subtype : reftype -> ty -> set -> set -> set -> effects -> type.
+subtype : clsmap -> reftype -> ty -> set -> set -> effects -> type.
 
 subtype/
   : sub-nonnull NN1 NN2
     -> nat`eq C1 C2
+    -> clsmap`lookup CM C1 FM
+    -> fldmap`domain FM CS
     -> sub-annot GS RS WS CS A2 XX
-    -> subtype (reftype/ NN1 C1 GS) (ty/ NN2 A2 C2) RS WS CS XX.
-
-
-%%% Theorems
-
-
-set+nat2tgtmap-implies-wf 
-  : set+nat2tgtmap S F GM
-    -> tgtmap`wf GM
-    -> type.
-%mode set+nat2tgtmap-implies-wf +T -WF.
-
-- : set+nat2tgtmap-implies-wf 
-    set+nat2tgtmap/0 tgtmap`wf/0.
-
-- : set+nat2tgtmap-implies-wf 
-    (set+nat2tgtmap/+ S+F=>GM) 
-    (tgtmap`wf/+ (set`size/+ set`size/0) WF-GM)
-    <- set+nat2tgtmap-implies-wf S+F=>GM WF-GM.
-
-%worlds () (set+nat2tgtmap-implies-wf _ _).
-%total (T) (set+nat2tgtmap-implies-wf T _).
-
-
-shift-preserves-set+nat2tgtmap
-  : set+nat2tgtmap S F GM
-    -> set`shift N S SP
-    -> {GMP} tgtmap`shift N GM GMP
-    -> set+nat2tgtmap SP F GMP
-    -> type.
-%mode shift-preserves-set+nat2tgtmap +T +S1 -GMP -S2 -TP.
-
-- : shift-preserves-set+nat2tgtmap set+nat2tgtmap/0
-    set`shift/0 tgtmap/0 tgtmap`shift/0 set+nat2tgtmap/0.
-
-- : shift-preserves-set+nat2tgtmap
-    (set+nat2tgtmap/+ S+F=>GM) (set`shift/+ P) _ (tgtmap`shift/+ P)
-    (set+nat2tgtmap/+ S+F=>GM).
-
-%worlds () (shift-preserves-set+nat2tgtmap _ _ _ _ _).
-%total {} (shift-preserves-set+nat2tgtmap _ _ _ _ _).
+    -> subtype CM (reftype/ NN1 C1 GS) (ty/ NN2 A2 C2) RS WS XX.
