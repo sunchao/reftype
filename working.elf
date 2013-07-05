@@ -1,0 +1,111 @@
+%%% Working file
+
+
+%theorem reftyping-ok/before-read/unique/0t
+  : forall* {B} {CM} {PM} {FM} {C} {XM1} {XM2} {XM} {MX1} {MX2} {MX}
+    {F} {NN} {A} {FC} {S} {GM2} {Out} {K}
+    forall {W: efxmap`wf XM1}
+    {B-XM: clsmap-cxt-efxmap CM B XM}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-L: clsmap`lookup CM C FM}
+    {FM-L: fldmap`lookup FM F (ty/ NN A FC)}
+    {S=>GM2: set+nat2tgtmap S F GM2}
+    {GM2=>XM2: tgtmap2efxmap GM2 efx/read XM2} % change efx/read to X later
+    {XM1+XM2=XM: efxmap`join XM1 XM2 XM}
+    {MX1+MX2=MX: maybe-efx`join MX1 MX2 MX}
+    {XM=>Out: effects2output CM PM B
+              (reftype/ nn/yes C (targets/unique S tgtmap/0 true))
+              (effects/ XM MX) Out}
+    {SC: same-class B S C} % this should be guaranteed
+    {SZ: set`size S (s K)}
+    exists {TF} {T2TF: ty2perm PM (ty/ NN A FC) TF}
+    {Pi3} {MX=>Pi3: maybe-efx2perm MX Pi3}
+    {XM1P} {XM2P} {XM/GM2=XM1+XM2P: efxmap`remove-tgtmap XM GM2 XM1P XM2P}
+    {Pi1} {XM1P=>Pi1: efxmap2perm false CM PM B XM1P Pi1}
+    {Pi2} {XM2P=>Pi2: efxmap2perm false CM PM B XM2P Pi2}
+    {TRANS: {f} transform (Out f)
+            (output/exists [r]
+              (output/expr r
+                (combine (ffperm f r F TF)
+                  (combine
+                    (unitperm
+                      (encumbered
+                        (ffperm f r F TF) ((Pi2 f) , (Pi3 f))))
+                    (Pi1 f)))))}
+    true.
+
+
+- : reftyping-ok/before-read/unique/0t
+    WF-XM1 CM-B-XM CM-CM CM2PM CM-L FM-L
+     S+F=>GM2 GM2=>XM2 XM1+XM2=XM MX1+MX2=MX
+    (effects2output/unique/0t
+      tgtmap`size/0 F+XM=>Pi S=>GF MX=>Pi3
+      (ty2perm/ PM-L nn2perm/yes annot2perm/unique))
+    B-S-C SZ-S %{=>}% _ (ty2perm/ PM-FL NN2PF A2AF) _ MX=>Pi3
+    _ _ XM/GM2=XM1P+XM2P _ F+XM1P=>Pi1P _ F+XM2P=>Pi2P
+    TRANS
+    <- reftyping-ok/before-read/unique/L1 CM-CM CM2PM
+      S+F=>GM2 GM2=>XM2 WF-XM1 XM1+XM2=XM CM-B-XM _ _
+      XM/GM2=XM1P+XM2P CM-B-XM2P XM2<=XM2P NC-XM2P Pi2 T+XM2=>Pi2 Pi1P F+XM1P=>Pi1P
+    <- efxmap`leq-implies-permission-leq CM-CM CM2PM CM-B-XM2P T+XM2=>Pi2
+      XM2<=XM2P Pi2P Pi3P T+XM2P=>Pi2P ([f] EQV f)
+    <- fldperm-can-lookup CM2PM PM-L CM-L FM-L _ _ _ A2AF NN2PF PM-FL IMP2
+    <- get-field-permission2 _ SZ-S B-S-C CM-CM CM2PM CM-L FM-L
+      S+F=>GM2 GM2=>XM2 S=>GF T+XM2=>Pi2
+      (ty2perm/ PM-FL NN2PF A2AF) ([f][r] IMP f r)
+    <- efxmap`no-consume-same-permission NC-XM2P T+XM2P=>Pi2P F+XM2P=>Pi2P
+    <- efxmap`remove-tgtmap-implies-permission-combine
+      XM/GM2=XM1P+XM2P F+XM=>Pi F+XM1P=>Pi1P F+XM2P=>Pi2P Pi<=>Pi1P+Pi2P
+    <- reftyping-ok/before-read/unique/L2 EQV IMP IMP3.
+
+%worlds ()
+(reftyping-ok/before-read/unique/0t
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total {}
+(reftyping-ok/before-read/unique/0t
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+
+
+% cxt and efxmap need to be consistent too.
+%theorem reftyping-frame
+  : forall* {CM} {PM} {Out1} {W} {E} {XX1} {XX2}
+    {Pi0} {Pi1} {B} {RT}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B=>Pi0: cxt2perm CM PM B Pi0}
+    {XM1=>Pi1: effects2input CM PM B XX1 Pi1}
+    {XM1=>Out1: effects2output CM PM B RT XX1 Out1}
+    {TYP-E: {f} typing W (Pi0 , Pi1 f) E (Out1 f)}
+    {XX1<=XX2: effects`leq XX1 XX2}
+    exists {Pi2} {Out2}
+    {XM2=>Pi2: effects2input CM PM B XX2 Pi2}
+    {XM2=>Out2: effects2output CM PM B RT XX2 Out2}
+    {TYP-E: ({f} typing W (Pi0 , Pi2 f) E (Out2 f))}
+    true.
+
+%worlds () (reftyping-frame _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total {} (reftyping-frame _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+reftyping-frame
+  : clsmap2predmap CM PM
+    -> cxt2perm CM PM B Pi0
+    -> effects2input CM PM B XX1 ([f] Pi1 f)
+    -> effects2output CM PM B RT XX1 Out1
+    -> ({f} typing W (Pi0 , Pi1 f) E (Out1 f))
+    -> effects`leq XX1 XX2
+    -> {Pi2} {Out2} effects2input CM PM B XX2 Pi2
+    -> effects2output CM PM B RT XX2 Out2
+    -> ({f} typing W (Pi0 , Pi2 f) E (Out2 f))
+    -> type.
+%mode reftyping-frame +CM2PM +B=>Pi0 +XX1=>Pi1 +XX1=>Out1 +TYP1 +LE 
+-Pi2 -Out2 -XX2=>Pi2 -XX2=>Out2 -TYP2.
+
+- : reftyping-frame CM-PM B=>Pi0 XX1=>Pi1f XX1=>Out1 
+    ([f] tObjLoc) XX1<=XX2
+    
+%worlds (wf-clsmap) (reftyping-frame _ _ _ _ _ _ _ _ _ _ _).
+
