@@ -894,11 +894,11 @@ set+nat2efxmap/+
 - : get-field-permission2/eq ([_] permission`eq/) ([f][r] equiv/reflexive).
 
 %worlds () (get-field-permission2/eq _ _).
-%total {} (get-field-permission2/eq _ _). 
+%total {} (get-field-permission2/eq _ _).
 
 
 - : get-field-permission2 _ SZ SC CM-CM CM2PM CM-L FM-L
-    S+F=>GM GM=>XM S=>GF XM=>Pi T2PF 
+    S+F=>GM GM=>XM S=>GF XM=>Pi T2PF
     ([f][r] implies/trans4
       (implies/equiv
         (equiv/combine (EQV1 r) (EQV2 f)))
@@ -1119,47 +1119,60 @@ XM1P will be less than XM1.
 
 
 %abbrev nonnull-unique-perm : object -> clspred -> permission
-    = [x][p] (combine (unitperm (nonlinear (objequal x null)))
+    = [x][p] (combine (unitperm (nonlinear (neg (objequal x null))))
                (combine (allperm x)
                  (one-predcall p x))).
 
 %theorem reftyping-ok/before-read/unique/0t/L
   : forall* {Pi1} {Pi2} {PF} {CP}
-    forall {IMP2: {f:fraction}{x:object} implies (one-predcall CP x)
-                  (unitperm (nonlinear (nested (PF f x) x all)))}
+    forall {IMP2: {x:object} implies (one-predcall CP x)
+                  (unitperm (nonlinear (nested (PF x) x all)))}
     exists {IMP3: {f}{x} implies
-                  (combine (nonnull-unique-perm x CP)
+                  (combine (scale f (nonnull-unique-perm x CP))
                     (combine (unitperm
                                (encumbered
-                                 (nonnull-unique-perm x CP) (Pi1 f)))
+                                 (scale f (nonnull-unique-perm x CP)) (Pi1 f)))
                       (Pi2 f)))
-                  (combine (PF f x)
-                    (unitperm (encumbered (PF f x) ((Pi2 f) , Pi1 f))))}
+                  (combine (scale f (PF x))
+                    (unitperm (encumbered (scale f (PF x)) ((Pi2 f) , Pi1 f))))}
     true.
 
 - : reftyping-ok/before-read/unique/0t/L
-    ([f][x] IMP2 f x)
+    ([x] IMP2 x)
     ([f][x] implies/trans7
       (implies/combine
         (implies/trans6
           (implies/equiv
             (equiv/symmetric equiv/identity))
           (implies/combine
-            (implies/trans
+            (implies/trans4
+              (implies/equiv
+                (equiv/distribute))
+              (implies/equiv
+                (equiv/combine
+                  (equiv/reflexive)
+                  (equiv/distribute)))
               (implies/combine
                 (implies/reflexive)
                 (implies/trans
                   (implies/combine
                     (implies/reflexive)
-                    (implies/duplicate))
+                    (implies/trans
+                      (implies/scale implies/duplicate)
+                      (implies/equiv equiv/distribute)))
                   (implies/equiv equiv/associate)))
               (implies/equiv equiv/commute))
             (implies/trans3
               (implies/self-implication)
               (implies/equiv-encumbered
-                (equiv/combine
-                  (equiv/reflexive)
-                  (equiv/commute))
+                (equiv/transitive3
+                  (equiv/distribute)
+                  (equiv/combine
+                    (equiv/reflexive)
+                    (equiv/distribute))
+                  (equiv/combine
+                    (equiv/reflexive)
+                    (equiv/commute)))
                 (equiv/reflexive))
               (implies/combine-assoc-encumbered)))
           (implies/equiv
@@ -1184,12 +1197,17 @@ XM1P will be less than XM1.
             (implies/chain-implication)
             (implies/reflexive))))
       (implies/combine
-        (implies/trans3
+        (implies/trans6
           (implies/equiv equiv/commute)
           (implies/combine
-            (IMP2 f x)
+            (implies/scale (IMP2 x))
             (implies/reflexive))
-          (implies/carve))
+          (implies/equiv (equiv/symmetric equiv/distribute))
+          (implies/scale implies/carve)
+          (implies/equiv equiv/distribute)
+          (implies/combine
+            (implies/reflexive)
+            (implies/scale-distribute-encumbered)))
         (implies/reflexive))
       (implies/equiv (equiv/symmetric equiv/associate))
       (implies/combine
@@ -1216,3 +1234,91 @@ XM1P will be less than XM1.
 
 %worlds () (reftyping-ok/before-read/unique/0t/L _ _).
 %total {} (reftyping-ok/before-read/unique/0t/L _ _).
+
+
+%theorem reftyping-ok/before-read/unique/0t
+  : forall* {B} {CM} {PM} {FM} {C} {XM1} {XM2} {XM} {MX1} {MX2} {MX}
+    {F} {NN} {A} {FC} {S} {GM2} {Out} {K}
+    forall {W: efxmap`wf XM1}
+    {B-XM: clsmap-cxt-efxmap CM B XM}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-L: clsmap`lookup CM C FM}
+    {FM-L: fldmap`lookup FM F (ty/ NN A FC)}
+    {S=>GM2: set+nat2tgtmap S F GM2}
+    {GM2=>XM2: tgtmap2efxmap GM2 efx/read XM2} % change efx/read to X later
+    {XM1+XM2=XM: efxmap`join XM1 XM2 XM}
+    {MX1+MX2=MX: maybe-efx`join MX1 MX2 MX}
+    {XM=>Out: effects2output CM PM B
+              (reftype/ nn/yes C (targets/unique S tgtmap/0 true))
+              (effects/ XM MX) Out}
+    {SC: same-class B S C} % this should be guaranteed
+    {SZ: set`size S (s K)}
+    exists {TF} {T2TF: ty2perm PM (ty/ NN A FC) TF}
+    {Pi3} {MX=>Pi3: maybe-efx2perm MX Pi3}
+    {XM1P} {XM2P} {XM/GM2=XM1+XM2P: efxmap`remove-tgtmap XM GM2 XM1P XM2P}
+    {Pi1} {XM1P=>Pi1: efxmap2perm false CM PM B XM1P Pi1}
+    {Pi2} {XM2P=>Pi2: efxmap2perm false CM PM B XM2P Pi2}
+    {TRANS: {f} transform (Out f)
+            (output/exists [r]
+              (output/expr r
+                (combine (ffperm f r F TF)
+                  (combine
+                    (unitperm
+                      (encumbered
+                        (ffperm f r F TF) ((Pi2 f) , (Pi3 f))))
+                    (Pi1 f)))))}
+    true.
+
+- : reftyping-ok/before-read/unique/0t
+    WF-XM1 CM-B-XM CM-CM CM2PM CM-L FM-L
+     S+F=>GM2 GM2=>XM2 XM1+XM2=XM MX1+MX2=MX
+    (effects2output/unique/0t
+      tgtmap`size/0 F+XM=>Pi S=>GF MX=>Pi3
+      (ty2perm/ PM-L nn2perm/yes annot2perm/unique))
+    B-S-C SZ-S %{=>}% _ (ty2perm/ PM-FL NN2PF A2AF) _ MX=>Pi3
+    _ _ XM/GM2=XM1P+XM2P _ F+XM1P=>Pi1P _ F+XM2P=>Pi2P
+    ([f] transform/trans3
+      (transform/inside [o]
+        (transform/inside [r]
+          (transform/drop)))
+      (transform/rem-unused)
+      (transform/inside [r]
+        (transform/implies
+          (implies/trans4
+            (implies/combine
+              (implies/reflexive)
+              (implies/trans
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/equiv
+                    (equiv/transitive
+                      (Pi<=>Pi1P+Pi2P f)
+                      (equiv/commute))))
+                (implies/equiv equiv/associate)))
+            (implies/equiv equiv/associate)
+            (implies/combine
+              (IMP4 f r)
+              (implies/reflexive))
+            (implies/equiv (equiv/symmetric equiv/associate))))))
+    <- reftyping-ok/before-read/unique/L1 CM-CM CM2PM
+      S+F=>GM2 GM2=>XM2 WF-XM1 XM1+XM2=XM CM-B-XM _ _
+      XM/GM2=XM1P+XM2P CM-B-XM2P XM2<=XM2P NC-XM2P Pi2 T+XM2=>Pi2 Pi1P F+XM1P=>Pi1P
+    <- efxmap`leq-implies-permission-leq CM-CM CM2PM CM-B-XM2P T+XM2=>Pi2
+      XM2<=XM2P Pi2P Pi3P T+XM2P=>Pi2P ([f] EQV f)
+    <- fldperm-can-lookup CM2PM PM-L CM-L FM-L _ _ _ A2AF NN2PF PM-FL IMP2
+    <- get-field-permission2 _ SZ-S B-S-C CM-CM CM2PM CM-L FM-L
+      S+F=>GM2 GM2=>XM2 S=>GF T+XM2=>Pi2
+      (ty2perm/ PM-FL NN2PF A2AF) ([f][r] IMP f r)
+    <- efxmap`no-consume-same-permission NC-XM2P T+XM2P=>Pi2P F+XM2P=>Pi2P
+    <- efxmap`remove-tgtmap-implies-permission-combine
+      XM/GM2=XM1P+XM2P F+XM=>Pi F+XM1P=>Pi1P F+XM2P=>Pi2P Pi<=>Pi1P+Pi2P
+    <- reftyping-ok/before-read/unique/L2 EQV IMP IMP3
+    <- reftyping-ok/before-read/unique/0t/L IMP2 IMP4.
+
+%worlds ()
+(reftyping-ok/before-read/unique/0t
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total {}
+(reftyping-ok/before-read/unique/0t
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
