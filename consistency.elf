@@ -1,25 +1,15 @@
 %%% consistency relation between clsmap, methmap and fldmap
-%%% Chao Sun
-%%% $Id: consistency.elf,v 1.5 2013/06/01 18:37:23 csun Exp csun $
-%%% Created at Feb, 8th 2012
-
 
 %%% check if a type is in clsmap
 
 clsmap-ty : clsmap -> ty -> type.
 
 clsmap-ty/notnull
-  : clsmap-ty CM (ty/ _ _ C) 
-    <- clsmap`domain? CM C true.
+  : clsmap-ty CM (ty/ _ _ C)
+    <- clsmap`lookup CM C _.
 
 clsmap-ty/null : clsmap-ty CM ty/null.
 
-
-clsmap-reftype : clsmap -> reftype -> type.
-
-clsmap-reftype/
-  : clsmap-reftype CM (reftype/ _ C GS)
-    <- clsmap`domain? CM C true.
 
 
 % check if all types appear in methty is also in clsmap
@@ -28,13 +18,13 @@ clsmap-methty : clsmap -> methty -> type.
 
 % nothing to check for shared effect
 clsmap-methty/base
-  : clsmap-methty CM (methty/base T _) 
+  : clsmap-methty CM (methty/base T _)
     <- clsmap-ty CM T.
 
 % should we worried that effect sets are not
 % subsets of class's field set?
 clsmap-methty/args
-  : clsmap-methty CM (methty/arg T _ _ _ A)
+  : clsmap-methty CM (methty/arg T _ _ A)
     <- clsmap-ty CM T
     <- clsmap-methty CM A.
 
@@ -80,7 +70,7 @@ clsmap-methmap/meth
 
 clsmap-methmap/const
   : clsmap-methmap CM
-    (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) _ _ _ MT) MM)
+    (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) _ _ MT) MM)
     <- clsmap`lookup CM N _
     <- clsmap-methty CM MT
     <- methmap`shift N MM MMS
@@ -102,45 +92,63 @@ clsmap-cxt/cons
 
 
 % consistency between location set and cxt
+% All locations in set must be of same class.
 
-cxt-set : cxt -> set -> type.
+cxt-class-set : cxt -> nat -> set -> type.
 
-cxt-set/0 : cxt-set _ set/0.
+cxt-class-set/0 : cxt-class-set _ _ set/0.
 
-cxt-set/U
+cxt-class-set/U
   : set`not-member SP N
     -> set`add SP N S
-    -> cxt`lookup B N _
-    -> cxt-set B SP
-    -> cxt-set B S.
+    -> cxt`lookup B N (cxtv/ _ (ty/ _ _ C))
+    -> cxt-class-set B C SP
+    -> cxt-class-set B C S.
 
 
-% for each index of F -> X in inner-efxmap, F must be in fldmap.
 
-fldmap-inner-efxmap : fldmap -> inner-efxmap -> type.
-
-fldmap-inner-efxmap/0 : fldmap-inner-efxmap _ inner-efxmap/0.
-
-fldmap-inner-efxmap/U
-  : inner-efxmap`fresh MP F
-    -> inner-efxmap`update MP F _ M
-    -> fldmap`lookup FM F _
-    -> fldmap-inner-efxmap FM MP
-    -> fldmap-inner-efxmap FM M.
-
-
-% for each entry (L -> M) in efxmap, L must be in cxt, and M must 
+% for each entry (L -> M) in efxmap, L must be in cxt, and M must
 % be consistent with SOME fldmap in clsmap.
 
-cxt-efxmap : cxt -> clsmap -> efxmap -> type.
+clsmap-cxt-efxmap : clsmap -> cxt -> efxmap -> type.
 
-cxt-efxmap/0 : cxt-efxmap _ _ efxmap/0.
+clsmap-cxt-efxmap/0 : clsmap-cxt-efxmap _ _ efxmap/0.
 
-cxt-efxmap/U
+clsmap-cxt-efxmap/U
   : efxmap`fresh XMP N
     -> efxmap`update XMP N M XM
     -> cxt`lookup B N (cxtv/ _ (ty/ _ _ C))
     -> clsmap`lookup CM C FM
-    -> fldmap-inner-efxmap FM M
-    -> cxt-efxmap B CM XMP
-    -> cxt-efxmap B CM XM.
+    -> fldmap`domain FM FS
+    -> inner-efxmap`domain M MS
+    -> set`leq MS FS
+    -> clsmap-cxt-efxmap CM B XMP
+    -> clsmap-cxt-efxmap CM B XM.
+
+
+clsmap-cxt-tgtmap : clsmap -> cxt -> tgtmap -> type.
+
+clsmap-cxt-tgtmap/0 : clsmap-cxt-tgtmap _ _ tgtmap/0.
+
+clsmap-cxt-tgtmap/U
+  : clsmap-cxt-tgtmap CM B GMP
+    -> tgtmap`fresh GMP N
+    -> tgtmap`update GMP N S GM
+    -> cxt`lookup B N (cxtv/ _ (ty/ _ _ C))
+    -> clsmap`lookup CM C FM
+    -> fldmap`domain FM FS
+    -> set`leq S FS
+    -> clsmap-cxt-tgtmap CM B GM.
+
+
+clsmap-cxt-reftype : clsmap -> cxt -> reftype -> type.
+
+clsmap-cxt-reftype/shared
+  : clsmap-cxt-reftype CM B (reftype/ _ C targets/shared)
+    <- clsmap`lookup CM C _.
+
+clsmap-cxt-reftype/unique
+  : clsmap-cxt-reftype CM B (reftype/ _ C (targets/unique S GM _))
+    <- cxt-class-set B C S
+    <- clsmap-cxt-tgtmap CM B GM
+    <- clsmap`lookup CM C FM.
