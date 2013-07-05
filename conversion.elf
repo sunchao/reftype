@@ -116,7 +116,7 @@ effects2output/unique/0f
     -> efxmap2perm false CM PM B XM ([f] Pi1 f)
     -> ({r} set2facts B r S (GF r))
     -> maybe-efx2perm MX ([f] Pi2 f)
-    -> ty2perm PM (ty/ NN annot/borrow C) PF
+    -> ty2perm PM (ty/ NN annot/borrow C) PF % no permission
     -> effects2output CM PM B
       (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
       ([f] output/exists [r]
@@ -133,13 +133,14 @@ effects2output/unique/0t
     -> ty2perm PM (ty/ NN annot/unique C) PF
     -> effects2output CM PM B
       (reftype/ NN C (targets/unique S GM true)) (effects/ XM MX)
-      ([f] output/exists [r]
-        (output/expr r
-          (combine (Pi1 f)
-            (combine (scale f (PF r))
-              (unitperm
-                (encumbered
-                  (scale f (PF r)) (Pi2 f))))))).
+      ([f] output/exists [o]
+        (output/exists [r]
+          (output/expr r
+            (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
+              (combine (scale f (PF r))
+                (combine (unitperm (encumbered (scale f (PF r)) (Pi2 f)))
+                  (Pi1 f))))))).
+
 
 effects2output/unique/+f
   : tgtmap`size GM (s _)
@@ -237,27 +238,133 @@ cxt2perm/U/null
     -> cxt2perm CM PM B (unitperm (nonlinear (objequal O null)) , Pi).
 
 
-% TODO
+% The first set of permissions are those from read and write effects,
+% the second set of permissions are those from consumed effects.
 
-methty2proctype* : clsmap -> predmap -> permission
-  -> permission -> methty -> proctype -> type.
+methty2proctype* : predmap ->
+    fracperm -> permission -> methty -> proctype -> type.
 
-% TODO
+methty2proctype/base
+  : methty2proctype* PM ([f] Pi f) Pic (methty/base Rty MX)
+    (proctype/forall [f]
+      (proctype/base
+        (combine (Pi f)
+          (combine Pic (Pis f)))
+        (output/exists [ret]
+          (output/expr ret
+            (combine (PF ret)
+              (combine (Pi f) (Pis f)))))))
+    <- ty2perm PM Rty PF
+    <- maybe-efx2perm MX ([f] Pis f).
+
+
+methty2proctype/args/unique
+  : methty2proctype* PM ([f] Pi f) Pic
+    (methty/arg (ty/ NN annot/unique C) set/0 set/0 MT) (proctype/arg PTF)
+    <- ty2perm PM (ty/ NN annot/unique C) PF
+    <- ({x} methty2proctype* PM ([f] Pi f) (Pic , (PF x)) MT (PTF x)).
+
+methty2proctype/args/borrow
+  : methty2proctype* PM ([f] Pi1 f) Pic
+    (methty/arg (ty/ NN annot/borrow C) Rs Ws MT) (proctype/arg PTF)
+    <- set2inner-efxmap Rs efx/read Mr
+    <- set2inner-efxmap Ws efx/write Mw
+    <- inner-efxmap`join Mr Mw M
+    <- ty2perm PM (ty/ NN annot/borrow C) PF
+    <- ({x} inner-efxmap2perm true x FM PM M ([f] Pi2 x f))
+    <- ({x} methty2proctype* PM
+         ([f] (Pi1 f , (Pi2 x f))) (Pic , PF x) MT (PTF x)).
+
+methty2proctype/args/shared
+  : methty2proctype* PM ([f] Pi f) Pic
+    (methty/arg (ty/ NN annot/shared C) set/0 set/0 MT) (proctype/arg PTF)
+    <- ty2perm PM (ty/ NN annot/shared C) PF
+    <- ({x} methty2proctype* PM ([f] Pi f) Pic MT (PTF x)).
+
 
 %abbrev methty2proctype
-  = [CM][PM][MT][PT] methty2proctype* CM PM empty empty MT PT.
+  = [PM][MT][PT] methty2proctype* PM ([_] empty) empty MT PT.
+
 
 consty2proctype*
-  : clsmap -> predmap -> fldmap -> permission ->
-  permission -> methty -> (object -> proctype) -> type.
+  : predmap -> fldmap -> fracperm
+    -> permission -> methty -> (object -> proctype) -> type.
 
-% TODO
+
+%abbrev obj-notnull : object -> permission
+    = ([r] unitperm (nonlinear (neg (objequal r (object/ z))))).
+
+consty2proctype/base
+  : consty2proctype* PM FM ([f] Pi f) Pic
+    (methty/base (ty/ nn/yes annot/unique C) MX)
+    ([t] (proctype/forall [f]
+           (proctype/base
+             (combine (obj-notnull t)
+               (combine (OS t)
+                 (combine (Pi f)
+                   (combine Pic (Pis f)))))
+             (output/exists [ret]
+               (output/expr ret
+                 (combine (PF ret)
+                   (combine (Pi f) (Pis f))))))))
+    <- ty2perm PM (ty/ nn/yes annot/unique C) PF
+    <- fldmap`domain FM S
+    <- ({t} allocFields t S (OS t)).
+
+
+consty2proctype/args/unique
+  : consty2proctype* PM FM ([f] Pi f) Pic
+    (methty/arg (ty/ NN annot/unique C) set/0 set/0 CT)
+    ([t] proctype/arg (PTF t))
+    <- ty2perm PM (ty/ NN annot/unique C) PF
+    <- ({x} consty2proctype* PM FM ([f] Pi f) (Pic , PF x) CT ([t] (PTF t x))).
+
+consty2proctype/args/borrow
+  : consty2proctype* PM FM ([f] Pi1 f) Pic
+    (methty/arg (ty/ NN annot/borrow C) Rs Ws CT)
+    ([t] proctype/arg (CTF t))
+    <- set2inner-efxmap Rs efx/read Mr
+    <- set2inner-efxmap Ws efx/write Mw
+    <- inner-efxmap`join Mr Mw M
+    <- ty2perm PM (ty/ NN annot/borrow C) PF
+    <- ({x} inner-efxmap2perm true x FM PM M ([f] Pi2 x f))
+    <- ty2perm PM (ty/ NN annot/unique C) PF
+    <- ({x} consty2proctype* PM FM ([f] (Pi1 f , (Pi2 x f)))
+         (Pic , PF x) CT ([t] (CTF t x))).
+
+consty2proctype/args/shared
+  : consty2proctype* PM FM ([f] Pi f) Pic
+    (methty/arg (ty/ NN annot/shared C) set/0 set/0 CT)
+    ([t] proctype/arg (CTF t))
+    <- ty2perm PM (ty/ NN annot/shared C) PF
+    <- ({x} consty2proctype* PM FM ([f] Pi f) Pic CT (CTF x)).
 
 %abbrev consty2proctype
-   = [CM][PM][FM][CT][PTF] consty2proctype* CM PM FM empty empty CT PTF.
+   = [PM][FM][CT][PTF] consty2proctype* PM FM ([_] empty) empty CT PTF.
 
 
 methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
+
+methmap2progtype/0 : methmap2progtype _ _ methmap`map/0 progtype`map/0.
+
+methmap2progtype/U/c
+  : methmap2progtype CM PM MM W
+    <- methmap`fresh MMP N
+    <- methmap`update MMP N
+      (methty/arg (ty/ nn/yes annot/unique C) set/0 set/0 CT) MM
+    <- clsmap`lookup CM N FM
+    <- consty2proctype PM FM CT PTF
+    <- methmap2progtype CM PM MMP WP
+    <- progtype`update WP N (proctype/arg PTF) W.
+
+methmap2progtype/U/m
+  : methmap2progtype CM PM MM W
+    <- methmap`fresh MMP N
+    <- methmap`update MMP N MT MM
+    <- methty2proctype PM MT PT
+    <- methmap2progtype CM PM MMP WP
+    <- progtype`update WP N PT W.
+
 
 env2progtype : clsmap -> methmap -> progtype -> type.
 
