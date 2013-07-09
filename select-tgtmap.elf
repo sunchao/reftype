@@ -1,0 +1,839 @@
+%%% Select corresponding entries in target map from an effect map.
+%%% The output is two effect maps which are deep-disjoint,
+%%% and can join back to get the original effect map.
+
+
+% =============================================
+% ================= Definitions ===============
+% =============================================
+
+select-tgtmap : efxmap -> tgtmap -> efxmap -> efxmap -> type.
+
+select-set : inner-efxmap -> set -> inner-efxmap -> inner-efxmap -> type.
+
+select-set/0 : select-set inner-efxmap/0 _ inner-efxmap/0 inner-efxmap/0.
+
+select-set/U/in
+  : select-set M S M1 M2
+    <- inner-efxmap`fresh MP F
+    <- inner-efxmap`update MP F X M
+    <- set`member S F
+    <- select-set MP S M1 M2P
+    <- inner-efxmap`update M2P F X M2.
+
+select-set/U/out
+  : select-set M S M1 M2
+    <- inner-efxmap`fresh MP F
+    <- inner-efxmap`update MP F X M
+    <- set`not-member S F
+    <- select-set MP S M1P M2
+    <- inner-efxmap`update M1P F X M1.
+
+
+select-tgtmap/0 : select-tgtmap efxmap/0 _ efxmap/0 efxmap/0.
+
+select-tgtmap/U/in
+  : select-tgtmap XM GM XM1 XM2
+    <- efxmap`fresh XMP N
+    <- efxmap`update XMP N M XM
+    <- tgtmap`lookup GM N S
+    <- select-set M S M1 M2
+    <- select-tgtmap XMP GM XM1P XM2P
+    <- efxmap`update XM1P N M1 XM1
+    <- efxmap`update XM2P N M2 XM2.
+
+select-tgtmap/U/out
+  : select-tgtmap XM GM XM1 XM2
+    <- efxmap`fresh XMP N
+    <- efxmap`update XMP N M XM
+    <- tgtmap`fresh GM N
+    <- select-tgtmap XMP GM XM1P XM2
+    <- efxmap`update XM1P N M XM1.
+
+
+
+
+% =============================================
+% ================= Theorems ==================
+% =============================================
+
+%theorem false-implies-select-set
+  : forall* {M} {S} {M1} {M2}
+    forall {V:void}
+    exists {SS: select-set M S M1 M2}
+    true.
+
+%worlds () (false-implies-select-set _ _).
+%total {} (false-implies-select-set _ _).
+
+
+%theorem false-implies-select-tgtmap
+  : forall* {XM} {GM} {XM1} {XM2}
+    forall {V:void}
+    exists {SM: select-tgtmap XM GM XM1 XM2}
+    true.
+
+%worlds () (false-implies-select-tgtmap _ _).
+%total {} (false-implies-select-tgtmap _ _).
+
+
+%theorem select-set-respects-eq
+  : forall* {M} {MP} {S} {S'} {M1} {M1P} {M2} {M2P}
+    forall {SS: select-set M S M1 M2}
+    {E: inner-efxmap`eq M MP} {E: set`eq S S'}
+    {E: inner-efxmap`eq M1 M1P} {E: inner-efxmap`eq M2 M2P}
+    exists {SS: select-set MP S' M1P M2P}
+    true.
+
+- : select-set-respects-eq SS inner-efxmap`eq/ set`eq/
+    inner-efxmap`eq/ inner-efxmap`eq/ SS.
+
+%worlds () (select-set-respects-eq _ _ _ _ _ _).
+%total {} (select-set-respects-eq _ _ _ _ _ _).
+
+
+%theorem select-tgtmap-respects-eq
+  : forall* {XM} {XMP} {GM} {GMP} {XM1} {XM1P} {XM2} {XM2P}
+    forall {SS: select-tgtmap XM GM XM1 XM2}
+    {E: efxmap`eq XM XMP} {E: tgtmap`eq GM GMP}
+    {E: efxmap`eq XM1 XM1P} {E: efxmap`eq XM2 XM2P}
+    exists {SS: select-tgtmap XMP GMP XM1P XM2P}
+    true.
+
+- : select-tgtmap-respects-eq SS efxmap`eq/ tgtmap`eq/
+    efxmap`eq/ efxmap`eq/ SS.
+
+%worlds () (select-tgtmap-respects-eq _ _ _ _ _ _).
+%total {} (select-tgtmap-respects-eq _ _ _ _ _ _).
+
+
+%theorem select-set-total*
+  : forall {M} {S}
+    exists {M1} {M2}
+    {SS: select-set M S M1 M2}
+    true.
+
+%abbrev select-set-total = select-set-total* _ _ _ _.
+
+%theorem select-set-total*/L1
+  : forall* {M} {S}
+    forall {N} {SZ: inner-efxmap`size M N}
+    exists {M1} {M2} {SS: select-set M S M1 M2}
+    true.
+
+- : select-set-total*/L1 z _ _ _ select-set/0.
+
+%theorem select-set-total*/L2
+  : forall* {S} {N} {MP} {M1P} {M2P} {X} {M}
+    forall {B} {IN?: set`member? S N B}
+    {SS: select-set MP S M1P M2P}
+    {FS: inner-efxmap`fresh MP N}
+    {U: inner-efxmap`update MP N X M}
+    exists {M1} {M2} {SS: select-set M S M1 M2}
+    true.
+
+- : select-set-total*/L2 false (set`member?/out OUT)
+    SS-MP F U _ _ (select-set/U/out U' SS-MP OUT U F)
+    <- inner-efxmap`update-total U'.
+
+- : select-set-total*/L2 true (set`member?/in IN)
+    SS-MP F U _ _ (select-set/U/in U' SS-MP IN U F)
+    <- inner-efxmap`update-total U'.
+
+%worlds () (select-set-total*/L2 _ _ _ _ _ _ _ _).
+%total {} (select-set-total*/L2 _ _ _ _ _ _ _ _).
+
+
+- : select-set-total*/L1 (s N) SZ  _ _ SS-M
+    <- inner-efxmap`lookup-implies-fresh-update
+      (inner-efxmap`lookup/= nat`eq/) MP F U
+    <- inner-efxmap`fresh-update-increases-size-converse SZ F U SZ'
+    <- set`member?-total IN?
+    <- select-set-total*/L1 N SZ' _ _ SS-MP
+    <- select-set-total*/L2 _ IN? SS-MP F U _ _ SS-M.
+
+%worlds () (select-set-total*/L1 _ _ _ _ _).
+%total (N) (select-set-total*/L1 N _ _ _ _).
+
+- : select-set-total* _ _ _ _ SS
+    <- inner-efxmap`size-total SZ
+    <- select-set-total*/L1 _ SZ _ _ SS.
+
+%worlds () (select-set-total* _ _ _ _ _).
+%total {} (select-set-total* _ _ _ _ _).
+
+
+%theorem select-tgtmap-total*
+  : forall {XM} {GM}
+    exists {XM1} {XM2}
+    {SGM: select-tgtmap XM GM XM1 XM2}
+    true.
+
+%abbrev select-tgtmap-total = select-tgtmap-total* _ _ _ _.
+
+%theorem select-tgtmap-total*/L1
+  : forall* {XM} {GM}
+    forall {N} {SZ: efxmap`size XM N}
+    exists {XM1} {XM2}
+    {SGM: select-tgtmap XM GM XM1 XM2}
+    true.
+
+- : select-tgtmap-total*/L1 z _ _ _ select-tgtmap/0.
+
+%theorem select-tgtmap-total*/L2
+  : forall* {N} {M} {XM} {XMP} {GM} {XM1P} {XM2P}
+    forall {B} {MB?: tgtmap`domain? GM N B}
+    {F: efxmap`fresh XMP N} {U: efxmap`update XMP N M XM}
+    {SXMP: select-tgtmap XMP GM XM1P XM2P}
+    exists {XM1} {XM2}
+    {SGM: select-tgtmap XM GM XM1 XM2}
+    true.
+
+- : select-tgtmap-total*/L2 true (tgtmap`domain?/in L)
+    F U SS-XMP _ _ (select-tgtmap/U/in U1' U2' SS-XMP SS-M L U F)
+    <- select-set-total SS-M
+    <- efxmap`update-total U1'
+    <- efxmap`update-total U2'.
+
+- : select-tgtmap-total*/L2 false (tgtmap`domain?/out F')
+    F U SS-XMP _ _ (select-tgtmap/U/out U' SS-XMP F' U F)
+    <- efxmap`update-total U'.
+
+%worlds () (select-tgtmap-total*/L2 _ _ _ _ _ _ _ _).
+%total {} (select-tgtmap-total*/L2 _ _ _ _ _ _ _ _).
+
+
+- : select-tgtmap-total*/L1 (s N) SZ _ _ SS-XM
+    <- efxmap`lookup-implies-fresh-update (efxmap`lookup/= nat`eq/) _ F U
+    <- efxmap`fresh-update-increases-size-converse SZ F U SZ'
+    <- tgtmap`domain?-total IN?
+    <- select-tgtmap-total*/L1 N SZ' _ _ SS-XMP
+    <- select-tgtmap-total*/L2 _ IN? F U SS-XMP _ _ SS-XM.
+
+%worlds () (select-tgtmap-total*/L1 _ _ _ _ _).
+%total (N) (select-tgtmap-total*/L1 N _ _ _ _).
+
+- : select-tgtmap-total* _ _ _ _ SS-XM
+    <- efxmap`size-total SZ
+    <- select-tgtmap-total*/L1 _ SZ _ _ SS-XM.
+
+%worlds () (select-tgtmap-total* _ _ _ _ _).
+%total {} (select-tgtmap-total* _ _ _ _ _).
+
+
+%theorem select-set-implies-leq
+  : forall* {M} {S} {M1} {M2}
+    forall {SS: select-set M S M1 M2}
+    exists {LE: inner-efxmap`leq M1 M} {LE: inner-efxmap`leq M2 M}
+    true.
+
+- : select-set-implies-leq select-set/0 inner-efxmap`leq/0 inner-efxmap`leq/0.
+
+- : select-set-implies-leq
+    (select-set/U/in U2 SS' _ U F) LE1 LE2
+    <- inner-efxmap`fresh-update-implies-leq F U LE
+    <- select-set-implies-leq SS' LE1' LE2'
+    <- inner-efxmap`update-preserves-leq* LE2' (efx`leq/eq efx`eq/) U2 U LE2
+    <- inner-efxmap`leq-transitive LE1' LE LE1.
+
+- : select-set-implies-leq
+    (select-set/U/out U1 SS' _ U F) LE1 LE2
+    <- inner-efxmap`fresh-update-implies-leq F U LE
+    <- select-set-implies-leq SS' LE1' LE2'
+    <- inner-efxmap`update-preserves-leq* LE1' (efx`leq/eq efx`eq/) U1 U LE1
+    <- inner-efxmap`leq-transitive LE2' LE LE2.
+
+%worlds () (select-set-implies-leq _ _ _).
+%total (SS) (select-set-implies-leq SS _ _).
+
+
+%theorem select-tgtmap-implies-leq
+  : forall* {XM} {GM} {XM1} {XM2}
+    forall {SS: select-tgtmap XM GM XM1 XM2}
+    exists {LE: efxmap`leq XM1 XM} {LE: efxmap`leq XM2 XM}
+    true.
+
+- : select-tgtmap-implies-leq select-tgtmap/0 efxmap`leq/0 efxmap`leq/0.
+
+- : select-tgtmap-implies-leq
+    (select-tgtmap/U/in U2 U1 SS-XMP SS-M _ U F) LE1 LE2
+    <- select-tgtmap-implies-leq SS-XMP LE1' LE2'
+    <- select-set-implies-leq SS-M M-LE1 M-LE2
+    <- efxmap`update-preserves-leq* LE1' M-LE1 U1 U LE1
+    <- efxmap`update-preserves-leq* LE2' M-LE2 U2 U LE2.
+
+- : select-tgtmap-implies-leq
+    (select-tgtmap/U/out U1 SS-XMP _ U F) LE1 LE2
+    <- efxmap`fresh-update-implies-leq F U LE
+    <- select-tgtmap-implies-leq SS-XMP LE1' LE2'
+    <- inner-efxmap`leq-reflexive _ M-LE
+    <- efxmap`update-preserves-leq* LE1' M-LE U1 U LE1
+    <- efxmap`leq-transitive LE2' LE LE2.
+
+%worlds () (select-tgtmap-implies-leq _ _ _).
+%total (SS) (select-tgtmap-implies-leq SS _ _).
+
+
+%theorem select-set/in-inversion
+  : forall* {M} {MP} {N} {X} {S} {M1} {M2}
+    forall {SS: select-set M S M1 M2}
+    {MB: set`member S N}
+    {F: inner-efxmap`fresh MP N}
+    {U: inner-efxmap`update MP N X M}
+    exists {M2P} {SS: select-set MP S M1 M2P}
+    {U: inner-efxmap`update M2P N X M2}
+    true.
+
+%theorem select-set/in-inversion/in
+  : forall*{F1} {F2} {M2S} {MS} {M1} {M2} {S} {X1} {X2} {MP} {B} {M}
+    forall {U2S: inner-efxmap`update M2S F1 X1 M2}
+    {SS: select-set MS S M1 M2S}
+    {MB: set`member S F1}
+    {U1: inner-efxmap`update MS F1 X1 M}
+    {FS1: inner-efxmap`fresh MS F1}
+    {MB2: set`member S F2}
+    {FS2: inner-efxmap`fresh MP F2}
+    {U2: inner-efxmap`update MP F2 X2 M}
+    {EQ?: nat`eq? F2 F1 B}
+    exists {M2P} {SS: select-set MP S M1 M2P}
+    {U2P: inner-efxmap`update M2P F2 X2 M2}
+    true.
+
+- : select-set/in-inversion/in
+    M2S+F+X1=M2 SS-MS=>M1+M2S S->F1 MS+F+X1=M F!<MS S->F2
+    F!<MP MP+F+X2=M (nat`eq?/yes) M2S SS-MP=>M1+M2S M2S+F+X2=M2
+    <- inner-efxmap`fresh-update-cancels F!<MS MS+F+X1=M
+      F!<MP MP+F+X2=M nat`eq/ inner-efxmap`eq/ X1=X2 MS=MP
+    <- select-set-respects-eq SS-MS=>M1+M2S MS=MP set`eq/
+      inner-efxmap`eq/ inner-efxmap`eq/ SS-MP=>M1+M2S
+    <- inner-efxmap`update-respects-eq M2S+F+X1=M2 inner-efxmap`eq/
+      nat`eq/ X1=X2 inner-efxmap`eq/ M2S+F+X2=M2.
+
+- : select-set/in-inversion/in
+    M2S+F1+X1=M2 SS-MS=>M1+M2S S->F1 MS+F1+X1=M F1!<MS
+    S->F2 F2!<MP MP+F2+X2=M (nat`eq?/no F2<>F1) _
+    (select-set/U/in M2K+F1+X1=M2U SS-MK=>M1+M2K S->F1 MK+F1+X1=MP F1!<MK)
+    M2U+F2+X2=M2
+    <- inner-efxmap`update-commutes-converse
+      MP+F2+X2=M MS+F1+X1=M F2<>F1 MK MK+F1+X1=MP MK+F2+X2=MS
+    <- inner-efxmap`update-preserves-fresh-converse F2!<MP MK+F1+X1=MP F2!<MK
+    <- select-set/in-inversion SS-MS=>M1+M2S S->F2 F2!<MK MK+F2+X2=MS
+      M2K SS-MK=>M1+M2K M2K+F2+X2=M2S
+    <- inner-efxmap`update-preserves-fresh-converse F1!<MS MK+F2+X2=MS F1!<MK
+    <- inner-efxmap`update-commutes M2K+F2+X2=M2S M2S+F1+X1=M2 F2<>F1 M2U
+      M2K+F1+X1=M2U M2U+F2+X2=M2.
+
+- : select-set/in-inversion
+    (select-set/U/in U2S SS-MS MB1 U1 F1) MB2 F2 U2 _ SS-MP UP
+    <- nat`eq?-total EQ?
+    <- select-set/in-inversion/in U2S SS-MS MB1 U1 F1 MB2 F2 U2 EQ? _ SS-MP UP.
+
+- : select-set/in-inversion
+    (select-set/U/out M1S+F+X=M1 SS-MS=>M1S+M2 F!<S MS+F+X=M F!<MS)
+    S->N N!<MP MP+N+X2=M M2U
+    (select-set/U/out M1S+F+X=M1 SS-MP=>M1S+M2U F!<S MK+F+X=MP F!<MK)
+    M2U+N+X2=M2
+    <- set`not-member-member-not-equal F!<S S->N F<>N
+    <- inner-efxmap`update-commutes-converse MS+F+X=M MP+N+X2=M
+      F<>N MK MK+N+X2=MS MK+F+X=MP
+    <- inner-efxmap`update-preserves-fresh-converse N!<MP MK+F+X=MP N!<MK
+    <- select-set/in-inversion SS-MS=>M1S+M2 S->N
+      N!<MK MK+N+X2=MS M2U SS-MP=>M1S+M2U M2U+N+X2=M2
+    <- inner-efxmap`update-preserves-fresh-converse F!<MS MK+N+X2=MS F!<MK.
+
+%worlds () (select-set/in-inversion _ _ _ _ _ _ _)
+(select-set/in-inversion/in _ _ _ _ _ _ _ _ _ _ _ _).
+%total (K1 K2) (select-set/in-inversion K1 _ _ _ _ _ _)
+(select-set/in-inversion/in _ K2 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem select-set/out-inversion
+  : forall* {M} {MP} {N} {X} {S} {M1} {M2}
+    forall {SS: select-set M S M1 M2}
+    {MB: set`not-member S N}
+    {F: inner-efxmap`fresh MP N}
+    {U: inner-efxmap`update MP N X M}
+    exists {M1P} {SS: select-set MP S M1P M2}
+    {U: inner-efxmap`update M1P N X M1}
+    true.
+
+%theorem select-set/out-inversion/out
+  : forall*{F1} {F2} {M1S} {MS} {M1} {M2} {S} {X1} {X2} {MP} {B} {M}
+    forall {U2S: inner-efxmap`update M1S F1 X1 M1}
+    {SS: select-set MS S M1S M2}
+    {MB: set`not-member S F1}
+    {U1: inner-efxmap`update MS F1 X1 M}
+    {FS1: inner-efxmap`fresh MS F1}
+    {MB2: set`not-member S F2}
+    {FS2: inner-efxmap`fresh MP F2}
+    {U2: inner-efxmap`update MP F2 X2 M}
+    {EQ?: nat`eq? F2 F1 B}
+    exists {M1P} {SS: select-set MP S M1P M2}
+    {U2P: inner-efxmap`update M1P F2 X2 M1}
+    true.
+
+- : select-set/out-inversion/out
+    M1S+F+X1=M1 SS-MS=>M1S+M2 S->F1 MS+F+X1=M F!<MS S->F2
+    F!<MP MP+F+X2=M (nat`eq?/yes) M1S SS-MP=>M1S+M2 M1S+F+X2=M1
+    <- inner-efxmap`fresh-update-cancels F!<MS MS+F+X1=M
+      F!<MP MP+F+X2=M nat`eq/ inner-efxmap`eq/ X1=X2 MS=MP
+    <- select-set-respects-eq SS-MS=>M1S+M2 MS=MP set`eq/
+      inner-efxmap`eq/ inner-efxmap`eq/ SS-MP=>M1S+M2
+    <- inner-efxmap`update-respects-eq M1S+F+X1=M1 inner-efxmap`eq/
+      nat`eq/ X1=X2 inner-efxmap`eq/ M1S+F+X2=M1.
+
+- : select-set/out-inversion/out
+    M1S+F1+X1=M1 SS-MS=>M1S+M2 F1!<S MS+F1+X1=M F1!<MS
+    F2!<S F2!<MP MP+F2+X2=M (nat`eq?/no F2<>F1) _
+    (select-set/U/out M1K+F1+X1=M1U SS-MK=>M1K+M2 F1!<S MK+F1+X1=MP F1!<MK)
+    M1U+F2+X2=M1
+    <- inner-efxmap`update-commutes-converse
+      MP+F2+X2=M MS+F1+X1=M F2<>F1 MK MK+F1+X1=MP MK+F2+X2=MS
+    <- inner-efxmap`update-preserves-fresh-converse F2!<MP MK+F1+X1=MP F2!<MK
+    <- select-set/out-inversion SS-MS=>M1S+M2 F2!<S F2!<MK MK+F2+X2=MS
+      M1K SS-MK=>M1K+M2 M1K+F2+X2=M1S
+    <- inner-efxmap`update-preserves-fresh-converse F1!<MS MK+F2+X2=MS F1!<MK
+    <- inner-efxmap`update-commutes M1K+F2+X2=M1S M1S+F1+X1=M1 F2<>F1 M1U
+      M1K+F1+X1=M1U M1U+F2+X2=M1.
+
+- : select-set/out-inversion
+    (select-set/U/out U1S SS-MS NM1 U1 F1) NM2 F2 U2 _ SS-MP UP
+    <- nat`eq?-total EQ?
+    <- select-set/out-inversion/out U1S SS-MS NM1 U1 F1 NM2 F2 U2 EQ? _ SS-MP UP.
+
+- : select-set/out-inversion
+    (select-set/U/in M2S+F+X=M2 SS-MS=>M1+M2S S->F MS+F+X=M F!<MS)
+    N!<S N!<MP MP+N+X2=M M2U
+    (select-set/U/in M2S+F+X=M2 SS-MP=>M1+M2U S->F MK+F+X=MP F!<MK)
+    M2U+N+X2=M2S
+    <- set`not-member-member-not-equal N!<S S->F N<>F
+    <- nat`ne-symmetric N<>F F<>N
+    <- inner-efxmap`update-commutes-converse MS+F+X=M MP+N+X2=M
+      F<>N MK MK+N+X2=MS MK+F+X=MP
+    <- inner-efxmap`update-preserves-fresh-converse N!<MP MK+F+X=MP N!<MK
+    <- select-set/out-inversion SS-MS=>M1+M2S N!<S
+      N!<MK MK+N+X2=MS M2U SS-MP=>M1+M2U M2U+N+X2=M2S
+    <- inner-efxmap`update-preserves-fresh-converse F!<MS MK+N+X2=MS F!<MK.
+
+%worlds () (select-set/out-inversion _ _ _ _ _ _ _)
+(select-set/out-inversion/out _ _ _ _ _ _ _ _ _ _ _ _).
+%total (K1 K2) (select-set/out-inversion K1 _ _ _ _ _ _)
+(select-set/out-inversion/out _ K2 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem select-set-unique
+  : forall* {M} {MP} {S} {SP} {M1} {M1P} {M2} {M2P}
+    forall {SS: select-set M S M1 M2}
+    {SS: select-set MP SP M1P M2P}
+    {E: inner-efxmap`eq M MP} {E: set`eq S SP}
+    exists {E: inner-efxmap`eq M1 M1P}
+    {E: inner-efxmap`eq M2 M2P}
+    true.
+
+- : select-set-unique select-set/0 select-set/0 _ _ inner-efxmap`eq/
+    inner-efxmap`eq/.
+
+- : select-set-unique
+    (select-set/U/in M2S+F+X=M2 MS=>M1+M2S S->F MS+F+X=M F!<MS)
+    SS inner-efxmap`eq/ set`eq/ M1=M1P M2=M2P
+    <- select-set/in-inversion SS S->F F!<MS MS+F+X=M M2K MS=>M1P+M2K M2K+F+X=M2P
+    <- select-set-unique MS=>M1+M2S MS=>M1P+M2K inner-efxmap`eq/
+      set`eq/ M1=M1P M2S=M2K
+    <- inner-efxmap`update-unique M2S+F+X=M2 M2K+F+X=M2P
+      M2S=M2K nat`eq/ efx`eq/ M2=M2P.
+
+- : select-set-unique
+    (select-set/U/out M1P+F+X=M1 MP=>M1P+M2 F!<S MP+F+X=M F!<MP)
+    SS inner-efxmap`eq/ set`eq/ M1=M1P M2=M2P
+    <- select-set/out-inversion SS F!<S F!<MP MP+F+X=M M1S MP=>M1S+M2
+      M1S+N+X=M1P
+    <- select-set-unique MP=>M1P+M2 MP=>M1S+M2 inner-efxmap`eq/
+      set`eq/ M1P=M1S M2=M2P
+    <- inner-efxmap`update-unique M1P+F+X=M1 M1S+N+X=M1P M1P=M1S nat`eq/
+      efx`eq/ M1=M1P.
+
+%worlds () (select-set-unique _ _ _ _ _ _).
+%total (S) (select-set-unique S _ _ _ _ _).
+
+
+%theorem select-tgtmap/in-inversion
+  : forall* {M} {X} {MP} {N} {G} {S} {M1} {M2}
+    forall {SS: select-tgtmap M G M1 M2}
+    {MB: tgtmap`lookup G N S}
+    {F: efxmap`fresh MP N}
+    {U: efxmap`update MP N X M}
+    exists {M1P} {M2P} {SS: select-tgtmap MP G M1P M2P}
+    {X1} {X2} {SSS: select-set X S X1 X2}
+    {U1: efxmap`update M1P N X1 M1}
+    {U2: efxmap`update M2P N X2 M2}
+    true.
+
+%theorem select-tgtmap/in-inversion/in
+  : forall*{N1} {N2} {M1S} {M2S} {G} {X} {S} {Q} {Z}
+    {MS} {M1} {M2} {X1} {X2} {MP} {B} {M}
+    forall {U2S: efxmap`update M2S N1 X2 M2}
+    {U1S: efxmap`update M1S N1 X1 M1}
+    {SS: select-tgtmap MS G M1S M2S}
+    {SSS: select-set X S X1 X2}
+    {MB: tgtmap`lookup G N1 S}
+    {U1: efxmap`update MS N1 X M}
+    {F1: efxmap`fresh MS N1}
+    {MB2: tgtmap`lookup G N2 Q}
+    {F2: efxmap`fresh MP N2}
+    {U2: efxmap`update MP N2 Z M}
+    {EQ?: nat`eq? N2 N1 B}
+    exists {M1P} {M2P} {SS: select-tgtmap MP G M1P M2P}
+    {Z1} {Z2} {SSSP: select-set Z Q Z1 Z2}
+    {U1P: efxmap`update M1P N2 Z1 M1}
+    {U2P: efxmap`update M2P N2 Z2 M2}
+    true.
+
+- : select-tgtmap/in-inversion/in
+    M2S+N+X2=M2 M1S+N+X1=M1 MS=>M1S+M2S X+S=>X1+X2 G->N=S
+    MS+N+X=M N!<MS G->N=Q N!<MP MP+N+Z=M nat`eq?/yes M1S M2S
+    MP=>M1S+M2S X1 X2 Z+Q=>X1+X2 M1S+N+X1=M1 M2S+N+X2=M2
+    <- efxmap`fresh-update-cancels N!<MS MS+N+X=M N!<MP MP+N+Z=M
+      nat`eq/ efxmap`eq/ X=Z MS=MP
+    <- select-tgtmap-respects-eq MS=>M1S+M2S MS=MP tgtmap`eq/
+      efxmap`eq/ efxmap`eq/ MP=>M1S+M2S
+    <- tgtmap`lookup-unique G->N=S G->N=Q tgtmap`eq/ nat`eq/ S=Q
+    <- select-set-respects-eq X+S=>X1+X2 X=Z S=Q inner-efxmap`eq/
+      inner-efxmap`eq/ Z+Q=>X1+X2.
+
+- : select-tgtmap/in-inversion/in
+    M2S+N1+X2=M2 M1S+N1+X1=M1 MS=>M1S+M2S X+S=>X1+X2 G->N1=S
+    MS+N1+X=M N1!<MS G->N2=Q N2!<MP MP+N2+Z=M (nat`eq?/no N2<>N1)
+    _ _ (select-tgtmap/U/in M2K+N1+X2=M2U M1K+N1+X1=M1U
+          MK=>M1K+M2K X+S=>X1+X2 G->N1=S MK+N1+X=MP N1!<MK)
+    Z1 Z2 Z+Q=>Z1+Z2 M1U+N2+Z1=M1 M2U+N2+Z2=M2
+    <- efxmap`update-commutes-converse MP+N2+Z=M MS+N1+X=M N2<>N1
+      MK MK+N1+X=MP MK+N2+Z=MS
+    <- efxmap`update-preserves-fresh-converse N2!<MP MK+N1+X=MP N2!<MK
+    <- select-tgtmap/in-inversion MS=>M1S+M2S G->N2=Q N2!<MK MK+N2+Z=MS
+      M1K M2K MK=>M1K+M2K Z1 Z2 Z+Q=>Z1+Z2 M1K+N2+Z1=M1S M2K+N2+Z2=M2S
+    <- efxmap`update-preserves-fresh-converse N1!<MS MK+N2+Z=MS N1!<MK
+    <- efxmap`update-commutes M1K+N2+Z1=M1S M1S+N1+X1=M1 N2<>N1 M1U
+      M1K+N1+X1=M1U M1U+N2+Z1=M1
+    <- efxmap`update-commutes M2K+N2+Z2=M2S M2S+N1+X2=M2 N2<>N1 M2U
+      M2K+N1+X2=M2U M2U+N2+Z2=M2.
+
+- : select-tgtmap/in-inversion
+    (select-tgtmap/U/in U2S U1S SS-MS SS-S L1 U1 F1) L2 F2 U2
+    _ _ SS-MP _ _ SS-SP U1P U2P
+    <- nat`eq?-total EQ?
+    <- select-tgtmap/in-inversion/in U2S U1S SS-MS SS-S L1 U1 F1
+      L2 F2 U2 EQ? _ _ SS-MP _ _ SS-SP U1P U2P.
+
+- : select-tgtmap/in-inversion
+    (select-tgtmap/U/out
+      (M1S+N1+X1=M1:efxmap`update M1S N1 X1 M1)
+      (MS=>M1S+M2:select-tgtmap MS G M1S M2)
+      (N1!<G:tgtmap`fresh G N1)
+      (MS+N1+X1=M: efxmap`update MS N1 X1 M)
+      (N1!<MS:efxmap`fresh MS N1))
+    (G->N2=S:tgtmap`lookup G N2 S)
+    (N2!<MP:efxmap`fresh MP N2)
+    (MP+N2+X2=M:efxmap`update MP N2 X2 M)
+    M1U M2K (select-tgtmap/U/out M1K+N1+X1=M1U MK=>M1K+M2K
+              N1!<G MK+N1+X1=MP N1!<MK)
+    Z1 Z2 X2+S=>Z1+Z2 M1U+N2+Z1=M1 M2K+N2+Z2=M2
+    <- tgtmap`fresh-lookup-not-equal N1!<G G->N2=S N1<>N2
+    <- efxmap`update-commutes-converse MS+N1+X1=M MP+N2+X2=M N1<>N2 MK
+      MK+N2+X2=MS MK+N1+X1=MP
+    <- efxmap`update-preserves-fresh-converse N2!<MP MK+N1+X1=MP N2!<MK
+    <- select-tgtmap/in-inversion MS=>M1S+M2 G->N2=S N2!<MK MK+N2+X2=MS
+      M1K M2K MK=>M1K+M2K Z1 Z2 X2+S=>Z1+Z2 M1K+N2+Z1=M1S M2K+N2+Z2=M2
+    <- efxmap`update-preserves-fresh-converse N1!<MS MK+N2+X2=MS N1!<MK
+    <- nat`ne-symmetric N1<>N2 N2<>N1
+    <- efxmap`update-commutes M1K+N2+Z1=M1S M1S+N1+X1=M1 N2<>N1 M1U
+      M1K+N1+X1=M1U M1U+N2+Z1=M1.
+
+%worlds () (select-tgtmap/in-inversion _ _ _ _ _ _ _ _ _ _ _ _)
+(select-tgtmap/in-inversion/in _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (K1 K2) (select-tgtmap/in-inversion K1 _ _ _ _ _ _ _ _ _ _ _)
+(select-tgtmap/in-inversion/in _ _ K2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem select-tgtmap/out-inversion
+  : forall* {M} {X} {MP} {N} {G} {M1} {M2}
+    forall {SS: select-tgtmap M G M1 M2}
+    {MB: tgtmap`fresh G N}
+    {F: efxmap`fresh MP N}
+    {U: efxmap`update MP N X M}
+    exists {M1P} {SS: select-tgtmap MP G M1P M2}
+    {U1: efxmap`update M1P N X M1}
+    true.
+
+%theorem select-tgtmap/out-inversion/out
+  : forall*{N1} {N2} {M1S} {G} {X} {Z}
+    {MS} {M1} {M2} {MP} {B} {M}
+    forall {U1S: efxmap`update M1S N1 X M1}
+    {SS: select-tgtmap MS G M1S M2}
+    {MB: tgtmap`fresh G N1}
+    {U1: efxmap`update MS N1 X M}
+    {F1: efxmap`fresh MS N1}
+    {MB2: tgtmap`fresh G N2}
+    {F2: efxmap`fresh MP N2}
+    {U2: efxmap`update MP N2 Z M}
+    {EQ?: nat`eq? N2 N1 B}
+    exists {M1P} {SS: select-tgtmap MP G M1P M2}
+    {U1P: efxmap`update M1P N2 Z M1}
+    true.
+
+- : select-tgtmap/out-inversion/out
+    M1S+N+X1=M1 SS-MS=>M1S+M2 N1!<S MS+N+X1=M N!<MS N2!<S
+    N!<MP MP+N+X2=M (nat`eq?/yes) M1S SS-MP=>M1S+M2 M1S+N+X2=M1
+    <- efxmap`fresh-update-cancels N!<MS MS+N+X1=M
+      N!<MP MP+N+X2=M nat`eq/ efxmap`eq/ X1=X2 MS=MP
+    <- select-tgtmap-respects-eq SS-MS=>M1S+M2 MS=MP tgtmap`eq/
+      efxmap`eq/ efxmap`eq/ SS-MP=>M1S+M2
+    <- efxmap`update-respects-eq M1S+N+X1=M1 efxmap`eq/
+      nat`eq/ X1=X2 efxmap`eq/ M1S+N+X2=M1.
+
+- : select-tgtmap/out-inversion/out
+    M1S+N1+X1=M1 SS-MS=>M1S+M2 N1!<S MS+N1+X1=M N1!<MS
+    N2!<S N2!<MP MP+N2+X2=M (nat`eq?/no N2<>N1) _
+    (select-tgtmap/U/out M1K+N1+X1=M1U SS-MK=>M1K+M2 N1!<S MK+N1+X1=MP N1!<MK)
+    M1U+N2+X2=M1
+    <- efxmap`update-commutes-converse
+      MP+N2+X2=M MS+N1+X1=M N2<>N1 MK MK+N1+X1=MP MK+N2+X2=MS
+    <- efxmap`update-preserves-fresh-converse N2!<MP MK+N1+X1=MP N2!<MK
+    <- select-tgtmap/out-inversion SS-MS=>M1S+M2 N2!<S N2!<MK MK+N2+X2=MS
+      M1K SS-MK=>M1K+M2 M1K+N2+X2=M1S
+    <- efxmap`update-preserves-fresh-converse N1!<MS MK+N2+X2=MS N1!<MK
+    <- efxmap`update-commutes M1K+N2+X2=M1S M1S+N1+X1=M1 N2<>N1 M1U
+      M1K+N1+X1=M1U M1U+N2+X2=M1.
+
+- : select-tgtmap/out-inversion
+    (select-tgtmap/U/out U1S SS-MS NM1 U1 F1) NM2 F2 U2 _ SS-MP UP
+    <- nat`eq?-total EQ?
+    <- select-tgtmap/out-inversion/out U1S SS-MS NM1 U1 F1 NM2 F2 U2 EQ? _ SS-MP UP.
+
+- : select-tgtmap/out-inversion
+    (select-tgtmap/U/in M2S+F+X2=M2 M1S+F+X1=M1 SS-MS=>M1S+M2S X=>X1+X2
+      S->F MS+F+X=M F!<MS) N!<S N!<MP MP+N+Z=M _
+    (select-tgtmap/U/in M2S+F+X2=M2 M1U+F+X1=M1K SS-MP=>M1U+M2S X=>X1+X2
+      S->F MK+F+X=MP F!<MK) M1K+N+Z=M1
+    <- tgtmap`fresh-lookup-not-equal N!<S S->F N<>F
+    <- nat`ne-symmetric N<>F F<>N
+    <- efxmap`update-commutes-converse MS+F+X=M MP+N+Z=M
+      F<>N MK MK+N+Z=MS MK+F+X=MP
+    <- efxmap`update-preserves-fresh-converse N!<MP MK+F+X=MP N!<MK
+    <- select-tgtmap/out-inversion SS-MS=>M1S+M2S N!<S
+      N!<MK MK+N+Z=MS M1U SS-MP=>M1U+M2S M1U+N+Z=M1S
+    <- efxmap`update-preserves-fresh-converse F!<MS MK+N+Z=MS F!<MK
+    <- efxmap`update-commutes M1U+N+Z=M1S M1S+F+X1=M1 N<>F
+      M1K M1U+F+X1=M1K M1K+N+Z=M1.
+
+%worlds () (select-tgtmap/out-inversion _ _ _ _ _ _ _)
+(select-tgtmap/out-inversion/out _ _ _ _ _ _ _ _ _ _ _ _).
+%total (K1 K2) (select-tgtmap/out-inversion K1  _ _ _ _ _ _)
+(select-tgtmap/out-inversion/out _ K2 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem select-tgtmap-unique
+  : forall* {M} {MP} {G} {GP} {M1} {M1P} {M2} {M2P}
+    forall {SG: select-tgtmap M G M1 M2}
+    {SG: select-tgtmap MP GP M1P M2P}
+    {E: efxmap`eq M MP} {E: tgtmap`eq G GP}
+    exists {E: efxmap`eq M1 M1P} {E: efxmap`eq M2 M2P}
+    true.
+
+- : select-tgtmap-unique select-tgtmap/0 select-tgtmap/0 _ _ efxmap`eq/ efxmap`eq/.
+
+- : select-tgtmap-unique
+    (select-tgtmap/U/in M2S+N+X2=M2 M1S+N+X1=M1
+      MS=>M1S+M2S X=>X1+X2 L MS+N+X=M N!<MS) M=>M1P+M2P
+    efxmap`eq/ tgtmap`eq/ M1=M1P M2=M2P
+    <- select-tgtmap/in-inversion M=>M1P+M2P L N!<MS MS+N+X=M
+      M1K M2K MS=>M1K+M2K Z1 Z2 X=>Z1+Z2 M1K+N+Z1=M1P M2K+N+Z2=M2P
+    <- select-set-unique X=>X1+X2 X=>Z1+Z2 inner-efxmap`eq/ set`eq/ X1=Z1 X2=Z2
+    <- select-tgtmap-unique MS=>M1S+M2S MS=>M1K+M2K efxmap`eq/ tgtmap`eq/
+      M1S=M1K M2S=M2K
+    <- efxmap`update-unique M1S+N+X1=M1 M1K+N+Z1=M1P M1S=M1K nat`eq/ X1=Z1 M1=M1P
+    <- efxmap`update-unique M2S+N+X2=M2 M2K+N+Z2=M2P M2S=M2K nat`eq/ X2=Z2 M2=M2P.
+
+- : select-tgtmap-unique
+    (select-tgtmap/U/out M1S+N+M=M1 MS=>M1S+M2 FS MS+N+M=M N!<MS) M=>M1P+M2P
+    efxmap`eq/ tgtmap`eq/ M1=M1P M2=M2P
+    <- select-tgtmap/out-inversion M=>M1P+M2P FS N!<MS MS+N+M=M
+      M1K MS=>M1K+M2P M1K+N+M=M1P
+    <- select-tgtmap-unique MS=>M1S+M2 MS=>M1K+M2P efxmap`eq/ tgtmap`eq/
+      M1S=M1K M2=M2P
+    <- efxmap`update-unique M1S+N+M=M1 M1K+N+M=M1P M1S=M1K nat`eq/
+      inner-efxmap`eq/ M1=M1P.
+
+%worlds () (select-tgtmap-unique _ _ _ _ _ _).
+%total (S) (select-tgtmap-unique S _ _ _ _ _).
+
+
+
+%theorem fresh-update-preserves-select-set-converse
+  : forall* {M} {N} {S} {SP} {M1} {M2}
+    forall {SS: select-set M S M1 M2}
+    {F: set`not-member SP N} {U: set`add SP N S}
+    {F: inner-efxmap`fresh M N}
+    exists {SS: select-set M SP M1 M2}
+    true.
+
+- : fresh-update-preserves-select-set-converse
+    select-set/0 _ _ inner-efxmap`fresh/0 select-set/0.
+
+%theorem fresh-update-preserves-select-set-converse/U/in
+  : forall* {M} {N} {M1} {M2} {M2P} {F} {X} {S} {SP} {MP} {B}
+    forall {U: inner-efxmap`update M2P F X M2}
+    {SS: select-set MP S M1 M2P} {MB: set`member S F}
+    {U: inner-efxmap`update MP F X M} {FS: inner-efxmap`fresh MP F}
+    {FS: set`not-member SP N} {A: set`add SP N S}
+    {NM: inner-efxmap`fresh M N} {EQ?: nat`eq? F N B}
+    exists {SS: select-set M SP M1 M2}
+    true.
+
+- : fresh-update-preserves-select-set-converse/U/in
+    _ _ _ MP+N+X=M _ _ _ N!<M nat`eq?/yes SS
+    <- inner-efxmap`update-implies-lookup MP+N+X=M M->N=X
+    <- inner-efxmap`fresh-lookup-not-equal N!<M M->N=X N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- false-implies-select-set V SS.
+
+- : fresh-update-preserves-select-set-converse/U/in
+    M2P+F+X=M2 MP+S=>M1+M2P F<-S MP+F+X=M F!<MP N!<SP SP+N=S N!<M
+    (nat`eq?/no F<>N)
+    (select-set/U/in M2P+F+X=M2 MP+SP=>M1+M2P F<-SP MP+F+X=M F!<MP)
+    <- inner-efxmap`update-preserves-fresh-converse N!<M MP+F+X=M N!<MP
+    <- set`add-preserves-member-converse F<-S SP+N=S F<>N F<-SP
+    <- fresh-update-preserves-select-set-converse MP+S=>M1+M2P
+      N!<SP SP+N=S N!<MP MP+SP=>M1+M2P.
+
+- : fresh-update-preserves-select-set-converse
+    (select-set/U/in U2 SS L US FS) NM A F SSP
+    <- nat`eq?-total EQ?
+    <- fresh-update-preserves-select-set-converse/U/in
+      U2 SS L US FS NM A F EQ? SSP.
+
+%theorem fresh-update-preserves-select-set-converse/U/out
+  : forall* {M} {N} {M1} {M2} {M1P} {F} {X} {S} {SP} {MP} {B}
+    forall {U: inner-efxmap`update M1P F X M1}
+    {SS: select-set MP S M1P M2} {MB: set`not-member S F}
+    {U: inner-efxmap`update MP F X M} {FS: inner-efxmap`fresh MP F}
+    {FS: set`not-member SP N} {A: set`add SP N S}
+    {NM: inner-efxmap`fresh M N} {EQ?: nat`eq? F N B}
+    exists {SS: select-set M SP M1 M2}
+    true.
+
+- : fresh-update-preserves-select-set-converse/U/out
+    _ _ N!<S _ _ _ SP+N=S _ nat`eq?/yes SS
+    <- set`add-implies-member SP+N=S N<-S
+    <- set`not-member-member-not-equal N!<S N<-S N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- false-implies-select-set V SS.
+
+- : fresh-update-preserves-select-set-converse/U/out
+    M1P+F+X=M2 MP+S=>M1P+M2 F!<S MP+F+X=M F!<MP N!<SP SP+N=S N!<M
+    (nat`eq?/no F<>N)
+    (select-set/U/out M1P+F+X=M2 MP+SP=>M1P+M2 F!<SP MP+F+X=M F!<MP)
+    <- inner-efxmap`update-preserves-fresh-converse N!<M MP+F+X=M N!<MP
+    <- set`add-preserves-not-member-converse F!<S SP+N=S F!<SP
+    <- fresh-update-preserves-select-set-converse MP+S=>M1P+M2
+      N!<SP SP+N=S N!<MP MP+SP=>M1P+M2.
+
+- : fresh-update-preserves-select-set-converse
+    (select-set/U/out U2 SS L US FS) NM A F SSP
+    <- nat`eq?-total EQ?
+    <- fresh-update-preserves-select-set-converse/U/out
+      U2 SS L US FS NM A F EQ? SSP.
+
+%worlds () (fresh-update-preserves-select-set-converse _ _ _ _ _)
+(fresh-update-preserves-select-set-converse/U/in _ _ _ _ _ _ _ _ _ _)
+(fresh-update-preserves-select-set-converse/U/out _ _ _ _ _ _ _ _ _ _).
+%total (S1 S2 S3) (fresh-update-preserves-select-set-converse S1 _ _ _ _)
+(fresh-update-preserves-select-set-converse/U/in _ S2 _ _ _ _ _ _ _ _)
+(fresh-update-preserves-select-set-converse/U/out _ S3 _ _ _ _ _ _ _ _).
+
+
+
+%theorem fresh-update-preserves-select-tgtmap-converse
+  : forall* {M} {N} {G} {GP} {M1} {M2} {S}
+    forall {SG: select-tgtmap M G M1 M2}
+    {F: tgtmap`fresh GP N} {U: tgtmap`update GP N S G}
+    {F: efxmap`fresh M N}
+    exists {SG: select-tgtmap M GP M1 M2}
+    true.
+
+- : fresh-update-preserves-select-tgtmap-converse
+    select-tgtmap/0 _ _ efxmap`fresh/0 select-tgtmap/0.
+
+%theorem fresh-update-preserves-select-tgtmap-converse/U/in
+  : forall* {M} {N1} {N2} {M1} {M2} {M1P} {M2P}
+    {G} {GP} {MP} {B} {S1} {S2} {X} {X1} {X2}
+    forall {U: efxmap`update M2P N1 X2 M2}
+    {U: efxmap`update M1P N1 X1 M1} {SG: select-tgtmap MP G M1P M2P}
+    {SS: select-set X S1 X1 X2} {MB: tgtmap`lookup G N1 S1}
+    {U: efxmap`update MP N1 X M} {FS: efxmap`fresh MP N1}
+    {FS: tgtmap`fresh GP N2} {A: tgtmap`update GP N2 S2 G}
+    {NM: efxmap`fresh M N2} {EQ?: nat`eq? N1 N2 B}
+    exists {SG: select-tgtmap M GP M1 M2}
+    true.
+
+- : fresh-update-preserves-select-tgtmap-converse/U/in
+    _ _ _ _ _ MP+N+X=M _ _ _ N!<M nat`eq?/yes SS
+    <- efxmap`update-implies-lookup MP+N+X=M M->N=X
+    <- efxmap`fresh-lookup-not-equal N!<M M->N=X N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- false-implies-select-tgtmap V SS.
+
+- : fresh-update-preserves-select-tgtmap-converse/U/in
+    M2P+N1+X2=M2 M1P+N1+X1=M1 MP+G=>M1P+M2P X+S1=>X1+X2
+    G->N1=S1 MP+N1+X=M N1!<MP N2!<GP GP+N2+S2=G N2!<M
+    (nat`eq?/no N1<>N2)
+    (select-tgtmap/U/in M2P+N1+X2=M2 M1P+N1+X1=M1 MP+GP=>M1P+M2P
+      X+S1=>X1+X2 GP->N1=S1 MP+N1+X=M N1!<MP)
+    <- efxmap`update-preserves-fresh-converse N2!<M MP+N1+X=M N2!<MP
+    <- tgtmap`update-preserves-lookup-converse G->N1=S1 GP+N2+S2=G N1<>N2 GP->N1=S1
+    <- fresh-update-preserves-select-tgtmap-converse MP+G=>M1P+M2P
+      N2!<GP GP+N2+S2=G N2!<MP MP+GP=>M1P+M2P.
+
+- : fresh-update-preserves-select-tgtmap-converse
+    (select-tgtmap/U/in U2 U1 SG SS L US FS) NM A F SSP
+    <- nat`eq?-total EQ?
+    <- fresh-update-preserves-select-tgtmap-converse/U/in
+      U2 U1 SG SS L US FS NM A F EQ? SSP.
+
+%theorem fresh-update-preserves-select-tgtmap-converse/U/out
+  : forall* {M} {N2} {M1} {M2} {M1P} {N1} {X} {G} {GP} {MP} {B} {S2}
+    forall {U: efxmap`update M1P N1 X M1}
+    {SG: select-tgtmap MP G M1P M2} {MB: tgtmap`fresh G N1}
+    {U: efxmap`update MP N1 X M} {FS: efxmap`fresh MP N1}
+    {FS: tgtmap`fresh GP N2} {A: tgtmap`update GP N2 S2 G}
+    {NM: efxmap`fresh M N2} {EQ?: nat`eq? N1 N2 B}
+    exists {SG: select-tgtmap M GP M1 M2}
+    true.
+
+- : fresh-update-preserves-select-tgtmap-converse/U/out
+    _ _ N!<G _ _ _ GP+N+S=G _ nat`eq?/yes SS
+    <- tgtmap`update-implies-lookup GP+N+S=G G->N=S
+    <- tgtmap`fresh-lookup-not-equal N!<G G->N=S N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- false-implies-select-tgtmap V SS.
+
+- : fresh-update-preserves-select-tgtmap-converse/U/out
+    M1P+N1+X=M2 MP+G=>M1P+M2 N1!<G MP+N1+X=M N1!<MP N2!<GP GP+N2+S2=G N2!<M
+    (nat`eq?/no N1<>N2)
+    (select-tgtmap/U/out M1P+N1+X=M2 MP+GP=>M1P+M2 N1!<GP MP+N1+X=M N1!<MP)
+    <- efxmap`update-preserves-fresh-converse N2!<M MP+N1+X=M N2!<MP
+    <- tgtmap`update-preserves-fresh-converse N1!<G GP+N2+S2=G N1!<GP
+    <- fresh-update-preserves-select-tgtmap-converse MP+G=>M1P+M2
+      N2!<GP GP+N2+S2=G N2!<MP MP+GP=>M1P+M2.
+
+- : fresh-update-preserves-select-tgtmap-converse
+    (select-tgtmap/U/out U2 SS L US FS) NM A F SSP
+    <- nat`eq?-total EQ?
+    <- fresh-update-preserves-select-tgtmap-converse/U/out
+      U2 SS L US FS NM A F EQ? SSP.
+
+%worlds () (fresh-update-preserves-select-tgtmap-converse _ _ _ _ _)
+(fresh-update-preserves-select-tgtmap-converse/U/in _ _ _ _ _ _ _ _ _ _ _ _)
+(fresh-update-preserves-select-tgtmap-converse/U/out _ _ _ _ _ _ _ _ _ _).
+%total (S1 S2 S3) (fresh-update-preserves-select-tgtmap-converse S1 _ _ _ _)
+(fresh-update-preserves-select-tgtmap-converse/U/in _ _ S2 _ _ _ _ _ _ _ _ _)
+(fresh-update-preserves-select-tgtmap-converse/U/out _ S3 _ _ _ _ _  _ _ _).
