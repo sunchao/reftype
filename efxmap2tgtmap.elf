@@ -1,639 +1,614 @@
-%%% Transforming a efxmap to a tgtmap
-%%% $Id: efxmap2tgtmap.elf,v 1.3 2013/06/03 20:25:14 csun Exp csun $
-
+%%e Transformation from efxmap to tgtmap
 
 % ===================================
 % ========== Definition =============
 % ===================================
 
-
 efxmap2tgtmap : efxmap -> tgtmap -> type.
 
 efxmap2tgtmap/0 : efxmap2tgtmap efxmap/0 tgtmap/0.
 
-efxmap2tgtmap/+
-  : inner-efxmap`domain M S
-    -> efxmap2tgtmap XM GM
-    -> efxmap2tgtmap (efxmap/+ N M XM) (tgtmap/+ N S GM).
+efxmap2tgtmap/U
+  : efxmap2tgtmap MP GP
+    -> inner-efxmap`domain D S
+    -> efxmap`fresh MP N
+    -> efxmap`update MP N D M
+    -> tgtmap`update GP N S G
+    -> efxmap2tgtmap M G.
 
 
-% =========================================
-% =============== Theorems ================
-% =========================================
+% ====================================
+% ============= Theorems =============
+% ====================================
 
-
-%theorem false-implies-efxmap2tgtmap
-  : forall* {XM} {GM}
-    forall {V:void}
-    exists {T: efxmap2tgtmap XM GM}
-    true.
+%theorem false-implies-efxmap2tgtmap :
+	forall*	{M} {MP}
+	forall	{F: void}
+	exists	{A: efxmap2tgtmap M MP}
+	true.
 
 %worlds () (false-implies-efxmap2tgtmap _ _).
-%total {} (false-implies-efxmap2tgtmap _ _).
+%total { } (false-implies-efxmap2tgtmap _ _).
 
 
-%theorem efxmap2tgtmap-respects-eq
-  : forall* {XM} {GM} {XMP} {GMP}
-    forall {T: efxmap2tgtmap XM GM}
-    {E: efxmap`eq XM XMP}
-    {E: tgtmap`eq GM GMP}
-    exists {TP: efxmap2tgtmap XMP GMP}
-    true.
+%theorem efxmap2tgtmap-respects-eq :
+	forall*	{M1} {M2} {M1P} {M2P}
+	forall	{A1: efxmap2tgtmap M1 M1P}
+		{ME: efxmap`eq M1 M2}
+		{EP: tgtmap`eq M1P M2P}
+	exists	{A2: efxmap2tgtmap M2 M2P}
+	true.
 
-- : efxmap2tgtmap-respects-eq efxmap2tgtmap/0 _ _ efxmap2tgtmap/0.
-
-- : efxmap2tgtmap-respects-eq (efxmap2tgtmap/+ D T)
-    efxmap`eq/ tgtmap`eq/ (efxmap2tgtmap/+ D T) .
+- : efxmap2tgtmap-respects-eq A _ _ A.
 
 %worlds () (efxmap2tgtmap-respects-eq _ _ _ _).
-%total {} (efxmap2tgtmap-respects-eq _ _ _ _).
+%total { } (efxmap2tgtmap-respects-eq _ _ _ _).
 
 
-%theorem efxmap2tgtmap-total*
-  : forall {XM}
-    exists {GM} {T: efxmap2tgtmap XM GM}
+%theorem efxmap2tgtmap/U-inversion :
+	forall*	{M1} {M2} {N} {D} {M2P}
+	forall	{A2: efxmap2tgtmap M2 M2P}
+		{F: efxmap`fresh M1 N}
+		{U: efxmap`update M1 N D M2}
+	exists	{M1P} {DP}
+		{A1: efxmap2tgtmap M1 M1P}
+		{R: inner-efxmap`domain D DP}
+		{U: tgtmap`update M1P N DP M2P}
+	true.
+
+%theorem efxmap2tgtmap/U-inversion/L :
+	forall*	{N0} {D0} {M0} {N} {D} {B} {M1} {M2} {M0P} {D0P} {M2P}
+	forall	{A0: efxmap2tgtmap M0 M0P}
+		{R1: inner-efxmap`domain D0 D0P}
+		{F0: efxmap`fresh M0 N0}
+		{U0: efxmap`update M0 N0 D0 M2}
+		{UP: tgtmap`update M0P N0 D0P M2P}
+		{F1: efxmap`fresh M1 N}
+		{U1: efxmap`update M1 N D M2}
+		{EQ?: nat`eq? N N0 B}
+	exists	{M1P} {DP}
+		{A1: efxmap2tgtmap M1 M1P}
+		{R: inner-efxmap`domain D DP}
+		{U: tgtmap`update M1P N DP M2P}
+	true.
+
+- : efxmap2tgtmap/U-inversion/L
+    A0 R0 F0 U0 U0P F1 U1 nat`eq?/yes _ _ A1 R1 U0P
+    <- efxmap`fresh-update-cancels
+      F0 U0 F1 U1 (nat`eq/:nat`eq N N) efxmap`eq/ D0=D1 M0=M1
+    <- efxmap2tgtmap-respects-eq A0 M0=M1 tgtmap`eq/ A1
+    <- inner-efxmap`domain-respects-eq R0 D0=D1 set`eq/ R1.
+
+- : efxmap2tgtmap/U-inversion/L A0 R0 F0 U0 U0P F1 U1 (nat`eq?/no N<>N1) _ _
+	(efxmap2tgtmap/U A2 R0 F3 U3 U3P) R1 U1P
+    <- efxmap`update-commutes-converse U1 U0 N<>N1 _ U3 U2
+    <- efxmap`update-preserves-fresh-converse F1 U3 F2
+    <- efxmap`update-preserves-fresh-converse F0 U2 F3
+    <- efxmap2tgtmap/U-inversion A0 F2 U2 _ _ A2 R1 U2P
+    <- tgtmap`update-commutes U2P U0P N<>N1 _ U3P U1P.
+
+- : efxmap2tgtmap/U-inversion (efxmap2tgtmap/U A0 R0 F0 U0 U0P) F U _ _ A1 R U1P
+    <- nat`eq?-total EQ?
+    <- efxmap2tgtmap/U-inversion/L A0 R0 F0 U0 U0P F U EQ? _ _ A1 R U1P.
+
+%worlds () (efxmap2tgtmap/U-inversion _ _ _ _ _ _ _ _)
+           (efxmap2tgtmap/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (A B)
+	   (efxmap2tgtmap/U-inversion A _ _ _ _ _ _ _)
+           (efxmap2tgtmap/U-inversion/L B _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem efxmap2tgtmap-lookup-implies-lookup :
+	forall*	{M} {N} {D} {MP}
+	forall	{A: efxmap2tgtmap M MP}
+		{L: efxmap`lookup M N D}
+	exists	{DP}
+		{R: inner-efxmap`domain D DP}
+		{L: tgtmap`lookup MP N DP}
+	true.
+
+- : efxmap2tgtmap-lookup-implies-lookup A L DP T LP
+    <- efxmap`lookup-implies-fresh-update L _ F U
+    <- efxmap2tgtmap/U-inversion A F U _ _ AP T UP
+    <- tgtmap`update-implies-lookup UP LP.
+
+%worlds () (efxmap2tgtmap-lookup-implies-lookup _ _ _ _ _).
+%total { } (efxmap2tgtmap-lookup-implies-lookup _ _ _ _ _).
+
+
+%theorem efxmap2tgtmap-lookup-implies-lookup*
+  : forall* {M} {N} {D} {MP} {DP}
+    forall {A: efxmap2tgtmap M MP}
+		{L: efxmap`lookup M N D}
+		{R: inner-efxmap`domain D DP}
+		exists {L: tgtmap`lookup MP N DP}
     true.
+
+- : efxmap2tgtmap-lookup-implies-lookup* A L T LP
+    <- efxmap2tgtmap-lookup-implies-lookup A L DP TP LR
+    <- inner-efxmap`domain-unique TP T inner-efxmap`eq/ E
+    <- tgtmap`lookup-respects-eq LR tgtmap`eq/ nat`eq/ E LP.
+
+%worlds () (efxmap2tgtmap-lookup-implies-lookup* _ _ _ _).
+%total {} (efxmap2tgtmap-lookup-implies-lookup* _ _ _ _).
+
+
+%theorem efxmap2tgtmap-lookup-implies-domain
+  : forall* {M} {N} {D} {G} {S}
+    forall {T: efxmap2tgtmap M G}
+    {L: efxmap`lookup M N D}
+    {L: tgtmap`lookup G N S}
+    exists {DM: inner-efxmap`domain D S}
+    true.
+
+- : efxmap2tgtmap-lookup-implies-domain
+    M=>G M->N=D G->N=S DM-D=S
+    <- inner-efxmap`domain-total DM-D=SP
+    <- efxmap2tgtmap-lookup-implies-lookup* M=>G M->N=D DM-D=SP G->N=SP
+    <- tgtmap`lookup-unique G->N=SP G->N=S tgtmap`eq/ nat`eq/ SP=S
+    <- inner-efxmap`domain-respects-eq DM-D=SP inner-efxmap`eq/ SP=S DM-D=S.
+
+%worlds () (efxmap2tgtmap-lookup-implies-domain _ _ _ _).
+%total {} (efxmap2tgtmap-lookup-implies-domain _ _ _ _).
+
+
+%theorem efxmap2tgtmap-preserves-fresh:
+	forall*	{M} {N} {MP}
+	forall	{F: efxmap`fresh M N}
+		{A: efxmap2tgtmap M MP}
+	exists	{F: tgtmap`fresh MP N}
+	true.
+
+- : efxmap2tgtmap-preserves-fresh _ efxmap2tgtmap/0 tgtmap`fresh/0.
+
+- : efxmap2tgtmap-preserves-fresh F1 (efxmap2tgtmap/U A _ _ U UP) F4
+    <- efxmap`update-implies-lookup U L
+    <- efxmap`fresh-lookup-not-equal F1 L NE
+    <- efxmap`update-preserves-fresh-converse F1 U F2
+    <- efxmap2tgtmap-preserves-fresh F2 A F3
+    <- tgtmap`update-preserves-fresh F3 UP NE F4.
+
+%worlds () (efxmap2tgtmap-preserves-fresh _ _ _).
+%total (A) (efxmap2tgtmap-preserves-fresh _ A _).
+
+
+%theorem efxmap2tgtmap-preserves-fresh-converse:
+	forall*	{M} {N} {MP}
+	forall	{F: tgtmap`fresh MP N}
+		{A: efxmap2tgtmap M MP}
+	exists	{F: efxmap`fresh M N}
+	true.
+
+- : efxmap2tgtmap-preserves-fresh-converse _ efxmap2tgtmap/0 efxmap`fresh/0.
+
+- : efxmap2tgtmap-preserves-fresh-converse F1 (efxmap2tgtmap/U A _ _ U UP) F4
+    <- tgtmap`update-implies-lookup UP L
+    <- tgtmap`fresh-lookup-not-equal F1 L NE
+    <- tgtmap`update-preserves-fresh-converse F1 UP F2
+    <- efxmap2tgtmap-preserves-fresh-converse F2 A F3
+    <- efxmap`update-preserves-fresh F3 U NE F4.
+
+%worlds () (efxmap2tgtmap-preserves-fresh-converse _ _ _).
+%total (A) (efxmap2tgtmap-preserves-fresh-converse _ A _).
+
+
+%theorem efxmap2tgtmap-lookup-implies-lookup-converse :
+	forall*	{M} {N} {DP} {MP}
+	forall	{A: efxmap2tgtmap M MP}
+		{L: tgtmap`lookup MP N DP}
+	exists	{D}
+		{R: inner-efxmap`domain D DP}
+		{L: efxmap`lookup M N D}
+	true.
+
+%theorem efxmap2tgtmap-lookup-implies-lookup-converse/L :
+	forall*	{M} {N} {DP} {MP} {B}
+	forall	{A: efxmap2tgtmap M MP}
+		{L: tgtmap`lookup MP N DP}
+		{D?: efxmap`domain? M N B}
+	exists	{D}
+		{R: inner-efxmap`domain D DP}
+		{L: efxmap`lookup M N D}
+	true.
+
+- : efxmap2tgtmap-lookup-implies-lookup-converse/L
+	A LP (efxmap`domain?/in L) _ T L
+    <- efxmap`lookup-implies-fresh-update L _ F U
+    <- tgtmap`lookup-implies-fresh-update LP _ FP UP
+    <- efxmap2tgtmap/U-inversion A F U _ _ _ T1 UP1
+    <- tgtmap`update-implies-lookup UP1 LP1
+    <- tgtmap`lookup-unique LP1 LP tgtmap`eq/ (nat`eq/:nat`eq N N) DP1=DP
+    <- inner-efxmap`domain-respects-eq T1 inner-efxmap`eq/ DP1=DP T.
+
+%theorem efxmap2tgtmap-lookup-implies-lookup-converse/F :
+	forall*	{M} {N} {DP}
+	forall	{F: void}
+	exists	{D} {R: inner-efxmap`domain D DP}
+		{L: efxmap`lookup M N D}
+	true.
+
+%worlds () (efxmap2tgtmap-lookup-implies-lookup-converse/F _ _ _ _).
+%total { } (efxmap2tgtmap-lookup-implies-lookup-converse/F _ _ _ _).
+
+- : efxmap2tgtmap-lookup-implies-lookup-converse/L
+	A (LP:tgtmap`lookup MP N DP) (efxmap`domain?/out F) D2 T L
+    <- efxmap2tgtmap-preserves-fresh F A FP
+    <- tgtmap`fresh-lookup-not-equal FP LP N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- efxmap2tgtmap-lookup-implies-lookup-converse/F V D2 T L.
+
+%worlds () (efxmap2tgtmap-lookup-implies-lookup-converse/L _ _ _ _ _ _).
+%total { } (efxmap2tgtmap-lookup-implies-lookup-converse/L _ _ _ _ _ _).
+
+- : efxmap2tgtmap-lookup-implies-lookup-converse A LP DP T L
+    <- efxmap`domain?-total D?
+    <- efxmap2tgtmap-lookup-implies-lookup-converse/L A LP D? DP T L.
+
+%worlds () (efxmap2tgtmap-lookup-implies-lookup-converse _ _ _ _ _).
+%total { } (efxmap2tgtmap-lookup-implies-lookup-converse _ _ _ _ _).
+
+
+%theorem efxmap2tgtmap-preserves-domain? :
+	forall*	{M} {N} {B} {MP}
+	forall	{D1: efxmap`domain? M N B}
+		{A: efxmap2tgtmap M MP}
+	exists	{D2: tgtmap`domain? MP N B}
+	true.
+
+- : efxmap2tgtmap-preserves-domain? (efxmap`domain?/in L) A (tgtmap`domain?/in LP)
+    <- efxmap`lookup-implies-fresh-update L _ F U
+    <- efxmap2tgtmap/U-inversion A F U _ _ _ _ UP
+    <- tgtmap`update-implies-lookup UP LP.
+
+- : efxmap2tgtmap-preserves-domain? (efxmap`domain?/out F) A (tgtmap`domain?/out FP)
+    <- efxmap2tgtmap-preserves-fresh F A FP.
+
+%worlds () (efxmap2tgtmap-preserves-domain? _ _ _).
+%total { } (efxmap2tgtmap-preserves-domain? _ _ _).
+
+
+%theorem efxmap2tgtmap-preserves-domain?-converse :
+	forall*	{M} {N} {B} {MP}
+	forall	{D1: tgtmap`domain? MP N B}
+		{A: efxmap2tgtmap M MP}
+	exists	{D2: efxmap`domain? M N B}
+	true.
+
+- : efxmap2tgtmap-preserves-domain?-converse (tgtmap`domain?/in LP) A (efxmap`domain?/in L)
+    <- efxmap2tgtmap-lookup-implies-lookup-converse A LP _ _ L.
+
+- : efxmap2tgtmap-preserves-domain?-converse (tgtmap`domain?/out FP) A (efxmap`domain?/out F)
+    <- efxmap2tgtmap-preserves-fresh-converse FP A F.
+
+%worlds () (efxmap2tgtmap-preserves-domain?-converse _ _ _).
+%total { } (efxmap2tgtmap-preserves-domain?-converse _ _ _).
+
+
+%theorem efxmap2tgtmap/UP-inversion :
+	forall*	{M1P} {M2} {N} {DP} {M2P}
+	forall	{A2: efxmap2tgtmap M2 M2P}
+		{F: tgtmap`fresh M1P N}
+		{U: tgtmap`update M1P N DP M2P}
+	exists	{M1} {D}
+		{A1: efxmap2tgtmap M1 M1P}
+		{R: inner-efxmap`domain D DP}
+		{U: efxmap`update M1 N D M2}
+	true.
+
+- : efxmap2tgtmap/UP-inversion A FP UP _ _ A1 T U
+    <- tgtmap`update-implies-lookup UP LP
+    <- efxmap2tgtmap-lookup-implies-lookup-converse A LP _ _ L
+    <- efxmap`lookup-implies-fresh-update L _ F U
+    <- efxmap2tgtmap/U-inversion A F U _ _ A2 T2 UP2
+    <- efxmap2tgtmap-preserves-fresh F A2 FP2
+    <- tgtmap`fresh-update-cancels
+      FP2 UP2 FP UP (nat`eq/:nat`eq N N) tgtmap`eq/ DP2=DP M2P=MP
+    <- inner-efxmap`domain-respects-eq T2 inner-efxmap`eq/ DP2=DP T
+    <- efxmap2tgtmap-respects-eq A2 efxmap`eq/ M2P=MP A1.
+
+%worlds () (efxmap2tgtmap/UP-inversion _ _ _ _ _ _ _ _).
+%total { } (efxmap2tgtmap/UP-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem update-preserves-efxmap2tgtmap :
+	forall*	{M1} {N} {D} {M2} {M1P} {M2P} {DP}
+	forall	{A1: efxmap2tgtmap M1 M1P}
+		{R: inner-efxmap`domain D DP}
+		{U: efxmap`update M1 N D M2}
+		{UP:tgtmap`update M1P N DP M2P}
+	exists	{A2: efxmap2tgtmap M2 M2P}
+	true.
+
+%theorem update-preserves-efxmap2tgtmap/L :
+	forall*	{M1} {N} {D} {M2} {M1P} {M2P} {DP} {B}
+	forall	{A1: efxmap2tgtmap M1 M1P}
+		{R: inner-efxmap`domain D DP}
+		{D?: efxmap`domain? M1 N B}
+		{U: efxmap`update M1 N D M2}
+		{UP:tgtmap`update M1P N DP M2P}
+	exists	{A2: efxmap2tgtmap M2 M2P}
+	true.
+
+- : update-preserves-efxmap2tgtmap/L
+    A T (efxmap`domain?/out F) U UP (efxmap2tgtmap/U A T F U UP).
+
+- : update-preserves-efxmap2tgtmap/L
+    A T (efxmap`domain?/in L) U UP (efxmap2tgtmap/U A1 T F U3 UP3)
+    <- efxmap`lookup-implies-fresh-update L _ F U1
+    <- efxmap2tgtmap/U-inversion A F U1 _ _ A1 TX U2
+    <- efxmap`update-overwrites U1 U nat`eq/ U3
+    <- tgtmap`update-overwrites U2 UP nat`eq/ UP3.
+
+%worlds () (update-preserves-efxmap2tgtmap/L _ _ _ _ _ _).
+%total { } (update-preserves-efxmap2tgtmap/L _ _ _ _ _ _).
+
+- : update-preserves-efxmap2tgtmap A T U UP AP
+    <- efxmap`domain?-total D?
+    <- update-preserves-efxmap2tgtmap/L A T D? U UP AP.
+
+%worlds () (update-preserves-efxmap2tgtmap _ _ _ _ _).
+%total { } (update-preserves-efxmap2tgtmap _ _ _ _ _).
+
+
+%theorem efxmap2tgtmap-preserves-size :
+	forall*	{M1} {N} {M2}
+	forall	{Z1: efxmap`size M1 N}
+		{A: efxmap2tgtmap M1 M2}
+	exists	{Z2: tgtmap`size M2 N}
+	true.
+
+- : efxmap2tgtmap-preserves-size efxmap`size/0 efxmap2tgtmap/0 tgtmap`size/0.
+
+- : efxmap2tgtmap-preserves-size Z (efxmap2tgtmap/U A T F U UP) ZP
+    <- efxmap`fresh-update-increases-size-converse Z F U Z1
+    <- efxmap2tgtmap-preserves-size Z1 A ZP1
+    <- efxmap2tgtmap-preserves-fresh F A FP
+    <- tgtmap`fresh-update-increases-size ZP1 FP UP ZP.
+
+%worlds () (efxmap2tgtmap-preserves-size _ _ _).
+%total (A) (efxmap2tgtmap-preserves-size _ A _).
+
+
+%theorem efxmap2tgtmap-preserves-size-converse :
+	forall*	{M1} {N} {M2}
+	forall	{Z1: tgtmap`size M2 N}
+		{A: efxmap2tgtmap M1 M2}
+	exists	{Z2: efxmap`size M1 N}
+	true.
+
+- : efxmap2tgtmap-preserves-size-converse tgtmap`size/0 efxmap2tgtmap/0 efxmap`size/0.
+
+- : efxmap2tgtmap-preserves-size-converse ZP (efxmap2tgtmap/U A T F U UP) Z
+    <- efxmap2tgtmap-preserves-fresh F A FP
+    <- tgtmap`fresh-update-increases-size-converse ZP FP UP ZP1
+    <- efxmap2tgtmap-preserves-size-converse ZP1 A Z1
+    <- efxmap`fresh-update-increases-size Z1 F U Z.
+
+%worlds () (efxmap2tgtmap-preserves-size-converse _ _ _).
+%total (A) (efxmap2tgtmap-preserves-size-converse _ A _).
+
+
+%theorem efxmap2tgtmap-preserves-domain:
+	forall*	{M} {S} {MP}
+	forall	{D: efxmap`domain M S}
+		{A: efxmap2tgtmap M MP}
+	exists	{DP: tgtmap`domain MP S}
+	true.
+
+- : efxmap2tgtmap-preserves-domain efxmap`domain/0 efxmap2tgtmap/0 tgtmap`domain/0.
+
+- : efxmap2tgtmap-preserves-domain D (efxmap2tgtmap/U A T F U UP) DP
+    <- efxmap`domain-total D1
+    <- efxmap2tgtmap-preserves-domain D1 A DP1
+    <- efxmap`update-commute-domain U D1 D SA
+    <- tgtmap`domain-commute-update DP1 UP SA DP.
+
+%worlds () (efxmap2tgtmap-preserves-domain _ _ _).
+%total (A) (efxmap2tgtmap-preserves-domain _ A _).
+
+
+%theorem efxmap2tgtmap-preserves-domain-converse:
+	forall*	{M} {S} {MP}
+	forall	{D: tgtmap`domain MP S}
+		{A: efxmap2tgtmap M MP}
+	exists	{DP: efxmap`domain M S}
+	true.
+
+- : efxmap2tgtmap-preserves-domain-converse tgtmap`domain/0 efxmap2tgtmap/0 efxmap`domain/0.
+
+- : efxmap2tgtmap-preserves-domain-converse DP (efxmap2tgtmap/U A T F U UP) D
+    <- tgtmap`domain-total D1P
+    <- efxmap2tgtmap-preserves-domain-converse D1P A D1
+    <- tgtmap`update-commute-domain UP D1P DP SA
+    <- efxmap`domain-commute-update D1 U SA D.
+
+%worlds () (efxmap2tgtmap-preserves-domain-converse _ _ _).
+%total (A) (efxmap2tgtmap-preserves-domain-converse _ A _).
+
+
+%theorem efxmap2tgtmap-total* :
+	forall	{M}
+	exists	{MP}
+		{A: efxmap2tgtmap M MP}
+	true.
 
 %abbrev efxmap2tgtmap-total = efxmap2tgtmap-total* _ _.
 
-- : efxmap2tgtmap-total* efxmap/0 tgtmap/0 efxmap2tgtmap/0.
+%theorem efxmap2tgtmap-total/L :
+	forall*	{M}
+	forall	{N} {Z: efxmap`size M N}
+	exists	{MP}
+		{A: efxmap2tgtmap M MP}
+	true.
 
-- : efxmap2tgtmap-total* (efxmap/+ N M XM) (tgtmap/+ N S GM)
-    (efxmap2tgtmap/+ DM-M=S XM=>GM)
-    <- inner-efxmap`domain-total* M S DM-M=S
-    <- efxmap2tgtmap-total* XM GM XM=>GM.
+- : efxmap2tgtmap-total/L _ _ _ efxmap2tgtmap/0.
+
+- : efxmap2tgtmap-total/L _ Z _ (efxmap2tgtmap/U A1 T F U UP)
+    <- efxmap`lookup-implies-fresh-update (efxmap`lookup/= (nat`eq/:nat`eq N N)) _ F U
+    <- efxmap`fresh-update-increases-size-converse Z F U Z1
+    <- efxmap2tgtmap-total/L _ Z1 _ A1
+    <- inner-efxmap`domain-total* _ _ T
+    <- tgtmap`update-total UP.
+
+%worlds () (efxmap2tgtmap-total/L _ _ _ _).
+%total (N) (efxmap2tgtmap-total/L N _ _ _).
+
+- : efxmap2tgtmap-total A
+    <- efxmap`size-total Z
+    <- efxmap2tgtmap-total/L _ Z _ A.
 
 %worlds () (efxmap2tgtmap-total* _ _ _).
-%total (M) (efxmap2tgtmap-total* M _ _).
+%total { } (efxmap2tgtmap-total* _ _ _).
 
 
-%theorem efxmap2tgtmap-unique
-  : forall* {XM} {GM} {XMP} {GMP}
-    forall {T: efxmap2tgtmap XM GM}
-    {TP: efxmap2tgtmap XMP GMP} {E: efxmap`eq XM XMP}
-    exists {E: tgtmap`eq GM GMP}
-    true.
+%theorem efxmap2tgtmap-unique :
+	forall*	{M1} {M2} {M1P} {M2P}
+	forall	{A1: efxmap2tgtmap M1 M1P}
+		{A2: efxmap2tgtmap M2 M2P}
+		{ME: efxmap`eq M1 M2}
+	exists	{EP: tgtmap`eq M1P M2P}
+	true.
 
-- : efxmap2tgtmap-unique efxmap2tgtmap/0 efxmap2tgtmap/0 efxmap`eq/ tgtmap`eq/.
+%theorem efxmap2tgtmap-unique/L :
+	forall*	{M} {M1P} {M2P}
+	forall	{N} {Z: efxmap`size M N}
+		{A1: efxmap2tgtmap M M1P}
+		{A2: efxmap2tgtmap M M2P}
+	exists	{EP: tgtmap`eq M1P M2P}
+	true.
 
-- : efxmap2tgtmap-unique
-    (efxmap2tgtmap/+ M-DM1 XM2GM1)
-    (efxmap2tgtmap/+ M-DM2 XM2GM2) XM-EQ GM-EQ
-    <- efxmap`map/+-preserves-eq-converse XM-EQ N-EQ M-EQ XM1-EQ
-    <- efxmap2tgtmap-unique XM2GM1 XM2GM2 XM1-EQ GM1-EQ
-    <- inner-efxmap`domain-unique M-DM1 M-DM2 M-EQ S-EQ
-    <- tgtmap`map/+-preserves-eq N-EQ S-EQ GM1-EQ GM-EQ.
+- : efxmap2tgtmap-unique/L _ _ efxmap2tgtmap/0 efxmap2tgtmap/0 tgtmap`eq/.
+
+- : efxmap2tgtmap-unique/L _ Z A1 A2 MEQ
+    <- efxmap`lookup-implies-fresh-update (efxmap`lookup/= nat`eq/) _ F U
+    <- efxmap`fresh-update-increases-size-converse Z F U ZR
+    <- efxmap2tgtmap/U-inversion A1 F U _ _ A1R T1 U1
+    <- efxmap2tgtmap/U-inversion A2 F U _ _ A2R T2 U2
+    <- efxmap2tgtmap-unique/L _ ZR A1R A2R MEQR
+    <- inner-efxmap`domain-unique T1 T2 inner-efxmap`eq/ DEQ
+    <- tgtmap`update-unique U1 U2 MEQR nat`eq/ DEQ MEQ.
+
+%worlds () (efxmap2tgtmap-unique/L _ _ _ _ _).
+%total (N) (efxmap2tgtmap-unique/L N _ _ _ _).
+
+- : efxmap2tgtmap-unique A1 A2 _ MEQ
+    <- efxmap`size-total Z
+    <- efxmap2tgtmap-unique/L _ Z A1 A2 MEQ.
 
 %worlds () (efxmap2tgtmap-unique _ _ _ _).
-%total (D) (efxmap2tgtmap-unique D _ _ _).
-
-
-%theorem efxmap2tgtmap-inversion
-  : forall* {N1} {N2} {M} {XM} {GM} {S}
-    forall {T: efxmap2tgtmap (efxmap/+ N1 M XM) (tgtmap/+ N2 S GM)}
-    {E: nat`eq N1 N2}
-    exists {DM: inner-efxmap`domain M S} {T: efxmap2tgtmap XM GM}
-    true.
-
-- : efxmap2tgtmap-inversion (efxmap2tgtmap/+ DM XM=>GM) _ DM XM=>GM.
-
-%worlds () (efxmap2tgtmap-inversion _ _ _ _).
-%total {} (efxmap2tgtmap-inversion _ _ _ _).
-
-
-%theorem nat`ne-efxmap2tgtmap-implies-false
-  : forall* {N1} {N2} {M} {S} {XM} {GM}
-    forall {NE: nat`ne N1 N2}
-    {T: efxmap2tgtmap (efxmap/+ N1 M XM) (tgtmap/+ N2 S GM)}
-    exists {V: void} true.
-
-- : nat`ne-efxmap2tgtmap-implies-false (nat`ne/< GT) (efxmap2tgtmap/+ _ _) V
-    <- nat`gt-anti-reflexive GT V.
-
-- : nat`ne-efxmap2tgtmap-implies-false (nat`ne/> GT) (efxmap2tgtmap/+ _ _) V
-    <- nat`gt-anti-reflexive GT V.
-
-%worlds () (nat`ne-efxmap2tgtmap-implies-false _ _ _).
-%total {} (nat`ne-efxmap2tgtmap-implies-false _ _ _).
-
-
-%theorem shift-preserves-efxmap2tgtmap
-  : forall* {XM} {GM} {XM1} {N}
-    forall {T: efxmap2tgtmap XM GM}
-    {SH: efxmap`shift N XM XM1}
-    exists {GM1} {SH: tgtmap`shift N GM GM1}
-    {T: efxmap2tgtmap XM1 GM1}
-    true.
-
-- : shift-preserves-efxmap2tgtmap
-    efxmap2tgtmap/0 efxmap`shift/0 tgtmap/0 tgtmap`shift/0 efxmap2tgtmap/0.
-
-- : shift-preserves-efxmap2tgtmap
-    (efxmap2tgtmap/+ T D) (efxmap`shift/+ P)
-    _ (tgtmap`shift/+ P) (efxmap2tgtmap/+ T D).
-
-%worlds () (shift-preserves-efxmap2tgtmap _ _ _ _ _).
-%total {} (shift-preserves-efxmap2tgtmap _ _ _ _ _).
-
-
-%theorem shift-preserves-efxmap2tgtmap*
-  : forall* {XM} {GM} {XMs} {GMs} {N}
-    forall {T: efxmap2tgtmap XM GM}
-    {SH: efxmap`shift N XM XMs}
-    {SH: tgtmap`shift N GM GMs}
-    exists {Ts: efxmap2tgtmap XMs GMs}
-    true.
-
-- : shift-preserves-efxmap2tgtmap* efxmap2tgtmap/0 _ _ efxmap2tgtmap/0.
-
-- : shift-preserves-efxmap2tgtmap*
-    (efxmap2tgtmap/+ T D) _ _ (efxmap2tgtmap/+ T D).
-
-%worlds () (shift-preserves-efxmap2tgtmap* _ _ _ _).
-%total {} (shift-preserves-efxmap2tgtmap* _ _ _ _).
-
-
-%theorem shift-preserves-efxmap2tgtmap-converse
-  : forall* {XM} {XMP} {GMP} {N}
-    forall {TP: efxmap2tgtmap XMP GMP}
-    {SH: efxmap`shift N XM XMP}
-    exists {GM} {SH: tgtmap`shift N GM GMP}
-    {T: efxmap2tgtmap XM GM}
-    true.
-
-- : shift-preserves-efxmap2tgtmap-converse
-    efxmap2tgtmap/0 efxmap`shift/0 tgtmap/0 tgtmap`shift/0 efxmap2tgtmap/0.
-
-- : shift-preserves-efxmap2tgtmap-converse
-    (efxmap2tgtmap/+ T D) (efxmap`shift/+ P) _ (tgtmap`shift/+ P)
-    (efxmap2tgtmap/+ T D).
-
-%worlds () (shift-preserves-efxmap2tgtmap-converse _ _ _ _ _).
-%total {} (shift-preserves-efxmap2tgtmap-converse _ _ _ _ _).
-
-
-%theorem shift-preserves-efxmap2tgtmap-converse*
-  : forall* {XM} {GM} {XMP} {GMP} {N}
-    forall {TP: efxmap2tgtmap XMP GMP}
-    {SH: efxmap`shift N XM XMP}
-    {SH: tgtmap`shift N GM GMP}
-    exists {T: efxmap2tgtmap XM GM}
-    true.
-
-- : shift-preserves-efxmap2tgtmap-converse* efxmap2tgtmap/0 _ _ efxmap2tgtmap/0.
-
-- : shift-preserves-efxmap2tgtmap-converse*
-    (efxmap2tgtmap/+ T D) (efxmap`shift/+ P1) (tgtmap`shift/+ P2) T2
-    <- nat`plus-left-cancels P1 P2 nat`eq/ nat`eq/ E
-    <- tgtmap`map/+-preserves-eq E set`eq/ tgtmap`eq/ ME
-    <- efxmap2tgtmap-respects-eq (efxmap2tgtmap/+ T D) efxmap`eq/ ME T2.
-
-%worlds () (shift-preserves-efxmap2tgtmap-converse* _ _ _ _).
-%total {} (shift-preserves-efxmap2tgtmap-converse* _ _ _ _).
-
-
-%theorem efxmap2tgtmap-preserves-size
-  : forall* {XM} {GM} {N}
-    forall {T: efxmap2tgtmap XM GM} {SZ: efxmap`size XM N}
-    exists {SZ: tgtmap`size GM N} true.
-
-- : efxmap2tgtmap-preserves-size efxmap2tgtmap/0 efxmap`size/0 tgtmap`size/0.
-
-- : efxmap2tgtmap-preserves-size
-    (efxmap2tgtmap/+ _ T) (efxmap`size/+ SZ1) (tgtmap`size/+ SZ2)
-    <- efxmap2tgtmap-preserves-size T SZ1 SZ2.
-
-%worlds () (efxmap2tgtmap-preserves-size _ _ _).
-%total (T) (efxmap2tgtmap-preserves-size T _ _).
-
-
-%theorem efxmap2tgtmap-preserves-size-converse
-  : forall* {XM} {GM} {N}
-    forall {T: efxmap2tgtmap XM GM} {SZ: tgtmap`size GM N}
-    exists {SZ: efxmap`size XM N} true.
-
-- : efxmap2tgtmap-preserves-size-converse
-    efxmap2tgtmap/0 tgtmap`size/0 efxmap`size/0.
-
-- : efxmap2tgtmap-preserves-size-converse
-    (efxmap2tgtmap/+ _ T) (tgtmap`size/+ SZ1) (efxmap`size/+ SZ2)
-    <- efxmap2tgtmap-preserves-size-converse T SZ1 SZ2.
-
-%worlds () (efxmap2tgtmap-preserves-size-converse _ _ _).
-%total (T) (efxmap2tgtmap-preserves-size-converse T _ _).
-
-
-%theorem efxmap2tgtmap-preserves-lookup
-  : forall* {XM} {GM} {N} {M}
-    forall {T: efxmap2tgtmap XM GM}
-    {L: efxmap`lookup XM N M}
-    exists {S} {L: tgtmap`lookup GM N S}
-    {DM: inner-efxmap`domain M S}
-    true.
-
-- : efxmap2tgtmap-preserves-lookup
-    (efxmap2tgtmap/+ DM T) (efxmap`lookup/= nat`eq/)
-    S (tgtmap`lookup/= nat`eq/) DM.
-
-- : efxmap2tgtmap-preserves-lookup
-    (efxmap2tgtmap/+ _ T) (efxmap`lookup/> L P)
-    S (tgtmap`lookup/> L2 P) DM
-    <- efxmap2tgtmap-preserves-lookup T L _ L2 DM.
-
-%worlds () (efxmap2tgtmap-preserves-lookup _ _ _ _ _).
-%total (T) (efxmap2tgtmap-preserves-lookup T _ _ _ _).
-
-
-%theorem efxmap2tgtmap-preserves-lookup-converse
-  : forall* {XM} {GM} {N} {S}
-    forall {T: efxmap2tgtmap XM GM}
-    {L: tgtmap`lookup GM N S}
-    exists {M:inner-efxmap} {L: efxmap`lookup XM N M}
-    {DM: inner-efxmap`domain M S}
-    true.
-
-- : efxmap2tgtmap-preserves-lookup-converse
-    (efxmap2tgtmap/+ DM T) (tgtmap`lookup/= nat`eq/)
-    S (efxmap`lookup/= nat`eq/) DM.
-
-- : efxmap2tgtmap-preserves-lookup-converse
-    (efxmap2tgtmap/+ _ T) (tgtmap`lookup/> L P)
-    S (efxmap`lookup/> L2 P) DM
-    <- efxmap2tgtmap-preserves-lookup-converse T L _ L2 DM.
-
-%worlds () (efxmap2tgtmap-preserves-lookup-converse _ _ _ _ _).
-%total (T) (efxmap2tgtmap-preserves-lookup-converse T _ _ _ _).
-
-
-%theorem efxmap2tgtmap-preserves-fresh
-  : forall* {XM} {GM} {N}
-    forall {T: efxmap2tgtmap XM GM} {F: efxmap`fresh XM N}
-    exists {F: tgtmap`fresh GM N} true.
-
-- : efxmap2tgtmap-preserves-fresh
-    efxmap2tgtmap/0 efxmap`fresh/0 tgtmap`fresh/0.
-
-- : efxmap2tgtmap-preserves-fresh
-    (efxmap2tgtmap/+ _ _) (efxmap`fresh/< GT) (tgtmap`fresh/< GT).
-
-- : efxmap2tgtmap-preserves-fresh
-    (efxmap2tgtmap/+ _ T) (efxmap`fresh/> F1 P) (tgtmap`fresh/> F2 P)
-    <- efxmap2tgtmap-preserves-fresh T F1 F2.
-
-%worlds () (efxmap2tgtmap-preserves-fresh _ _ _).
-%total (T) (efxmap2tgtmap-preserves-fresh T _ _).
-
-
-%theorem efxmap2tgtmap-preserves-fresh-converse
-  : forall* {XM} {GM} {N}
-    forall {T: efxmap2tgtmap XM GM} {F: tgtmap`fresh GM N}
-    exists {F: efxmap`fresh XM N} true.
-
-- : efxmap2tgtmap-preserves-fresh-converse
-    efxmap2tgtmap/0 tgtmap`fresh/0 efxmap`fresh/0.
-
-- : efxmap2tgtmap-preserves-fresh-converse
-    (efxmap2tgtmap/+ _ _) (tgtmap`fresh/< GT) (efxmap`fresh/< GT).
-
-- : efxmap2tgtmap-preserves-fresh-converse
-    (efxmap2tgtmap/+ _ T)  (tgtmap`fresh/> F1 P) (efxmap`fresh/> F2 P)
-    <- efxmap2tgtmap-preserves-fresh-converse T F1 F2.
-
-%worlds () (efxmap2tgtmap-preserves-fresh-converse _ _ _).
-%total (T) (efxmap2tgtmap-preserves-fresh-converse T _ _).
-
-
-%theorem update-preserves-efxmap2tgtmap
-  : forall* {XM} {GM} {N} {M} {XMP} {S}
-    forall {T: efxmap2tgtmap XM GM}
-    {U: efxmap`update XM N M XMP}
-    {DM: inner-efxmap`domain M S}
-    exists {GMP} {U: tgtmap`update GM N S GMP}
-    {TP: efxmap2tgtmap XMP GMP}
-    true.
-
-- : update-preserves-efxmap2tgtmap
-    _ efxmap`update/0 D _ tgtmap`update/0 (efxmap2tgtmap/+ D efxmap2tgtmap/0).
-
-- : update-preserves-efxmap2tgtmap
-    (efxmap2tgtmap/+ _ T) (efxmap`update/= nat`eq/) DM
-    _ (tgtmap`update/= nat`eq/) (efxmap2tgtmap/+ DM T).
-
-- : update-preserves-efxmap2tgtmap
-    (efxmap2tgtmap/+ DMP T) (efxmap`update/< P) DM
-    _ (tgtmap`update/< P) (efxmap2tgtmap/+ DM (efxmap2tgtmap/+ DMP T)).
-
-- : update-preserves-efxmap2tgtmap
-    (efxmap2tgtmap/+ DMP T) (efxmap`update/> U1 P) DM
-    _ (tgtmap`update/> U2 P) (efxmap2tgtmap/+ DMP T2)
-    <- update-preserves-efxmap2tgtmap T U1 DM _ U2 T2.
-
-%worlds () (update-preserves-efxmap2tgtmap _ _ _ _ _ _).
-%total (T) (update-preserves-efxmap2tgtmap T _ _ _ _ _).
-
-
-%theorem update-preserves-efxmap2tgtmap*
-  : forall* {XM} {GM} {N} {M} {S} {XMP} {GMP}
-    forall {T: efxmap2tgtmap XM GM}
-    {U: efxmap`update XM N M XMP}
-    {U: tgtmap`update GM N S GMP}
-    {DM: inner-efxmap`domain M S}
-    exists {TP: efxmap2tgtmap XMP GMP}
-    true.
-%mode update-preserves-efxmap2tgtmap* +T1 +U1 +U2 +D -T2.
-%worlds () (update-preserves-efxmap2tgtmap* _ _ _ _ _).
-%trustme %total { } (update-preserves-efxmap2tgtmap* _ _ _ _ _).
-
-
-%theorem efxmap2tgtmap-preserves-domain
-  : forall* {GM} {XM} {S}
-    forall {XM=>GM: efxmap2tgtmap XM GM}
-    {DM-XM: efxmap`domain XM S}
-    exists {DM-GM: tgtmap`domain GM S}
-    true.
-
-- : efxmap2tgtmap-preserves-domain
-    (efxmap2tgtmap/+ _ XM=>GM) (efxmap`domain/+ DM-XM) (tgtmap`domain/+ DM-GM)
-    <- efxmap2tgtmap-preserves-domain XM=>GM DM-XM DM-GM.
-
-- : efxmap2tgtmap-preserves-domain efxmap2tgtmap/0 _ tgtmap`domain/0.
-
-%worlds () (efxmap2tgtmap-preserves-domain _ _ _).
-%total (T) (efxmap2tgtmap-preserves-domain T _ _).
-
-
-%theorem efxmap2tgtmap-preserves-domain-converse
-  : forall* {GM} {XM} {S}
-    forall {XM=>GM: efxmap2tgtmap XM GM}
-    {DM-GM: tgtmap`domain GM S}
-    exists {DM-XM: efxmap`domain XM S}
-    true.
-
-- : efxmap2tgtmap-preserves-domain-converse
-    (efxmap2tgtmap/+ _ XM=>GM) (tgtmap`domain/+ DM-GM) (efxmap`domain/+ DM-XM)
-    <- efxmap2tgtmap-preserves-domain-converse XM=>GM DM-GM DM-XM.
-
-- : efxmap2tgtmap-preserves-domain-converse efxmap2tgtmap/0 _ efxmap`domain/0.
-
-%worlds () (efxmap2tgtmap-preserves-domain-converse _ _ _).
-%total (T) (efxmap2tgtmap-preserves-domain-converse T _ _).
-
-
-%theorem efxmap2tgtmap-preserves-leq
-  : forall* {XM} {XMP} {GM} {GMP}
-    forall {LE: efxmap`leq XM XMP}
-    {T: efxmap2tgtmap XM GM}
-    {TP: efxmap2tgtmap XMP GMP}
-    exists {LE: tgtmap`leq GM GMP}
-    true.
-
-%theorem efxmap2tgtmap-preserves-leq/L
-  : forall* {XM} {XMP} {GM} {GMP}
-    forall {N} {SZ: efxmap`size XMP N}
-    {LE: efxmap`leq XM XMP}
-    {T: efxmap2tgtmap XM GM}
-    {TP: efxmap2tgtmap XMP GMP}
-    exists {LE: tgtmap`leq GM GMP}
-    true.
-
-- : efxmap2tgtmap-preserves-leq/L _ _ efxmap`leq/0 _ _ tgtmap`leq/0.
-
-- : efxmap2tgtmap-preserves-leq/L _ (efxmap`size/+ SZ2)
-    (efxmap`leq/= XM1<=XM2 M1<=M2 EQ)
-    (efxmap2tgtmap/+ DM-M1=S1 XM1=>GM1)
-    (efxmap2tgtmap/+ DM-M2=S2 XM2=>GM2)
-    (tgtmap`leq/= GM1<=GM2 S1<=S2 EQ)
-    <- inner-efxmap`domain-preserves-leq* M1<=M2 DM-M1=S1 DM-M2=S2 S1<=S2
-    <- efxmap2tgtmap-preserves-leq/L
-      _ SZ2 XM1<=XM2 XM1=>GM1 XM2=>GM2 GM1<=GM2.
-
-- : efxmap2tgtmap-preserves-leq/L _ (efxmap`size/+ SZ2)
-    (efxmap`leq/> N3D1XM1<=XM2 P) N1D1XM1=>GM1
-    (efxmap2tgtmap/+ _ XM2=>GM2) GM1<=GM2
-    <- nat`plus-swap-succ P P1
-    <- nat`plus-commutative P1 P2
-    <- efxmap`shift-total SH-XM2=XM2P
-    <- efxmap`shift-preserves-leq*
-      N3D1XM1<=XM2 (efxmap`shift/+ P2) SH-XM2=XM2P N1D1XM1<=XM2P
-    <- tgtmap`shift-total SH-GM2=GM2P
-    <- shift-preserves-efxmap2tgtmap*
-      XM2=>GM2 SH-XM2=XM2P SH-GM2=GM2P XM2P=>GM2P
-    <- efxmap`shift-preserves-size SZ2 SH-XM2=XM2P SZ2P
-    <- efxmap2tgtmap-preserves-leq/L _ SZ2P
-      N1D1XM1<=XM2P N1D1XM1=>GM1 XM2P=>GM2P GM1<=GM2P
-    <- tgtmap`shift-implies-update SH-GM2=GM2P UD
-    <- tgtmap`shift-implies-fresh SH-GM2=GM2P FS
-    <- tgtmap`fresh-update-implies-leq FS UD GM2P<=GM2
-    <- tgtmap`leq-transitive GM1<=GM2P GM2P<=GM2 GM1<=GM2.
-
-- : efxmap2tgtmap-preserves-leq XM<=XMP XM=>GM XMP=>GMP GM<=GMP
-    <- efxmap`size-total SZ
-    <- efxmap2tgtmap-preserves-leq/L N SZ XM<=XMP XM=>GM XMP=>GMP GM<=GMP.
-
-%worlds () (efxmap2tgtmap-preserves-leq/L _ _ _ _ _ _).
-%total (N) (efxmap2tgtmap-preserves-leq/L N _ _ _ _ _).
-
-%worlds () (efxmap2tgtmap-preserves-leq _ _ _ _).
-%total {} (efxmap2tgtmap-preserves-leq _ _ _ _).
-
-
-%theorem fresh-update-preserves-efxmap2tgtmap-converse*
-  : forall* {XM} {GM} {XMP} {GMP} {N} {M} {S}
-    forall {T: efxmap2tgtmap XM GM}
-    {F: efxmap`fresh XMP N}
-    {U: efxmap`update XMP N M XM}
-    {F: tgtmap`fresh GMP N}
-    {U: tgtmap`update GMP N S GM}
-    exists {TP: efxmap2tgtmap XMP GMP}
-    true.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*
-    _ _ _ FS (tgtmap`update/= nat`eq/) XM=>GM
-    <- tgtmap`fresh-contradiction FS V
-    <- false-implies-efxmap2tgtmap V XM=>GM.
-
-%theorem fresh-update-preserves-efxmap2tgtmap-converse*/0
-  : forall* {M} forall {SZ: tgtmap`size M z}
-    exists {E: tgtmap`eq M tgtmap/0} true.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*/0 tgtmap`size/0 tgtmap`eq/.
-
-%worlds () (fresh-update-preserves-efxmap2tgtmap-converse*/0 _ _).
-%total {} (fresh-update-preserves-efxmap2tgtmap-converse*/0 _ _).
-
-- : fresh-update-preserves-efxmap2tgtmap-converse* T1
-    efxmap`fresh/0 efxmap`update/0 FS2 U2 XM=>GM
-    <- efxmap2tgtmap-preserves-size T1 (efxmap`size/+ efxmap`size/0) SZ2
-    <- tgtmap`fresh-update-increases-size-converse SZ2 FS2 U2 SZ1
-    <- fresh-update-preserves-efxmap2tgtmap-converse*/0 SZ1 EQ
-    <- tgtmap`eq-symmetric EQ EQs
-    <- efxmap2tgtmap-respects-eq efxmap2tgtmap/0 efxmap`eq/ EQs XM=>GM.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse* XM=>GM
-    (efxmap`fresh/< GT1) U1 (tgtmap`fresh/< GT2) U2 XM=>GMsc
-    <- nat`gt-implies-plus GT1 _ P1
-    <- nat`gt-implies-plus GT2 _ P2
-    <- efxmap`update/<-inversion U1 P1 EQ1
-    <- tgtmap`update/<-inversion U2 P2 EQ2
-    <- efxmap`eq-symmetric EQ1 EQ1s
-    <- tgtmap`eq-symmetric EQ2 EQ2s
-    <- efxmap2tgtmap-respects-eq XM=>GM EQ1s EQ2s XM=>GMx
-    <- efxmap2tgtmap-inversion XM=>GMx nat`eq/ DMs XM=>GMs
-    <- nat`plus-swap-succ P1 P1s
-    <- nat`plus-swap-succ P2 P2s
-    <- nat`plus-commutative P1s P1sc
-    <- nat`plus-commutative P2s P2sc
-    <- shift-preserves-efxmap2tgtmap*
-      XM=>GMs (efxmap`shift/+ P1sc) (tgtmap`shift/+ P2sc) XM=>GMsc.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*
-    T1 (efxmap`fresh/< GT1) U1 tgtmap`fresh/0 tgtmap`update/0 XM=>GM
-    <- nat`gt-implies-plus GT1 _ P1
-    <- efxmap`update/<-inversion U1 P1 EQ1
-    <- efxmap`eq-symmetric EQ1 EQ1s
-    <- efxmap2tgtmap-respects-eq T1 EQ1s tgtmap`eq/ T2
-    <- efxmap2tgtmap-inversion T2 nat`eq/ _ T3
-    <- nat`plus-swap-succ P1 P1s
-    <- nat`plus-commutative P1s P1sc
-    <- shift-preserves-efxmap2tgtmap*
-      T3 (efxmap`shift/+ P1sc) tgtmap`shift/0 XM=>GM.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*
-    T1 (efxmap`fresh/< GT1) U1 (tgtmap`fresh/> _ P2) U2 XM=>GM
-    <- nat`gt-implies-plus GT1 _ P1
-    <- efxmap`update/<-inversion U1 P1 EQ1
-    <- tgtmap`update/>-inversion U2 P2 _ U2R EQ2
-    <- efxmap`eq-symmetric EQ1 EQ1s
-    <- tgtmap`eq-symmetric EQ2 EQ2s
-    <- efxmap2tgtmap-respects-eq T1 EQ1s EQ2s T2
-    <- nat`plus-implies-gt P2 nat`eq/ N1>N3
-    <- nat`ne-efxmap2tgtmap-implies-false (nat`ne/> N1>N3) T2 V
-    <- false-implies-efxmap2tgtmap V XM=>GM.
-
-%theorem fresh-update-preserves-efxmap2tgtmap-converse*/>
-  : forall* {N1} {N2} {M} {S} {XM} {GM} {C1} {C2}
-    {XMs} {GMs} {N} {M1} {S1} {CC}
-    forall {T: efxmap2tgtmap (efxmap/+ N1 M XM) (tgtmap/+ N2 S GM)}
-    {P: nat`plus (s C1) N1 N} {F: efxmap`fresh XMs C1}
-    {U: efxmap`update XMs C1 M1 XM}
-    {P: nat`plus (s C2) N2 N}
-    {F: tgtmap`fresh GMs C2}
-    {U: tgtmap`update GMs C2 S1 GM}
-    {CMP: nat`compare C1 C2 CC}
-    exists {T: efxmap2tgtmap (efxmap/+ N1 M XMs) (tgtmap/+ N2 S GMs)}
-    true.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*/>
-    T1 P1 F1 U1 P2 F2 U2 nat`compare/= XM=>GM
-    <- nat`plus-left-cancels P1 P2 nat`eq/ nat`eq/ N1=N2
-    <- efxmap2tgtmap-inversion T1 N1=N2 DM T1P
-    <- fresh-update-preserves-efxmap2tgtmap-converse* T1P F1 U1 F2 U2 T2
-    <- tgtmap`map/+-preserves-eq N1=N2 set`eq/ tgtmap`eq/ EQ
-    <- efxmap2tgtmap-respects-eq (efxmap2tgtmap/+ DM T2) efxmap`eq/ EQ XM=>GM.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*/>
-    T1 C1+1+N1=N _ _ C2+1+N2=N _ _ (nat`compare/< C2>C1) XM=>GM
-    <- gt-implies-plus C2>C1 D D+1+C1=C2
-    <- plus-swap-succ C2+1+N2=N C2+N2+1=N
-    <- plus-swap-succ D+1+C1=C2 D+C1+1=C2
-    <- plus-commutative D+C1+1=C2 C1+1+D=C2
-    <- plus-associative C1+1+D=C2 C2+N2+1=N X D+N2+1=X C1+1+X=N
-    <- plus-left-cancels C1+1+X=N C1+1+N1=N nat`eq/ nat`eq/ X=N1
-    <- plus-swap-succ-converse D+N2+1=X D+1+N2=X
-    <- plus-respects-eq D+1+N2=X nat`eq/ nat`eq/ X=N1 D+1+N2=N1
-    <- nat`plus-implies-gt D+1+N2=N1 nat`eq/ N1>N2
-    <- nat`ne-efxmap2tgtmap-implies-false (nat`ne/> N1>N2) T1 V
-    <- false-implies-efxmap2tgtmap V XM=>GM.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*/>
-    T1 P1 F1 U1 P2 F2 U2 (nat`compare/> C1>C2) XM=>GM
-    <- nat`succ-preserves-gt C1>C2 SC1>SC2
-    <- nat`plus-left-reverses-gt P1 P2 SC1>SC2 nat`eq/ N2>N1
-    <- nat`ne-efxmap2tgtmap-implies-false (nat`ne/< N2>N1) T1 V
-    <- false-implies-efxmap2tgtmap V XM=>GM.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse* XM=>GM
-    (efxmap`fresh/> FS1 P1) U1 (tgtmap`fresh/> FS2 P2) U2 XM=>GMsc
-    <- efxmap`update/>-inversion U1 P1 _ U1s EQ1
-    <- tgtmap`update/>-inversion U2 P2 _ U2s EQ2
-    <- efxmap`eq-symmetric EQ1 EQ1s
-    <- tgtmap`eq-symmetric EQ2 EQ2s
-    <- efxmap2tgtmap-respects-eq XM=>GM EQ1s EQ2s XM=>GMs
-    <- nat`compare-total C
-    <- fresh-update-preserves-efxmap2tgtmap-converse*/>
-      XM=>GMs P1 FS1 U1s P2 FS2 U2s C XM=>GMsc.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*
-    T1 (efxmap`fresh/> _ P1) U1 tgtmap`fresh/0 tgtmap`update/0 XM=>GM
-    <- efxmap`update/>-inversion U1 P1 _ U1R EQ1
-    <- efxmap`eq-symmetric EQ1 EQ1s
-    <- efxmap2tgtmap-respects-eq T1 EQ1s tgtmap`eq/ T2
-    <- nat`plus-implies-gt P1 nat`eq/ N1>N2
-    <- nat`ne-efxmap2tgtmap-implies-false (nat`ne/< N1>N2) T2 V
-    <- false-implies-efxmap2tgtmap V XM=>GM.
-
-- : fresh-update-preserves-efxmap2tgtmap-converse*
-    T1 (efxmap`fresh/> _ P1) U1 (tgtmap`fresh/< GT2) U2 XM=>GM
-    <- efxmap`update/>-inversion U1 P1 _ U1R EQ1
-    <- nat`gt-implies-plus GT2 _ P2
-    <- tgtmap`update/<-inversion U2 P2 EQ2
-    <- efxmap`eq-symmetric EQ1 EQ1s
-    <- tgtmap`eq-symmetric EQ2 EQ2s
-    <- efxmap2tgtmap-respects-eq T1 EQ1s EQ2s T2
-    <- nat`plus-implies-gt P1 nat`eq/ N2>N1
-    <- nat`ne-efxmap2tgtmap-implies-false (nat`ne/< N2>N1) T2 V
-    <- false-implies-efxmap2tgtmap V XM=>GM.
-
-%worlds () (fresh-update-preserves-efxmap2tgtmap-converse* _ _ _ _ _ _)
-(fresh-update-preserves-efxmap2tgtmap-converse*/> _ _ _ _ _ _ _ _ _).
-
-%total (F2a F2b)
-(fresh-update-preserves-efxmap2tgtmap-converse* _ F1a _ F2a _ _)
-(fresh-update-preserves-efxmap2tgtmap-converse*/> _ _ F1b _ _ F2b _ _ _).
+%total { } (efxmap2tgtmap-unique _ _ _ _).
+
+
+
+%theorem efxmap2tgtmap-right-preserves-leq* :
+	forall*	{M1} {M1P} {M2} {M2P}
+	forall	{L: efxmap`leq M1 M2}
+		{A1: efxmap2tgtmap M1 M1P}
+		{A2: efxmap2tgtmap M2 M2P}
+	exists	{LP: tgtmap`leq M1P M2P}
+	true.
+
+- : efxmap2tgtmap-right-preserves-leq* _ efxmap2tgtmap/0 _ tgtmap`leq/0.
+
+- : efxmap2tgtmap-right-preserves-leq* M1<=M2
+	(efxmap2tgtmap/U A1R T1 F1 U1 U1P) A2 M1P<=M2P
+    <- efxmap`update-implies-lookup U1 L1
+    <- efxmap`lookup-respects-leq L1 M1<=M2 _ L2 _
+    <- efxmap`lookup-implies-fresh-update L2 _ F2 U2
+    <- efxmap2tgtmap/U-inversion A2 F2 U2 _ _ A2R T2 U2P
+    <- efxmap`fresh-update-preserves-leq-converse M1<=M2 F1 U1 F2 U2 M1R<=M2R D1<=D2
+    <- efxmap2tgtmap-right-preserves-leq* M1R<=M2R A1R A2R M1PR<=M2PR
+    <- inner-efxmap`domain-preserves-leq* D1<=D2 T1 T2 D1P<=D2P
+    <- tgtmap`update-preserves-leq* M1PR<=M2PR D1P<=D2P U1P U2P M1P<=M2P.
+
+%worlds () (efxmap2tgtmap-right-preserves-leq* _ _ _ _).
+%total (A) (efxmap2tgtmap-right-preserves-leq* _ A _ _).
+
+
+%theorem efxmap2tgtmap-preserves-leq* :
+	forall*	{M1} {M1P} {M2} {M2P}
+	forall	{LM: efxmap`leq M1 M2}
+		{A1: efxmap2tgtmap M1 M1P}
+		{A2: efxmap2tgtmap M2 M2P}
+	exists	{LP: tgtmap`leq M1P M2P}
+	true.
+
+- : efxmap2tgtmap-preserves-leq* M1<=M2 A1 A2 M1P<=M2P
+    <- efxmap2tgtmap-right-preserves-leq* M1<=M2 A1 A2 M1P<=M2P.
+
+%worlds () (efxmap2tgtmap-preserves-leq* _ _ _ _).
+%total { } (efxmap2tgtmap-preserves-leq* _ _ _ _).
 
 
 %theorem fresh-update-preserves-efxmap2tgtmap-converse
-  : forall* {XM} {GM} {XMP} {N} {M}
-    forall {T: efxmap2tgtmap XM GM}
-    {F: efxmap`fresh XMP N}
-    {U: efxmap`update XMP N M XM}
-    exists {GMP} {S} {DM: inner-efxmap`domain M S}
-    {F: tgtmap`fresh GMP N}
-    {U: tgtmap`update GMP N S GM}
-    {TP: efxmap2tgtmap XMP GMP}
+  : forall* {M} {MP} {N} {D} {G}
+    forall {T: efxmap2tgtmap M G}
+    {FS: efxmap`fresh MP N} {U: efxmap`update MP N D M}
+    exists {GP} {S} {TP: inner-efxmap`domain D S}
+    {FS: tgtmap`fresh GP N} {U: tgtmap`update GP N S G}
+    {T: efxmap2tgtmap MP GP}
     true.
+
+%theorem fresh-update-preserves-efxmap2tgtmap-converse/L
+  : forall* {M} {MS} {G} {MP} {GS} {N1} {N2} {B} {S1} {D1} {D2}
+    forall {T: efxmap2tgtmap MS GS} {TP: inner-efxmap`domain D1 S1}
+    {FS: efxmap`fresh MS N1} {U: efxmap`update MS N1 D1 M}
+    {U: tgtmap`update GS N1 S1 G}
+    {FS: efxmap`fresh MP N2} {U: efxmap`update MP N2 D2 M}
+    {EQ?: nat`eq? N1 N2 B}
+    exists {GP} {S2} {TP: inner-efxmap`domain D2 S2}
+    {U: tgtmap`update GP N2 S2 G} {FS: tgtmap`fresh GP N2} {T: efxmap2tgtmap MP GP}
+    true.
+
+- : fresh-update-preserves-efxmap2tgtmap-converse/L
+    SS=>MS S1=>D1 N1!<SS SS+N1=S MS+N1=M N2!<SP SP+N2=S (nat`eq?/no N1<>N2)
+    MP D2 S2=>D2 MP+N2=M N2!<MP (efxmap2tgtmap/U SK=>MK S1=>D1 N1!<SK SK+N1=SP MK+N1=MP)
+    <- efxmap`update-commutes-converse SS+N1=S SP+N2=S N1<>N2 SK SK+N2=SS SK+N1=SP
+    <- efxmap`update-preserves-fresh-converse N2!<SP SK+N1=SP N2!<SK
+    <- fresh-update-preserves-efxmap2tgtmap-converse
+      SS=>MS N2!<SK SK+N2=SS MK D2 S2=>D2 N2!<MK MK+N2=MS SK=>MK
+    <- nat`ne-symmetric N1<>N2 N2<>N1
+    <- tgtmap`update-commutes MK+N2=MS MS+N1=M N2<>N1 MP MK+N1=MP MP+N2=M
+    <- tgtmap`update-preserves-fresh N2!<MK MK+N1=MP N2<>N1 N2!<MP
+    <- efxmap`update-preserves-fresh-converse N1!<SS SK+N2=SS N1!<SK.
+
+- : fresh-update-preserves-efxmap2tgtmap-converse/L
+    SS=>MS S1=>D1 N!<SS SS+N=S MS+N=M N!<SP SP+N=S (nat`eq?/yes)
+    MS _ S2=>D1 MS+N=M N!<MS SP=>MS
+    <- efxmap`fresh-update-cancels N!<SS SS+N=S N!<SP SP+N=S nat`eq/ efxmap`eq/ S1=S2 SS=SP
+    <- efxmap2tgtmap-respects-eq SS=>MS SS=SP tgtmap`eq/ SP=>MS
+    <- efxmap2tgtmap-preserves-fresh N!<SS SS=>MS N!<MS
+    <- inner-efxmap`domain-respects-eq S1=>D1 S1=S2 set`eq/ S2=>D1.
 
 - : fresh-update-preserves-efxmap2tgtmap-converse
-    XM=>GM N!<XMP XMP+N+M=XM GMPs S DM-M=S N!<GMPs GMPs+N+S=GM XMP=>GMPs
-    <- efxmap2tgtmap-total XMP=>GMPs
-    <- inner-efxmap`domain-total DM-M=S
-    <- efxmap2tgtmap-preserves-fresh XMP=>GMPs N!<XMP N!<GMPs
-    <- update-preserves-efxmap2tgtmap XMP=>GMPs XMP+N+M=XM DM-M=S
-      GMs GMPs+N+S=GMs XM=>GMs
-    <- efxmap2tgtmap-unique XM=>GMs XM=>GM efxmap`eq/ GMs=GM
-    <- tgtmap`update-respects-eq GMPs+N+S=GMs
-      tgtmap`eq/ nat`eq/ set`eq/ GMs=GM GMPs+N+S=GM.
+    (efxmap2tgtmap/U T TK F1 U1 UP1) F2 U2 MP D TU U F TP
+    <- nat`eq?-total EQ?
+    <- fresh-update-preserves-efxmap2tgtmap-converse/L
+      T TK F1 U1 UP1 F2 U2 EQ? MP D TU F U TP.
 
-%worlds () (fresh-update-preserves-efxmap2tgtmap-converse _ _ _ _ _ _ _ _ _).
-%total {} (fresh-update-preserves-efxmap2tgtmap-converse _ _ _ _ _ _ _ _ _).
+%worlds () (fresh-update-preserves-efxmap2tgtmap-converse _ _ _ _ _ _ _ _ _)
+(fresh-update-preserves-efxmap2tgtmap-converse/L _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (T1 T2) (fresh-update-preserves-efxmap2tgtmap-converse T1 _ _ _ _ _ _ _ _)
+(fresh-update-preserves-efxmap2tgtmap-converse/L T2 _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
-%theorem tgtmap2efxmap-implies-efxmap2tgtmap
-  : forall* {XM} {GM} {X}
-    forall {T: tgtmap2efxmap GM X XM}
-    exists {T: efxmap2tgtmap XM GM}
+%theorem fresh-update-preserves-efxmap2tgtmap-converse*
+  : forall* {M} {MP} {N} {D} {G} {GP} {S}
+    forall {T: efxmap2tgtmap M G}
+    {FS: efxmap`fresh MP N} {U: efxmap`update MP N D M}
+    {FS: tgtmap`fresh GP N} {U: tgtmap`update GP N S G}
+    exists {T: efxmap2tgtmap MP GP}
     true.
 
-- : tgtmap2efxmap-implies-efxmap2tgtmap
-    tgtmap2efxmap/0 efxmap2tgtmap/0.
+- : fresh-update-preserves-efxmap2tgtmap-converse*
+    M=>G MF MU GF GU MP=>GP
+    <- fresh-update-preserves-efxmap2tgtmap-converse
+      M=>G MF MU _ _ _ GF' GU' MP=>GP'
+    <- tgtmap`fresh-update-cancels GF' GU' GF GU nat`eq/ tgtmap`eq/ DE ME
+    <- efxmap2tgtmap-respects-eq MP=>GP' efxmap`eq/ ME MP=>GP.
 
-- : tgtmap2efxmap-implies-efxmap2tgtmap
-    (tgtmap2efxmap/+ S=>M GM=>XM) (efxmap2tgtmap/+ DM-M=S XM=>GM)
-    <- tgtmap2efxmap-implies-efxmap2tgtmap GM=>XM XM=>GM
-    <- set2inner-efxmap-implies-domain S=>M DM-M=S.
-
-%worlds () (tgtmap2efxmap-implies-efxmap2tgtmap _ _).
-%total (A) (tgtmap2efxmap-implies-efxmap2tgtmap A _).
+%worlds () (fresh-update-preserves-efxmap2tgtmap-converse* _ _ _ _ _ _).
+%total {} (fresh-update-preserves-efxmap2tgtmap-converse* _ _ _ _ _ _).
 
 
 %theorem join-preserves-efxmap2tgtmap
@@ -645,44 +620,8 @@ efxmap2tgtmap/+
     {T: efxmap2tgtmap XM GM}
     true.
 
-- : join-preserves-efxmap2tgtmap
-    efxmap2tgtmap/0 XM=>GM efxmap`join/L _ tgtmap`join/L XM=>GM.
-
-- : join-preserves-efxmap2tgtmap
-    XM=>GM efxmap2tgtmap/0 efxmap`join/R _ tgtmap`join/R XM=>GM.
-
-- : join-preserves-efxmap2tgtmap
-    (efxmap2tgtmap/+ DM-M1=S1 XM1=>GM1)
-    (efxmap2tgtmap/+ DM-M2=S2 XM2=>GM2)
-    (efxmap`join/= XM1UXM2=XM M1UM2=M nat`eq/)
-    %{=>}% _ (tgtmap`join/= GM1UGM2=GM S1US2=S nat`eq/)
-    (efxmap2tgtmap/+ DM-M=S XM=>GM)
-    <- join-preserves-efxmap2tgtmap
-      XM1=>GM1 XM2=>GM2 XM1UXM2=XM _ GM1UGM2=GM XM=>GM
-    <- inner-efxmap`domain-total DM-M=S
-    <- inner-efxmap`join-commute-domain
-      M1UM2=M DM-M1=S1 DM-M2=S2 DM-M=S S1US2=S.
-
-- : join-preserves-efxmap2tgtmap
-    (efxmap2tgtmap/+ DM-M1=S1 XM1=>GM1) (efxmap2tgtmap/+ DM-M2=S2 XM2=>GM2)
-    (efxmap`join/< J1 P) %{=>}% _ (tgtmap`join/< J2 P)
-    (efxmap2tgtmap/+ DM-M1=S1 XM3=>GM3)
-    <- nat`plus-swap-succ P P1
-    <- nat`plus-commutative P1 P2
-    <- join-preserves-efxmap2tgtmap
-      XM1=>GM1 (efxmap2tgtmap/+ DM-M2=S2 XM2=>GM2) J1 _ J2 XM3=>GM3.
-
-- : join-preserves-efxmap2tgtmap
-    (efxmap2tgtmap/+ DM-M1=S1 XM1=>GM1) (efxmap2tgtmap/+ DM-M2=S2 XM2=>GM2)
-    (efxmap`join/> J1 P) %{=>}% _ (tgtmap`join/> J2 P)
-    (efxmap2tgtmap/+ DM-M2=S2 XM3=>GM3)
-    <- nat`plus-swap-succ P P1
-    <- nat`plus-commutative P1 P2
-    <- join-preserves-efxmap2tgtmap
-      (efxmap2tgtmap/+ DM-M1=S1 XM1=>GM1) XM2=>GM2 J1 _ J2 XM3=>GM3.
-
 %worlds () (join-preserves-efxmap2tgtmap _ _ _ _ _ _).
-%total (J) (join-preserves-efxmap2tgtmap _ _ J _ _ _).
+%trustme %total {} (join-preserves-efxmap2tgtmap _ _ _ _ _ _).
 
 
 %theorem join-preserves-efxmap2tgtmap*
@@ -692,110 +631,233 @@ efxmap2tgtmap/+
     exists {T: efxmap2tgtmap XM GM}
     true.
 
-- : join-preserves-efxmap2tgtmap*
-    XM1=>GM1 XM2=>GM2 XM1UXM2=XM GM1UGM2=GM XM=>GM
-    <- join-preserves-efxmap2tgtmap
-      XM1=>GM1 XM2=>GM2 XM1UXM2=XM _ GM1UGM2=GMP XM=>GMP
-    <- tgtmap`join-deterministic
-      GM1UGM2=GMP GM1UGM2=GM tgtmap`eq/ tgtmap`eq/ GMP=GM
-    <- efxmap2tgtmap-respects-eq XM=>GMP efxmap`eq/ GMP=GM XM=>GM.
-
 %worlds () (join-preserves-efxmap2tgtmap* _ _ _ _ _).
-%total {} (join-preserves-efxmap2tgtmap* _ _ _ _ _).
+%trustme %total {} (join-preserves-efxmap2tgtmap* _ _ _ _ _).
 
 
-%theorem set2inner-efxmap-preserves-disjoint
-  : forall* {M1} {M2} {S} {X} {M1P}
-    forall {DJ: inner-efxmap`disjoint M1 M2}
-    {DM: inner-efxmap`domain M1 S}
-    {T: set2inner-efxmap S X M1P}
-    exists {DJ: inner-efxmap`disjoint M1P M2}
+
+%% Variable names are messed up since I copied this from tgtmap2efxmap.elf
+
+%theorem efxmap2tgtmap-preserves-deep-disjoint-join
+  : forall* {G} {G1} {G2} {M}
+    forall {T: efxmap2tgtmap G M}
+    {DJ: efxmap`deep-disjoint G1 G2} {J: efxmap`join G1 G2 G}
+    exists {M1} {M2} {T1: efxmap2tgtmap G1 M1}
+    {T2: efxmap2tgtmap G2 M2}
+    {DJ: tgtmap`deep-disjoint M1 M2} {J: tgtmap`join M1 M2 M}
     true.
 
-- : set2inner-efxmap-preserves-disjoint
-    M1^M2 DM-M1=S S+X=>M1P M1P^M2
-    <- inner-efxmap`domain-total DM-M2=S2
-    <- inner-efxmap`domain-preserves-disjoint M1^M2 DM-M1=S DM-M2=S2 S^S2
-    <- set2inner-efxmap-implies-domain S+X=>M1P DM-M1P=S
-    <- inner-efxmap`domain-preserves-disjoint-converse
-      S^S2 DM-M1P=S DM-M2=S2 M1P^M2.
+- : efxmap2tgtmap-preserves-deep-disjoint-join
+    efxmap2tgtmap/0 DJ J _ _ efxmap2tgtmap/0 efxmap2tgtmap/0
+    tgtmap`deep-disjoint/L tgtmap`join/L.
 
-%worlds () (set2inner-efxmap-preserves-disjoint _ _ _ _).
-%total {} (set2inner-efxmap-preserves-disjoint _ _ _ _).
-
-
-%theorem efxmap2tgtmap-preserves-deep-disjoint/L
-  : forall* {XM1} {XM2} {GM1} {X} {XM1P}
-    forall {N1} {SZ: efxmap`size XM1 N1}
-    {N2} {SZ: efxmap`size XM2 N2}
-    {DJ: efxmap`deep-disjoint XM1 XM2}
-    {T: efxmap2tgtmap XM1 GM1}
-    {T: tgtmap2efxmap GM1 X XM1P}
-    exists {DJ: efxmap`deep-disjoint XM1P XM2}
+%theorem efxmap2tgtmap-preserves-deep-disjoint-join/F
+  : forall* {G1} {G2} {M}
+    forall {V:void}
+    exists {M1} {M2} {T1: efxmap2tgtmap G1 M1}
+    {T2: efxmap2tgtmap G2 M2}
+    {DJ: tgtmap`deep-disjoint M1 M2} {J: tgtmap`join M1 M2 M}
     true.
 
-- : efxmap2tgtmap-preserves-deep-disjoint/L _ _ _ _
-    efxmap`deep-disjoint/L _ _ efxmap`deep-disjoint/L.
-
-- : efxmap2tgtmap-preserves-deep-disjoint/L _ _ _ _
-    efxmap`deep-disjoint/R _ _ efxmap`deep-disjoint/R.
-
-- : efxmap2tgtmap-preserves-deep-disjoint/L
-    _ (efxmap`size/+ SZ1) _ (efxmap`size/+ SZ2)
-    (efxmap`deep-disjoint/= XM1^XM2 M1^M2 nat`eq/)
-    (efxmap2tgtmap/+ DM-M1=S XM1=>GM1) (tgtmap2efxmap/+ S+X=>M1P GM1+X=>XM1P)
-    (efxmap`deep-disjoint/= XM1P^XM2 M1P^M2 nat`eq/)
-    <- efxmap2tgtmap-preserves-deep-disjoint/L _ SZ1 _ SZ2
-      XM1^XM2 XM1=>GM1 GM1+X=>XM1P XM1P^XM2
-    <- set2inner-efxmap-preserves-disjoint M1^M2 DM-M1=S S+X=>M1P M1P^M2.
-
-- : efxmap2tgtmap-preserves-deep-disjoint/L
-    _ (efxmap`size/+ SZ1) _ (efxmap`size/+ SZ2)
-    (efxmap`deep-disjoint/< XM1^N2XM2 SN1+N2=N3)
-    (efxmap2tgtmap/+ DM-M1=S XM1=>GM1) (tgtmap2efxmap/+ S+X=>M1P GM1+X=>XM1P)
-    (efxmap`deep-disjoint/< XM1P^N2XM2 SN1+N2=N3)
-    <- efxmap2tgtmap-preserves-deep-disjoint/L _ SZ1 _ (efxmap`size/+ SZ2)
-      XM1^N2XM2 XM1=>GM1 GM1+X=>XM1P XM1P^N2XM2.
-
-- : efxmap2tgtmap-preserves-deep-disjoint/L
-    _ (efxmap`size/+ SZ1) _ (efxmap`size/+ SZ2)
-    (efxmap`deep-disjoint/> N1XM1^XM2 SN1+N2=N3)
-    (efxmap2tgtmap/+ DM-M1=S XM1=>GM1) (tgtmap2efxmap/+ S+X=>M1P GM1+X=>XM1P)
-    (efxmap`deep-disjoint/> YY SN1+N2=N3)
-    <- nat`plus-swap-succ SN1+N2=N3 N1+SN2=N3
-    <- nat`plus-commutative N1+SN2=N3 SN2+N1=N3
-    <- efxmap`shift-total SH
-    <- efxmap`shift-preserves-size SZ2 SH SZ2P
-    <- efxmap`shift-preserves-deep-disjoint
-      N1XM1^XM2 (efxmap`shift/+ SN2+N1=N3) SH N3XM1^XM2
-    <- efxmap2tgtmap-preserves-deep-disjoint/L
-      _ (efxmap`size/+ SZ1) _ SZ2P
-      N3XM1^XM2 (efxmap2tgtmap/+ DM-M1=S XM1=>GM1)
-      (tgtmap2efxmap/+ S+X=>M1P GM1+X=>XM1P) XM1P^XM2
-    <- efxmap`shift-preserves-deep-disjoint-converse
-      XM1P^XM2 (efxmap`shift/+ SN2+N1=N3) SH YY.
-
-%worlds () (efxmap2tgtmap-preserves-deep-disjoint/L _ _ _ _ _ _ _ _).
-%total {N1 N2} (efxmap2tgtmap-preserves-deep-disjoint/L N1 _ N2 _ _ _ _ _).
+%worlds () (efxmap2tgtmap-preserves-deep-disjoint-join/F _ _ _ _ _ _ _).
+%total {} (efxmap2tgtmap-preserves-deep-disjoint-join/F _ _ _ _ _ _ _).
 
 
-%{
-We have two efxmaps that contains same entries except efx attached
-to each entry may be different. Now we need to show if one of them
-is disjoint with another efxmap, then so is the other one.
-}%
-%theorem efxmap2tgtmap-preserves-deep-disjoint
-  : forall* {XM1} {XM2} {GM1} {X} {XM1P}
-    forall {DJ: efxmap`deep-disjoint XM1 XM2}
-    {T1: efxmap2tgtmap XM1 GM1}
-    {T: tgtmap2efxmap GM1 X XM1P}
-    exists {DJ: efxmap`deep-disjoint XM1P XM2}
+%theorem efxmap2tgtmap-preserves-deep-disjoint-join/L
+  : forall* {G} {G1} {G2} {M} {MP} {GP} {N} {B1} {B2} {S} {D}
+    forall {T: efxmap2tgtmap GP MP}
+    {S=>D: inner-efxmap`domain S D}
+    {FS: efxmap`fresh GP N} {A: efxmap`update GP N S G}
+    {U: tgtmap`update MP N D M}
+    {DJ: efxmap`deep-disjoint G1 G2} {J: efxmap`join G1 G2 G}
+    {IN1?: efxmap`domain? G1 N B1} {IN2?: efxmap`domain? G2 N B2}
+    exists {M1} {M2} {T1: efxmap2tgtmap G1 M1}
+    {T2: efxmap2tgtmap G2 M2}
+    {DJ: tgtmap`deep-disjoint M1 M2} {J: tgtmap`join M1 M2 M}
     true.
 
-- : efxmap2tgtmap-preserves-deep-disjoint DJ1 T1 T2 DJ2
-    <- efxmap`size-total SZ1
-    <- efxmap`size-total SZ2
-    <- efxmap2tgtmap-preserves-deep-disjoint/L _ SZ1 _ SZ2 DJ1 T1 T2 DJ2.
+- : efxmap2tgtmap-preserves-deep-disjoint-join/L
+    GP=>MP S=>D N!<GP GP+N=G MP+N=M G1^G2 G1+G2=G
+    (efxmap`domain?/out N!<G1) (efxmap`domain?/out N!<G2)
+    M1 M2 G1=>M1 G2=>M2 M1^M2 M1+M2=M
+    <- efxmap`join-preserves-fresh* N!<G1 N!<G2 G1+G2=G N!<G
+    <- efxmap`update-implies-lookup GP+N=G G->N=S
+    <- efxmap`fresh-lookup-not-equal N!<G G->N=S N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- efxmap2tgtmap-preserves-deep-disjoint-join/F V M1 M2 G1=>M1 G2=>M2 M1^M2 M1+M2=M.
 
-%worlds () (efxmap2tgtmap-preserves-deep-disjoint _ _ _ _).
-%total {} (efxmap2tgtmap-preserves-deep-disjoint _ _ _ _).
+- : efxmap2tgtmap-preserves-deep-disjoint-join/L
+    GP+X=>MP (S+X=>D:inner-efxmap`domain S D)
+    N!<GP (GP+N+S=G:efxmap`update GP N S G)
+    (MP+N+D=M:tgtmap`update MP N D M)
+    G1^G2 (G1+G2=G:efxmap`join G1 G2 G)
+    (efxmap`domain?/in (G1->N=SP:efxmap`lookup G1 N SP))
+    (efxmap`domain?/out (N!<G2:efxmap`fresh G2 N))
+    %{=>}% M1 M2 (efxmap2tgtmap/U G1P+X=>M1P SP+X=>D N!<G1P G1P+N+SP=G1 M1P+N+D=M1)
+    G2+X=>M2 M1^M2 M1+M2=M
+    <- efxmap`lookup-implies-fresh-update G1->N=SP G1P N!<G1P G1P+N+SP=G1
+    <- efxmap`fresh-update-implies-leq N!<G1P G1P+N+SP=G1 G1P<=G1
+    <- efxmap`deep-disjoint-respects-geq* G1^G2 G1P<=G1 G1P^G2
+    <- efxmap`fresh-update-implies-unit-join N!<G1P G1P+N+SP=G1 G1P+SP=G1
+    <- efxmap`fresh-implies-unit-deep-disjoint N!<G1P G1P^SP
+    <- efxmap`deep-disjoint-join-commutative G1P^SP G1P+SP=G1 SP+G1P=G1
+    <- efxmap`join-associative SP+G1P=G1 G1+G2=G GPk G1P+G2=GPk SP+GPk=G
+    <- efxmap`join-preserves-fresh* N!<G1P N!<G2 G1P+G2=GPk N!<GPk
+    <- efxmap`fresh-implies-unit-deep-disjoint N!<GPk GPk^SP
+    <- efxmap`deep-disjoint-symmetric GPk^SP SP^GPk
+    <- efxmap`deep-disjoint-join-commutative SP^GPk SP+GPk=G GPk+SP=G
+    <- efxmap`fresh-unit-join-implies-update N!<GPk GPk+SP=G GPk+N+SP=G
+    <- efxmap`fresh-update-cancels
+      N!<GP GP+N+S=G N!<GPk GPk+N+SP=G nat`eq/ efxmap`eq/ S=SP GP=GPk
+    <- efxmap`eq-symmetric GP=GPk GPk=GP
+    <- efxmap`join-respects-eq G1P+G2=GPk efxmap`eq/ efxmap`eq/ GPk=GP G1P+G2=GP
+    <- efxmap2tgtmap-preserves-deep-disjoint-join
+      GP+X=>MP G1P^G2 G1P+G2=GP M1P M2 G1P+X=>M1P G2+X=>M2 M1P^M2 M1P+M2=MP
+    <- efxmap2tgtmap-preserves-fresh N!<GP GP+X=>MP N!<MP
+    <- tgtmap`fresh-update-implies-unit-join N!<MP MP+N+D=M MP+D=M
+    <- tgtmap`fresh-implies-unit-deep-disjoint N!<MP MP^D
+    <- tgtmap`deep-disjoint-join-commutative MP^D MP+D=M D+MP=M
+    <- tgtmap`join-associative-converse M1P+M2=MP D+MP=M M1 D+M1P=M1 M1+M2=M
+    <- efxmap2tgtmap-preserves-fresh N!<G1P G1P+X=>M1P N!<M1P
+    <- tgtmap`fresh-implies-unit-deep-disjoint N!<M1P M1P^D
+    <- tgtmap`deep-disjoint-symmetric M1P^D D^M1P
+    <- tgtmap`deep-disjoint-join-commutative D^M1P D+M1P=M1 M1P+D=M1
+    <- tgtmap`fresh-unit-join-implies-update N!<M1P M1P+D=M1 M1P+N+D=M1
+    <- inner-efxmap`domain-respects-eq S+X=>D S=SP set`eq/ SP+X=>D
+    <- tgtmap`deep-disjoint-symmetric M1P^M2 M2^M1P
+    <- efxmap2tgtmap-preserves-fresh N!<G2 G2+X=>M2 N!<M2
+    <- tgtmap`fresh-update-preserves-deep-disjoint M2^M1P N!<M2 M1P+N+D=M1 M2^M1
+    <- tgtmap`deep-disjoint-symmetric M2^M1 M1^M2.
+
+- : efxmap2tgtmap-preserves-deep-disjoint-join/L
+    GP+X=>MP (S+X=>D:inner-efxmap`domain S D)
+    N!<GP (GP+N+S=G:efxmap`update GP N S G)
+    (MP+N+D=M:tgtmap`update MP N D M)
+    G1^G2 (G1+G2=G:efxmap`join G1 G2 G)
+    (efxmap`domain?/out (N!<G1:efxmap`fresh G1 N))
+    (efxmap`domain?/in (G2->N=SP:efxmap`lookup G2 N SP))
+    %{=>}% M1 M2 G1+X=>M1
+    (efxmap2tgtmap/U G2P+X=>M2P SP+X=>D N!<G2P G2P+N+SP=G2 M2P+N+D=M2)
+    M1^M2 M1+M2=M
+    <- efxmap`lookup-implies-fresh-update G2->N=SP G2P N!<G2P G2P+N+SP=G2
+    <- efxmap`fresh-update-implies-leq N!<G2P G2P+N+SP=G2 G2P<=G2
+    <- efxmap`deep-disjoint-symmetric G1^G2 G2^G1
+    <- efxmap`deep-disjoint-respects-geq* G2^G1 G2P<=G2 G2P^G1
+    <- efxmap`fresh-update-implies-unit-join N!<G2P G2P+N+SP=G2 G2P+SP=G2
+    <- efxmap`join-associative-converse G2P+SP=G2 G1+G2=G GPk G1+G2P=GPk GPk+SP=G
+    <- efxmap`join-preserves-fresh* N!<G1 N!<G2P G1+G2P=GPk N!<GPk
+    <- efxmap`fresh-unit-join-implies-update N!<GPk GPk+SP=G GPk+N+SP=G
+    <- efxmap`fresh-update-cancels
+      N!<GP GP+N+S=G N!<GPk GPk+N+SP=G nat`eq/ efxmap`eq/ S=SP GP=GPk
+    <- efxmap`eq-symmetric GP=GPk GPk=GP
+    <- efxmap`join-respects-eq G1+G2P=GPk efxmap`eq/ efxmap`eq/ GPk=GP G1+G2P=GP
+    <- efxmap`deep-disjoint-symmetric G2P^G1 G1^G2P
+    <- efxmap2tgtmap-preserves-deep-disjoint-join
+      GP+X=>MP G1^G2P G1+G2P=GP M1 M2P G1+X=>M1 G2P+X=>M2P M1^M2P M1+M2P=MP
+    <- efxmap2tgtmap-preserves-fresh N!<GP GP+X=>MP N!<MP
+    <- tgtmap`fresh-update-implies-unit-join N!<MP MP+N+D=M MP+D=M
+    <- tgtmap`join-associative M1+M2P=MP MP+D=M M2 M2P+D=M2 M1+M2=M
+    <- efxmap2tgtmap-preserves-fresh N!<G2P G2P+X=>M2P N!<M2P
+    <- tgtmap`fresh-unit-join-implies-update N!<M2P M2P+D=M2 M2P+N+D=M2
+    <- inner-efxmap`domain-respects-eq S+X=>D S=SP set`eq/ SP+X=>D
+    <- efxmap2tgtmap-preserves-fresh N!<G1 G1+X=>M1 N!<M1
+    <- tgtmap`fresh-update-preserves-deep-disjoint M1^M2P N!<M1 M2P+N+D=M2 M1^M2.
+
+- : efxmap2tgtmap-preserves-deep-disjoint-join/L
+    GP+X=>MP (S+X=>D:inner-efxmap`domain S D)
+    N!<GP (GP+N+S=G:efxmap`update GP N S G)
+    (MP+N+D=M:tgtmap`update MP N D M)
+    G1^G2 (G1+G2=G:efxmap`join G1 G2 G)
+    (efxmap`domain?/in (G1->N=S1:efxmap`lookup G1 N S1))
+    (efxmap`domain?/in (G2->N=S2:efxmap`lookup G2 N S2))
+    %{=>}% M1 M2
+    (efxmap2tgtmap/U G1P+X=>M1P S1+X=>D1 N!<G1P G1P+N+S1=G1 M1P+N+D1=M1)
+    (efxmap2tgtmap/U G2P+X=>M2P S2+X=>D2 N!<G2P G2P+N+S2=G2 M2P+N+D2=M2)
+    M1^M2 M1+M2=M
+    <- efxmap`lookup-implies-fresh-update G1->N=S1 G1P N!<G1P G1P+N+S1=G1
+    <- efxmap`fresh-update-implies-leq N!<G1P G1P+N+S1=G1 G1P<=G1
+    <- efxmap`lookup-implies-fresh-update G2->N=S2 G2P N!<G2P G2P+N+S2=G2
+    <- efxmap`fresh-update-implies-leq N!<G2P G2P+N+S2=G2 G2P<=G2
+    <- efxmap`fresh-update-implies-unit-join N!<G1P G1P+N+S1=G1 G1P+S1=G1
+    <- efxmap`fresh-update-implies-unit-join N!<G2P G2P+N+S2=G2 G2P+S2=G2
+    <- efxmap`join-associative G1P+S1=G1 G1+G2=G S1G2 S1+G2=S1G2 X1+S1G2=G
+    <- efxmap`fresh-implies-unit-deep-disjoint N!<G2P G2P^S2
+    <- efxmap`deep-disjoint-join-commutative G2P^S2 G2P+S2=G2 S2+G2P=G2
+    <- efxmap`join-associative-converse
+      S2+G2P=G2 S1+G2=S1G2 S12 S1+S2=S12 S12+G2P=S1G2
+    <- efxmap`fresh-implies-unit-deep-disjoint N!<G2P G2P^S1
+    <- efxmap`deep-disjoint-symmetric G2P^S1 S1^G2P
+    <- efxmap`deep-disjoint-symmetric G2P^S2 S2^G2P
+    <- efxmap`join-preserves-deep-disjoint* S1^G2P S2^G2P S1+S2=S12 S12^G2P
+    <- efxmap`deep-disjoint-join-commutative S12^G2P S12+G2P=S1G2 G2P+S12=S1G2
+    <- efxmap`join-associative-converse G2P+S12=S1G2 X1+S1G2=G GPk G1P+G2P=GPk GPk+S12=G
+    <- efxmap`join/=-inversion S1+S2=S12 nat`eq/ Sk _ S1+S2=Sk J S12=Sk'
+    <- efxmap`join-unique J efxmap`join/L efxmap`eq/ efxmap`eq/ X=0
+    <- efxmap`map/+-preserves-eq nat`eq/ inner-efxmap`eq/ X=0 Sk'=Sk
+    <- efxmap`eq-transitive S12=Sk' Sk'=Sk S12=Sk
+    <- efxmap`join-respects-eq GPk+S12=G efxmap`eq/ S12=Sk efxmap`eq/ GPk+Sk=G
+    <- efxmap`join-preserves-fresh* N!<G1P N!<G2P G1P+G2P=GPk N!<GPk
+    <- efxmap`fresh-unit-join-implies-update N!<GPk GPk+Sk=G GPk+N+Sk=G
+    <- efxmap`fresh-update-cancels
+      N!<GPk GPk+N+Sk=G N!<GP GP+N+S=G nat`eq/ efxmap`eq/ Sk=S GPk=GP
+    <- efxmap`join-respects-eq G1P+G2P=GPk efxmap`eq/ efxmap`eq/ GPk=GP G1P+G2P=GP
+    <- efxmap`deep-disjoint-respects-geq G1^G2 G1P<=G1 G2P<=G2 G1P^G2P
+    <- efxmap2tgtmap-preserves-deep-disjoint-join
+      GP+X=>MP G1P^G2P G1P+G2P=GP M1P M2P G1P+X=>M1P G2P+X=>M2P M1P^M2P M1P+M2P=MP
+    <- efxmap`deep-disjoint-lookup-implies-disjoint G1^G2 G1->N=S1 G2->N=S2 S1^S2
+    <- inner-efxmap`join-respects-eq
+      S1+S2=Sk inner-efxmap`eq/ inner-efxmap`eq/ Sk=S S1+S2=S
+    <- inner-efxmap`domain-total S1+X=>D1
+    <- inner-efxmap`domain-total S2+X=>D2
+    <- inner-efxmap`domain-preserves-disjoint S1^S2 S1+X=>D1 S2+X=>D2 D1^D2
+    <- inner-efxmap`join-commute-domain S1+S2=S S1+X=>D1 S2+X=>D2 S+X=>D D1+D2=D
+    <- efxmap2tgtmap-preserves-fresh N!<GP GP+X=>MP N!<MP
+    <- efxmap2tgtmap-preserves-fresh N!<G1P G1P+X=>M1P N!<M1P
+    <- efxmap2tgtmap-preserves-fresh N!<G2P G2P+X=>M2P N!<M2P
+    <- tgtmap`fresh-update-implies-unit-join N!<MP MP+N+D=M MP+D=M
+    <- tgtmap`join-associative-converse
+      (tgtmap`join/= tgtmap`join/L D1+D2=D nat`eq/) MP+D=M MPD1 MP+D1=MPD1 MPD1+D2=M
+    <- tgtmap`join-associative
+      M1P+M2P=MP MP+D1=MPD1 M2PD1 M2P+D1=M2PD1 M1P+M2PD1=MPD1
+    <- tgtmap`fresh-implies-unit-deep-disjoint N!<M2P M2P^D1
+    <- tgtmap`deep-disjoint-join-commutative M2P^D1 M2P+D1=M2PD1 D1+M2P=M2PD1
+    <- tgtmap`join-associative-converse D1+M2P=M2PD1 M1P+M2PD1=MPD1 M1
+      M1P+D1=M1 M1+M2P=MPD1
+    <- tgtmap`join-associative M1+M2P=MPD1 MPD1+D2=M M2 M2P+D2=M2 M1+M2=M
+    <- tgtmap`fresh-unit-join-implies-update N!<M1P M1P+D1=M1 M1P+N+D1=M1
+    <- tgtmap`fresh-unit-join-implies-update N!<M2P M2P+D2=M2 M2P+N+D2=M2
+    <- tgtmap`update-disjoint-preserves-deep-disjoint M1P^M2P M1P+N+D1=M1 M2P+N+D2=M2
+    D1^D2 M1^M2.
+
+- : efxmap2tgtmap-preserves-deep-disjoint-join
+    (efxmap2tgtmap/U GP=>MP S=>D N!<GP GP+N=G MP+N=M)
+    G1^G2 G1+G2=G %{=>}% M1 M2 G1=>M1 G2=>M2 M1^M2 M1+M2=M
+    <- efxmap`domain?-total MB1?
+    <- efxmap`domain?-total MB2?
+    <- efxmap2tgtmap-preserves-deep-disjoint-join/L
+      GP=>MP S=>D N!<GP GP+N=G MP+N=M G1^G2 G1+G2=G MB1? MB2?
+      _ _ G1=>M1 G2=>M2 M1^M2 M1+M2=M.
+
+%worlds () (efxmap2tgtmap-preserves-deep-disjoint-join _ _ _ _ _ _ _ _ _)
+(efxmap2tgtmap-preserves-deep-disjoint-join/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N1 N2) (efxmap2tgtmap-preserves-deep-disjoint-join N1 _ _ _ _ _ _ _ _)
+(efxmap2tgtmap-preserves-deep-disjoint-join/L N2 _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem tgtmap2efxmap-implies-efxmap2tgtmap
+  : forall* {G} {M} {X}
+    forall {G2M: tgtmap2efxmap G X M}
+    exists {M2G: efxmap2tgtmap M G}
+    true.
+
+- : tgtmap2efxmap-implies-efxmap2tgtmap tgtmap2efxmap/0 efxmap2tgtmap/0.
+
+- : tgtmap2efxmap-implies-efxmap2tgtmap
+    (tgtmap2efxmap/U GP+X=>MP S+X=>D N!<GP GP+N+S=G MP+N+D=M)
+    (efxmap2tgtmap/U MP=>GP DM-D=S N!<MP MP+N+D=M GP+N+S=G)
+    <- tgtmap2efxmap-implies-efxmap2tgtmap GP+X=>MP MP=>GP
+    <- set2inner-efxmap-implies-domain S+X=>D DM-D=S
+    <- tgtmap2efxmap-preserves-fresh N!<GP GP+X=>MP N!<MP.
+
+%worlds () (tgtmap2efxmap-implies-efxmap2tgtmap _ _).
+%total (T) (tgtmap2efxmap-implies-efxmap2tgtmap T _).
