@@ -84,47 +84,13 @@ clsmap-cxt : clsmap -> cxt -> type.
 clsmap-cxt/nil : clsmap-cxt _ cxt/nil.
 
 clsmap-cxt/cons
-  : cxt`fresh BP N
-    -> cxt`update BP N (cxtv/ O T) B
-    -> clsmap-ty CM T
-    -> clsmap-cxt CM BP
-    -> clsmap-cxt CM B.
-
-
-% consistency between location set and cxt
-% All locations in set must be of same class.
-
-cxt-class-set : cxt -> nat -> set -> type.
-
-cxt-class-set/0 : cxt-class-set _ _ set/0.
-
-cxt-class-set/U
-  : set`not-member SP N
-    -> set`add SP N S
-    -> cxt`lookup B N (cxtv/ _ (ty/ _ _ C))
-    -> cxt-class-set B C SP
-    -> cxt-class-set B C S.
-
+  : clsmap-cxt CM (cxt/cons O T B)
+    <- clsmap-ty CM T
+    <- clsmap-cxt CM B.
 
 
 % for each entry (L -> M) in efxmap, L must be in cxt, and M must
 % be consistent with SOME fldmap in clsmap.
-
-clsmap-cxt-efxmap : clsmap -> cxt -> efxmap -> type.
-
-clsmap-cxt-efxmap/0 : clsmap-cxt-efxmap _ _ efxmap/0.
-
-clsmap-cxt-efxmap/U
-  : efxmap`fresh XMP N
-    -> efxmap`update XMP N M XM
-    -> cxt`lookup B N (cxtv/ _ (ty/ _ _ C))
-    -> clsmap`lookup CM C FM
-    -> fldmap`domain FM FS
-    -> inner-efxmap`domain M MS
-    -> set`leq MS FS
-    -> clsmap-cxt-efxmap CM B XMP
-    -> clsmap-cxt-efxmap CM B XM.
-
 
 clsmap-cxt-tgtmap : clsmap -> cxt -> tgtmap -> type.
 
@@ -134,21 +100,51 @@ clsmap-cxt-tgtmap/U
   : clsmap-cxt-tgtmap CM B GMP
     -> tgtmap`fresh GMP N
     -> tgtmap`update GMP N S GM
-    -> cxt`lookup B N (cxtv/ _ (ty/ _ _ C))
+    -> cxt`lookup B (object/ N) (ty/ _ _ C)
     -> clsmap`lookup CM C FM
     -> fldmap`domain FM FS
     -> set`leq S FS
     -> clsmap-cxt-tgtmap CM B GM.
 
 
-clsmap-cxt-reftype : clsmap -> cxt -> reftype -> type.
+clsmap-cxt-efxmap : clsmap -> cxt -> efxmap -> type.
 
-clsmap-cxt-reftype/shared
-  : clsmap-cxt-reftype CM B (reftype/ _ C targets/shared)
-    <- clsmap`lookup CM C _.
+clsmap-cxt-efxmap/0 : clsmap-cxt-efxmap _ _ efxmap/0.
 
-clsmap-cxt-reftype/unique
-  : clsmap-cxt-reftype CM B (reftype/ _ C (targets/unique S GM _))
-    <- cxt-class-set B C S
-    <- clsmap-cxt-tgtmap CM B GM
-    <- clsmap`lookup CM C FM.
+clsmap-cxt-efxmap/U
+  : clsmap-cxt-efxmap CM B XMP
+    -> efxmap`fresh XMP N
+    -> efxmap`update XMP N M XM
+    -> cxt`lookup B (object/ N) (ty/ _ _ C)
+    -> clsmap`lookup CM C FM
+    -> fldmap`domain FM FS
+    -> inner-efxmap`domain M MS
+    -> set`leq MS FS
+    -> clsmap-cxt-efxmap CM B XM.
+
+same-class : cxt -> set -> nat -> type.
+
+same-class/0 : same-class _ set/0 _.
+
+same-class/U
+  : same-class B SP C
+    -> set`not-member SP N
+    -> set`add SP N S
+    -> cxt`lookup B (object/ N) (ty/ _ _ C)
+    -> same-class B S C.
+
+% same-class/+
+%   : same-class B (set/+ N S) C
+%     <- set`shift N S SP
+%     <- cxt`lookup B (object/ N) (ty/ _ _ C)
+%     <- same-class B SP C.
+
+
+clsmap-cxt-targets : clsmap -> cxt -> nat -> targets -> type.
+
+clsmap-cxt-targets/shared : clsmap-cxt-targets _ _ _ targets/shared.
+
+clsmap-cxt-targets/unique
+  : clsmap-cxt-targets CM B C (targets/unique S GM _)
+    <- same-class B S C
+    <- clsmap-cxt-tgtmap CM B GM.
