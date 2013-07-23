@@ -1,0 +1,802 @@
+
+% ================================================
+% ================== Definitions =================
+% ================================================
+
+no-empty-target : tgtmap -> type.
+
+no-empty-target/0 : no-empty-target tgtmap/0.
+
+no-empty-target/+
+  : no-empty-target (tgtmap/+ _ S G)
+    <- no-empty-target G
+    <- set`size S (s N).
+
+no-empty-inner : efxmap -> type.
+
+no-empty-inner/0 : no-empty-inner efxmap/0.
+
+no-empty-inner/+
+  : no-empty-inner (efxmap/+ _ X M)
+    <- no-empty-inner M
+    <- inner-efxmap`size X (s N).
+
+
+
+% ================================================
+% ================== Theorems ====================
+% ================================================
+
+
+%theorem update-preserves-no-empty-target
+  : forall* {G} {GP} {S} {N} {K}
+    forall {NE-GP: no-empty-target GP}
+    {SZ: set`size S (s K)}
+    {U: tgtmap`update GP N S G}
+    exists {NE-G: no-empty-target G}
+    true.
+
+%worlds () (update-preserves-no-empty-target _ _ _ _).
+%trustme %total {} (update-preserves-no-empty-target _ _ _ _).
+
+
+%theorem update-preserves-no-empty-inner
+  : forall* {G} {GP} {S} {N} {K}
+    forall {NE-GP: no-empty-inner GP}
+    {SZ: inner-efxmap`size S (s K)}
+    {U: efxmap`update GP N S G}
+    exists {NE-G: no-empty-inner G}
+    true.
+
+%worlds () (update-preserves-no-empty-inner _ _ _ _).
+%trustme %total {} (update-preserves-no-empty-inner _ _ _ _).
+
+
+%theorem fresh-update-preserves-no-empty-target-converse
+  : forall* {M} {MP} {N} {X}
+    forall {NE: no-empty-target M}
+    {F: tgtmap`fresh MP N}
+    {U: tgtmap`update MP N X M}
+    exists {K} {Z: set`size X (s K)}
+    {NEP: no-empty-target MP}
+    true.
+
+%worlds () (fresh-update-preserves-no-empty-target-converse _ _ _ _ _ _ ).
+%trustme %total {} (fresh-update-preserves-no-empty-target-converse _ _ _ _ _ _ ).
+
+
+%theorem fresh-update-preserves-no-empty-inner-converse
+  : forall* {M} {MP} {N} {X}
+    forall {NE: no-empty-inner M}
+    {F: efxmap`fresh MP N}
+    {U: efxmap`update MP N X M}
+    exists {K} {Z: inner-efxmap`size X (s K)}
+    {NEP: no-empty-inner MP}
+    true.
+
+%worlds () (fresh-update-preserves-no-empty-inner-converse _ _ _ _ _ _ ).
+%trustme %total {} (fresh-update-preserves-no-empty-inner-converse _ _ _ _ _ _ ).
+
+
+%theorem set+nat2tgtmap-implies-no-empty
+  : forall* {S} {F} {G}
+    forall {S+F=>G: set+nat2tgtmap S F G}
+    exists {NE: no-empty-target G}
+    true.
+
+- : set+nat2tgtmap-implies-no-empty set+nat2tgtmap/0 no-empty-target/0.
+
+- : set+nat2tgtmap-implies-no-empty
+    (set+nat2tgtmap/U SP=>MP FS U UM) NE
+    <- set+nat2tgtmap-implies-no-empty SP=>MP NEP
+    <- update-preserves-no-empty-target NEP (set`size/+ set`size/0) UM NE.
+
+%worlds () (set+nat2tgtmap-implies-no-empty _ _).
+%total (T) (set+nat2tgtmap-implies-no-empty T _).
+
+
+%theorem efxmap2tgtmap-preserves-no-empty
+  : forall* {M} {G}
+    forall {M=>G: efxmap2tgtmap M G}
+    {NE: no-empty-inner M}
+    exists {NE: no-empty-target G}
+    true.
+
+- : efxmap2tgtmap-preserves-no-empty
+    efxmap2tgtmap/0 no-empty-inner/0 no-empty-target/0.
+
+- : efxmap2tgtmap-preserves-no-empty
+    (efxmap2tgtmap/U MP=>GP DM-D=S N!<MP MP+N+D=M GP+N+S=G) NE-M NE-G
+    <- fresh-update-preserves-no-empty-inner-converse
+      NE-M N!<MP MP+N+D=M _ SZ-D NE-MP
+    <- efxmap2tgtmap-preserves-no-empty MP=>GP NE-MP NE-GP
+    <- inner-efxmap`domain-preserves-size SZ-D DM-D=S SZ-S
+    <- update-preserves-no-empty-target NE-GP SZ-S GP+N+S=G NE-G.
+
+%worlds () (efxmap2tgtmap-preserves-no-empty _ _ _).
+%total (T) (efxmap2tgtmap-preserves-no-empty T _ _).
+
+
+%theorem efxmap2tgtmap-preserves-no-empty-converse
+  : forall* {M} {G}
+    forall {M=>G: efxmap2tgtmap M G}
+    {NE: no-empty-target G}
+    exists {NE: no-empty-inner M}
+    true.
+
+- : efxmap2tgtmap-preserves-no-empty-converse
+    efxmap2tgtmap/0 no-empty-target/0 no-empty-inner/0.
+
+- : efxmap2tgtmap-preserves-no-empty-converse
+    (efxmap2tgtmap/U MP=>GP DM-D=S N!<MP MP+N+D=M GP+N+S=G) NE-G NE-M
+    <- efxmap2tgtmap-preserves-fresh N!<MP MP=>GP N!<GP
+    <- fresh-update-preserves-no-empty-target-converse
+      NE-G N!<GP GP+N+S=G _ SZ-S NE-GP
+    <- efxmap2tgtmap-preserves-no-empty-converse MP=>GP NE-GP NE-MP
+    <- inner-efxmap`domain-preserves-size-converse SZ-S DM-D=S SZ-D
+    <- update-preserves-no-empty-inner NE-MP SZ-D MP+N+D=M NE-M.
+
+%worlds () (efxmap2tgtmap-preserves-no-empty-converse _ _ _).
+%total (T) (efxmap2tgtmap-preserves-no-empty-converse T _ _).
+
+
+%theorem shift-preserves-no-empty-target
+  : forall* {N} {G} {GP}
+    forall {NE: no-empty-target G}
+    {SH: tgtmap`shift N G GP}
+    exists {NEP: no-empty-target GP}
+    true.
+
+- : shift-preserves-no-empty-target no-empty-target/0 _ no-empty-target/0.
+
+- : shift-preserves-no-empty-target
+    (no-empty-target/+ Z NE) (tgtmap`shift/+ P) (no-empty-target/+ Z NE).
+
+%worlds () (shift-preserves-no-empty-target _ _ _).
+%total {} (shift-preserves-no-empty-target _ _ _).
+
+
+%theorem shift-preserves-no-empty-inner
+  : forall* {N} {M} {MP}
+    forall {NE: no-empty-inner M}
+    {SH: efxmap`shift N M MP}
+    exists {NEP: no-empty-inner MP}
+    true.
+
+- : shift-preserves-no-empty-inner no-empty-inner/0 _ no-empty-inner/0.
+
+- : shift-preserves-no-empty-inner
+    (no-empty-inner/+ Z NE) (efxmap`shift/+ P) (no-empty-inner/+ Z NE).
+
+%worlds () (shift-preserves-no-empty-inner _ _ _).
+%total {} (shift-preserves-no-empty-inner _ _ _).
+
+
+% similar to set`leq-union-disjoint-implies-leq
+
+%theorem tgtmap`leq-deep-disjoint-implies-empty
+  : forall* {G1} {G2}
+    forall {NE1: no-empty-target G1}
+    {L: tgtmap`leq G1 G2}
+    {X: tgtmap`deep-disjoint G1 G2}
+    exists {E: tgtmap`eq G1 tgtmap/0}
+    true.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _ tgtmap`leq/0 _ tgtmap`eq/.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _
+    (tgtmap`leq/> L P1) (tgtmap`deep-disjoint/< D P2) E
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap`false-implies-eq F E.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _
+    (tgtmap`leq/= _ _ nat`eq/) (tgtmap`deep-disjoint/< D P) E
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-eq F E.
+
+- : tgtmap`leq-deep-disjoint-implies-empty
+    (no-empty-target/+ SZ1 NE1)
+    (tgtmap`leq/> L P1) (tgtmap`deep-disjoint/> D P2) E2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`leq-respects-eq L MEQ tgtmap`eq/ LP
+    <- tgtmap`leq-deep-disjoint-implies-empty
+      (no-empty-target/+ SZ1 NE1) LP D E
+    <- tgtmap`eq-symmetric E EP
+    <- tgtmap`eq-contradiction EP F
+    <- tgtmap`false-implies-eq F E2.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _
+    (tgtmap`leq/= _ _ nat`eq/) (tgtmap`deep-disjoint/> D P) E
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-eq F E.
+
+- : tgtmap`leq-deep-disjoint-implies-empty
+    (no-empty-target/+ SZ _)
+    (tgtmap`leq/= LE DLE nat`eq/)
+    (tgtmap`deep-disjoint/= DJ DDJ nat`eq/) EQ
+    <- set`disjoint-leq-implies-empty DDJ DLE Z=D
+    <- set`eq-symmetric Z=D D=0
+    <- set`size-respects-eq SZ D=0 nat`eq/ SZ2
+    <- set`size-unique set`size/0 SZ2 set`eq/ NEQ
+    <- nat`eq-contradiction NEQ V
+    <- tgtmap`false-implies-eq V EQ.
+
+- : tgtmap`leq-deep-disjoint-implies-empty
+    NE1 (tgtmap`leq/> LE P) (tgtmap`deep-disjoint/= DJ DDJ nat`eq/) EQ
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT V
+    <- tgtmap`false-implies-eq V EQ.
+
+%worlds () (tgtmap`leq-deep-disjoint-implies-empty _ _ _ _).
+%total (L) (tgtmap`leq-deep-disjoint-implies-empty _ L _ _).
+
+
+%theorem efxmap`leq-deep-disjoint-implies-empty
+  : forall* {G1} {G2}
+    forall {NE1: no-empty-inner G1}
+    {L: efxmap`leq G1 G2}
+    {X: efxmap`deep-disjoint G1 G2}
+    exists {E: efxmap`eq G1 efxmap/0}
+    true.
+
+- : efxmap`leq-deep-disjoint-implies-empty _ efxmap`leq/0 _ efxmap`eq/.
+
+- : efxmap`leq-deep-disjoint-implies-empty _
+    (efxmap`leq/> L P1) (efxmap`deep-disjoint/< D P2) E
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- efxmap`false-implies-eq F E.
+
+- : efxmap`leq-deep-disjoint-implies-empty _
+    (efxmap`leq/= _ _ nat`eq/) (efxmap`deep-disjoint/< D P) E
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-eq F E.
+
+- : efxmap`leq-deep-disjoint-implies-empty
+    (no-empty-inner/+ SZ1 NE1)
+    (efxmap`leq/> L P1) (efxmap`deep-disjoint/> D P2) E2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- efxmap`map/+-preserves-eq EQ inner-efxmap`eq/ efxmap`eq/ MEQ
+    <- efxmap`leq-respects-eq L MEQ efxmap`eq/ LP
+    <- efxmap`leq-deep-disjoint-implies-empty
+      (no-empty-inner/+ SZ1 NE1) LP D E
+    <- efxmap`eq-symmetric E EP
+    <- efxmap`eq-contradiction EP F
+    <- efxmap`false-implies-eq F E2.
+
+- : efxmap`leq-deep-disjoint-implies-empty _
+    (efxmap`leq/= _ _ nat`eq/) (efxmap`deep-disjoint/> D P) E
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-eq F E.
+
+- : efxmap`leq-deep-disjoint-implies-empty
+    (no-empty-inner/+ SZ _)
+    (efxmap`leq/= LE DLE nat`eq/)
+    (efxmap`deep-disjoint/= DJ DDJ nat`eq/) EQ
+    <- inner-efxmap`disjoint-leq-implies-empty DDJ DLE Z=D
+    <- inner-efxmap`eq-symmetric Z=D D=0
+    <- inner-efxmap`size-respects-eq SZ D=0 nat`eq/ SZ2
+    <- inner-efxmap`size-unique inner-efxmap`size/0 SZ2 inner-efxmap`eq/ NEQ
+    <- nat`eq-contradiction NEQ V
+    <- efxmap`false-implies-eq V EQ.
+
+- : efxmap`leq-deep-disjoint-implies-empty
+    NE1 (efxmap`leq/> LE P) (efxmap`deep-disjoint/= DJ DDJ nat`eq/) EQ
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT V
+    <- efxmap`false-implies-eq V EQ.
+
+%worlds () (efxmap`leq-deep-disjoint-implies-empty _ _ _ _).
+%total (L) (efxmap`leq-deep-disjoint-implies-empty _ L _ _).
+
+
+%theorem tgtmap`join-deep-disjoint-right-leq-implies-leq
+  : forall* {G1} {G2} {G3} {G}
+    forall {NE3: no-empty-target G3}
+    {J: tgtmap`join G1 G2 G}
+    {X: tgtmap`deep-disjoint G2 G3}
+    {L: tgtmap`leq G3 G}
+    exists {L: tgtmap`leq G3 G1}
+    true.
+
+%theorem tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+  : forall* {G1} {G2} {G3} {G}
+    forall {N1} {SZ1: tgtmap`size G1 N1}
+    {N2} {SZ2: tgtmap`size G2 N2}
+    {NE3: no-empty-target G3}
+    {J: tgtmap`join G1 G2 G}
+    {X: tgtmap`deep-disjoint G2 G3}
+    {L1: tgtmap`leq G3 G}
+    exists {L2: tgtmap`leq G3 G1}
+    true.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (tgtmap`size/+ SZ1) _ (tgtmap`size/+ SZ2) (no-empty-target/+ _ NE3)
+    (tgtmap`join/= J DJ nat`eq/)  (tgtmap`deep-disjoint/= X DX nat`eq/)
+    (tgtmap`leq/= LE DLE nat`eq/) (tgtmap`leq/= LE2 DLE2 nat`eq/)
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ1 _ SZ2 NE3 J X LE LE2
+    <- set`disjoint-symmetric DX DX2
+    <- set`union-commutative DJ DJ2
+    <- set`leq-union-disjoint-implies-leq DLE DJ2 DX2 DLE2.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _
+    (no-empty-target/+ Z3 _) (tgtmap`join/> J P)
+    (tgtmap`deep-disjoint/= DJ DX nat`eq/)
+    (tgtmap`leq/= LE DLE nat`eq/) LE2
+    <- set`disjoint-symmetric DX DX2
+    <- set`disjoint-leq-implies-empty DX2 DLE Z=D
+    <- set`eq-symmetric Z=D D=0
+    <- set`size-respects-eq Z3 D=0 nat`eq/ SZ2
+    <- set`size-unique set`size/0 SZ2 set`eq/ NEQ
+    <- nat`eq-contradiction NEQ V
+    <- tgtmap`false-implies-leq V LE2.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/< J P)  (tgtmap`deep-disjoint/= X DX nat`eq/)
+    (tgtmap`leq/= LE DLE nat`eq/) LE2
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-leq F LE2.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ (tgtmap`join/= _ _ nat`eq/)
+    (tgtmap`deep-disjoint/= _ _ nat`eq/) (tgtmap`leq/> _ P) LE2
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-leq F LE2.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ (tgtmap`join/> _ _)  (tgtmap`deep-disjoint/= _ _ nat`eq/)
+    (tgtmap`leq/> _ P) LE2
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-leq F LE2.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ NE3 tgtmap`join/L D LE LE2
+    <- tgtmap`deep-disjoint-symmetric D DP
+    <- tgtmap`leq-deep-disjoint-implies-empty NE3 LE DP E
+    <- tgtmap`leq-reflexive _ LE3
+    <- tgtmap`leq-respects-eq LE3 tgtmap`eq/ E LE2.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ tgtmap`join/R _ LE LE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ _ tgtmap`deep-disjoint/R _ tgtmap`leq/0.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/< _ P1) (tgtmap`deep-disjoint/< _ P2)
+    (tgtmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap`false-implies-leq F LE.
+
+% SHP and SH2 unified.
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ (tgtmap`size/+ SZ)
+    _ (tgtmap`size/+ SZ2) (no-empty-target/+ Z3 NE3)
+    (tgtmap`join/< J P1) D (tgtmap`leq/> LE P2) (tgtmap`leq/> LE3P P2)
+    <- nat`plus-swap-succ P1 P1P
+    <- nat`plus-commutative P1P P1S
+    <- tgtmap`shift-total SH
+    <- tgtmap`shift-preserves-join J SH (tgtmap`shift/+ P1S) _ SHP JP
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- tgtmap`shift-preserves-leq LE (tgtmap`shift/+ P2S) SHP LE2
+    <- tgtmap`shift-preserves-size SZ SH SZK
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZK _ (tgtmap`size/+ SZ2) (no-empty-target/+ Z3 NE3) JP D LE2 LE3
+    <- tgtmap`shift-preserves-leq-converse LE3 (tgtmap`shift/+ P2S) SH LE3P.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (tgtmap`size/+ SZ) _ (tgtmap`size/+ SZ2) (no-empty-target/+ Z3 NE3)
+    (tgtmap`join/< J P1) (tgtmap`deep-disjoint/> D P2)
+    (tgtmap`leq/= LE M-LE nat`eq/) (tgtmap`leq/= LEE M-LE nat`eq/)
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`join-respects-eq J tgtmap`eq/ MEQ tgtmap`eq/ JP
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ _ (tgtmap`size/+ SZ2) NE3 JP D LE LEE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (tgtmap`size/+ SZ) _ (tgtmap`size/+ SZ2)
+    (no-empty-target/+ Z3 NE3)
+    (tgtmap`join/> J P1) (tgtmap`deep-disjoint/< D P2) (tgtmap`leq/> LE P3) LEE2
+    <- nat`plus-right-cancels P2 P3 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`deep-disjoint-respects-eq D tgtmap`eq/ MEQ DP
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ (tgtmap`size/+ SZ) _ SZ2 (no-empty-target/+ Z3 NE3) J DP LE LEE
+    <- nat`plus-swap-succ P3 P3S
+    <- nat`plus-commutative P3S P3P
+    <- nat`plus-swap-succ P1 P1S
+    <- nat`plus-commutative P1S P1P
+    <- tgtmap`shift-preserves-leq
+      LEE (tgtmap`shift/+ P3P) (tgtmap`shift/+ P1P) LEE2.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/= _ _ nat`eq/) (tgtmap`deep-disjoint/< _ P)
+    (tgtmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-leq F LE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/= _ _ nat`eq/) (tgtmap`deep-disjoint/> _ P)
+    (tgtmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-leq F LE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/> _ _) (tgtmap`deep-disjoint/< _ P)
+    (tgtmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-leq F LE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/> _ _) (tgtmap`deep-disjoint/> _ P)
+    (tgtmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-leq F LE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/= _ _ nat`eq/) (tgtmap`deep-disjoint/> _ P1)
+    (tgtmap`leq/> _ P2) LE
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap`false-implies-leq F LE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (tgtmap`size/+ SZ) _ (tgtmap`size/+ SZ2) (no-empty-target/+ Z3 NE3)
+    (tgtmap`join/= J M-J nat`eq/) (tgtmap`deep-disjoint/< D P1)
+    (tgtmap`leq/> LE P2) (tgtmap`leq/> LEP P2)
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`deep-disjoint-respects-eq D tgtmap`eq/ MEQ DP
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ _ SZ2 (no-empty-target/+ Z3 NE3) J DP LE LEP.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (tgtmap`join/> _ _) (tgtmap`deep-disjoint/> _ P1) (tgtmap`leq/> _ P2) LE
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap`false-implies-leq F LE.
+
+- : tgtmap`join-deep-disjoint-right-leq-implies-leq NE U D LE LE2
+    <- tgtmap`size-total SZ1
+    <- tgtmap`size-total SZ2
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ1 _ SZ2 NE U D LE LE2.
+
+%worlds ()
+(tgtmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _ _ _ _ _).
+%total {N1 N2}
+(tgtmap`join-deep-disjoint-right-leq-implies-leq/L N1 _ N2 _ _ _ _ _ _).
+
+%worlds () (tgtmap`join-deep-disjoint-right-leq-implies-leq _ _ _ _ _).
+%total  {} (tgtmap`join-deep-disjoint-right-leq-implies-leq _ _ _ _ _).
+
+
+%theorem tgtmap`join-deep-disjoint-leq-implies-leq
+  : forall* {G1} {G2} {G3} {G}
+    forall {NE3: no-empty-target G3}
+    {J: tgtmap`join G1 G2 G}
+    {X: tgtmap`deep-disjoint G1 G3}
+    {L: tgtmap`leq G3 G}
+    exists {L: tgtmap`leq G3 G2}
+    true.
+
+- : tgtmap`join-deep-disjoint-leq-implies-leq
+    NE3 J X LE LE3
+    <- tgtmap`join-commutative J JP
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq NE3 JP X LE LE3.
+
+%worlds () (tgtmap`join-deep-disjoint-leq-implies-leq _ _ _ _ _).
+%total {} (tgtmap`join-deep-disjoint-leq-implies-leq _ _ _ _ _).
+
+
+
+%theorem tgtmap`leq-deep-disjoint-implies-empty
+  : forall* {G1} {G2}
+    forall {NE1: no-empty-target G1}
+    {L: tgtmap`leq G1 G2}
+    {X: tgtmap`deep-disjoint G1 G2}
+    exists {E: tgtmap`eq G1 tgtmap/0}
+    true.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _ tgtmap`leq/0 _ tgtmap`eq/.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _
+    (tgtmap`leq/> L P1) (tgtmap`deep-disjoint/< D P2) E
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- tgtmap`false-implies-eq F E.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _
+    (tgtmap`leq/= _ _ nat`eq/) (tgtmap`deep-disjoint/< D P) E
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-eq F E.
+
+- : tgtmap`leq-deep-disjoint-implies-empty
+    (no-empty-target/+ SZ1 NE1)
+    (tgtmap`leq/> L P1) (tgtmap`deep-disjoint/> D P2) E2
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- tgtmap`map/+-preserves-eq EQ set`eq/ tgtmap`eq/ MEQ
+    <- tgtmap`leq-respects-eq L MEQ tgtmap`eq/ LP
+    <- tgtmap`leq-deep-disjoint-implies-empty
+      (no-empty-target/+ SZ1 NE1) LP D E
+    <- tgtmap`eq-symmetric E EP
+    <- tgtmap`eq-contradiction EP F
+    <- tgtmap`false-implies-eq F E2.
+
+- : tgtmap`leq-deep-disjoint-implies-empty _
+    (tgtmap`leq/= _ _ nat`eq/) (tgtmap`deep-disjoint/> D P) E
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- tgtmap`false-implies-eq F E.
+
+- : tgtmap`leq-deep-disjoint-implies-empty
+    (no-empty-target/+ SZ _)
+    (tgtmap`leq/= LE DLE nat`eq/)
+    (tgtmap`deep-disjoint/= DJ DDJ nat`eq/) EQ
+    <- set`disjoint-leq-implies-empty DDJ DLE Z=D
+    <- set`eq-symmetric Z=D D=0
+    <- set`size-respects-eq SZ D=0 nat`eq/ SZ2
+    <- set`size-unique set`size/0 SZ2 set`eq/ NEQ
+    <- nat`eq-contradiction NEQ V
+    <- tgtmap`false-implies-eq V EQ.
+
+- : tgtmap`leq-deep-disjoint-implies-empty
+    NE1 (tgtmap`leq/> LE P) (tgtmap`deep-disjoint/= DJ DDJ nat`eq/) EQ
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT V
+    <- tgtmap`false-implies-eq V EQ.
+
+%worlds () (tgtmap`leq-deep-disjoint-implies-empty _ _ _ _).
+%total (L) (tgtmap`leq-deep-disjoint-implies-empty _ L _ _).
+
+
+%theorem efxmap`join-deep-disjoint-right-leq-implies-leq
+  : forall* {G1} {G2} {G3} {G}
+    forall {NE3: no-empty-inner G3}
+    {J: efxmap`join G1 G2 G}
+    {X: efxmap`deep-disjoint G2 G3}
+    {L: efxmap`leq G3 G}
+    exists {L: efxmap`leq G3 G1}
+    true.
+
+%theorem efxmap`join-deep-disjoint-right-leq-implies-leq/L
+  : forall* {G1} {G2} {G3} {G}
+    forall {N1} {SZ1: efxmap`size G1 N1}
+    {N2} {SZ2: efxmap`size G2 N2}
+    {NE3: no-empty-inner G3}
+    {J: efxmap`join G1 G2 G}
+    {X: efxmap`deep-disjoint G2 G3}
+    {L1: efxmap`leq G3 G}
+    exists {L2: efxmap`leq G3 G1}
+    true.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (efxmap`size/+ SZ1) _ (efxmap`size/+ SZ2) (no-empty-inner/+ _ NE3)
+    (efxmap`join/= J DJ nat`eq/)  (efxmap`deep-disjoint/= X DX nat`eq/)
+    (efxmap`leq/= LE DLE nat`eq/) (efxmap`leq/= LE2 DLE2 nat`eq/)
+    <- efxmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ1 _ SZ2 NE3 J X LE LE2
+    <- inner-efxmap`join-disjoint-right-leq-implies-leq DJ DX DLE DLE2.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _
+    (no-empty-inner/+ Z3 _) (efxmap`join/> J P)
+    (efxmap`deep-disjoint/= DJ DX nat`eq/)
+    (efxmap`leq/= LE DLE nat`eq/) LE2
+    <- inner-efxmap`disjoint-symmetric DX DX2
+    <- inner-efxmap`disjoint-leq-implies-empty DX2 DLE Z=D
+    <- inner-efxmap`eq-symmetric Z=D D=0
+    <- inner-efxmap`size-respects-eq Z3 D=0 nat`eq/ SZ2
+    <- inner-efxmap`size-unique inner-efxmap`size/0 SZ2 inner-efxmap`eq/ NEQ
+    <- nat`eq-contradiction NEQ V
+    <- efxmap`false-implies-leq V LE2.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/< J P)  (efxmap`deep-disjoint/= X DX nat`eq/)
+    (efxmap`leq/= LE DLE nat`eq/) LE2
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-leq F LE2.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ (efxmap`join/= _ _ nat`eq/)
+    (efxmap`deep-disjoint/= _ _ nat`eq/) (efxmap`leq/> _ P) LE2
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-leq F LE2.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ (efxmap`join/> _ _)  (efxmap`deep-disjoint/= _ _ nat`eq/)
+    (efxmap`leq/> _ P) LE2
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-leq F LE2.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ NE3 efxmap`join/L D LE LE2
+    <- efxmap`deep-disjoint-symmetric D DP
+    <- efxmap`leq-deep-disjoint-implies-empty NE3 LE DP E
+    <- efxmap`leq-reflexive _ LE3
+    <- efxmap`leq-respects-eq LE3 efxmap`eq/ E LE2.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ efxmap`join/R _ LE LE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ _ _ _ _ _ efxmap`deep-disjoint/R _ efxmap`leq/0.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/< _ P1) (efxmap`deep-disjoint/< _ P2)
+    (efxmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- efxmap`false-implies-leq F LE.
+
+% SHP and SH2 unified.
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ (efxmap`size/+ SZ)
+    _ (efxmap`size/+ SZ2) (no-empty-inner/+ Z3 NE3)
+    (efxmap`join/< J P1) D (efxmap`leq/> LE P2) (efxmap`leq/> LE3P P2)
+    <- nat`plus-swap-succ P1 P1P
+    <- nat`plus-commutative P1P P1S
+    <- efxmap`shift-total SH
+    <- efxmap`shift-preserves-join J SH (efxmap`shift/+ P1S) _ SHP JP
+    <- nat`plus-swap-succ P2 P2P
+    <- nat`plus-commutative P2P P2S
+    <- efxmap`shift-preserves-leq LE (efxmap`shift/+ P2S) SHP LE2
+    <- efxmap`shift-preserves-size SZ SH SZK
+    <- efxmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZK _ (efxmap`size/+ SZ2) (no-empty-inner/+ Z3 NE3) JP D LE2 LE3
+    <- efxmap`shift-preserves-leq-converse LE3 (efxmap`shift/+ P2S) SH LE3P.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (efxmap`size/+ SZ) _ (efxmap`size/+ SZ2) (no-empty-inner/+ Z3 NE3)
+    (efxmap`join/< J P1) (efxmap`deep-disjoint/> D P2)
+    (efxmap`leq/= LE M-LE nat`eq/) (efxmap`leq/= LEE M-LE nat`eq/)
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- efxmap`map/+-preserves-eq EQ inner-efxmap`eq/ efxmap`eq/ MEQ
+    <- efxmap`join-respects-eq J efxmap`eq/ MEQ efxmap`eq/ JP
+    <- efxmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ _ (efxmap`size/+ SZ2) NE3 JP D LE LEE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (efxmap`size/+ SZ) _ (efxmap`size/+ SZ2)
+    (no-empty-inner/+ Z3 NE3)
+    (efxmap`join/> J P1) (efxmap`deep-disjoint/< D P2) (efxmap`leq/> LE P3) LEE2
+    <- nat`plus-right-cancels P2 P3 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- efxmap`map/+-preserves-eq EQ inner-efxmap`eq/ efxmap`eq/ MEQ
+    <- efxmap`deep-disjoint-respects-eq D efxmap`eq/ MEQ DP
+    <- efxmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ (efxmap`size/+ SZ) _ SZ2 (no-empty-inner/+ Z3 NE3) J DP LE LEE
+    <- nat`plus-swap-succ P3 P3S
+    <- nat`plus-commutative P3S P3P
+    <- nat`plus-swap-succ P1 P1S
+    <- nat`plus-commutative P1S P1P
+    <- efxmap`shift-preserves-leq
+      LEE (efxmap`shift/+ P3P) (efxmap`shift/+ P1P) LEE2.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/= _ _ nat`eq/) (efxmap`deep-disjoint/< _ P)
+    (efxmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-leq F LE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/= _ _ nat`eq/) (efxmap`deep-disjoint/> _ P)
+    (efxmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-leq F LE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/> _ _) (efxmap`deep-disjoint/< _ P)
+    (efxmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-leq F LE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/> _ _) (efxmap`deep-disjoint/> _ P)
+    (efxmap`leq/= _ _ nat`eq/) LE
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-reflexive GT F
+    <- efxmap`false-implies-leq F LE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/= _ _ nat`eq/) (efxmap`deep-disjoint/> _ P1)
+    (efxmap`leq/> _ P2) LE
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- efxmap`false-implies-leq F LE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L
+    _ (efxmap`size/+ SZ) _ (efxmap`size/+ SZ2) (no-empty-inner/+ Z3 NE3)
+    (efxmap`join/= J M-J nat`eq/) (efxmap`deep-disjoint/< D P1)
+    (efxmap`leq/> LE P2) (efxmap`leq/> LEP P2)
+    <- nat`plus-right-cancels P1 P2 nat`eq/ nat`eq/ EQ1
+    <- nat`succ-cancels EQ1 EQ
+    <- efxmap`map/+-preserves-eq EQ inner-efxmap`eq/ efxmap`eq/ MEQ
+    <- efxmap`deep-disjoint-respects-eq D efxmap`eq/ MEQ DP
+    <- efxmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ _ SZ2 (no-empty-inner/+ Z3 NE3) J DP LE LEP.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _
+    (efxmap`join/> _ _) (efxmap`deep-disjoint/> _ P1) (efxmap`leq/> _ P2) LE
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P2 nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 F
+    <- efxmap`false-implies-leq F LE.
+
+- : efxmap`join-deep-disjoint-right-leq-implies-leq NE U D LE LE2
+    <- efxmap`size-total SZ1
+    <- efxmap`size-total SZ2
+    <- efxmap`join-deep-disjoint-right-leq-implies-leq/L
+      _ SZ1 _ SZ2 NE U D LE LE2.
+
+%worlds ()
+(efxmap`join-deep-disjoint-right-leq-implies-leq/L _ _ _ _ _ _ _ _ _).
+%total {N1 N2}
+(efxmap`join-deep-disjoint-right-leq-implies-leq/L N1 _ N2 _ _ _ _ _ _).
+
+%worlds () (efxmap`join-deep-disjoint-right-leq-implies-leq _ _ _ _ _).
+%total  {} (efxmap`join-deep-disjoint-right-leq-implies-leq _ _ _ _ _).
+
+
+%theorem select-tgtmap-deep-disjoint-leq-implies-leq
+  : forall* {G1} {G2} {M} {M1} {M2}
+    forall {NE: no-empty-target G2}
+    {SG: select-tgtmap M G1 M1 M2}
+    {DJ: tgtmap`deep-disjoint G1 G2}
+    {L1: tgtmap`leq-efxmap G1 M}
+    {L2: tgtmap`leq-efxmap G2 M}
+    exists {L3: tgtmap`leq-efxmap G2 M1}
+    true.
+
+- : select-tgtmap-deep-disjoint-leq-implies-leq NE-G2 M+G1=>M1+M2 G1^G2 G1<=M
+    (tgtmap`leq-efxmap/ G2<=G (M=>G:efxmap2tgtmap M G))
+    (tgtmap`leq-efxmap/ G2<=G2P M1=>G2P)
+    <- select-tgtmap-implies-efxmap2tgtmap
+      M+G1=>M1+M2 G1<=M (M2=>G1:efxmap2tgtmap M2 G1)
+    <- select-tgtmap-implies-deep-disjoint-join M+G1=>M1+M2 M1^M2 M1+M2=M
+    <- efxmap2tgtmap-preserves-deep-disjoint-join
+      M=>G M1^M2 M1+M2=M G2P G1P M1=>G2P (M2=>G1P:efxmap2tgtmap M2 G1P)
+      G2P^G1P G2P+G1P=G
+    <- efxmap2tgtmap-unique M2=>G1P M2=>G1 efxmap`eq/ G1P=G1
+    <- tgtmap`join-respects-eq G2P+G1P=G tgtmap`eq/ G1P=G1 tgtmap`eq/ G2P+G1=G
+    <- tgtmap`join-deep-disjoint-right-leq-implies-leq
+      NE-G2 G2P+G1=G G1^G2 G2<=G G2<=G2P.
+
+%worlds () (select-tgtmap-deep-disjoint-leq-implies-leq _ _ _ _ _ _).
+%total {} (select-tgtmap-deep-disjoint-leq-implies-leq _ _ _ _ _ _).

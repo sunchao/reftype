@@ -1,0 +1,359 @@
+
+
+% ====================================================
+% =================== Definitions ====================
+% ====================================================
+
+set+nat2tgtmap : set -> nat -> tgtmap -> type.
+
+set+nat2tgtmap/0 : set+nat2tgtmap set/0 _ tgtmap/0.
+
+set+nat2tgtmap/U
+  : set+nat2tgtmap SP F MP
+    -> set`not-member SP N
+    -> set`add SP N S
+    -> tgtmap`update MP N (set/1 F) M
+    -> set+nat2tgtmap S F M.
+
+set+set2tgtmap : set -> set -> tgtmap -> type.
+
+set+set2tgtmap/0 : set+set2tgtmap set/0 _ tgtmap/0.
+
+set+set2tgtmap/U
+  : set`not-member SP N
+    -> set`add SP N S
+    -> set+set2tgtmap SP FS GMP
+    -> tgtmap`update GMP N FS GM
+    -> set+set2tgtmap S FS GM.
+
+set+nat2efxmap : set -> nat -> efx -> efxmap -> type.
+
+set+nat2efxmap/0 : set+nat2efxmap set/0 _ _ efxmap/0.
+
+set+nat2efxmap/U
+  : set+nat2efxmap SP F X MP
+    -> set`not-member SP N
+    -> set`add SP N S
+    -> efxmap`update MP N (inner-efxmap/+ F X inner-efxmap/0) M
+    -> set+nat2efxmap S F X M.
+
+
+% =======================================
+% ============== Theorems ===============
+% =======================================
+
+
+%theorem set+nat2tgtmap-respects-eq
+  : forall* {S} {F} {G} {SP} {FP} {GP}
+    forall {T: set+nat2tgtmap S F G}
+    {E: set`eq S SP} {E: nat`eq F FP}
+    {E: tgtmap`eq G GP}
+    exists {TP: set+nat2tgtmap SP FP GP}
+    true.
+
+- : set+nat2tgtmap-respects-eq T set`eq/ nat`eq/ tgtmap`eq/ T.
+
+%worlds () (set+nat2tgtmap-respects-eq _ _ _ _ _).
+%total {} (set+nat2tgtmap-respects-eq _ _ _ _ _).
+
+
+
+%theorem set+nat2tgtmap/U-inversion :
+	forall*	{M1} {M2} {N} {M2P} {F}
+	forall	{A2: set+nat2tgtmap M2 F M2P}
+		{NM: set`not-member M1 N}
+		{U: set`add M1 N M2}
+	exists	{M1P}
+		{A1: set+nat2tgtmap M1 F M1P}
+		{U: tgtmap`update M1P N (set/1 F) M2P}
+	true.
+
+%theorem set+nat2tgtmap/U-inversion/L :
+	forall*	{N0} {M0} {N} {B} {M1} {M2} {M0P} {M2P} {F}
+	forall	{A0: set+nat2tgtmap M0 F M0P}
+		{F0: set`not-member M0 N0}
+		{U0: set`add M0 N0 M2}
+		{UP: tgtmap`update M0P N0 (set/1 F) M2P}
+		{F1: set`not-member M1 N}
+		{U1: set`add M1 N M2}
+		{EQ?: nat`eq? N N0 B}
+	exists	{M1P}
+		{A1: set+nat2tgtmap M1 F M1P}
+		{U: tgtmap`update M1P N (set/1 F) M2P}
+	true.
+
+- : set+nat2tgtmap/U-inversion/L
+    A0 F0 U0 U0P F1 U1 nat`eq?/yes _ A1 U0P
+    <- set`not-member-add-cancels
+      F0 U0 F1 U1 (nat`eq/:nat`eq N N) set`eq/ M0=M1
+    <- set+nat2tgtmap-respects-eq A0 M0=M1 nat`eq/ tgtmap`eq/ A1.
+
+- : set+nat2tgtmap/U-inversion/L A0 F0 U0 U0P F1 U1 (nat`eq?/no N<>N1) _
+	(set+nat2tgtmap/U A2 F3 U3 U3P) U1P
+    <- set`update-commutes-converse U1 U0 N<>N1 _ U3 U2
+    <- set`add-preserves-not-member-converse F1 U3 F2
+    <- set`add-preserves-not-member-converse F0 U2 F3
+    <- set+nat2tgtmap/U-inversion A0 F2 U2 _ A2 U2P
+    <- tgtmap`update-commutes U2P U0P N<>N1 _ U3P U1P.
+
+- : set+nat2tgtmap/U-inversion (set+nat2tgtmap/U A0 F0 U0 U0P) F U _ A1 U1P
+    <- nat`eq?-total EQ?
+    <- set+nat2tgtmap/U-inversion/L A0 F0 U0 U0P F U EQ? _ A1 U1P.
+
+%worlds () (set+nat2tgtmap/U-inversion _ _ _ _ _ _)
+           (set+nat2tgtmap/U-inversion/L _ _ _ _ _ _ _ _ _ _).
+%total (A B)
+	   (set+nat2tgtmap/U-inversion A _ _ _ _ _)
+           (set+nat2tgtmap/U-inversion/L B _ _ _ _ _ _ _ _  _).
+
+
+%theorem set+nat2tgtmap-preserves-lookup
+  : forall* {S} {F} {G} {N}
+    forall {T: set+nat2tgtmap S F G}
+    {MB: set`member S N}
+    exists {S1} {FS: tgtmap`lookup G N S1}
+    true.
+
+%theorem set+nat2tgtmap-preserves-lookup/L
+  : forall* {S} {SP} {F} {G} {GP} {N1} {N2} {B}
+    forall {T: set+nat2tgtmap SP F GP}
+    {NM: set`not-member SP N1} {A: set`add SP N1 S}
+    {U: tgtmap`update GP N1 (set/1 F) G}
+    {MB: set`member S N2} {E?: nat`eq? N2 N1 B}
+    exists {S1} {L: tgtmap`lookup G N2 S1}
+    true.
+
+- : set+nat2tgtmap-preserves-lookup/L
+    _ _ _ U _ nat`eq?/yes _ L
+    <- tgtmap`update-implies-lookup U L.
+
+- : set+nat2tgtmap-preserves-lookup/L
+    SP=>GP _ SP+N1=S GP+N1+S=G N2<-S (nat`eq?/no N2<>N1) _ G->N2=S
+    <- set`add-preserves-member-converse N2<-S SP+N1=S N2<>N1 N2<-SP
+    <- set+nat2tgtmap-preserves-lookup SP=>GP N2<-SP _ GP->N2=S
+    <- nat`ne-symmetric N2<>N1 N1<>N2
+    <- tgtmap`update-preserves-lookup GP->N2=S GP+N1+S=G N2<>N1 G->N2=S.
+
+- : set+nat2tgtmap-preserves-lookup (set+nat2tgtmap/U TP NM A U) MB S L
+    <- nat`eq?-total E?
+    <- set+nat2tgtmap-preserves-lookup/L TP NM A U MB E? S L.
+
+%worlds () (set+nat2tgtmap-preserves-lookup _ _ _ _)
+(set+nat2tgtmap-preserves-lookup/L _ _ _ _ _ _ _ _).
+%total (T1 T2) (set+nat2tgtmap-preserves-lookup T1 _ _ _)
+(set+nat2tgtmap-preserves-lookup/L T2 _ _ _ _ _ _ _).
+
+
+%theorem set+nat2tgtmap-preserves-fresh
+  : forall* {S} {F} {G} {N}
+    forall {T: set+nat2tgtmap S F G}
+    {NM: set`not-member S N}
+    exists {FS: tgtmap`fresh G N}
+    true.
+
+%theorem set+nat2tgtmap-preserves-fresh/L
+  : forall* {S} {SP} {F} {G} {GP} {N1} {N2} {B}
+    forall {T: set+nat2tgtmap SP F GP}
+    {NM: set`not-member SP N1} {A: set`add SP N1 S}
+    {U: tgtmap`update GP N1 (set/1 F) G}
+    {NM: set`not-member S N2} {E?: nat`eq? N2 N1 B}
+    exists {L: tgtmap`fresh G N2}
+    true.
+
+- : set+nat2tgtmap-preserves-fresh/L
+    _ _ A _ NM nat`eq?/yes FS
+    <- set`add-implies-member A MB
+    <- set`not-member-member-not-equal NM MB NE
+    <- nat`ne-anti-reflexive NE F
+    <- tgtmap`false-implies-fresh F FS.
+
+- : set+nat2tgtmap-preserves-fresh/L
+    SP=>GP _ SP+N1=S GP+N1+S=G N2!<S (nat`eq?/no N2<>N1) N2!<G
+    <- set`add-preserves-not-member-converse N2!<S SP+N1=S N2!<SP
+    <- set+nat2tgtmap-preserves-fresh SP=>GP N2!<SP N2!<GP
+    <- nat`ne-symmetric N2<>N1 N1<>N2
+    <- tgtmap`update-preserves-fresh N2!<GP GP+N1+S=G N2<>N1 N2!<G.
+
+- : set+nat2tgtmap-preserves-fresh set+nat2tgtmap/0 _ tgtmap`fresh/0.
+
+- : set+nat2tgtmap-preserves-fresh (set+nat2tgtmap/U TP NM A U) NM2 L
+    <- nat`eq?-total E?
+    <- set+nat2tgtmap-preserves-fresh/L TP NM A U NM2 E? L.
+
+%worlds () (set+nat2tgtmap-preserves-fresh _ _ _)
+(set+nat2tgtmap-preserves-fresh/L _ _ _ _ _ _ _).
+%total (T1 T2) (set+nat2tgtmap-preserves-fresh T1 _ _)
+(set+nat2tgtmap-preserves-fresh/L T2 _ _ _ _ _ _).
+
+
+%theorem set+nat2tgtmap-preserves-size
+  : forall* {S} {F} {G} {N}
+    forall {T: set+nat2tgtmap S F G}
+    {Z: set`size S N}
+    exists {Z: tgtmap`size G N}
+    true.
+
+- : set+nat2tgtmap-preserves-size set+nat2tgtmap/0 set`size/0 tgtmap`size/0.
+
+- : set+nat2tgtmap-preserves-size
+    (set+nat2tgtmap/U TP NM A U) SZ SZM
+    <- set`not-member-add-increases-size-converse SZ NM A SZx
+    <- set+nat2tgtmap-preserves-size TP SZx SZMx
+    <- set+nat2tgtmap-preserves-fresh TP NM F
+    <- tgtmap`fresh-update-increases-size SZMx F U SZM.
+
+%worlds () (set+nat2tgtmap-preserves-size _ _ _).
+%total (T) (set+nat2tgtmap-preserves-size T _ _).
+
+
+%theorem set+nat2tgtmap-preserves-size-converse
+  : forall* {S} {F} {G} {N}
+    forall {T: set+nat2tgtmap S F G}
+    {Z: tgtmap`size G N}
+    exists {Z: set`size S N}
+    true.
+
+- : set+nat2tgtmap-preserves-size-converse
+    set+nat2tgtmap/0 tgtmap`size/0 set`size/0.
+
+- : set+nat2tgtmap-preserves-size-converse
+    (set+nat2tgtmap/U TP NM A U) SZM SZ
+    <- set+nat2tgtmap-preserves-fresh TP NM F
+    <- tgtmap`fresh-update-increases-size-converse SZM F U SZMx
+    <- set+nat2tgtmap-preserves-size-converse TP SZMx SZx
+    <- set`not-member-add-increases-size SZx NM A SZ.
+
+%worlds () (set+nat2tgtmap-preserves-size-converse _ _ _).
+%total (T) (set+nat2tgtmap-preserves-size-converse T _ _).
+
+
+%theorem set+nat2efxmap-respects-eq
+	: forall*	{M1} {M2} {M1P} {M2P} {F} {X}
+    forall	{A1: set+nat2efxmap M1 F X M1P}
+		{ME: set`eq M1 M2}
+		{EP: efxmap`eq M1P M2P}
+    exists	{A2: set+nat2efxmap M2 F X M2P}
+	true.
+
+- : set+nat2efxmap-respects-eq A _ _ A.
+
+%worlds () (set+nat2efxmap-respects-eq _ _ _ _).
+%total { } (set+nat2efxmap-respects-eq _ _ _ _).
+
+
+%theorem set+nat2efxmap/U-inversion :
+	forall*	{M1} {M2} {N} {M2P} {F} {X}
+	forall	{A2: set+nat2efxmap M2 F X M2P}
+		{NM: set`not-member M1 N}
+		{U: set`add M1 N M2}
+	exists	{M1P}
+		{A1: set+nat2efxmap M1 F X M1P}
+		{U: efxmap`update M1P N (inner-efxmap/+ F X inner-efxmap/0) M2P}
+	true.
+
+%theorem set+nat2efxmap/U-inversion/L :
+	forall*	{N0} {M0} {N} {B} {M1} {M2} {M0P} {M2P} {F} {X}
+	forall	{A0: set+nat2efxmap M0 F X M0P}
+		{F0: set`not-member M0 N0}
+		{U0: set`add M0 N0 M2}
+		{UP: efxmap`update M0P N0 (inner-efxmap/+ F X inner-efxmap/0) M2P}
+		{F1: set`not-member M1 N}
+		{U1: set`add M1 N M2}
+		{EQ?: nat`eq? N N0 B}
+	exists	{M1P}
+		{A1: set+nat2efxmap M1 F X M1P}
+		{U: efxmap`update M1P N (inner-efxmap/+ F X inner-efxmap/0) M2P}
+	true.
+
+- : set+nat2efxmap/U-inversion/L
+    A0 F0 U0 U0P F1 U1 nat`eq?/yes _ A1 U0P
+    <- set`not-member-add-cancels
+      F0 U0 F1 U1 (nat`eq/:nat`eq N N) set`eq/ M0=M1
+    <- set+nat2efxmap-respects-eq A0 M0=M1 efxmap`eq/ A1.
+
+- : set+nat2efxmap/U-inversion/L A0 F0 U0 U0P F1 U1 (nat`eq?/no N<>N1) _
+	(set+nat2efxmap/U A2 F3 U3 U3P) U1P
+    <- set`update-commutes-converse U1 U0 N<>N1 _ U3 U2
+    <- set`add-preserves-not-member-converse F1 U3 F2
+    <- set`add-preserves-not-member-converse F0 U2 F3
+    <- set+nat2efxmap/U-inversion A0 F2 U2 _ A2 U2P
+    <- efxmap`update-commutes U2P U0P N<>N1 _ U3P U1P.
+
+- : set+nat2efxmap/U-inversion (set+nat2efxmap/U A0 F0 U0 U0P) F U _ A1 U1P
+    <- nat`eq?-total EQ?
+    <- set+nat2efxmap/U-inversion/L A0 F0 U0 U0P F U EQ? _ A1 U1P.
+
+%worlds () (set+nat2efxmap/U-inversion _ _ _ _ _ _)
+           (set+nat2efxmap/U-inversion/L _ _ _ _ _ _ _ _ _ _).
+%total (A B)
+	   (set+nat2efxmap/U-inversion A _ _ _ _ _)
+           (set+nat2efxmap/U-inversion/L B _ _ _ _ _ _ _ _  _).
+
+
+%theorem set+nat2tgtmap-unique
+  : forall* {S} {SP} {F} {FP} {G} {GP}
+    forall {T: set+nat2tgtmap S F G}
+    {TP: set+nat2tgtmap SP FP GP}
+    {E: set`eq S SP} {E: nat`eq F FP}
+    exists {E: tgtmap`eq G GP}
+    true.
+
+%theorem set+nat2tgtmap-unique/L
+  : forall* {S} {F} {G} {GP}
+    forall {N} {Z: set`size S N}
+    {T1: set+nat2tgtmap S F G}
+    {T2: set+nat2tgtmap S F GP}
+    exists {E: tgtmap`eq G GP}
+    true.
+
+- : set+nat2tgtmap-unique/L _ _
+    set+nat2tgtmap/0 set+nat2tgtmap/0 tgtmap`eq/.
+
+- : set+nat2tgtmap-unique/L _ Z T TP EQ
+    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) _ F U
+    <- set`not-member-add-increases-size-converse Z F U ZR
+    <- set+nat2tgtmap/U-inversion T F U _ T1 U1
+    <- set+nat2tgtmap/U-inversion TP F U _ TP1 UP1
+    <- set+nat2tgtmap-unique/L _ ZR T1 TP1 EQR
+    <- tgtmap`update-unique U1 UP1 EQR nat`eq/ set`eq/ EQ.
+
+%worlds () (set+nat2tgtmap-unique/L _ _ _ _ _).
+%total (N) (set+nat2tgtmap-unique/L N _ _ _ _).
+
+- : set+nat2tgtmap-unique T TP _ _ EQ
+    <- set`size-total Z
+    <- set+nat2tgtmap-unique/L _ Z T TP EQ.
+
+%worlds () (set+nat2tgtmap-unique _ _ _ _ _).
+%total {} (set+nat2tgtmap-unique _ _ _ _ _).
+
+
+%theorem set+nat2efxmap-preserves-fresh:
+	forall*	{M} {N} {MP} {K} {X}
+	forall	{F: set`not-member M N}
+		{A: set+nat2efxmap M K X MP}
+	exists	{F: efxmap`fresh MP N}
+	true.
+
+- : set+nat2efxmap-preserves-fresh _ set+nat2efxmap/0 efxmap`fresh/0.
+
+- : set+nat2efxmap-preserves-fresh F1 (set+nat2efxmap/U A _ U UP) F4
+    <- set`add-implies-member U L
+    <- set`not-member-member-not-equal F1 L NE
+    <- set`add-preserves-not-member-converse F1 U F2
+    <- set+nat2efxmap-preserves-fresh F2 A F3
+    <- efxmap`update-preserves-fresh F3 UP NE F4.
+
+%worlds () (set+nat2efxmap-preserves-fresh _ _ _).
+%total (A) (set+nat2efxmap-preserves-fresh _ A _).
+
+
+%theorem set+nat2tgtmap-implies-set+nat2efxmap
+  : forall* {S} {G} {N} {X} {M}
+    forall {S=>G: set+nat2tgtmap S N G}
+    {G=>M: tgtmap2efxmap G X M}
+    exists {S=>M: set+nat2efxmap S N X M}
+    true.
+
+%worlds () (set+nat2tgtmap-implies-set+nat2efxmap _ _ _).
+%trustme %total {} (set+nat2tgtmap-implies-set+nat2efxmap _ _ _).
