@@ -136,7 +136,7 @@ effects2output/unique/0f
       (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
       ([f] output/exists [r]
         (output/expr r
-          (combine (scale f (PF r))
+          (combine (PF r)
             (combine (unitperm (nonlinear (GF r)))
               (combine (Pi1 f) (Pi2 f)))))).
 
@@ -218,27 +218,34 @@ fldmap2perm/U
     -> fldmap2perm PM FM O (unitperm (precise-exists O F PF) , Pi).
 
 
+%% wierd name - but I like it.
+
+cxt2perm1 : object -> clsmap -> predmap -> ty -> permission -> type.
+
+cxt2perm1/unique
+  : clsmap`lookup CM C FM
+    -> ({o} fldmap2perm PM FM o (AF o))
+    -> nn2perm NN AF PF
+    -> predmap`lookup PM C CP
+    -> cxt2perm1 O CM PM (ty/ NN annot/unique C) (PF CP O).
+
+cxt2perm1/borrow
+  : ty2perm PM (ty/ NN annot/borrow C) PF
+    -> cxt2perm1 O CM PM (ty/ NN annot/borrow C) (PF O).
+
+cxt2perm1/shared
+  : ty2perm PM (ty/ NN annot/shared C) PF
+    -> cxt2perm1 O CM PM (ty/ NN annot/shared C) (PF O).
+
+
 cxt2perm : clsmap -> predmap -> cxt -> permission -> type.
 
 cxt2perm/nil : cxt2perm _ _ cxt/nil empty.
 
-cxt2perm/cons/unique
-  : cxt2perm CM PM B Pi
-    -> clsmap`lookup CM C FM
-    -> ({o} fldmap2perm PM FM o (AF o))
-    -> nn2perm NN AF PF
-    -> predmap`lookup PM C CP
-    -> cxt2perm CM PM (cxt/cons O (ty/ NN annot/unique C) B) ((PF CP O) , Pi).
-
-cxt2perm/cons/shared
-  : cxt2perm CM PM B Pi
-    -> ty2perm PM (ty/ NN annot/shared C) PF
-    -> cxt2perm CM PM (cxt/cons O (ty/ NN annot/shared C) B) ((PF O) , Pi).
-
-cxt2perm/cons/borrow
-  : cxt2perm CM PM B Pi
-    -> ty2perm PM (ty/ NN annot/borrow C) PF
-    -> cxt2perm CM PM (cxt/cons O (ty/ NN annot/borrow C) B) ((PF O) , Pi).
+cxt2perm/cons
+  : cxt2perm CM PM B Pi2
+    -> cxt2perm1 O CM PM T Pi1
+    -> cxt2perm CM PM (cxt/cons O T B) (Pi1 , Pi2).
 
 
 % The first set of permissions are those from read and write effects,
@@ -411,6 +418,22 @@ env2progtype/
 
 %worlds (objvar) (permission`combine-preserves-eq _ _ _).
 %total {} (permission`combine-preserves-eq _ _ _).
+
+
+% Need "scale" because there is no "equiv/scale"
+%theorem permission`precise-exists-respects-eq
+  : forall* {Pi1} {Pi2} {F} {O}
+    forall {E: {x} permission`eq (Pi1 x) (Pi2 x)}
+    exists {EQV: permission`eq
+                 (unitperm (precise-exists O F Pi1))
+                 (unitperm (precise-exists O F Pi2))}
+    true.
+
+- : permission`precise-exists-respects-eq
+    ([_] permission`eq/) (permission`eq/).
+
+%worlds (objvar) (permission`precise-exists-respects-eq _ _).
+%total {} (permission`precise-exists-respects-eq _ _).
 
 
 %theorem permission`implies-respects-eq-left
@@ -694,26 +717,24 @@ consistent with the clsmap. }%
 %total {} (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _).
 
 
-%% TODO: GM needs to be wf too!
-
-%theorem clsmap-cxt-efxmap-implies-effects2output
-  : forall* {B} {CM} {PM} {XM} {MX}
-    forall {RT} {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {B-XM: clsmap-cxt-efxmap CM B XM}
-    {CM-RT: clsmap-cxt-reftype CM B RT}
-    exists {Out}
-    {XX=>Out: effects2output CM PM B RT (effects/ XM MX) ([f] Out f)}
-    true.
-
-%worlds (objvar) (clsmap-cxt-efxmap-implies-effects2output _ _ _ _ _ _ _).
-%trustme %total {} (clsmap-cxt-efxmap-implies-effects2output _ _ _ _ _ _ _).
-
-
 % =======================
 % XX-respects-eq theorems
 % =======================
 
+%theorem set2facts-respects-eq
+  : forall* {S1} {S2} {O1} {O2} {G1} {G2}
+    forall {S2G: set2facts O1 S1 G1}
+    {E: object`eq O1 O2} {E: set`eq S1 S2}
+    {E: permission`eq (unitperm (nonlinear G1)) (unitperm (nonlinear G2))}
+    exists {S2G2: set2facts O2 S2 G2}
+    true.
+
+- : set2facts-respects-eq S2G object`eq/ set`eq/ permission`eq/ S2G.
+
+%worlds (objvar) (set2facts-respects-eq _ _ _ _ _).
+%total {} (set2facts-respects-eq _ _ _ _ _).
+
+ 
 %theorem apply-efx-respects-eq
   : forall* {B1} {B2} {X1} {X2} {P1} {P2} {S1} {S2}
     forall {AP: apply-efx B1 X1 P1 S1}
@@ -734,7 +755,7 @@ consistent with the clsmap. }%
 - : apply-efx-respects-eq apply-efx/consume/true bool`eq/
     efx`eq/ permission`eq/ ([_] permission`eq/) apply-efx/consume/true.
 
-%worlds () (apply-efx-respects-eq _ _ _ _ _ _).
+%worlds (objvar) (apply-efx-respects-eq _ _ _ _ _ _).
 %total {} (apply-efx-respects-eq _ _ _ _ _ _).
 
 
@@ -751,7 +772,7 @@ consistent with the clsmap. }%
 - : inner-efxmap2perm-respects-eq M=>Pi bool`eq/ object`eq/ fldmap`eq/
     predmap`eq/ inner-efxmap`eq/ ([_] permission`eq/) M=>Pi.
 
-%worlds (fracvar) (inner-efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
+%worlds (fracvar | objvar) (inner-efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 %total {} (inner-efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 
 
@@ -768,7 +789,7 @@ consistent with the clsmap. }%
 - : efxmap2perm-respects-eq XM=>Pi bool`eq/ clsmap`eq/ predmap`eq/
     cxt`eq/ efxmap`eq/ ([_] permission`eq/) XM=>Pi.
 
-%worlds (fracvar) (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
+%worlds (fracvar | objvar) (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 %total {} (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 
 
@@ -796,16 +817,103 @@ consistent with the clsmap. }%
 
 %% set2facts is NOT unique, but results are "equivalent"
 
-%theorem set2facts-equiv
+%theorem set2facts/U-inversion
+  : forall* {O} {S} {SP} {G} {N} 
+    forall {S=>G: set2facts O S G}
+    {NM: set`not-member SP N}
+    {A: set`add SP N S}
+    exists {GP} {SP=>GP: set2facts O SP GP}
+    {IMP1: bimplies true G (disj (objequal O (object/ N)) GP)}
+    {IMP2: bimplies true (disj (objequal O (object/ N)) GP) G}
+    true.
+
+%theorem set2facts/U-inversion/L
+  : forall* {O} {S} {SP} {N} {S1} {N1} {G1} {P}
+    forall {NM1: set`not-member S1 N1}
+    {A1: set`add S1 N1 S}
+    {S1=>G1: set2facts O S1 G1}
+    {NM: set`not-member SP N}
+    {A: set`add SP N S}
+    {E?: nat`eq? N N1 P}
+    exists {GP} {SP=>GP: set2facts O SP GP}
+    {IMP1: bimplies true
+          (disj (objequal O (object/ N1)) G1)
+          (disj (objequal O (object/ N)) GP)}
+    {IMP2: bimplies true
+           (disj (objequal O (object/ N)) GP)
+           (disj (objequal O (object/ N1)) G1)}
+    true.
+
+- : set2facts/U-inversion/L F1 U1 S2G1 F2 U2 nat`eq?/yes _ S2G
+    (bimplies/reflexive) (bimplies/reflexive)
+    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ S1=S2
+    <- set2facts-respects-eq S2G1 object`eq/ S1=S2 permission`eq/ S2G.
+
+- : set2facts/U-inversion/L F1 U1 S2G1 F2 U2 (nat`eq?/no N<>N1) _
+    (set2facts/U F4 U4 S2G)
+    (bimplies/neg
+      (bimplies/trans
+        (bimplies/conj/XX
+          (bimplies/reflexive)
+          (bimplies/trans
+            (bimplies/neg
+              (IMP1)
+              (bool`ne/TF))
+            (bimplies/rem-negneg)))
+        (bimplies/trans
+          (bimplies/conj-commutative)
+          (bimplies/trans
+            (bimplies/conj-associative)
+            (bimplies/conj/XX
+              (bimplies/reflexive)
+              (bimplies/trans
+                (bimplies/conj-commutative)
+                (bimplies/add-negneg))))))
+      (bool`ne/FT))
+    (bimplies/neg
+      (bimplies/trans
+        (bimplies/conj/XX
+          (bimplies/reflexive)
+          (bimplies/rem-negneg))
+        (bimplies/trans
+          (bimplies/conj-commutative)
+          (bimplies/trans
+            (bimplies/conj-associative)
+            (bimplies/conj/XX
+              (bimplies/reflexive)
+              (bimplies/trans
+                (bimplies/conj-commutative)
+                (bimplies/trans
+                  (bimplies/add-negneg)
+                  (bimplies/neg
+                    (IMP2)
+                    (bool`ne/TF))))))))
+      (bool`ne/FT))
+    <- set`add-commutes-converse U2 U1 N<>N1 _ U4 U3
+    <- set`add-preserves-not-member-converse F2 U4 F3
+    <- set`add-preserves-not-member-converse F1 U3 F4
+    <- set2facts/U-inversion S2G1 F3 U3 _ S2G IMP1 IMP2.
+
+- : set2facts/U-inversion (set2facts/U F1 U1 S2G1) F2 U2 _ S2G IMP1 IMP2
+    <- nat`eq?-total E?
+    <- set2facts/U-inversion/L F1 U1 S2G1 F2 U2 E? _ S2G IMP1 IMP2.
+
+%worlds (objvar) (set2facts/U-inversion _ _ _ _ _ _ _)
+(set2facts/U-inversion/L _ _ _ _ _ _ _ _ _ _).
+%total (N N1) (set2facts/U-inversion N _ _ _ _ _ _)
+(set2facts/U-inversion/L _ _ N1 _ _ _ _ _ _ _).
+
+
+%theorem set2facts-bimplies
   : forall* {O1} {O2} {S1} {S2} {G1} {G2}
     forall {S1=>G1: set2facts O1 S1 G1}
     {S2=>G2: set2facts O2 S2 G2}
     {E: object`eq O1 O2} {E: set`eq S1 S2}
-    exists {EQV: equiv (unitperm (nonlinear G1)) (unitperm (nonlinear G2))}
+    exists {IMP1: bimplies true G1 G2} {IMP2: bimplies true G2 G1}
     true.
 
-%worlds (objvar | fracvar) (set2facts-equiv _ _ _ _ _).
-%trustme %total {} (set2facts-equiv _ _ _ _ _).
+%worlds (objvar | fracvar) (set2facts-bimplies _ _ _ _ _ _).
+%trustme %total {} (set2facts-bimplies _ _ _ _ _ _).
 
 
 %theorem apply-efx-deterministic
@@ -883,7 +991,7 @@ consistent with the clsmap. }%
     <- inner-efxmap2perm/U-inversion/L
       F1 U1 L1 T2PF1 AP1 M2P1 F2 U2 E? _ L2 _ T2PF2 _ AP2 _ M2P2 EQV.
 
-%worlds ()
+%worlds (objvar)
 (inner-efxmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _)
 (inner-efxmap2perm/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A B)
@@ -904,7 +1012,7 @@ consistent with the clsmap. }%
     exists {EQV: {f} equiv (Pi1 f) (Pi2 f)}
     true.
 
-%worlds () (inner-efxmap2perm-equiv _ _ _ _ _ _ _ _).
+%worlds (objvar) (inner-efxmap2perm-equiv _ _ _ _ _ _ _ _).
 %trustme %total {} (inner-efxmap2perm-equiv _ _ _ _ _ _ _ _).
 
 
@@ -965,7 +1073,7 @@ consistent with the clsmap. }%
     <- efxmap2perm/U-inversion/L
       F1 U1 BL1 CML1 X2P1 M2P1 F2 U2 E? _ _ _ BL2 _ CML2 _ X2P2 _ M2P2 EQV.
 
-%worlds ()
+%worlds (objvar)
 (efxmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 (efxmap2perm/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A B)
@@ -983,7 +1091,7 @@ consistent with the clsmap. }%
     exists {EQV: {f} equiv (Pi1 f) (Pi2 f)}
     true.
 
-%worlds (fracvar) (efxmap2perm-equiv _ _ _ _ _ _ _ _).
+%worlds (fracvar | objvar) (efxmap2perm-equiv _ _ _ _ _ _ _ _).
 %trustme %total {} (efxmap2perm-equiv _ _ _ _ _ _ _ _).
 
 
@@ -1970,3 +2078,23 @@ consistent with the clsmap. }%
 %total (T) (equiv-empty-implies-permission-equiv T _ _ _).
 
 
+%theorem lookup-implies-cxt2perm1
+  : forall* {CM} {PM} {O} {T} {B} {Pi}
+    forall {BL: cxt`lookup B O T}
+    {B2P: cxt2perm CM PM B Pi}
+    exists {PF} {B2F: cxt2perm1 O CM PM T PF}
+    {Pi2} {EQV: equiv Pi (PF , Pi2)}
+    true.
+
+- : lookup-implies-cxt2perm1
+    cxt`lookup/hit (cxt2perm/cons _ B2F) _ B2F _ equiv/reflexive.
+
+- : lookup-implies-cxt2perm1
+    (cxt`lookup/miss BL NE) (cxt2perm/cons B2P _) _ B2F _
+    (equiv/transitive
+      (equiv/combine (equiv/reflexive) (EQV))
+      (equiv/roll2))
+    <- lookup-implies-cxt2perm1 BL B2P _ B2F _ EQV.
+
+%worlds () (lookup-implies-cxt2perm1 _ _ _ _ _ _).
+%total (B) (lookup-implies-cxt2perm1 _ B _ _ _ _).
