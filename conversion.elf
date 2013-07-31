@@ -50,220 +50,6 @@ cxt2perm/cons
 % =================== end of cxt2perm ======================
 
 
-% ===================== apply-efx ===================================
-% Apply given effect to the input permission, and convert
-% it to another permission.
-% ===================================================================
-
-apply-efx : bool -> efx -> permission -> fracperm -> type.
-
-apply-efx/read : apply-efx _ efx/read Pi ([f] (scale f Pi)).
-
-apply-efx/write : apply-efx _ efx/write Pi ([_] Pi).
-
-apply-efx/consume/true : apply-efx true efx/consume Pi ([_] Pi).
-
-apply-efx/consume/false : apply-efx false efx/consume Pi ([_] empty).
-
-% =================== end of apply-efx ===============================
-
-
-% ==================== efxmap2perm ==============================
-% Convert a efxmap to permissions. Each entry ((O, F), X) in
-% the efxmap will be converted to a packed field permission with
-% the effect X been applied to it.
-% ===============================================================
-
-efxmap2perm : bool -> clsmap -> predmap -> cxt ->
-  efxmap -> fracperm -> type.
-
-inner-efxmap2perm : bool -> object -> fldmap -> predmap ->
-  inner-efxmap -> fracperm -> type.
-
-inner-efxmap2perm/0
-  : inner-efxmap2perm _ _ _ _ inner-efxmap/0 ([_] empty).
-
-inner-efxmap2perm/U
-  : inner-efxmap`fresh MP F
-    -> inner-efxmap`update MP F X M
-    -> fldmap`lookup FM F T
-    -> ty2perm PM T PF
-    -> apply-efx P X (unitperm (precise-exists O F PF)) Pi1
-    -> inner-efxmap2perm P O FM PM MP Pi2
-    -> inner-efxmap2perm P O FM PM M ([f] (Pi1 f), Pi2 f).
-
-efxmap2perm/0 : efxmap2perm _ _ _ _ efxmap/0 ([_] empty).
-
-efxmap2perm/U
-  : efxmap`fresh XMP N
-    -> efxmap`update XMP N M XM
-    -> cxt`lookup B (object/ N) (ty/ _ _ C)
-    -> clsmap`lookup CM C FM
-    -> inner-efxmap2perm P (object/ N) FM PM M Pi1
-    -> efxmap2perm P CM PM B XMP Pi2
-    -> efxmap2perm P CM PM B XM ([f] (Pi1 f) , Pi2 f).
-
-% ============== end of efxmap2perm ==============================
-
-
-
-% ======================= maybe-efx2perm ==============================
-% Convert "maybe-efx" to permissions. "maybe-efx" is used to 
-% record effects on shared.
-% =====================================================================
-
-maybe-efx2perm : maybe-efx -> fracperm -> type.
-
-maybe-efx2perm/nothing : maybe-efx2perm maybe-efx/nothing ([_] empty).
-
-maybe-efx2perm/just
-  : maybe-efx2perm (maybe-efx/just X) PF
-    <- apply-efx true X (unitperm (basic null all null)) PF.
-
-% ===================== end of maybe-efx2perm =========================
-
-
-
-% ====================== effects2input =================================
-% Convert effects to input permissions. This is simply a wrapper on
-% efxmap2perm and maybe-efx2perm, as the definition of effects.
-% ======================================================================
-
-effects2input : clsmap -> predmap -> cxt -> effects -> fracperm -> type.
-
-effects2input/
-  : efxmap2perm true CM PM B XM ([f] Pi1 f)
-    -> maybe-efx2perm MX ([f] Pi2 f)
-    -> effects2input CM PM B (effects/ XM MX) ([f] Pi1 f , Pi2 f).
-
-% ====================== end of effects2input ==========================
-
-
-% ===================== effects2output ===================================
-% Convert effects to output (defined in permission-type/environment.elf).
-% The format of output varies depending on the resulting reftype. The
-% cases for unique reftype are basically combinations on size of set and
-% tgtmap. We need special case when tgtmap size is zero since
-%   Pi, Pi --|- empty is obviously unsound: Pi should come from at least
-% one field permission. 
-% 
-% Another special case is when set and tgtmap are both empty, and 
-% the unique permission is not from shared. This is the case when we 
-% have method calls (including constructor call) that return fresh
-% locations alone with permissions. These locations are local, and unless
-% they are later bound to a let-expression, they will only be used once.
-% For let-expression, we use substitution to check effects.
-%
-% Note:
-% 06-16-13: efxmap may contain inner-efxmap/0 as value. Do we need to
-% remove them first? Maybe not, since tgtmap in reftype should definitely
-% be well-formed.
-% ========================================================================
-
-effects2output : clsmap -> predmap -> cxt ->
-    reftype -> effects -> (fraction -> expr-output) -> type.
-
-effects2output/shared
-  : efxmap2perm false CM PM B XM ([f] Pi1 f)
-    -> maybe-efx2perm MX ([f] Pi2 f)
-    -> ty2perm PM (ty/ NN annot/shared C) PF
-    -> effects2output CM PM B
-      (reftype/ NN C targets/shared) (effects/ XM MX)
-      ([f] output/exists [r]
-        (output/expr r % shared don't need scaling
-          (combine (PF r) (combine (Pi1 f) (Pi2 f))))).
-
-
-% different cases for unique targets
-
-effects2output/unique/0
-  : set`size S z
-    -> tgtmap`size GM z
-    -> efxmap2perm false CM PM B XM ([f] Pi1 f)
-    -> maybe-efx2perm MX ([f] Pi2 f)
-    -> ty2perm PM (ty/ NN annot/unique C) PF
-    -> effects2output CM PM B
-      (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
-      ([f] output/exists [r]
-        (output/expr r
-          (combine (PF r)
-            (combine (Pi1 f) (Pi2 f))))).
-
-effects2output/unique/0f
-  : set`size S (s _)
-    -> tgtmap`size GM z
-    -> efxmap2perm false CM PM B XM ([f] Pi1 f)
-    -> ({r} set2facts r S (GF r))
-    -> maybe-efx2perm MX ([f] Pi2 f)
-    -> ty2perm PM (ty/ NN annot/borrow C) PF % no permission
-    -> effects2output CM PM B
-      (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
-      ([f] output/exists [r]
-        (output/expr r
-          (combine (PF r)
-            (combine (unitperm (nonlinear (GF r)))
-              (combine (Pi1 f) (Pi2 f)))))).
-
-% we don't require set to be empty here.
-
-effects2output/unique/0t
-  : tgtmap`size GM z
-    -> efxmap2perm false CM PM B XM ([f] Pi1 f)
-    -> ({r} set2facts r S (GF r))
-    -> maybe-efx2perm MX ([f] Pi2 f)
-    -> ty2perm PM (ty/ NN annot/unique C) PF
-    -> effects2output CM PM B
-      (reftype/ NN C (targets/unique S GM true)) (effects/ XM MX)
-      ([f] output/exists [o]
-        (output/exists [r]
-          (output/expr r
-            (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
-              (combine (scale f (PF r))
-                (combine (unitperm (encumbered (scale f (PF r)) (Pi2 f)))
-                  (Pi1 f))))))).
-
-effects2output/unique/+f
-  : tgtmap`size GM (s _)
-    -> select-tgtmap XM GM XM1 XM2
-    -> efxmap2perm false CM PM B XM1 ([f] Pi1 f)
-    -> efxmap2perm false CM PM B XM2 ([f] Pi2 f)
-    -> ({r} set2facts r S (GF r))
-    -> maybe-efx2perm MX ([f] Pi3 f)
-    -> ty2perm PM (ty/ NN annot/unique C) PF
-    -> effects2output CM PM B
-      (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
-      ([f] output/exists [o]
-        (output/exists [r]
-          (output/expr o
-            (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
-              (combine (scale f (PF r))
-                (combine (unitperm (encumbered (scale f (PF r)) (Pi2 f)))
-                  (combine (Pi1 f) (Pi3 f)))))))).
-
-effects2output/unique/+t
-  : tgtmap`size GM (s _)
-    -> select-tgtmap XM GM XM1 XM2
-    -> efxmap2perm false CM PM B XM1 ([f] Pi1 f)
-    -> efxmap2perm false CM PM B XM2 ([f] Pi2 f)
-    -> ({r} set2facts r S (GF r))
-    -> maybe-efx2perm MX ([f] Pi3 f)
-    -> ty2perm PM (ty/ NN annot/unique C) PF
-    -> effects2output CM PM B
-      (reftype/ NN C (targets/unique S GM true)) (effects/ XM MX)
-      ([f] output/exists [o]
-        (output/exists [r]
-          (output/expr o
-            (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
-              (combine (scale f (PF r))
-                (combine
-                  (unitperm
-                    (encumbered
-                      (scale f (PF r)) (combine (Pi2 f) (Pi3 f))))
-                  (Pi1 f))))))).
-
-% ================ end of effects2output =================================
-
-
 % ===================== all-efx? ==================================
 % Whether an inner-efxmap contains same effect for ALL fields
 % in fldmap.
@@ -350,6 +136,241 @@ make-encumbered/U
     -> make-encumbered P CM PM B XM (Pi1 , Pi2).
 
 % ==================== end of make-encumbered ========================
+
+
+% ===================== apply-efx ===================================
+% Apply given effect to the input permission, and convert
+% it to another permission.
+% ===================================================================
+
+apply-efx : bool -> efx -> permission -> fracperm -> type.
+
+apply-efx/read : apply-efx _ efx/read Pi ([f] (scale f Pi)).
+
+apply-efx/write : apply-efx _ efx/write Pi ([_] Pi).
+
+apply-efx/consume/true : apply-efx true efx/consume Pi ([_] Pi).
+
+apply-efx/consume/false : apply-efx false efx/consume Pi ([_] empty).
+
+% =================== end of apply-efx ===============================
+
+
+% ==================== efxmap2perm ==============================
+% Convert a efxmap to permissions. Each entry ((O, F), X) in
+% the efxmap will be converted to a packed field permission with
+% the effect X been applied to it.
+% ===============================================================
+
+efxmap2perm : bool -> clsmap -> predmap -> cxt ->
+  efxmap -> fracperm -> type.
+
+inner-efxmap2perm : bool -> object -> fldmap -> predmap ->
+  inner-efxmap -> fracperm -> type.
+
+inner-efxmap2perm/0
+  : inner-efxmap2perm _ _ _ _ inner-efxmap/0 ([_] empty).
+
+inner-efxmap2perm/U
+  : inner-efxmap`fresh MP F
+    -> inner-efxmap`update MP F X M
+    -> fldmap`lookup FM F T
+    -> ty2perm PM T PF
+    -> apply-efx P X (unitperm (precise-exists O F PF)) Pi1
+    -> inner-efxmap2perm P O FM PM MP Pi2
+    -> inner-efxmap2perm P O FM PM M ([f] (Pi1 f), Pi2 f).
+
+efxmap2perm/0 : efxmap2perm _ _ _ _ efxmap/0 ([_] empty).
+
+efxmap2perm/U
+  : efxmap`fresh XMP N
+    -> efxmap`update XMP N M XM
+    -> cxt`lookup B (object/ N) (ty/ _ _ C)
+    -> clsmap`lookup CM C FM
+    -> inner-efxmap2perm P (object/ N) FM PM M Pi1
+    -> efxmap2perm P CM PM B XMP Pi2
+    -> efxmap2perm P CM PM B XM ([f] (Pi1 f) , Pi2 f).
+
+% ============== end of efxmap2perm ==============================
+
+
+
+% ======================= maybe-efx2perm ==============================
+% Convert "maybe-efx" to permissions. "maybe-efx" is used to 
+% record effects on shared.
+% =====================================================================
+
+maybe-efx2perm : maybe-efx -> fracperm -> type.
+
+maybe-efx2perm/nothing : maybe-efx2perm maybe-efx/nothing ([_] empty).
+
+maybe-efx2perm/just
+  : maybe-efx2perm (maybe-efx/just X) PF
+    <- apply-efx true X (unitperm (basic null all null)) PF.
+
+% ===================== end of maybe-efx2perm =========================
+
+
+
+% ====================== effects2input =================================
+% Convert effects to input permissions. This is simply a wrapper on
+% efxmap2perm and maybe-efx2perm, as the definition of effects.
+% ======================================================================
+
+effects2input : clsmap -> predmap -> cxt -> effects -> fracperm -> type.
+
+effects2input/
+  : cxt2perm CM PM B Pi3
+    -> make-encumbered true CM PM B XM Pi4
+    -> efxmap2perm true CM PM B XM ([f] Pi1 f)
+    -> maybe-efx2perm MX ([f] Pi2 f)
+    -> effects2input CM PM B (effects/ XM MX)
+      ([f] (Pi3 , Pi4) , Pi1 f , Pi2 f).
+
+% ====================== end of effects2input ==========================
+
+
+% ===================== effects2output ===================================
+% Convert effects to output (defined in permission-type/environment.elf).
+% The format of output varies depending on the resulting reftype. The
+% cases for unique reftype are basically combinations on size of set and
+% tgtmap. We need special case when tgtmap size is zero since
+%   Pi, Pi --|- empty is obviously unsound: Pi should come from at least
+% one field permission. 
+% 
+% Another special case is when set and tgtmap are both empty, and 
+% the unique permission is not from shared. This is the case when we 
+% have method calls (including constructor call) that return fresh
+% locations alone with permissions. These locations are local, and unless
+% they are later bound to a let-expression, they will only be used once.
+% For let-expression, we use substitution to check effects.
+%
+% Note:
+% 06-16-13: efxmap may contain inner-efxmap/0 as value. Do we need to
+% remove them first? Maybe not, since tgtmap in reftype should definitely
+% be well-formed.
+% ========================================================================
+
+effects2output : clsmap -> predmap -> cxt ->
+    reftype -> effects -> (fraction -> expr-output) -> type.
+
+effects2output/shared
+  : cxt2perm CM PM B Pi3
+    -> make-encumbered false CM PM B XM Pi4
+    -> efxmap2perm false CM PM B XM ([f] Pi1 f)
+    -> maybe-efx2perm MX ([f] Pi2 f)
+    -> ty2perm PM (ty/ NN annot/shared C) PF
+    -> effects2output CM PM B
+      (reftype/ NN C targets/shared) (effects/ XM MX)
+      ([f] output/exists [r]
+        (output/expr r % shared don't need scaling
+          (combine (combine Pi3 Pi4)
+            (combine (PF r) (combine (Pi1 f) (Pi2 f)))))).
+
+
+% different cases for unique targets
+
+effects2output/unique/0
+  : set`size S z
+    -> tgtmap`size GM z
+    -> cxt2perm CM PM B Pi3
+    -> make-encumbered false CM PM B XM Pi4
+    -> efxmap2perm false CM PM B XM ([f] Pi1 f)
+    -> maybe-efx2perm MX ([f] Pi2 f)
+    -> ty2perm PM (ty/ NN annot/unique C) PF
+    -> effects2output CM PM B
+      (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
+      ([f] output/exists [r]
+        (output/expr r
+          (combine (combine Pi3 Pi4)
+            (combine (PF r)
+              (combine (Pi1 f) (Pi2 f)))))).
+
+effects2output/unique/0f
+  : set`size S (s _)
+    -> tgtmap`size GM z
+    -> cxt2perm CM PM B Pi3
+    -> make-encumbered false CM PM B XM Pi4
+    -> efxmap2perm false CM PM B XM ([f] Pi1 f)
+    -> ({r} set2facts r S (GF r))
+    -> maybe-efx2perm MX ([f] Pi2 f)
+    -> ty2perm PM (ty/ NN annot/borrow C) PF % no permission
+    -> effects2output CM PM B
+      (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
+      ([f] output/exists [r]
+        (output/expr r
+          (combine (combine Pi3 Pi4)
+            (combine (PF r)
+              (combine (unitperm (nonlinear (GF r)))
+                (combine (Pi1 f) (Pi2 f))))))).
+
+% we don't require set to be empty here.
+
+effects2output/unique/0t
+  : tgtmap`size GM z
+    -> cxt2perm CM PM B Pi3
+    -> make-encumbered false CM PM B XM Pi4
+    -> efxmap2perm false CM PM B XM ([f] Pi1 f)
+    -> ({r} set2facts r S (GF r))
+    -> maybe-efx2perm MX ([f] Pi2 f)
+    -> ty2perm PM (ty/ NN annot/unique C) PF
+    -> effects2output CM PM B
+      (reftype/ NN C (targets/unique S GM true)) (effects/ XM MX)
+      ([f] output/exists [o]
+        (output/exists [r]
+          (output/expr r
+            (combine (combine Pi3 Pi4)
+              (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
+                (combine (scale f (PF r))
+                  (combine (unitperm (encumbered (scale f (PF r)) (Pi2 f)))
+                    (Pi1 f)))))))).
+
+effects2output/unique/+f
+  : tgtmap`size GM (s _)
+    -> cxt2perm CM PM B Pi4
+    -> make-encumbered false CM PM B XM Pi5
+    -> select-tgtmap XM GM XM1 XM2
+    -> efxmap2perm false CM PM B XM1 ([f] Pi1 f)
+    -> efxmap2perm false CM PM B XM2 ([f] Pi2 f)
+    -> ({r} set2facts r S (GF r))
+    -> maybe-efx2perm MX ([f] Pi3 f)
+    -> ty2perm PM (ty/ NN annot/unique C) PF
+    -> effects2output CM PM B
+      (reftype/ NN C (targets/unique S GM false)) (effects/ XM MX)
+      ([f] output/exists [o]
+        (output/exists [r]
+          (output/expr o
+            (combine (combine Pi4 Pi5)
+              (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
+                (combine (scale f (PF r))
+                  (combine (unitperm (encumbered (scale f (PF r)) (Pi2 f)))
+                    (combine (Pi1 f) (Pi3 f))))))))).
+
+effects2output/unique/+t
+  : tgtmap`size GM (s _)
+    -> cxt2perm CM PM B Pi4
+    -> make-encumbered false CM PM B XM Pi5
+    -> select-tgtmap XM GM XM1 XM2
+    -> efxmap2perm false CM PM B XM1 ([f] Pi1 f)
+    -> efxmap2perm false CM PM B XM2 ([f] Pi2 f)
+    -> ({r} set2facts r S (GF r))
+    -> maybe-efx2perm MX ([f] Pi3 f)
+    -> ty2perm PM (ty/ NN annot/unique C) PF
+    -> effects2output CM PM B
+      (reftype/ NN C (targets/unique S GM true)) (effects/ XM MX)
+      ([f] output/exists [o]
+        (output/exists [r]
+          (output/expr o
+            (combine (combine Pi4 Pi5)
+              (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
+                (combine (scale f (PF r))
+                  (combine
+                    (unitperm
+                      (encumbered
+                        (scale f (PF r)) (combine (Pi2 f) (Pi3 f))))
+                    (Pi1 f)))))))).
+
+% ================ end of effects2output =================================
 
 
 
@@ -659,6 +680,190 @@ env2progtype/
 %abbrev set2facts-total = set2facts-total* _ _ _.
 
 
+%theorem clsmap-cxt-implies-cxt2perm
+  : forall* {CM} {PM} {B}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    exists {Pi:permission} {B=>Pi: cxt2perm CM PM B Pi}
+    true.
+
+- : clsmap-cxt-implies-cxt2perm _ _ clsmap-cxt/nil _ cxt2perm/nil.
+
+- : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
+    (clsmap-cxt/cons/b CM-B (clsmap-ty/notnull L))
+    _ (cxt2perm/cons B2P T2PF)
+    <- clsmap-lookup-implies-ty2perm CM2PM L _ T2PF
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B2P.
+
+- : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
+    (clsmap-cxt/cons/s CM-B (clsmap-ty/notnull L))
+    _ (cxt2perm/cons B2P T2PF)
+    <- clsmap-lookup-implies-ty2perm CM2PM L _ T2PF
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B2P.
+
+%worlds (objvar) (clsmap-cxt-implies-cxt2perm _ _ _ _ _).
+%total (CM-B) (clsmap-cxt-implies-cxt2perm _ _ CM-B _ _).
+
+
+%theorem all-efx?-total/L 
+  : forall* {FM} {M} {X1}
+    forall {N1} {Z1: fldmap`size FM N1}
+    {N2} {Z2: inner-efxmap`size M N2}
+    exists {B} {AC: all-efx? X1 FM M B}
+    true.
+
+- : all-efx?-total/L z _ z _ true all-efx?/0.
+
+- : all-efx?-total/L z _ (s _) _ false
+    (all-efx?/+/3 (inner-efxmap`lookup/= nat`eq/) fldmap`fresh/0).
+
+%theorem all-efx?-total/L1
+  : forall* {M} {FM} {FMP} {F} {T} {B} {X}
+    forall {N1} {Z1: fldmap`size FM N1}
+    {N2} {Z2: inner-efxmap`size M N2}
+    {FS: fldmap`fresh FMP F}
+    {U: fldmap`update FMP F T FM}
+    {DM?: inner-efxmap`domain? M F B}
+    exists {B1} {AX: all-efx? X FM M B1}
+    true.
+
+- : all-efx?-total/L1 _ SZ1 _ SZ2 F1 U1 (inner-efxmap`domain?/in L)
+    _ (all-efx?/+/1 AND AX? XE? U2 F2 U1 F1)
+    <- inner-efxmap`lookup-implies-fresh-update L _ F2 U2
+    <- efx`eq?-total _ _ _ XE?
+    <- fldmap`fresh-update-increases-size-converse SZ1 F1 U1 SZ1P
+    <- inner-efxmap`fresh-update-increases-size-converse SZ2 F2 U2 SZ2P
+    <- all-efx?-total/L _ SZ1P _ SZ2P _ AX?
+    <- bool`and-total AND.
+
+- : all-efx?-total/L1 _ _ _ _ F1 U1 (inner-efxmap`domain?/out F2)
+    false (all-efx?/+/2 F2 L1)
+    <- fldmap`update-implies-lookup U1 L1.
+
+- : all-efx?-total/L _ SZ1 _ SZ2 _ AX?
+    <- fldmap`lookup-implies-fresh-update (fldmap`lookup/= nat`eq/) _ F1 U1
+    <- inner-efxmap`domain?-total IN?
+    <- all-efx?-total/L1 _ SZ1 _ SZ2 F1 U1 IN? _ AX?.
+
+%worlds ()
+(all-efx?-total/L1 _ _ _ _ _ _ _ _ _)
+(all-efx?-total/L _ _ _ _ _ _).
+
+%total (N21 N11)
+(all-efx?-total/L1 N11 _ N12 _ _ _ _ _ _)
+(all-efx?-total/L N21 _ N22 _ _ _).
+
+%theorem all-efx?-total*
+  : forall* {X}
+    forall {FM} {M} 
+    exists {B} {AX?: all-efx? X FM M B}
+    true.
+
+- : all-efx?-total* _ _ _ AX?
+    <- fldmap`size-total SZ1
+    <- inner-efxmap`size-total SZ2
+    <- all-efx?-total/L _ SZ1 _ SZ2 _ AX?.
+
+%worlds () (all-efx?-total* _ _ _ _).
+%total {} (all-efx?-total* _ _ _ _). 
+
+%abbrev all-efx?-total = all-efx?-total* _ _ _.
+
+
+%theorem clsmap-fldmap-implies-fldmap2perm
+  : forall* {CM} {PM} {FM} {O}
+    forall {CM2PM: clsmap2predmap CM PM}
+    {CM-FM: clsmap-fldmap CM FM}
+    exists {Pi} {FM=>Pi: fldmap2perm PM FM O Pi}
+    true.
+
+%theorem clsmap-fldmap-implies-fldmap2perm/L
+  : forall* {CM} {PM} {FM} {O}
+    forall {N} {SZ: fldmap`size FM N}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-FM: clsmap-fldmap CM FM}
+    exists {Pi} {FM=>Pi: fldmap2perm PM FM O Pi}
+    true.
+
+- : clsmap-fldmap-implies-fldmap2perm/L z _ _ clsmap-fldmap/0 _ fldmap2perm/0.
+
+- : clsmap-fldmap-implies-fldmap2perm/L (s N) (fldmap`size/+ SZ)
+    CM2PM (clsmap-fldmap/+ CM-FM CM-T) _ (fldmap2perm/U FM2P F U T2PF)
+    <- fldmap`shift-total SH-FM=FMP
+    <- fldmap`shift-preserves-size SZ SH-FM=FMP SZP
+    <- shift-preserves-clsmap-fldmap CM-FM SH-FM=FMP CM-FMP
+    <- fldmap`shift-implies-fresh SH-FM=FMP F
+    <- fldmap`shift-implies-update SH-FM=FMP U
+    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
+    <- clsmap-fldmap-implies-fldmap2perm/L N SZP CM2PM CM-FMP _ FM2P.
+
+- : clsmap-fldmap-implies-fldmap2perm CM2PM CM-FM _ FM2P
+    <- fldmap`size-total Z
+    <- clsmap-fldmap-implies-fldmap2perm/L _ Z CM2PM CM-FM _ FM2P.
+
+%worlds () (clsmap-fldmap-implies-fldmap2perm/L _ _ _ _ _ _).
+%total (N) (clsmap-fldmap-implies-fldmap2perm/L N _ _ _ _ _). 
+
+%worlds () (clsmap-fldmap-implies-fldmap2perm _ _ _ _).
+%total {} (clsmap-fldmap-implies-fldmap2perm _ _ _ _). 
+
+
+%theorem clsmap-fldmap-implies-make-permission
+  : forall* {O} {FM} {CM} {PM} {M} {P}
+    forall {CM2PM: clsmap2predmap CM PM} {CM-FM: clsmap-fldmap CM FM}
+    exists {Pi} {MP: make-permission P O FM PM M Pi}
+    true.
+
+%theorem clsmap-fldmap-implies-make-permission/L
+  : forall* {O} {FM} {CM} {PM} {M}
+    forall {P} {B} {AX?: all-efx? efx/consume FM M B}
+    {CM2PM: clsmap2predmap CM PM} {CM-FM: clsmap-fldmap CM FM}
+    exists {Pi} {MP: make-permission P O FM PM M Pi}
+    true.
+
+- : clsmap-fldmap-implies-make-permission/L true true AX? CM2PM CM-FM
+    _ (make-permission/tt FM2P AX?)
+    <- clsmap-fldmap-implies-fldmap2perm CM2PM CM-FM _ FM2P.
+
+- : clsmap-fldmap-implies-make-permission/L false true AX? _ _
+    _ (make-permission/tf AX?).
+
+- : clsmap-fldmap-implies-make-permission/L _ false AX? _ _ _ (make-permission/f AX?).
+
+%worlds () (clsmap-fldmap-implies-make-permission/L _ _ _ _ _ _ _).
+%total {} (clsmap-fldmap-implies-make-permission/L _ _ _ _ _ _ _).
+
+- : clsmap-fldmap-implies-make-permission CM2PM CM-FM _ MP
+    <- all-efx?-total AX?
+    <- clsmap-fldmap-implies-make-permission/L _ _ AX? CM2PM CM-FM _ MP.
+
+%worlds () (clsmap-fldmap-implies-make-permission _ _ _ _).
+%total {} (clsmap-fldmap-implies-make-permission _ _ _ _).
+
+
+%theorem clsmap-cxt-efxmap-implies-make-encumbered
+  : forall* {P} {CM} {PM} {B} {XM}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B-XM: clsmap-cxt-efxmap CM B XM}
+    exists {Pi} {ME: make-encumbered P CM PM B XM Pi}
+    true.
+
+- : clsmap-cxt-efxmap-implies-make-encumbered
+    _ _ clsmap-cxt-efxmap/0 _ make-encumbered/0.
+
+- : clsmap-cxt-efxmap-implies-make-encumbered CM-CM CM2PM
+    (clsmap-cxt-efxmap/U CM-B-XMP F U BL CML FDM MDM LE)
+    _ (make-encumbered/U F U BL CML MP ME)
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- clsmap-fldmap-implies-make-permission CM2PM CM-FM _ MP
+    <- clsmap-cxt-efxmap-implies-make-encumbered CM-CM CM2PM CM-B-XMP _ ME.
+
+%worlds () (clsmap-cxt-efxmap-implies-make-encumbered _ _ _ _ _).
+%total (B) (clsmap-cxt-efxmap-implies-make-encumbered _ _ B _ _). 
+
+
 %theorem apply-efx-total*
   : forall {P} {X} {Pi}
     exists {PF} {AP: apply-efx P X Pi PF}
@@ -734,20 +939,6 @@ consistent with the clsmap. }%
 
 %worlds (objvar) (clsmap-fldmap-implies-fldmap2perm _ _ _ _).
 %total {} (clsmap-fldmap-implies-fldmap2perm _ _ _ _).
-
-
-%theorem clsmap-cxt-implies-cxt2perm
-  : forall* {CM} {PM} {B}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    exists {Pi:permission} {B=>Pi: cxt2perm CM PM B Pi}
-    true.
-
-- : clsmap-cxt-implies-cxt2perm _ _ clsmap-cxt/nil _ cxt2perm/nil.
-
-%worlds (objvar) (clsmap-cxt-implies-cxt2perm _ _ _ _ _).
-%trustme %total (CM-B) (clsmap-cxt-implies-cxt2perm _ _ CM-B _ _).
 
 
 %theorem domain-leq-implies-inner-efxmap2perm/L
@@ -836,17 +1027,21 @@ consistent with the clsmap. }%
 %theorem clsmap-cxt-efxmap-implies-effects2input
   : forall* {CM} {PM} {B} {XM} {MX}
     forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM} {B-XM: clsmap-cxt-efxmap CM B XM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    {B-XM: clsmap-cxt-efxmap CM B XM}
     exists {Pi} {XX=>Pi: effects2input CM PM B (effects/ XM MX) Pi}
     true.
 
-- : clsmap-cxt-efxmap-implies-effects2input CM-CM CM2PM B-XM _
-    (effects2input/ XM=>Pi1 MX=>Pi2)
+- : clsmap-cxt-efxmap-implies-effects2input
+    CM-CM CM2PM CM-B B-XM _ (effects2input/ B=>Pi3 XM=>Pi4 XM=>Pi1 MX=>Pi2)
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi3
+    <- clsmap-cxt-efxmap-implies-make-encumbered CM-CM CM2PM B-XM _ XM=>Pi4
     <- clsmap-cxt-efxmap-implies-efxmap2perm CM-CM CM2PM B-XM _ XM=>Pi1
     <- maybe-efx2perm-total MX=>Pi2.
 
-%worlds () (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _).
-%total {} (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _).
+%worlds () (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _ _).
+%total {} (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _ _).
 
 
 % =======================================================================
