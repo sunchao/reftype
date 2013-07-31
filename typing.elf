@@ -1,14 +1,18 @@
 %%% Type judgments for conservative type system based on FP.
 
 
-%%% Abbreviations
+% ===============================================
+% =============== Abbreviations =================
+% ===============================================
 
-%abbrev null = (object/ z).	% null object
+null : object = (object/ z).	% null object
 
-%abbrev loc = nat. % alias for location
+utgt : nat -> targets = [n] (targets/unique (set/1 n) tgtmap/0 false).
 
 
-%%% Output for Type Checking
+% ===============================================
+% ========== Output for Type Checking ===========
+% ===============================================
 
 out : kind -> type.
 
@@ -28,114 +32,113 @@ out/args/0 : effects -> args-out.
 out/args/+ : reftype -> args-out -> args-out.
 
 
-%% Conversions between ty and reftype
+% ===============================================
+% === Index for object (simulate location) ======
+% ===============================================
 
-% ty => reftype
+object-index : object -> nat -> type.
+
+object-index/ : object-index (object/ N) N.
+
+
+% ===============================================
+% ======== Convert a "ty" to a "reftype" ========
+% ===============================================
 
 ty2reftype : nat -> ty -> reftype -> type.
 
-ty2reftype/unique
-  : ty2reftype L (ty/ NN annot/unique C)
-    (reftype/ NN C (targets/unique (set/1 L) tgtmap/0 false)).
-
 ty2reftype/shared
-  : ty2reftype L (ty/ NN annot/shared C)
-    (reftype/ NN C targets/shared).
+  : ty2reftype L (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
 
 ty2reftype/borrow
   : ty2reftype L (ty/ NN annot/borrow C)
     (reftype/ NN C (targets/unique (set/1 L) tgtmap/0 false)).
 
-% reftype => ty
 
-reftype2ty : reftype -> ty -> type.
+% ===============================================
+% ============ Typing Judgments =================
+% ===============================================
 
-reftype2ty/unique
-  : reftype2ty (reftype/ NN C (targets/unique _ _ _)) (ty/ NN annot/unique C).
-
-reftype2ty/shared
-  : reftype2ty (reftype/ NN C targets/shared) (ty/ NN annot/shared C).
+reftyping : clsmap -> methmap -> cxt -> term K -> out K -> type.
 
 
-%%% Field Subtyping
-
-% fld-subtype : clsmap -> reftype -> ty -> effects -> type.
-
-% fld-subtype/shared
-%  : fld-subtype _ RT (ty/ NN annot/shared C) XX
-%    <- subtype CM RT (ty/ NN annot/shared C) set/0 set/0 XX.
-
-% fld-subtype/unique
-%   : clsmap`lookup CM C FM
-%     -> fldmap`domain FM S
-%     -> subtype RT (ty/ NN annot/unique C) set/0 set/0 S XX
-%     -> fld-subtype CM RT (ty/ NN annot/unique C) XX.
-
-
-%%% Type Judgments
-
-reftyping : loc -> clsmap -> methmap -> cxt -> term K -> out K -> loc -> type.
-
-%{
-One issue we need to consider is aliasing between unique arguments.
-For instance, if a method is annotated as "reads a.f, writes b.f", and
-a and b are aliases to each other, then we cannot check the call.
-
-Given this situation doesn't occur very often, here we just simply
-disallow "duplicated" effects while checking method call effects.
-}%
+% ================== Type Checking Arguments ==========================
+% One issue we need to consider is aliasing between unique arguments.
+% For instance, if a method is annotated as "reads a.f, writes b.f", and
+% a and b are aliases to each other, then we cannot check the call.
+%
+% Given this situation doesn't occur very often, here we just simply
+% disallow "duplicated" effects while checking method call effects.
+% ======================================================================
 
 reftyping/args
-  : loc -> clsmap -> methmap -> cxt -> effects -> args -> args-out -> loc -> type.
+  : clsmap -> methmap -> cxt -> effects -> args -> args-out -> type.
 
-reftyping/args/0 : reftyping/args L _ _ _ XX args/0 (out/args/0 XX) L.
+reftyping/args/0 : reftyping/args _ _ _ XX args/0 (out/args/0 XX).
 
 reftyping/args/+
-  : reftyping L1 CM MM B E (out/expr RT XX2) L2
+  : reftyping CM MM B E (out/expr RT XX2)
     -> effects`join XX1 XX2 XX
-    -> reftyping/args L2 CM MM B XX A AO L3
-    -> reftyping/args L1 CM MM B XX1 (args/+ E A) (out/args/+ RT AO) L3.
+    -> reftyping/args CM MM B XX A AO
+    -> reftyping/args CM MM B XX1 (args/+ E A) (out/args/+ RT AO).
+
+% =======================================================================
 
 
-%{
-RS, WS and CS are sets of fields that may be read, write or
-consumed, respectively.
-}%
-ref-calltyping : clsmap -> loc -> effects -> args-out
+
+% ============================== Calltyping ================================
+
+ref-calltyping : clsmap -> effects -> args-out
   -> methty -> expr-out -> type.
 
-ref-calltyping/call
-  : ty2reftype L T RT
-    -> effects`disjoint XX1 (effects/ efxmap/0 MX)
+ref-calltyping/call/unique
+  : effects`disjoint XX1 (effects/ efxmap/0 MX)
     -> effects`join XX0 XX1 XX01
     -> effects`join XX01 (effects/ efxmap/0 MX) XX
-    -> ref-calltyping
-      CM L XX1 (out/args/0 XX0) (methty/base T MX) (out/expr RT XX).
+    -> ref-calltyping CM XX1 (out/args/0 XX0)
+      (methty/base (ty/ NN annot/unique C) MX)
+      (out/expr (reftype/ NN C (targets/unique set/0 tgtmap/0 false)) XX).
+
+ref-calltyping/call/shared
+  : effects`disjoint XX1 (effects/ efxmap/0 MX)
+    -> effects`join XX0 XX1 XX01
+    -> effects`join XX01 (effects/ efxmap/0 MX) XX
+    -> ref-calltyping CM XX1 (out/args/0 XX0)
+      (methty/base (ty/ NN annot/shared C) MX)
+      (out/expr (reftype/ NN C targets/shared) XX).
 
 ref-calltyping/args
   : subtype CM RT T RS WS XX1
     -> effects`disjoint XX0 XX1
     -> effects`join XX0 XX1 XX01
-    -> ref-calltyping CM L XX01 AO MT (out/expr ART XX)
-    -> ref-calltyping CM L XX0 (out/args/+ RT AO)
+    -> ref-calltyping CM XX01 AO MT (out/expr ART XX)
+    -> ref-calltyping CM XX0 (out/args/+ RT AO)
       (methty/arg T RS WS MT) (out/expr ART XX).
 
+% ============================================================================
 
-% expressions
+
+% ======================= checking literal ======================
 
 reftyping/lit
-  : reftyping L _ _ B (lit O) (out/expr RT no-effect) L
-    <- cxt`lookup-object B O T N
+  : reftyping _ _ B (lit O) (out/expr RT no-effect)
+    <- cxt`lookup B O T
+    <- object-index O N
     <- ty2reftype N T RT.
 
+%{
 reftyping/null
-  : reftyping L _ _ _
-    (lit null) (out/expr reftype/null no-effect) L.
+  : reftyping _ _ _ (lit null) (out/expr reftype/null no-effect).
+}%
+
+% ================ end of checking literal =======================
 
 
-%{ consider field annotation, and returns either
-the input unique targets, or a shared targets.
-(no borrowed targets since field cannot be borrowed). }%
+% ==================== consider-ftype ===============================
+% Consider field annotation, and returns either the input unique
+% targets, or a shared targets. (no borrowed targets since field
+% cannot be borrowed).
+% ===================================================================
 
 consider-ftype : targets -> annot -> targets -> type.
 
@@ -143,10 +146,14 @@ consider-ftype/shared : consider-ftype _ annot/shared targets/shared.
 
 consider-ftype/unique : consider-ftype GS annot/unique GS.
 
+% ====================== end of consider-ftype ======================
 
-%{ Given input targets for field reference receiver,
-field annotation, field ID, and effects, compute the result
-targets and effects. }%
+
+% ===================== make-targets-and-effects =====================
+% Given input targets for field reference receiver,
+% field annotation, field ID, and effects, compute the result
+% targets and effects.
+% ====================================================================
 
 make-targets-and-effects
   : targets -> annot -> nat -> efx -> targets -> effects -> type.
@@ -157,6 +164,7 @@ make-targets-and-effects/shared
 
 make-targets-and-effects/unique
   : set+nat2tgtmap S F GM2
+    -> tgtmap`deep-disjoint GM1 GM2
     -> tgtmap`join GM1 GM2 GM
     -> tgtmap2efxmap GM X XM
     -> efx-on-shared SB (maybe-efx/just X) MX
@@ -164,21 +172,27 @@ make-targets-and-effects/unique
     -> make-targets-and-effects
       (targets/unique S GM1 SB) A F X GS (effects/ XM MX).
 
+% ==================== end of make-targets-and-effects ================
 
-% Read and Write
+
+% ========================= Reading Field ================================
 
 reftyping/read
-  : reftyping L1 CM MM B E (out/expr (reftype/ nn/yes C GS) XX1) L2
+  : reftyping CM MM B E (out/expr (reftype/ nn/yes C GS) XX1)
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F (ty/ NN A FC)
     -> make-targets-and-effects GS A F efx/read GSP XX2
     -> effects`join XX1 XX2 XX
-    -> reftyping L1 CM MM B (read E F) (out/expr (reftype/ NN FC GSP) XX) L2.
+    -> reftyping CM MM B (read E F) (out/expr (reftype/ NN FC GSP) XX).
 
+% ====================== end of Reading Field ============================
+
+
+% ========================= Write Field =====================================
 
 reftyping/write
-  : reftyping L1 CM MM B E1 (out/expr (reftype/ nn/yes C GS) XX1) L2
-    -> reftyping L2 CM MM B E2 (out/expr RT XX2) L3
+  : reftyping CM MM B E1 (out/expr (reftype/ nn/yes C GS) XX1)
+    -> reftyping CM MM B E2 (out/expr RT XX2)
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F (ty/ NN A FC)
     -> subtype CM RT (ty/ NN A FC) set/0 set/0 XX3
@@ -186,64 +200,83 @@ reftyping/write
     -> effects`join XX1 XX2 XX5
     -> effects`join XX5 XX3 XX6
     -> effects`join XX6 XX4 XX7
-    -> reftyping L1 CM MM B (write E1 F E2) (out/expr (reftype/ NN FC GSP) XX7) L3.
+    -> reftyping CM MM B (write E1 F E2) (out/expr (reftype/ NN FC GSP) XX7).
 
+% ======================== end of Write Field ================================
+
+
+% ======================= reftyping/let =================================
+% Note:
+% 06-16-13: any possibility to simplify this?
+% =======================================================================
+
+% reftyping/let/unique
+%   : reftyping CM MM B E
+%     (out/expr (reftype/ NN C (targets/unique S GM SB)) XX1)
+%     -> ({n}{x}{_:object-index x n}
+%          reftyping CM MM (cxt/cons x (ty/ NN annot/unique C) B) (F x)
+%          (out/expr (reftype/ NN2 C2 (GS2 n)) (XX2 n)))
+%     -> ({n} subst-targets GS n (GS2 n) GS3)
+%     -> ({n} subst-effects GS n (XX2 n) XX3)
+%     -> effects`join XX1 XX3 XX
+%     -> reftyping CM MM B (let E F) (out/expr (reftype/ NN2 C2 GS3) XX).
+
+% ========================== end of reftyping/let ========================
+
+
+% ======================== reftyping/if ==========================
+% Note:
+% 06-16-13: needs reftyping/sub to check this
+% ================================================================
 
 %{
-06-16-13: any possibility to simplify this?
-}%
-reftyping/let
-  : reftyping L1 CM MM B E (out/expr (reftype/ NN C GS) XX1) L2
-    -> reftype2ty (reftype/ NN C GS) T
-    -> ({x} cxt`update B L2 (cxtv/ x T) (BF x))
-    -> ({x} reftyping (s L2) CM MM (BF x)
-         (F x) (out/expr (reftype/ NN2 C2 GS2) XX2) L3)
-    -> subst-targets GS L2 GS2 GS3
-    -> subst-effects GS L2 XX2 XX3
-    -> effects`join XX1 XX3 XX
-    -> reftyping L1 CM MM B (let E F) (out/expr (reftype/ NN2 C2 GS3) XX) L3.
-
-%{
-06-16-13: needs reftyping/sub to check this
-}%
 reftyping/if
-  : reftyping L1 CM MM B C (out/cond XXC) L2
-    -> reftyping L2 CM MM B E1 (out/expr RT XXE) L3
-    -> reftyping L3 CM MM B E2 (out/expr RT XXE) L4
+  : reftyping CM MM B C (out/cond XXC)
+    -> reftyping CM MM B E1 (out/expr RT XXE)
+    -> reftyping CM MM B E2 (out/expr RT XXE)
     -> effects`join XXC XXE XX
-    -> reftyping L1 CM MM B (if C E1 E2) (out/expr RT XX) L4.
+    -> reftyping CM MM B (if C E1 E2) (out/expr RT XX).
+}%
 
+% ===================== end of reftyping/if ======================
+
+
+% ======================= reftyping/while ========================
+
+%{
 no-consume-effect : effects -> type. % To be defined later
 
 reftyping/while
-  : reftyping L1 CM MM B C (out/cond XX1) L2
-    -> reftyping L2 CM MM B E (out/expr _ XX2) L3
+  : reftyping CM MM B C (out/cond XX1)
+    -> reftyping CM MM B E (out/expr _ XX2)
     -> no-consume-effect XX2
     -> effects`join XX1 XX2 XX
-    -> reftyping L1 CM MM B (while C E) (out/expr RT XX) L3.
+    -> reftyping CM MM B (while C E) (out/expr reftype/null XX).
+}%
+
+% ===================== end of reftyping/while ===================
 
 
-%%% Conditionals
+% ==================== Conditionals ===========================
 
-reftyping/eq
-  : reftyping L1 CM MM B E1 (out/expr _ XX1) L2
-    -> reftyping L2 CM MM B E2 (out/expr _ XX2) L3
-    -> effects`join XX1 XX2 XX
-    -> reftyping L1 CM MM B (eql E1 E2) (out/cond XX) L3.
+reftyping/eq : reftyping CM MM B E1 (out/expr _ XX1)
+               -> reftyping CM MM B E2 (out/expr _ XX2)
+               -> effects`join XX1 XX2 XX
+               -> reftyping CM MM B (eql E1 E2) (out/cond XX).
 
-reftyping/not
-  : reftyping L1 CM MM B (not C) R L2
-    -> reftyping L1 CM MM B C R L2.
+reftyping/not : reftyping CM MM B (not C) R
+                -> reftyping CM MM B C R.
 
-reftyping/and
-  : reftyping L1 CM MM B C1 (out/cond XX1) L2
-    -> reftyping L2 CM MM B C2 (out/cond XX2) L3
-    -> effects`join XX1 XX2 XX
-    -> reftyping L1 CM MM B (and C1 C2) (out/cond XX) L3.
+reftyping/and : reftyping CM MM B C1 (out/cond XX1)
+                -> reftyping CM MM B C2 (out/cond XX2)
+                -> effects`join XX1 XX2 XX
+                -> reftyping CM MM B (and C1 C2) (out/cond XX).
+
+% ==================== end of Conditionals =====================
+
 
 
 %%% Arguments
-
 
 % reftyping/args/0 : reftyping L _ _ _ args/0 out/args/0 L.
 
@@ -253,142 +286,151 @@ reftyping/and
 %     -> reftyping L1 CM MM B (args/+ E A) (out/args/+ (out/expr RT XX) R) L3.
 
 
-%%% Method and Constructor Calls
+% ======================== reftyping/call ==============================
 
+%{
 reftyping/call
   : clsmap`fresh CM M
     -> methmap`lookup MM M MT
-    -> reftyping/args L1 CM MM B no-effect A AR L2
-    -> ref-calltyping CM L2 no-effect AR MT R
-    -> reftyping L1 CM MM B (call M A) R (s L2).
+    -> reftyping/args CM MM B no-effect A AR
+    -> ref-calltyping CM no-effect AR MT R
+    -> reftyping CM MM B (call M A) R.
+}%
 
+% ====================== end of reftyping/call =========================
+
+
+% ========================= reftyping/const ============================
+
+%{
 reftyping/const
   : clsmap`lookup CM C FM
     -> fldmap`domain FM S
     -> methmap`lookup MM C (methty/arg _ _ _ MT)
-    -> reftyping/args L1 CM MM B no-effect A AO L2
-    -> ref-calltyping CM L2 no-effect AO MT (out/expr RT XX)
-    -> reftyping L1 CM MM B
-      (call C (args/+ (alloc C S set/0) A)) (out/expr RT XX) (s L2).
+    -> reftyping/args CM MM B no-effect A AO
+    -> ref-calltyping CM no-effect AO MT (out/expr RT XX)
+    -> reftyping CM MM B (call C (args/+ (alloc C S set/0) A)) (out/expr RT XX).
+}%
+
+% ======================= end of reftyping/const =======================
 
 
-% methtymatch
 
-methtymatch*
-  : loc -> efxmap -> clsmap -> methmap -> cxt ->
-    func -> methty -> loc -> type.
+% ============================ Method Typing =============================
+% Checking method type against func
+% ========================================================================
+
+methtymatch* : efxmap -> clsmap -> methmap -> cxt -> func -> methty -> type.
 
 methtymatch/base
-  : reftyping L1 CM MM B E (out/expr RT XX1) L2
+  : reftyping CM MM B E (out/expr RT XX1)
     -> subtype CM RT T set/0 set/0 XX2
     -> effects`join XX1 XX2 XX12
     -> effects`leq XX12 (effects/ XM MX)
-    -> methtymatch* L1 XM CM MM B (func/0 E) (methty/base T MX) L2.
+    -> methtymatch* XM CM MM B (func/0 E) (methty/base T MX).
 
 methtymatch/args/unique
   : clsmap`lookup CM C FM
     -> fldmap`domain FM S
     -> set2inner-efxmap S efx/consume M
-    -> efxmap`join XM1 (efxmap/+ L1 M efxmap/0) XM
-    -> ({x} cxt`update B L1 (cxtv/ x T) (BF x))
-    -> ({x} methtymatch* (s L1) XM CM MM (BF x) (F x) MT L2)
-    -> methtymatch* L1 XM1 CM MM B (func/+ F)
-      (methty/arg (ty/ NN annot/unique C) set/0 set/0 MT) L2.
+    -> ({n} efxmap`join XM1 (efxmap/+ n M efxmap/0) (XM n))
+    -> ({n}{x}{_:object-index x n} methtymatch*
+         (XM n) CM MM (cxt/cons x (ty/ NN annot/unique C) B) (F x) MT)
+    -> methtymatch* XM1 CM MM B (func/+ F)
+      (methty/arg (ty/ NN annot/unique C) set/0 set/0 MT).
 
 methtymatch/args/borrow
   : set2inner-efxmap RS efx/read Mr
     -> set2inner-efxmap WS efx/write Mw
     -> inner-efxmap`join Mr Mw Mrw
-    -> efxmap`join XM1 (efxmap/+ L1 Mrw efxmap/0) XM
-    -> ({x} cxt`update B L1 (cxtv/ x T) (BF x))
-    -> ({x} methtymatch* (s L1) XM CM MM (BF x) (F x) MT L2)
-    -> methtymatch* L1 XM1 CM MM B (func/+ F)
-      (methty/arg (ty/ NN annot/borrow C) RS WS MT) L2.
+    -> ({n} efxmap`join XM1 (efxmap/+ n Mrw efxmap/0) (XM n))
+    -> ({n}{x}{_:object-index x n} methtymatch*
+         (XM n) CM MM (cxt/cons x (ty/ NN annot/borrow C) B) (F x) MT)
+    -> methtymatch* XM1 CM MM B (func/+ F)
+      (methty/arg (ty/ NN annot/borrow C) RS WS MT).
 
 methtymatch/args/shared
-  : ({x} cxt`update B L1 (cxtv/ x T) (BF x))
-    -> ({x} methtymatch* (s L1) XM1 CM MM (BF x) (F x) MT L2)
-    -> methtymatch* L1 XM1 CM MM B (func/+ F)
-      (methty/arg (ty/ NN annot/borrow C) RS WS MT) L2.
+  : ({x} methtymatch* XM CM MM (cxt/cons x (ty/ NN annot/shared C) B) (F x) MT)
+    -> methtymatch* XM1 CM MM B (func/+ F)
+      (methty/arg (ty/ NN annot/borrow C) RS WS MT).
 
-%abbrev methtymatch
-  = [CM][MM][F][MT] methtymatch* (s z) efxmap/0 CM MM cxt/nil F MT L.
+%abbrev methtymatch = [CM][MM][F][MT] methtymatch* efxmap/0 CM MM cxt/nil F MT.
 
 
-% constructor type
+constyping : effects -> clsmap -> methmap -> fldmap
+  -> cxt -> set -> (object -> expr) -> effects -> type.
 
-constyping
-  : loc -> effects -> clsmap -> methmap -> fldmap
-  -> cxt -> set -> (object -> expr) -> effects -> loc -> type.
-
-% TODO: define later
-constyping/0 : constyping L XX _ _ _ _ set/0 ([t] lit t) XX L.
+constyping/0 : constyping XX _ _ _ _ set/0 ([t] lit t) XX.
 
 constyping/nn
   : fldmap`lookup FM F (ty/ nn/yes A C)
     -> set`remove S (set/1 F) SP
-    -> reftyping L1 CM MM B E (out/expr RT XX1) L2
+    -> reftyping CM MM B E (out/expr RT XX1)
     -> subtype CM RT (ty/ nn/yes A C) set/0 set/0 XX2
     -> effects`join XX1 XX2 XX12
     -> effects`join XXin XX12 XXin2
-    -> constyping L2 XXin2 CM MM FM B SP ([t] EF t) XXout L3
-    -> constyping L1 XXin CM MM FM B S
-      ([t] seq (write (lit t) F E) (EF t)) XXout L3.
+    -> constyping XXin2 CM MM FM B SP ([t] EF t) XXout
+    -> constyping XXin CM MM FM B S
+      ([t] seq (write (lit t) F E) (EF t)) XXout.
 
 constyping/mn
   : fldmap`lookup FM F (ty/ nn/yes A C)
-    -> reftyping L1 CM MM B E (out/expr RT XX1) L2
+    -> reftyping CM MM B E (out/expr RT XX1)
     -> subtype CM RT (ty/ nn/may A C) set/0 set/0 XX2
     -> effects`join XX1 XX2 XX12
     -> effects`join XXin XX12 XXin2
-    -> constyping L2 XXin2 CM MM FM B S ([t] EF t) XXout L3
-    -> constyping L1 XXin CM MM FM B S
-      ([t] seq (write (lit t) F E) (EF t)) XXout L3.
+    -> constyping XXin2 CM MM FM B S ([t] EF t) XXout
+    -> constyping XXin CM MM FM B S
+      ([t] seq (write (lit t) F E) (EF t)) XXout.
 
 constymatch*
-  : loc -> efxmap -> clsmap -> methmap -> fldmap -> cxt
-  -> set -> (object -> func) -> methty -> loc -> type.
+  : efxmap -> clsmap -> methmap -> fldmap -> cxt
+    -> set -> (object -> func) -> methty -> type.
 
 constymatch/base
   : clsmap`lookup CM C FM
-    -> constyping L1 no-effect CM MM FM B S ([t] E t) XXactual L2
+    -> constyping no-effect CM MM FM B S ([t] E t) XXactual
     -> effects`leq XXactual (effects/ XM MX)
-    -> constymatch* L1 XM CM MM FM B S ([t] func/0 (E t))
-      (methty/base (ty/ nn/yes annot/unique C) MX) L2.
+    -> constymatch* XM CM MM FM B S ([t] func/0 (E t))
+      (methty/base (ty/ nn/yes annot/unique C) MX).
 
 constymatch/args/unique
   : clsmap`lookup CM C FM1
     -> fldmap`domain FM1 S1
     -> set2inner-efxmap S1 efx/consume M
-    -> efxmap`join XM1 (efxmap/+ L1 M efxmap/0) XM
-    -> ({x} cxt`update B L1 (cxtv/ x T) (BF x))
-    -> ({x} constymatch* (s L1) XM CM MM FM (BF x) S ([t] (F t x)) CT L2)
-    -> constymatch* L1 XM1 CM MM FM B S ([t] (func/+ ([o] F t o)))
-      (methty/arg (ty/ NN annot/unique C) set/0 set/0 CT) L2.
+    -> ({n} efxmap`join XM1 (efxmap/+ n M efxmap/0) (XM n))
+    -> ({n}{x}{_:object-index x n}
+         constymatch* (XM n) CM MM FM (cxt/cons x (ty/ NN annot/unique C) B)
+         S ([t] (F t x)) CT)
+    -> constymatch* XM1 CM MM FM B S ([t] (func/+ ([o] F t o)))
+      (methty/arg (ty/ NN annot/unique C) set/0 set/0 CT).
 
 constymatch/args/borrow
   : set2inner-efxmap RS efx/read Mr
     -> set2inner-efxmap WS efx/write Mw
     -> inner-efxmap`join Mr Mw Mrw
-    -> efxmap`join XM1 (efxmap/+ L1 Mrw efxmap/0) XM
-    -> efxmap`join XM1 (efxmap/+ L1 M efxmap/0) XM
-    -> ({x} cxt`update B L1 (cxtv/ x T) (BF x))
-    -> ({x} constymatch* (s L1) XM CM MM FM (BF x) S ([t] (F t x)) CT L2)
-    -> constymatch* L1 XM1 CM MM FM B S ([t] (func/+ ([o] F t o)))
-      (methty/arg (ty/ NN annot/borrow C) set/0 set/0 CT) L2.
+    -> ({n} efxmap`join XM1 (efxmap/+ n Mrw efxmap/0) (XM n))
+    -> ({n}{x}{_:object-index x n}
+         constymatch* (XM n) CM MM FM (cxt/cons x (ty/ NN annot/borrow C) B)
+         S ([t] (F t x)) CT)
+    -> constymatch* XM1 CM MM FM B S ([t] (func/+ ([o] F t o)))
+      (methty/arg (ty/ NN annot/borrow C) set/0 set/0 CT).
 
 constymatch/args/shared
-  : ({x} cxt`update B L1 (cxtv/ x T) (BF x))
-    -> ({x} constymatch* (s L1) XM CM MM FM (BF x) S ([t] (F t x)) CT L2)
-    -> constymatch* L1 XM1 CM MM FM B S ([t] (func/+ ([o] F t o)))
-      (methty/arg (ty/ NN annot/shared C) set/0 set/0 CT) L2.
+  : ({x} constymatch* XM CM MM FM
+      (cxt/cons x (ty/ NN annot/shared C) B) S ([t] (F t x)) CT)
+    -> constymatch* XM CM MM FM B S ([t] (func/+ ([o] F t o)))
+      (methty/arg (ty/ NN annot/shared C) set/0 set/0 CT).
 
 %abbrev constymatch
-  = [CM][MM][FM][S][F][CT]
-    constymatch* (s (s z)) efxmap/0 CM MM FM cxt/nil S F CT L.
+  = [CM][MM][FM][S][F][CT] constymatch* efxmap/0 CM MM FM cxt/nil S F CT.
+
+% ======================== end of Method Typing ============================
 
 
-%%% program type
+% ======================= Program Typing =================================
+% Checking method map against prog
+% ========================================================================
 
 select-fields : fldmap -> set -> type.
 
@@ -432,5 +474,4 @@ methmapmatch/+/meth
 
 %abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
 
-
-%%% Theorems
+% ===================== end of Program Typing =============================
