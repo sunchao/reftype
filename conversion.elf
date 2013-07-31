@@ -1,11 +1,20 @@
 %%% converting *map to permission
 
+
 % ==============================================
 % ================ Definitions =================
 % ==============================================
 
 %abbrev fracperm = fraction -> permission.
 
+%abbrev nested-perm : object -> permission =
+    [r] (unitperm (nonlinear (nested (allperm r) null all))).
+
+
+% ============= set2facts =================================
+% Convert a set of object locations to a
+% disjunction of objequal facts. Used in output.
+% =========================================================
 
 set2facts : object -> set -> formula -> type.
 
@@ -17,6 +26,34 @@ set2facts/U
     -> set2facts O SP G
     -> set2facts O S (disj (objequal O (object/ N)) G).
 
+% ============= end of set2facts ===========================
+
+
+% ==================== cxt2perm ============================
+% Convert the explicit context to permissions, which
+% consists of non-null information, class predicate, and,
+% for shared the nesting facts, for each parameter.
+% Notice that, unique has the same permission as borrowed
+% parameter. We use a separate procedure to generate the
+% encumbered permission for them.
+% ==========================================================
+
+cxt2perm : clsmap -> predmap -> cxt -> permission -> type.
+
+cxt2perm/nil : cxt2perm _ _ cxt/nil empty.
+
+cxt2perm/cons
+  : cxt2perm CM PM B Pi2
+    -> ty2perm PM T PF
+    -> cxt2perm CM PM (cxt/cons O T B) ((PF O) , Pi2).
+
+% =================== end of cxt2perm ======================
+
+
+% ===================== apply-efx ===================================
+% Apply given effect to the input permission, and convert
+% it to another permission.
+% ===================================================================
 
 apply-efx : bool -> efx -> permission -> fracperm -> type.
 
@@ -28,19 +65,23 @@ apply-efx/consume/true : apply-efx true efx/consume Pi ([_] Pi).
 
 apply-efx/consume/false : apply-efx false efx/consume Pi ([_] empty).
 
+% =================== end of apply-efx ===============================
 
-%{ efxmap to permission.
-The boolean is used to control whether converted
-permission is input or output.
-Entry 0.0 should be converted to shared permission.
-clsmap should contain a special key 0, which maps
-to a special fldmap. }%
 
+% ==================== efxmap2perm ==============================
+% Convert a efxmap to permissions. Each entry ((O, F), X) in
+% the efxmap will be converted to a packed field permission with
+% the effect X been applied to it.
+% ===============================================================
+
+efxmap2perm : bool -> clsmap -> predmap -> cxt ->
+  efxmap -> fracperm -> type.
 
 inner-efxmap2perm : bool -> object -> fldmap -> predmap ->
   inner-efxmap -> fracperm -> type.
 
-inner-efxmap2perm/0 : inner-efxmap2perm _ _ _ _ inner-efxmap/0 ([_] empty).
+inner-efxmap2perm/0
+  : inner-efxmap2perm _ _ _ _ inner-efxmap/0 ([_] empty).
 
 inner-efxmap2perm/U
   : inner-efxmap`fresh MP F
@@ -50,14 +91,6 @@ inner-efxmap2perm/U
     -> apply-efx P X (unitperm (precise-exists O F PF)) Pi1
     -> inner-efxmap2perm P O FM PM MP Pi2
     -> inner-efxmap2perm P O FM PM M ([f] (Pi1 f), Pi2 f).
-
-
-%{ converting a efxmap to fractional permissions
-note that here to make this judgment total, we need
-to have the context consistent with the clsmap. }%
-
-efxmap2perm : bool -> clsmap -> predmap -> cxt ->
-  efxmap -> fracperm -> type.
 
 efxmap2perm/0 : efxmap2perm _ _ _ _ efxmap/0 ([_] empty).
 
@@ -70,9 +103,14 @@ efxmap2perm/U
     -> efxmap2perm P CM PM B XMP Pi2
     -> efxmap2perm P CM PM B XM ([f] (Pi1 f) , Pi2 f).
 
+% ============== end of efxmap2perm ==============================
 
-%abbrev nested-perm : object -> permission =
-    [r] (unitperm (nonlinear (nested (allperm r) null all))).
+
+
+% ======================= maybe-efx2perm ==============================
+% Convert "maybe-efx" to permissions. "maybe-efx" is used to 
+% record effects on shared.
+% =====================================================================
 
 maybe-efx2perm : maybe-efx -> fracperm -> type.
 
@@ -82,6 +120,14 @@ maybe-efx2perm/just
   : maybe-efx2perm (maybe-efx/just X) PF
     <- apply-efx true X (unitperm (basic null all null)) PF.
 
+% ===================== end of maybe-efx2perm =========================
+
+
+
+% ====================== effects2input =================================
+% Convert effects to input permissions. This is simply a wrapper on
+% efxmap2perm and maybe-efx2perm, as the definition of effects.
+% ======================================================================
 
 effects2input : clsmap -> predmap -> cxt -> effects -> fracperm -> type.
 
@@ -90,12 +136,29 @@ effects2input/
     -> maybe-efx2perm MX ([f] Pi2 f)
     -> effects2input CM PM B (effects/ XM MX) ([f] Pi1 f , Pi2 f).
 
+% ====================== end of effects2input ==========================
 
-%{
-06-16-13: efxmap may contain inner-efxmap/0 as value. Do we need to
-remove them first? Maybe not, since tgtmap in reftype should definitely
-be well-formed.
-}%
+
+% ===================== effects2output ===================================
+% Convert effects to output (defined in permission-type/environment.elf).
+% The format of output varies depending on the resulting reftype. The
+% cases for unique reftype are basically combinations on size of set and
+% tgtmap. We need special case when tgtmap size is zero since
+%   Pi, Pi --|- empty is obviously unsound: Pi should come from at least
+% one field permission. 
+% 
+% Another special case is when set and tgtmap are both empty, and 
+% the unique permission is not from shared. This is the case when we 
+% have method calls (including constructor call) that return fresh
+% locations alone with permissions. These locations are local, and unless
+% they are later bound to a let-expression, they will only be used once.
+% For let-expression, we use substitution to check effects.
+%
+% Note:
+% 06-16-13: efxmap may contain inner-efxmap/0 as value. Do we need to
+% remove them first? Maybe not, since tgtmap in reftype should definitely
+% be well-formed.
+% ========================================================================
 
 effects2output : clsmap -> predmap -> cxt ->
     reftype -> effects -> (fraction -> expr-output) -> type.
@@ -110,7 +173,8 @@ effects2output/shared
         (output/expr r % shared don't need scaling
           (combine (PF r) (combine (Pi1 f) (Pi2 f))))).
 
-%%% different cases for unique targets
+
+% different cases for unique targets
 
 effects2output/unique/0
   : set`size S z
@@ -197,14 +261,53 @@ effects2output/unique/+t
                       (scale f (PF r)) (combine (Pi2 f) (Pi3 f))))
                   (Pi1 f))))))).
 
+% ================ end of effects2output =================================
 
-%{ Context => Permission
-Here for unique references, we need to generate encumbered permission
-for all fields of its class. This is because we carve the field permissions
-out of *all* permission before we check method body, and use each
-field permission individually. But, in case we want to consume a unique
-parameter, we need to get back the all permission, with the encumbered
-permission. }%
+
+% ===================== all-efx? ==================================
+% Whether an inner-efxmap contains same effect for ALL fields
+% in fldmap.
+% =================================================================
+
+all-efx? : efx -> fldmap -> inner-efxmap -> bool -> type.
+
+all-efx?/0 : all-efx? _ fldmap/0 inner-efxmap/0 true.
+
+all-efx?/+/1 : all-efx? X1 FM M B
+                 <- fldmap`fresh FMP F
+                 <- fldmap`update FMP F _ FM
+                 <- inner-efxmap`fresh MP F
+                 <- inner-efxmap`update MP F X2 M
+                 <- efx`eq? X1 X2 B1
+                 <- all-efx? X1 FMP MP B2
+                 <- bool`and B1 B2 B.
+
+all-efx?/+/2 : all-efx? _ FM M false
+               <- fldmap`lookup FM F _
+               <- inner-efxmap`fresh M F.
+
+all-efx?/+/3 : all-efx? _ FM M false
+               <- fldmap`fresh FM F
+               <- inner-efxmap`lookup M F _.
+
+% ================== end of all-efx? ===============================
+
+
+% ===================== make-encumbered ================================
+% Make encumbered permission for unique parameters that are consumed 
+% as a whole. This is necessary since in efxmap2perm, we convert
+% each entry (O, F, X) to a packed field permission. However, for 
+% consuming a unique parameter, we need to restore the permission for
+% that object, and thus we must provide encumbered permission,
+% and apply linear-modus-ponens to them. 
+
+% This definition also takes a boolean flag, as in efxmap2perm, since
+% in output, the encumbered permission is gone.
+% ======================================================================
+
+make-encumbered
+  : bool -> clsmap -> predmap -> cxt -> efxmap -> permission -> type.
+
 
 fldmap2perm : predmap -> fldmap -> object -> permission -> type.
 
@@ -217,35 +320,42 @@ fldmap2perm/U
     -> ty2perm PM T PF
     -> fldmap2perm PM FM O (unitperm (precise-exists O F PF) , Pi).
 
+make-permission
+  : bool -> object -> fldmap -> predmap ->
+		 inner-efxmap -> permission -> type.
 
-%% wierd name - but I like it.
+make-permission/tt
+  : make-permission true O FM _ M Pi
+    <- all-efx? efx/consume FM M true
+    <- fldmap2perm PM FM O Pi.
 
-cxt2perm1 : object -> clsmap -> predmap -> ty -> permission -> type.
+make-permission/tf
+  : make-permission false O FM _ M empty
+    <- all-efx? efx/consume FM M true.
 
-cxt2perm1/unique
-  : clsmap`lookup CM C FM
-    -> ({o} fldmap2perm PM FM o (AF o))
-    -> nn2perm NN AF PF
-    -> predmap`lookup PM C CP
-    -> cxt2perm1 O CM PM (ty/ NN annot/unique C) (PF CP O).
-
-cxt2perm1/borrow
-  : ty2perm PM (ty/ NN annot/borrow C) PF
-    -> cxt2perm1 O CM PM (ty/ NN annot/borrow C) (PF O).
-
-cxt2perm1/shared
-  : ty2perm PM (ty/ NN annot/shared C) PF
-    -> cxt2perm1 O CM PM (ty/ NN annot/shared C) (PF O).
+make-permission/f
+  : make-permission P O FM PM M empty
+    <- all-efx? efx/consume FM M false.
 
 
-cxt2perm : clsmap -> predmap -> cxt -> permission -> type.
+make-encumbered/0 : make-encumbered _ _ _ _ efxmap/0 empty.
 
-cxt2perm/nil : cxt2perm _ _ cxt/nil empty.
+make-encumbered/U
+  : efxmap`fresh XMP N
+    -> efxmap`update XMP N M XM
+    -> cxt`lookup B (object/ N) (ty/ _ _ C)
+    -> clsmap`lookup CM C FM
+    -> make-permission P (object/ N) FM PM M Pi1
+    -> make-encumbered P CM PM B XMP Pi2
+    -> make-encumbered P CM PM B XM (Pi1 , Pi2).
 
-cxt2perm/cons
-  : cxt2perm CM PM B Pi2
-    -> cxt2perm1 O CM PM T Pi1
-    -> cxt2perm CM PM (cxt/cons O T B) (Pi1 , Pi2).
+% ==================== end of make-encumbered ========================
+
+
+
+% ==================== methty2proctype ===============================
+% Convert methty to proctype.
+% ====================================================================
 
 
 % The first set of permissions are those from read and write effects,
@@ -295,11 +405,16 @@ methty2proctype/args/shared
 %abbrev methty2proctype
   = [PM][MT][PT] methty2proctype* PM ([_] empty) empty MT PT.
 
+% ====================== end of methty2proctype ============================
+
+
+% ========================= consty2proctype ================================
+% Convert consty (constructor type) to proctype with a hole.
+% ==========================================================================
 
 consty2proctype*
   : predmap -> fldmap -> fracperm
     -> permission -> methty -> (object -> proctype) -> type.
-
 
 %abbrev obj-notnull : object -> permission
     = ([r] unitperm (nonlinear (neg (objequal r (object/ z))))).
@@ -353,6 +468,13 @@ consty2proctype/args/shared
    = [PM][FM][CT][PTF] consty2proctype* PM FM ([_] empty) empty CT PTF.
 
 
+% ========================= end of consty2proctype =======================
+
+
+% ====================== methmap2progtype =================================
+% Convert methmap to progtype, calls methty2proctype and consty2proctype.
+% =========================================================================
+
 methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
 
 methmap2progtype/0 : methmap2progtype _ _ methmap`map/0 progtype`map/0.
@@ -375,6 +497,12 @@ methmap2progtype/U/m
     <- methmap2progtype CM PM MMP WP
     <- progtype`update WP N PT W.
 
+% ========================= end of methmap2progtype =======================
+
+
+% ======================== env2progtype =====================
+% Convert a methmap to progtype, calling methmap2progtype.
+% ===========================================================
 
 env2progtype : clsmap -> methmap -> progtype -> type.
 
@@ -382,6 +510,8 @@ env2progtype/
   : env2progtype CM MM W
     <- clsmap2predmap CM PM
     <- methmap2progtype CM PM MM W.
+
+% ==================== end of env2progtype ==================
 
 
 
@@ -392,7 +522,6 @@ env2progtype/
 % =========================================
 % First, extra permission-related theorems
 % =========================================
-
 
 %theorem permission`eq-implies-equiv
   : forall* {Pi1} {Pi2}
@@ -462,10 +591,13 @@ env2progtype/
 %total {} (permission`implies-respects-eq-right _ _ _).
 
 
+% ========= end of extra permission-related theorems ================
 
-% ================
-% false-implies-XX
-% ================
+
+
+% =========================================================
+% ================== false-implies-XX =====================
+% =========================================================
 
 %theorem false-implies-set2facts
   : forall* {O} {S} {G}
@@ -506,9 +638,9 @@ env2progtype/
 %total {} (false-implies-efxmap2perm _ _).
 
 
-% ================================
-% totality (constructive) theorems
-% ================================
+% ==================================================================
+% =================== totality (constructive) theorems =============
+% ==================================================================
 
 %theorem set2facts-total*
   : forall {O}{S} exists {G} {S=>G: set2facts O S G} true.
@@ -717,9 +849,9 @@ consistent with the clsmap. }%
 %total {} (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _).
 
 
-% =======================
-% XX-respects-eq theorems
-% =======================
+% =======================================================================
+% ==================== XX-respects-eq theorems ==========================
+% =======================================================================
 
 %theorem set2facts-respects-eq
   : forall* {S1} {S2} {O1} {O2} {G1} {G2}
@@ -811,11 +943,10 @@ consistent with the clsmap. }%
 %total { } (effects2output-respects-eq _ _ _ _ _ _ _).
 
 
-% ===================
-% uniqueness theorems
-% ===================
 
-%% set2facts is NOT unique, but results are "equivalent"
+% ====================================================================
+% ======================== XX/U-inversion ============================
+% ====================================================================
 
 %theorem set2facts/U-inversion
   : forall* {O} {S} {SP} {G} {N} 
@@ -904,37 +1035,6 @@ consistent with the clsmap. }%
 (set2facts/U-inversion/L _ _ N1 _ _ _ _ _ _ _).
 
 
-%theorem set2facts-bimplies
-  : forall* {O1} {O2} {S1} {S2} {G1} {G2}
-    forall {S1=>G1: set2facts O1 S1 G1}
-    {S2=>G2: set2facts O2 S2 G2}
-    {E: object`eq O1 O2} {E: set`eq S1 S2}
-    exists {IMP1: bimplies true G1 G2} {IMP2: bimplies true G2 G1}
-    true.
-
-%worlds (objvar | fracvar) (set2facts-bimplies _ _ _ _ _ _).
-%trustme %total {} (set2facts-bimplies _ _ _ _ _ _).
-
-
-%theorem apply-efx-deterministic
-  : forall* {P1} {P2} {X1} {X2} {Pi1} {Pi2} {PF1} {PF2}
-    forall {AP1: apply-efx P1 X1 Pi1 PF1}
-    {AP2: apply-efx P2 X2 Pi2 PF2}
-    {E: bool`eq P1 P2}
-    {E: efx`eq X1 X2}
-    {E: permission`eq Pi1 Pi2}
-    exists {E: {f} permission`eq (PF1 f) (PF2 f)}
-    true.
-
-- : apply-efx-deterministic AP1 AP2
-    bool`eq/ efx`eq/ permission`eq/ ([_] permission`eq/).
-
-%worlds () (apply-efx-deterministic _ _ _ _ _ _).
-%total {} (apply-efx-deterministic _ _ _ _ _ _).
-
-%abbrev apply-efx-unique = apply-efx-deterministic.
-
-
 %theorem inner-efxmap2perm/U-inversion
   : forall* {P} {M} {MP} {O} {FM} {PM} {N} {X} {Pi}
     forall {M2P: inner-efxmap2perm P O FM PM M ([f] (Pi f))}
@@ -997,23 +1097,6 @@ consistent with the clsmap. }%
 %total (A B)
 (inner-efxmap2perm/U-inversion A _ _ _ _ _ _ _ _ _ _ _)
 (inner-efxmap2perm/U-inversion/L _ _ _ _ _ B _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem inner-efxmap2perm-equiv
-  : forall* {P1} {P2} {O1} {O2} {FM1} {FM2}
-    {PM1} {PM2} {M1} {M2} {Pi1} {Pi2}
-    forall {M1=>Pi1: inner-efxmap2perm P1 O1 FM1 PM1 M1 Pi1}
-    {M2=>Pi2: inner-efxmap2perm P2 O2 FM2 PM2 M2 Pi2}
-    {E: bool`eq P1 P2}
-    {E: object`eq O1 O2}
-    {E: fldmap`eq FM1 FM2}
-    {E: predmap`eq PM1 PM2}
-    {E: inner-efxmap`eq M1 M2}
-    exists {EQV: {f} equiv (Pi1 f) (Pi2 f)}
-    true.
-
-%worlds (objvar) (inner-efxmap2perm-equiv _ _ _ _ _ _ _ _).
-%trustme %total {} (inner-efxmap2perm-equiv _ _ _ _ _ _ _ _).
 
 
 %theorem efxmap2perm/U-inversion
@@ -1081,6 +1164,61 @@ consistent with the clsmap. }%
 (efxmap2perm/U-inversion/L _ _ _ _ _ B _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
+
+% ====================================================================
+% ======================= uniqueness theorems ========================
+% ====================================================================
+
+%% set2facts is NOT unique, but results are "equivalent"
+
+%theorem set2facts-bimplies
+  : forall* {O1} {O2} {S1} {S2} {G1} {G2}
+    forall {S1=>G1: set2facts O1 S1 G1}
+    {S2=>G2: set2facts O2 S2 G2}
+    {E: object`eq O1 O2} {E: set`eq S1 S2}
+    exists {IMP1: bimplies true G1 G2} {IMP2: bimplies true G2 G1}
+    true.
+
+%worlds (objvar | fracvar) (set2facts-bimplies _ _ _ _ _ _).
+%trustme %total {} (set2facts-bimplies _ _ _ _ _ _).
+
+
+%theorem apply-efx-deterministic
+  : forall* {P1} {P2} {X1} {X2} {Pi1} {Pi2} {PF1} {PF2}
+    forall {AP1: apply-efx P1 X1 Pi1 PF1}
+    {AP2: apply-efx P2 X2 Pi2 PF2}
+    {E: bool`eq P1 P2}
+    {E: efx`eq X1 X2}
+    {E: permission`eq Pi1 Pi2}
+    exists {E: {f} permission`eq (PF1 f) (PF2 f)}
+    true.
+
+- : apply-efx-deterministic AP1 AP2
+    bool`eq/ efx`eq/ permission`eq/ ([_] permission`eq/).
+
+%worlds () (apply-efx-deterministic _ _ _ _ _ _).
+%total {} (apply-efx-deterministic _ _ _ _ _ _).
+
+%abbrev apply-efx-unique = apply-efx-deterministic.
+
+
+%theorem inner-efxmap2perm-equiv
+  : forall* {P1} {P2} {O1} {O2} {FM1} {FM2}
+    {PM1} {PM2} {M1} {M2} {Pi1} {Pi2}
+    forall {M1=>Pi1: inner-efxmap2perm P1 O1 FM1 PM1 M1 Pi1}
+    {M2=>Pi2: inner-efxmap2perm P2 O2 FM2 PM2 M2 Pi2}
+    {E: bool`eq P1 P2}
+    {E: object`eq O1 O2}
+    {E: fldmap`eq FM1 FM2}
+    {E: predmap`eq PM1 PM2}
+    {E: inner-efxmap`eq M1 M2}
+    exists {EQV: {f} equiv (Pi1 f) (Pi2 f)}
+    true.
+
+%worlds (objvar) (inner-efxmap2perm-equiv _ _ _ _ _ _ _ _).
+%trustme %total {} (inner-efxmap2perm-equiv _ _ _ _ _ _ _ _).
+
+
 %theorem efxmap2perm-equiv
   : forall* {P1} {P2} {CM1} {CM2} {PM1} {PM2} {B1} {B2}
     {XM1} {XM2} {Pi1} {Pi2}
@@ -1095,9 +1233,9 @@ consistent with the clsmap. }%
 %trustme %total {} (efxmap2perm-equiv _ _ _ _ _ _ _ _).
 
 
-% ==========================
-% XX-fresh-update-implies-XX
-% ==========================
+% ======================================================================
+% ==================== XX-fresh-update-implies-XX ======================
+% ======================================================================
 
 
 %% fresh-update-implies-equiv-converse
@@ -1269,15 +1407,14 @@ consistent with the clsmap. }%
   _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _ _ _  _ _ _).
 
 
-
-% ============================================
+% =======================================================================
 % theorems about leq - basically:
 %
 % if XM1 is less or equal than XM2, and
 % XM1 ==> Pi1, XM2 ==> Pi2.
 % then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 %
-% =============================================
+% =======================================================================
 
 %theorem can-split-permission
   : forall* {Q1} {Pi}
@@ -1485,7 +1622,7 @@ consistent with the clsmap. }%
 %total (L) (maybe-efx-leq-implies-permission-leq L _ _ _ _).
 
 
-% =======================================
+% ==========================================================
 % deep-disjoint-join-implies-equiv:
 %
 % If we have two effect maps XM1 and XM2,
@@ -1501,7 +1638,7 @@ consistent with the clsmap. }%
 %
 % Pi1 , Pi2 <==> Pi
 %
-% =======================================
+% ==========================================================
 
 
 %theorem inner-efxmap`disjoint-join-implies-equiv
@@ -2078,23 +2215,154 @@ consistent with the clsmap. }%
 %total (T) (equiv-empty-implies-permission-equiv T _ _ _).
 
 
-%theorem lookup-implies-cxt2perm1
-  : forall* {CM} {PM} {O} {T} {B} {Pi}
-    forall {BL: cxt`lookup B O T}
-    {B2P: cxt2perm CM PM B Pi}
-    exists {PF} {B2F: cxt2perm1 O CM PM T PF}
-    {Pi2} {EQV: equiv Pi (PF , Pi2)}
+%theorem can-duplicate-borrow
+  : forall* {PM} {NN} {C} {PF}
+    forall {T2PF: ty2perm PM (ty/ NN annot/borrow C) PF}
+    exists {IMP: {o} implies (PF o) ((PF o) , (PF o))}
     true.
 
-- : lookup-implies-cxt2perm1
-    cxt`lookup/hit (cxt2perm/cons _ B2F) _ B2F _ equiv/reflexive.
+- : can-duplicate-borrow
+    (ty2perm/ _ nn2perm/yes annot2perm/borrow)
+    ([_] implies/trans5
+      (implies/combine
+        (implies/duplicate)
+        (implies/combine
+          (implies/reflexive)
+          (implies/duplicate)))
+      (implies/equiv (equiv/symmetric equiv/associate))
+      (implies/combine
+        (implies/reflexive)
+        (implies/equiv equiv/roll3))
+      (implies/equiv equiv/associate)
+      (implies/combine
+        (implies/combine
+          (implies/reflexive)
+          (implies/equiv
+            (equiv/transitive
+              (equiv/symmetric equiv/identity)
+              (equiv/commute))))
+        (implies/reflexive))).
 
-- : lookup-implies-cxt2perm1
-    (cxt`lookup/miss BL NE) (cxt2perm/cons B2P _) _ B2F _
-    (equiv/transitive
-      (equiv/combine (equiv/reflexive) (EQV))
-      (equiv/roll2))
-    <- lookup-implies-cxt2perm1 BL B2P _ B2F _ EQV.
+- : can-duplicate-borrow
+    (ty2perm/ _ nn2perm/may annot2perm/borrow)
+    ([_] implies/trans3
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/trans3
+          (implies/combine
+            (implies/reflexive)
+            (implies/duplicate))
+          (implies/equiv equiv/associate)
+          (implies/combine
+            (implies/reflexive)
+            (implies/equiv
+              (equiv/transitive
+                (equiv/symmetric equiv/identity)
+                (equiv/commute))))))
+      (implies/cond-distribute)
+      (implies/equiv equiv/commute)).
 
-%worlds () (lookup-implies-cxt2perm1 _ _ _ _ _ _).
-%total (B) (lookup-implies-cxt2perm1 _ B _ _ _ _).
+%worlds () (can-duplicate-borrow _ _).
+%total {} (can-duplicate-borrow _ _).
+
+
+%theorem can-duplicate-shared
+  : forall* {PM} {NN} {C} {PF}
+    forall {T2PF: ty2perm PM (ty/ NN annot/shared C) PF}
+    exists {IMP: {o} implies (PF o) ((PF o) , (PF o))}
+    true.
+
+- : can-duplicate-shared
+    (ty2perm/ _ nn2perm/may annot2perm/shared)
+    ([_] implies/trans3
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/trans
+          (implies/combine2conj)
+          (implies/duplicate)))
+      (implies/cond-distribute)
+      (implies/combine
+        (implies/cond-inner
+          (bimplies/reflexive)
+          (bimplies/reflexive)
+          (implies/reflexive)
+          (implies/conj2combine))
+        (implies/cond-inner
+          (bimplies/reflexive)
+          (bimplies/reflexive)
+          (implies/reflexive)
+          (implies/conj2combine)))).
+
+- : can-duplicate-shared
+    (ty2perm/ _ nn2perm/yes annot2perm/shared)
+    ([_] implies/trans4
+      (implies/combine
+        (implies/reflexive)
+        (implies/combine2conj))
+      (implies/combine2conj)
+      (implies/duplicate)
+      (implies/combine
+        (implies/trans
+          (implies/conj2combine)
+          (implies/combine
+            (implies/reflexive)
+            (implies/conj2combine)))
+        (implies/trans
+          (implies/conj2combine)
+          (implies/combine
+            (implies/reflexive)
+            (implies/conj2combine))))).
+
+%worlds () (can-duplicate-shared _ _).
+%total {} (can-duplicate-shared _ _).
+
+
+%theorem clsmap-cxt-lookup-implies-ty2perm
+  : forall* {CM} {PM} {T} {B} {Pi} {O}
+    forall {CM-B: clsmap-cxt CM B}
+    {BL: cxt`lookup B O T}
+    {B2P: cxt2perm CM PM B Pi}
+    exists {PF} {T2PF: ty2perm PM T PF}
+    {EQV: implies Pi ((PF O) , Pi)}
+    true.
+
+- : clsmap-cxt-lookup-implies-ty2perm
+    (clsmap-cxt/cons/b _ _)
+    (cxt`lookup/hit:cxt`lookup _ O _) (cxt2perm/cons _ T2PF) _ T2PF
+    (implies/trans
+      (implies/combine
+        (IMP O) (implies/reflexive))
+      (implies/equiv (equiv/symmetric equiv/associate)))
+    <- can-duplicate-borrow T2PF IMP.
+
+- : clsmap-cxt-lookup-implies-ty2perm
+    (clsmap-cxt/cons/s _ _)
+    (cxt`lookup/hit:cxt`lookup _ O _) (cxt2perm/cons _ T2PF) _ T2PF
+    (implies/trans
+      (implies/combine
+        (IMP O) (implies/reflexive))
+      (implies/equiv (equiv/symmetric equiv/associate)))
+    <- can-duplicate-shared T2PF IMP.
+
+- : clsmap-cxt-lookup-implies-ty2perm
+    (clsmap-cxt/cons/b CM-B _)
+    (cxt`lookup/miss BL _) (cxt2perm/cons B2P _) _ T2PF
+    (implies/trans
+      (implies/combine (implies/reflexive) (IMP))
+      (implies/equiv (equiv/roll2)))
+    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B2P _ T2PF IMP.
+
+- : clsmap-cxt-lookup-implies-ty2perm
+    (clsmap-cxt/cons/s CM-B _)
+    (cxt`lookup/miss BL _) (cxt2perm/cons B2P _) _ T2PF
+    (implies/trans
+      (implies/combine (implies/reflexive) (IMP))
+      (implies/equiv (equiv/roll2)))
+    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B2P _ T2PF IMP.
+
+%worlds () (clsmap-cxt-lookup-implies-ty2perm _ _ _ _ _ _).
+%total (B) (clsmap-cxt-lookup-implies-ty2perm _ B _ _ _ _).
