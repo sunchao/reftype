@@ -538,3 +538,114 @@ fact:
   Pi2 | E => Out2, Out1 => Out2.
 
 This is the frame-rule for reftyping.
+
+
+<2013-07-06 Sat>
+
+* New Locations
+
+In my current type system, there are two places that introduce new
+bindings: *let-expression* and *calling method* (include new).
+However, these two are a little bit difference, the new binding for
+the former is put into the explicit context and later will be
+subsituted. For the latter, it is not so.
+
+Since we do explicit substitution, we don't need to create any new
+binding for the result of method call, since we don't need to worry
+about aliasing. The only possibility for aliasing on result of method
+call is when it is later assigned to a let-binding, in which case we
+will handle via the substitution.
+
+* Checking Examples
+
+Another tricky problem that I spent sometime thinking today is the
+several test cases that I'm trying to check with my type system. For
+the first example:
+
+  x.head = x.head.next
+
+(which is quite common in linked list manipulation). Here, suppose
+both *head* and *next* are unique fields.
+
+The expression "x.head.next" will produce a "read x.head.next" effect,
+and the whole expression will produce a "consume x.head" and a "write
+x.head" effect. In ideal, however, we would like to cancel the consume
+effect with, since the permission for *x.head* is immediately restored
+after being consumed.
+
+First, we would pass in the whole permission for *x.head*:
+
+  \exists rh. (x.head -> rh + rh.all->0 + P(rh))
+
+Then we unpack it to be read for write:
+
+  x.head -> rh + rh.all->0 + P(rh)
+
+Problem arise when we need to be read for x.head.next, since my
+current system requires the permission to be packed again for
+converting from a "read" effect. However, this way we will lose track
+of the read permission.
+
+One proposal would be to convert read and write effects to unpacked
+permissions, that is:
+
+  write x.head ===> [rh] rx.head->rh + rh.all->0 + P(rh)
+
+THen, checking "x.head.next" with above permission will give us:
+
+  [rg] rg.all->0 + P(rg) + (rg.all->0 + P(rg)) ---|-
+             \exists rh. (x.head -> rh + rh.all->0 + P(rh))
+
+Which is still not right: we packed the permission for x.head, again,
+too early.
+
+In ideal world, we want checking "x.head.next" to produce a
+permission:
+
+  [rg] rg.all->0 + P(rg) + (rg.all->0 + P(rg)) --|- rh.all->0 +
+  rx.head->rh + P(rh)
+
+This way, we still keep the field permission, and thus can use it to
+check the write.
+
+<2013-07-28 Sun>
+
+* Regarding creating read permission
+  For read effects, maybe we can just convert them to some concrete
+  fraction permission, like 1/2. This is possible under the current
+  systems because when checking method call, we require effects for
+  each argument to be mutually disjoint. Thus, a read effect will not
+  be used to check more than one argument. However, this is not so
+  desireable, since we may loosen this restriction in future.
+  
+** TODO define conversion for read effect
+
+
+<2013-07-30 Tue>
+
+A use technique for debugging Twelf program. When your proof becomes
+large and contains lots of variables, usually it's quite easy to
+accidentally unify different variables, and thus will get you "output
+converage error". This is notoriously difficult to debug. One way is
+to explicitly give names to those implicit variables, so Twelf will
+give you an error when it tries to unify them. The other way, which I
+found recently, is to define a "fake" theorem, which takes no input,
+and produces the exact output that the theorem requires. Then, you can
+insert this fake theorem to each point in your proof, and check if the
+proof passes. This can help you to further localize where the
+unification happens, and thus provides a easier way to identity the bug.
+
+
+<2013-07-30 Tue>
+
+Another problem when checking an expression that consumes a whole
+object. In current system, we convert unique parameter in context to a
+encumbered permission. Then, when we are consuming a unique object, we
+know that we have all the fields for that object, and therefore we can
+get back the whole permission for the object. However, after
+consumption, the encumbered permission is lost, and thus we cannot
+convert context to the same permission before.
+
+It's helpful to think when we need to use the encumbered permission.
+The only place we need it is in consuming whole object, and this won't
+happen twice.
