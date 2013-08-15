@@ -217,7 +217,7 @@ efxmap-minimum-efx/U : efxmap-minimum-efx* X1 XM X3
                 <- efxmap-minimum-efx* X2 XM' X3.
 
 
-%abbrev efxmap-minimum-efx = [M][X] efxmap-minimum-efx* efx/read M X.
+%abbrev efxmap-minimum-efx = [M][X] efxmap-minimum-efx* efx/write M X.
 
 % =========================================================================
 
@@ -247,7 +247,6 @@ efxmap-minimum-efx/U : efxmap-minimum-efx* X1 XM X3
 % permission. In other words, if all encumbered permissions are not
 % fractional, then we shouldn't apply scale.
 % ========================================================================
-
 
 effects2output : clsmap -> predmap -> cxt -> reftype -> effects -> expr-output -> type.
 
@@ -513,7 +512,6 @@ env2progtype/
 % First, extra permission-related theorems
 % =========================================================================
 
-
 %theorem permission`eq-implies-equiv
   : forall* {Pi1} {Pi2}
     forall {EQ: permission`eq Pi1 Pi2}
@@ -581,33 +579,41 @@ env2progtype/
 %worlds () (permission`implies-respects-eq-right _ _ _).
 %total {} (permission`implies-respects-eq-right _ _ _).
 
-
-%theorem efxmap-minimum-efx-helper-respects-eq
-  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
-    forall {MX: efxmap-minimum-efx-helper X1 M X2}
-    {E: efx`eq X1 X1'} {E: inner-efxmap`eq M M'} {E: efx`eq X2 X2'}
-    exists {MX: efxmap-minimum-efx-helper X1' M' X2'}
-    true.
-
-- : efxmap-minimum-efx-helper-respects-eq MX efx`eq/ inner-efxmap`eq/ efx`eq/ MX.
-
-%worlds () (efxmap-minimum-efx-helper-respects-eq _ _ _ _ _).
-%total {} (efxmap-minimum-efx-helper-respects-eq _ _ _ _ _).
-
-
-%theorem efxmap-minimum-efx-respects-eq
-  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
-    forall {MX: efxmap-minimum-efx* X1 M X2}
-    {E: efx`eq X1 X1'} {E: efxmap`eq M M'} {E: efx`eq X2 X2'}
-    exists {MX: efxmap-minimum-efx* X1' M' X2'}
-    true.
-
-- : efxmap-minimum-efx-respects-eq MX efx`eq/ efxmap`eq/ efx`eq/ MX.
-
-%worlds () (efxmap-minimum-efx-respects-eq _ _ _ _ _).
-%total {} (efxmap-minimum-efx-respects-eq _ _ _ _ _).
-
 % =========================================================================
+
+
+% ============================ minimum-efx ================================
+% =========================================================================
+
+%theorem minimum-efx-commutative
+  : forall* {X1} {X2} {X}
+    forall {NC: efx`not-consume X1}
+    {NC: efx`not-consume X2}
+    {MX: minimum-efx X1 X2 X}
+    exists {MX': minimum-efx X2 X1 X}
+    true.
+
+- : minimum-efx-commutative _ _ (minimum-efx/< efx`lt/rw) (minimum-efx/> efx`lt/rw).
+
+- : minimum-efx-commutative _ _ (minimum-efx/=) (minimum-efx/=).
+
+- : minimum-efx-commutative _ _ (minimum-efx/> efx`lt/rw) (minimum-efx/< efx`lt/rw).
+
+%worlds () (minimum-efx-commutative _ _ _ _).
+%total {} (minimum-efx-commutative _ _ _ _). 
+
+
+%theorem efx/write-is-upper-bound
+  : forall {X} {NC-X: efx`not-consume X}
+    exists {MX: minimum-efx efx/write X X}
+    true.
+
+- : efx/write-is-upper-bound _ efx`not-consume/read (minimum-efx/> (efx`lt/rw)).
+
+- : efx/write-is-upper-bound _ efx`not-consume/write (minimum-efx/=).
+
+%worlds () (efx/write-is-upper-bound _ _ _).
+%total {} (efx/write-is-upper-bound _ _ _). 
 
 
 % ============================ false-implies-XX ===========================
@@ -833,7 +839,7 @@ env2progtype/
 - : clsmap-cxt-efxmap-implies-efxmap2perm _ _ clsmap-cxt-efxmap/0 _ efxmap2perm/0.
 
 - : clsmap-cxt-efxmap-implies-efxmap2perm CM-CM CM2PM
-    (clsmap-cxt-efxmap/U B-XM F U BL L DM-FM DM-M LE)
+    (clsmap-cxt-efxmap/U LE DM-M DM-FM L BL U F B-XM)
      (Pi1 , Pi2) (efxmap2perm/U F U BL L M2P XM2P)
     <- domain-leq-implies-inner-efxmap2perm
       CM-CM CM2PM L DM-FM DM-M LE Pi1 M2P
@@ -861,6 +867,20 @@ env2progtype/
 
 %worlds () (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _ _).
 %total {} (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _ _).
+
+
+%theorem not-consume-implies-efx2frac
+  : forall* {X}
+    forall {NC-X: efx`not-consume X}
+    exists {Q} {X2Q: efx2frac X Q}
+    true.
+
+- : not-consume-implies-efx2frac efx`not-consume/read _ efx2frac/read.
+
+- : not-consume-implies-efx2frac efx`not-consume/write _ efx2frac/write.
+
+%worlds (objvar) (not-consume-implies-efx2frac _ _ _).
+%total {} (not-consume-implies-efx2frac _ _ _). 
 
 % =========================================================================
 
@@ -938,6 +958,32 @@ env2progtype/
 
 %worlds (fracvar | objvar) (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 %total {} (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
+
+
+%theorem efxmap-minimum-efx-helper-respects-eq
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: efxmap-minimum-efx-helper X1 M X2}
+    {E: efx`eq X1 X1'} {E: inner-efxmap`eq M M'} {E: efx`eq X2 X2'}
+    exists {MX: efxmap-minimum-efx-helper X1' M' X2'}
+    true.
+
+- : efxmap-minimum-efx-helper-respects-eq MX efx`eq/ inner-efxmap`eq/ efx`eq/ MX.
+
+%worlds () (efxmap-minimum-efx-helper-respects-eq _ _ _ _ _).
+%total {} (efxmap-minimum-efx-helper-respects-eq _ _ _ _ _).
+
+
+%theorem efxmap-minimum-efx-respects-eq
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: efxmap-minimum-efx* X1 M X2}
+    {E: efx`eq X1 X1'} {E: efxmap`eq M M'} {E: efx`eq X2 X2'}
+    exists {MX: efxmap-minimum-efx* X1' M' X2'}
+    true.
+
+- : efxmap-minimum-efx-respects-eq MX efx`eq/ efxmap`eq/ efx`eq/ MX.
+
+%worlds () (efxmap-minimum-efx-respects-eq _ _ _ _ _).
+%total {} (efxmap-minimum-efx-respects-eq _ _ _ _ _).
 
 
 %theorem effects2output-respects-eq
@@ -1479,6 +1525,25 @@ env2progtype/
 %trustme %total {} (apply-efx-preserves-permission-leq _ _ _ _ _).
 
 
+%theorem minimum-efx-implies-leq
+  : forall* {X1} {X2} {X}
+    forall {MX: minimum-efx X1 X2 X}
+    exists {X<=X1: efx`leq X X1} {X<=X2: efx`leq X X2}
+    true.
+
+- : minimum-efx-implies-leq minimum-efx/=
+    (efx`leq/eq efx`eq/) (efx`leq/eq efx`eq/).
+
+- : minimum-efx-implies-leq (minimum-efx/< X1<=X2)
+    (efx`leq/eq efx`eq/) (efx`leq/lt X1<=X2).
+
+- : minimum-efx-implies-leq (minimum-efx/> X1<=X2)
+    (efx`leq/lt X1<=X2) (efx`leq/eq efx`eq/).
+
+%worlds () (minimum-efx-implies-leq _ _ _).
+%total {} (minimum-efx-implies-leq _ _ _).
+ 
+
 %theorem inner-efxmap`leq-implies-permission-leq
   : forall* {CM} {PM} {FM} {C} {MP} {P} {O} {M} {P1} {MPS} {FS}
     forall {CM-CM: clsmap-clsmap CM CM}
@@ -1635,7 +1700,7 @@ env2progtype/
 %trustme %total (L) (shared-efx-leq-implies-permission-leq L _ _ _ _).
 
 
-% ==========================================================
+% =========================================================================
 % deep-disjoint-join-implies-equiv:
 %
 % If we have two effect maps XM1 and XM2,
@@ -1651,7 +1716,7 @@ env2progtype/
 %
 % Pi1 , Pi2 <==> Pi
 %
-% ==========================================================
+% =========================================================================
 
 
 %theorem inner-efxmap`disjoint-join-implies-equiv
