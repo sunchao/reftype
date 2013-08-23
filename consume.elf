@@ -1,9 +1,9 @@
 %%% Facts about consuming effects
 
 
-% =================================
-% ========= Definitions ===========
-% =================================
+% =========================================================================
+% ============================ Definitions ================================
+% =========================================================================
 
 efx`not-consume : efx -> type.
 
@@ -36,26 +36,30 @@ efxmap`no-consume/U
     -> efxmap`no-consume XM.
 
 
-maybe-efx`no-consume : maybe-efx -> type.
-
-maybe-efx`no-consume/nothing
-  : maybe-efx`no-consume maybe-efx/nothing.
-
-maybe-efx`no-consume/just
-  : maybe-efx`no-consume (maybe-efx/just X) <- efx`not-consume X.
-
-
 effects`no-consume : effects -> type.
 
 effects`no-consume/
-  : effects`no-consume (effects/ XM MX)
-    <- efxmap`no-consume XM
-    <- maybe-efx`no-consume MX.
+  : effects`no-consume (effects/ XM _ set/0)
+    <- efxmap`no-consume XM.
 
 
-% =====================================
-% ============= Theorems ==============
-% =====================================
+
+% =========================================================================
+% ============================ Theorems ===================================
+% =========================================================================
+
+
+%theorem effects`no-consume-implies-wf
+  : forall* {XX}
+    forall {NC-XX: effects`no-consume XX}
+    exists {WF-XX: effects`wf XX}
+    true.
+
+- : effects`no-consume-implies-wf _ (effects`wf/ set`disjoint/R DM)
+    <- efxmap`domain-total DM.
+
+%worlds () (effects`no-consume-implies-wf _ _).
+%total {} (effects`no-consume-implies-wf _ _).
 
 
 %%% efx`not-consume
@@ -221,6 +225,32 @@ effects`no-consume/
 (inner-efxmap`lookup-implies-not-consume/L _ _ _ _ _ _ _).
 %total (NC1 NC2) (inner-efxmap`lookup-implies-not-consume NC1 _ _)
 (inner-efxmap`lookup-implies-not-consume/L _ NC2 _ _ _ _ _).
+
+
+%theorem inner-efxmap`no-consume/U-inversion
+  : forall* {M} {MP} {N} {X}
+    forall {NC-M: inner-efxmap`no-consume M}
+    {F: inner-efxmap`fresh MP N}
+    {U: inner-efxmap`update MP N X M}
+    exists {NC-MP: inner-efxmap`no-consume MP}
+    {NC-X: efx`not-consume X}
+    true.
+
+%worlds () (inner-efxmap`no-consume/U-inversion _ _ _ _ _).
+%trustme %total {} (inner-efxmap`no-consume/U-inversion _ _ _ _ _).
+
+
+%theorem efxmap`no-consume/U-inversion
+  : forall* {XM} {XMP} {N} {M}
+    forall {NC-XM: efxmap`no-consume XM}
+    {F: efxmap`fresh XMP N}
+    {U: efxmap`update XMP N M XM}
+    exists {NC-XMP: efxmap`no-consume XMP}
+    {NC-M: inner-efxmap`no-consume M}
+    true.
+
+%worlds () (efxmap`no-consume/U-inversion _ _ _ _ _).
+%trustme %total {} (efxmap`no-consume/U-inversion _ _ _ _ _).
 
 
 %theorem inner-efxmap`update-preserves-no-consume
@@ -676,6 +706,21 @@ effects`no-consume/
 (inner-efxmap`join-no-consume-right/U _ _ _ _ NC2 _ _ _ _ _ _).
 
 
+
+% ================== join-preserves-no-consume ========================
+% =====================================================================
+
+%theorem effects`join-preserves-no-consume
+  : forall* {XX1} {XX2} {XX}
+    forall {NC1: effects`no-consume XX1}
+    {NC2: effects`no-consume XX2}
+    {J: effects`join XX1 XX2 XX}
+    exists {NC: effects`no-consume XX}
+    true.
+
+%worlds () (effects`join-preserves-no-consume _ _ _ _).
+%trustme %total {} (effects`join-preserves-no-consume _ _ _ _).
+
 % ==== constructors of which result is no-consume  ====================
 % =====================================================================
 
@@ -803,6 +848,169 @@ effects`no-consume/
 %worlds () (tgtmap2efxmap-no-consume _ _ _).
 %total (T) (tgtmap2efxmap-no-consume _ T _).
 
+
+%theorem make-targets-and-effects-no-consume
+  : forall* {GS} {A} {C} {X} {GS'} {XX}
+    forall {MG: make-targets-and-effects GS A C X GS' XX}
+    exists {NC-XX: effects`no-consume XX}
+    true.
+
+%worlds () (make-targets-and-effects-no-consume _ _).
+%trustme %total {} (make-targets-and-effects-no-consume _ _).
+
+
+%theorem targets-no-consume
+  : forall* {CM} {MM} {B} {S1} {S2} {GM} {SB} {XM} {SX} {XM1} {XM2} {NN} {C} {E}
+    forall {TYP: reftyping CM MM B E
+                 (result/expr
+                   (reftype/ NN C (targets/unique S1 GM SB))
+                   (effects/ XM SX S2))}
+    {S-G: select-tgtmap XM GM XM1 XM2}
+    {XM2=>GM: efxmap2tgtmap XM2 GM}
+    exists {NC-XM2: efxmap`no-consume XM2}
+    true.
+
+%worlds () (targets-no-consume _ _ _ _).
+%trustme %total {} (targets-no-consume _ _ _ _).
+
+
+%theorem efx`join-no-consume-commutative
+  : forall* {X1} {X2} {X}
+    forall {NC-X2: efx`not-consume X2}
+    {X1+X2=X: efx`join X1 X2 X}
+    exists {X2+X1=X: efx`join X2 X1 X}
+    true.
+
+- : efx`join-no-consume-commutative
+    efx`not-consume/read efx`join/rr efx`join/rr.
+
+- : efx`join-no-consume-commutative
+    efx`not-consume/read efx`join/wr efx`join/rw.
+
+- : efx`join-no-consume-commutative
+    efx`not-consume/write efx`join/rw efx`join/wr.
+
+- : efx`join-no-consume-commutative
+    efx`not-consume/write efx`join/ww efx`join/ww.
+
+%worlds () (efx`join-no-consume-commutative _ _ _).
+%total {} (efx`join-no-consume-commutative _ _ _). 
+
+
+%theorem inner-efxmap`join-no-consume-commutative
+  : forall* {M1} {M2} {M}
+    forall {NC-M2: inner-efxmap`no-consume M2}
+    {M1+M2=M: inner-efxmap`join M1 M2 M}
+    exists {M2+M1=M: inner-efxmap`join M2 M1 M}
+    true.
+
+%worlds () (inner-efxmap`join-no-consume-commutative _ _ _).
+%trustme %total {} (inner-efxmap`join-no-consume-commutative _ _ _).
+
+
+%theorem efxmap`join-no-consume-commutative
+  : forall* {XM1} {XM2} {XM}
+    forall {NC-XM2: efxmap`no-consume XM2}
+    {XM1+XM2=XM: efxmap`join XM1 XM2 XM}
+    exists {XM2+XM1=XM: efxmap`join XM2 XM1 XM}
+    true.
+
+%worlds () (efxmap`join-no-consume-commutative _ _ _).
+%trustme %total {} (efxmap`join-no-consume-commutative _ _ _).
+
+
+%theorem effects`join-no-consume-commutative
+  : forall* {XX1} {XX2} {XX}
+    forall {NC-XX2: effects`no-consume XX2}
+    {J: effects`join XX1 XX2 XX}
+    exists {J: effects`join XX2 XX1 XX}
+    true.
+
+- : effects`join-no-consume-commutative
+    (effects`no-consume/ NC-M2)
+    (effects`join/ S1+S2=S X1+X2=X M1'+M2=M S1^Ms2 M1|R=M1'
+      Ms1/S2=R S1^S2 DM-M2=Ms2 DM-M1=Ms1)
+    (effects`join/ S2+S1=S X2+X1=X M2+M1=M set`disjoint/L M2|Ms2=M2
+      Ms2/S1=Ms2 S2^S1 DM-M1=Ms1 DM-M2=Ms2)
+    <- set`disjoint-symmetric S1^S2 S2^S1
+    <- set`union-commutative S1+S2=S S2+S1=S
+    <- shared-efx`join-commutative X1+X2=X X2+X1=X
+    <- set`disjoint-implies-remove-nothing set`disjoint/R Ms1/S2=Ms1
+    <- set`remove-unique Ms1/S2=R Ms1/S2=Ms1 set`eq/ set`eq/ R=Ms1
+    <- efxmap`restrict-respects-eq M1|R=M1' efxmap`eq/ R=Ms1 efxmap`eq/ M1|Ms1=M1'
+    <- set`leq-reflexive _ Ms1<=Ms1
+    <- set`leq-reflexive _ Ms2<=Ms2
+    <- efxmap`domain-leq-implies-no-restriction DM-M1=Ms1 Ms1<=Ms1 M1|Ms1=M1
+    <- efxmap`restrict-unique M1|Ms1=M1' M1|Ms1=M1 efxmap`eq/ set`eq/ M1'=M1
+    <- efxmap`join-respects-eq M1'+M2=M M1'=M1 efxmap`eq/ efxmap`eq/ M1+M2=M
+    <- efxmap`join-no-consume-commutative NC-M2 M1+M2=M M2+M1=M
+    <- set`disjoint-symmetric S1^Ms2 Ms2^S1
+    <- set`disjoint-implies-remove-nothing Ms2^S1 Ms2/S1=Ms2
+    <- efxmap`domain-leq-implies-no-restriction DM-M2=Ms2 Ms2<=Ms2 M2|Ms2=M2.
+
+%worlds () (effects`join-no-consume-commutative _ _ _).
+%total {} (effects`join-no-consume-commutative _ _ _). 
+
+
+%theorem make-targets-and-effects-no-consume
+  : forall* {A} {F} {X} {G} {XX} {GP}
+    forall {NC-X: efx`not-consume X}
+    {MT: make-targets-and-effects G A F X GP XX}
+    exists {NC: effects`no-consume XX}
+    true.
+
+- : make-targets-and-effects-no-consume NC-X
+    (make-targets-and-effects/unique _ _ _ GM=>XM CX SS _)
+    (effects`no-consume/ NC-XM)
+    <- tgtmap2efxmap-no-consume NC-X GM=>XM NC-XM.
+
+- : make-targets-and-effects-no-consume NC-X
+    (make-targets-and-effects/shared _ _)
+    (effects`no-consume/ efxmap`no-consume/0).
+
+%worlds () (make-targets-and-effects-no-consume _ _ _).
+%total {} (make-targets-and-effects-no-consume _ _ _). 
+
+
+%theorem inner-efxmap`join-no-consume-assoc-commutative
+  : forall* {M1} {M2} {M3} {M4} {M5}
+    forall {M1+M2=M3: inner-efxmap`join M1 M2 M3}
+    {M3+M4=M5: inner-efxmap`join M3 M4 M5}
+    {NC-M4: inner-efxmap`no-consume M4}
+    exists {M6} {M1+M4=M6: inner-efxmap`join M1 M4 M6}
+    {M6+M2=M5: inner-efxmap`join M6 M2 M5}
+    true.
+
+- : inner-efxmap`join-no-consume-assoc-commutative
+    M1+M2=M3 M3+M4=M5 NC-M4 M6 M1+M4=M6 M6+M2=M5
+    <- inner-efxmap`join-associative M1+M2=M3 M3+M4=M5 M6x M2+M4=M6x M1+M6x=M5
+    <- inner-efxmap`join-no-consume-commutative NC-M4 M2+M4=M6x M4+M2=M6x
+    <- inner-efxmap`join-associative-converse
+      M4+M2=M6x M1+M6x=M5 M6 M1+M4=M6 M6+M2=M5.
+
+%worlds () (inner-efxmap`join-no-consume-assoc-commutative _ _ _ _ _ _).
+%total {} (inner-efxmap`join-no-consume-assoc-commutative _ _ _ _ _ _).
+ 
+
+%theorem efxmap`join-no-consume-assoc-commutative
+  : forall* {M1} {M2} {M3} {M4} {M5}
+    forall {M1+M2=M3: efxmap`join M1 M2 M3}
+    {M3+M4=M5: efxmap`join M3 M4 M5}
+    {NC-M4: efxmap`no-consume M4}
+    exists {M6} {M1+M4=M6: efxmap`join M1 M4 M6}
+    {M6+M2=M5: efxmap`join M6 M2 M5}
+    true.
+
+- : efxmap`join-no-consume-assoc-commutative
+    M1+M2=M3 M3+M4=M5 NC-M4 M6 M1+M4=M6 M6+M2=M5
+    <- efxmap`join-associative M1+M2=M3 M3+M4=M5 M6x M2+M4=M6x M1+M6x=M5
+    <- efxmap`join-no-consume-commutative NC-M4 M2+M4=M6x M4+M2=M6x
+    <- efxmap`join-associative-converse
+      M4+M2=M6x M1+M6x=M5 M6 M1+M4=M6 M6+M2=M5.
+
+%worlds () (efxmap`join-no-consume-assoc-commutative _ _ _ _ _ _).
+%total {} (efxmap`join-no-consume-assoc-commutative _ _ _ _ _ _).
+
 % ============================================================================
 
 % ================================================================
@@ -902,49 +1110,3 @@ effects`no-consume/
 (efxmap`join-no-consume-right/U _ _ _ _ _ _ _ _ _ _ _ _).
 %total (NC1 NC2) (efxmap`join-no-consume-right _ NC1 _ _ _)
 (efxmap`join-no-consume-right/U _ _ _ _ NC2 _ _ _ _ _ _ _).
-
-
-
-%theorem efx`join-no-consume-commutative
-  : forall* {X1} {X2} {X}
-    forall {NC-X2: efx`not-consume X2}
-    {X1+X2=X: efx`join X1 X2 X}
-    exists {X2+X1=X: efx`join X2 X1 X}
-    true.
-
-- : efx`join-no-consume-commutative
-    efx`not-consume/read efx`join/rr efx`join/rr.
-
-- : efx`join-no-consume-commutative
-    efx`not-consume/read efx`join/wr efx`join/rw.
-
-- : efx`join-no-consume-commutative
-    efx`not-consume/write efx`join/rw efx`join/wr.
-
-- : efx`join-no-consume-commutative
-    efx`not-consume/write efx`join/ww efx`join/ww.
-
-%worlds () (efx`join-no-consume-commutative _ _ _).
-%total {} (efx`join-no-consume-commutative _ _ _). 
-
-
-%theorem inner-efxmap`join-no-consume-commutative
-  : forall* {M1} {M2} {M}
-    forall {NC-M2: inner-efxmap`no-consume M2}
-    {M1+M2=M: inner-efxmap`join M1 M2 M}
-    exists {M2+M1=M: inner-efxmap`join M2 M1 M}
-    true.
-
-%worlds () (inner-efxmap`join-no-consume-commutative _ _ _).
-%trustme %total {} (inner-efxmap`join-no-consume-commutative _ _ _).
-
-
-%theorem efxmap`join-no-consume-commutative
-  : forall* {XM1} {XM2} {XM}
-    forall {NC-XM2: efxmap`no-consume XM2}
-    {XM1+XM2=XM: efxmap`join XM1 XM2 XM}
-    exists {XM2+XM1=XM: efxmap`join XM2 XM1 XM}
-    true.
-
-%worlds () (efxmap`join-no-consume-commutative _ _ _).
-%trustme %total {} (efxmap`join-no-consume-commutative _ _ _).

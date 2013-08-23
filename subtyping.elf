@@ -2,87 +2,130 @@
 % $Id: subtyping.elf,v 1.6 2013/06/11 16:39:23 csun Exp csun $
 
 
+% =========================================================================
+% 06-16-13: a special case here is when field set is empty, the
+% result will contain keys that are mapped to set/0, and thus we
+% will eventually end up with efxmap in which some keys are mapped
+% to inner-efxmap/0. This is necessary since object may have
+% no field, but we still need to record consume effect on it. tgtmap
+% in targets should never have set/0 as value.
 
-%{
-06-16-13: a special case here is when field set is empty, the
-result will contain keys that are mapped to set/0, and thus we
-will eventually end up with efxmap in which some keys are mapped
-to inner-efxmap/0. This is necessary since object may have
-no field, but we still need to record consume effect on it. tgtmap
-in targets should never have set/0 as value.
+% When we remove a tgtmap from a efxmap, we need to first remove all
+% entries with inner-efxmap/0 from the efxmap.
+% =========================================================================
 
-When we remove a tgtmap from a efxmap, we need to first remove all
-entries with inner-efxmap/0 from the efxmap.
-}%
-
-
-% ====================================================
-% =================== Definitions ====================
-% ====================================================
+% =========================================================================
+% ============================ Definitions ================================
+% =========================================================================
 
 
 % determine the max effect from these two sets.
 
-read-or-write : set -> set -> maybe-efx -> type.
+read-or-write : set -> set -> shared-efx -> type.
 
-read-or-write/none : read-or-write set/0 set/0 maybe-efx/nothing.
+read-or-write/none : read-or-write set/0 set/0 shared-efx/none.
 
-read-or-write/read
-  : read-or-write (set/+ _ _) set/0 (maybe-efx/just efx/read).
+read-or-write/read : read-or-write (set/+ _ _) set/0 shared-efx/read.
 
-read-or-write/write
-  : read-or-write (set/+ _ _) (set/+ _ _) (maybe-efx/just efx/write).
+read-or-write/write : read-or-write (set/+ _ _) (set/+ _ _) shared-efx/write.
 
 
 % determine if we should generate any effect on shared.
 
-efx-on-shared : bool -> maybe-efx -> maybe-efx -> type.
+efx-on-shared : bool -> shared-efx -> shared-efx -> type.
 
-efx-on-shared/true : efx-on-shared true MX MX.
+efx-on-shared/true : efx-on-shared true SX SX.
 
-efx-on-shared/false : efx-on-shared false _ maybe-efx/nothing.
+efx-on-shared/false : efx-on-shared false _ shared-efx/none.
 
 
-%%% Sub-Annotating Rules
+% ============================ consider-ftype =============================
+% Consider field annotation, and returns either the input unique
+% targets, or a shared targets. (no borrowed targets since field
+% cannot be borrowed).
+% =========================================================================
 
-sub-annot : targets -> set -> set -> set -> annot -> effects -> type.
+consider-ftype : targets -> annot -> targets -> type.
+
+consider-ftype/shared : consider-ftype _ annot/shared targets/shared.
+
+consider-ftype/unique : consider-ftype GS annot/unique GS.
+
+% ====================== end of consider-ftype ============================
+
+
+
+% ===================== make-targets-and-effects =====================
+% Given input targets for field reference receiver,
+% field annotation, field ID, and effects, compute the result
+% targets and effects.
+% ====================================================================
+
+create-shared-efx : efx -> shared-efx -> type.
+
+create-shared-efx/read : create-shared-efx efx/read shared-efx/read.
+
+create-shared-efx/write : create-shared-efx efx/write shared-efx/write.
+
+
+make-targets-and-effects : targets -> annot -> nat -> efx -> targets -> effects -> type.
+
+make-targets-and-effects/shared
+  : consider-ftype (targets/unique set/0 tgtmap/0 true) A GS
+    -> create-shared-efx X SX
+    -> make-targets-and-effects targets/shared A _ X GS (effects/ efxmap/0 SX set/0).
+
+make-targets-and-effects/unique
+  : set+nat2tgtmap S F GM2
+    -> tgtmap`deep-disjoint GM1 GM2
+    -> tgtmap`join GM1 GM2 GM
+    -> tgtmap2efxmap GM X XM
+    -> create-shared-efx X SXx
+    -> efx-on-shared SB SXx SX
+    -> consider-ftype (targets/unique set/0 GM SB) A GS
+    -> make-targets-and-effects
+      (targets/unique S GM1 SB) A F X GS (effects/ XM SX set/0).
+
+% ==================== end of make-targets-and-effects ====================
+
+
+% ============================ sub-annotating =============================
+% =========================================================================
+
+sub-annot : targets -> set -> set -> annot -> effects -> type.
 
 
 %% the unique targets CANNOT be from shared.
 
 sub-annot/unique2shared
-  : set+set2tgtmap S CS GM2
-    -> tgtmap`join GM1 GM2 GM
-    -> tgtmap2efxmap GM efx/consume XM
-    -> sub-annot (targets/unique S GM1 false)
-      _ _ CS annot/shared (effects/ XM maybe-efx/nothing).
+  : sub-annot (targets/unique S GM1 false) _ _
+    annot/shared (effects/ XM shared-efx/none S)
+    <- tgtmap`join GM1 GM2 GM
+    <- tgtmap2efxmap GM efx/consume XM.
 
 sub-annot/unique2unique
-  : set+set2tgtmap S CS GM2
-    -> tgtmap`join GM1 GM2 GM
-    -> tgtmap2efxmap GM efx/consume XM
-    -> sub-annot (targets/unique S GM1 false)
-      _ _ CS annot/unique (effects/ XM maybe-efx/nothing).
+  : sub-annot (targets/unique S GM1 false) _ _
+    annot/unique (effects/ XM shared-efx/none S)
+    <- tgtmap`join GM1 GM2 GM
+    <- tgtmap2efxmap GM efx/consume XM.
 
 sub-annot/unique2borrow
-  : set+set2tgtmap S RS GM1
-    -> set+set2tgtmap S WS GM2
-    -> tgtmap`join GM GM1 GM1P
-    -> tgtmap`join GM GM2 GM2P
-    -> tgtmap2efxmap GM1P efx/read XM1
-    -> tgtmap2efxmap GM2P efx/write XM2
-    -> efxmap`join XM1 XM2 XM
-    -> read-or-write RS WS MX1
-    -> efx-on-shared B MX1 MX
-    -> sub-annot (targets/unique S GM B)
-      RS WS set/0 annot/borrow (effects/ XM MX).
+  : sub-annot (targets/unique S GM B) Rs Ws annot/borrow (effects/ XM SX set/0)
+    <- set+set2tgtmap S Rs GM1
+    <- set+set2tgtmap S Ws GM2
+    <- tgtmap`join GM GM1 GM1x
+    <- tgtmap`join GM GM2 GM2x
+    <- tgtmap2efxmap GM1x efx/read XM1
+    <- tgtmap2efxmap GM2x efx/write XM2
+    <- efxmap`join XM1 XM2 XM
+    <- read-or-write Rs Ws SXx
+    <- efx-on-shared B SXx SX.
 
 sub-annot/shared2borrow
- : sub-annot targets/shared RS WS set/0 annot/borrow (effects/ efxmap/0 MX)
-    <- read-or-write RS WS MX.
+ : sub-annot targets/shared RS WS annot/borrow (effects/ efxmap/0 SX set/0)
+    <- read-or-write RS WS SX.
 
-sub-annot/shared2shared
-  : sub-annot targets/shared set/0 set/0 set/0 annot/shared no-effect.
+sub-annot/shared2shared : sub-annot targets/shared set/0 set/0 annot/shared no-effect.
 
 % sub-annot/borrow2borrow
 %   : set+set2tgtmap S RS GM1
@@ -91,10 +134,11 @@ sub-annot/shared2shared
 %     -> tgtmap2efxmap GM2 efx/write XM2
 %     -> efxmap`join XM1 XM2 XM
 %     -> sub-annot (targets/borrow S)
-%       RS WS set/0 annot/borrow (effects/ XM maybe-efx/nothing).
+%       RS WS set/0 annot/borrow (effects/ XM shared-efx/none).
 
 
-%%% Sub-Nonnull Rules
+% ============================ sub-nonnull ================================
+% =========================================================================
 
 sub-nonnull : nonnull -> nonnull -> type.
 
@@ -103,28 +147,16 @@ sub-nonnull/< : sub-nonnull nonnull/yes nonnull/may.
 sub-nonnull/= : sub-nonnull NN1 NN2 <- nonnull`eq NN1 NN2.
 
 
-%%% Subtyping Rules
-
+% ============================ subtyping ==================================
 % The two sets are read and write fields respectively.
+% =========================================================================
 
-subtype : clsmap -> reftype -> ty -> set -> set -> effects -> type.
+subtype : reftype -> ty -> set -> set -> effects -> type.
 
-subtype/
-  : sub-nonnull NN1 NN2
-    -> nat`eq C1 C2
-    -> clsmap`lookup CM C1 FM
-    -> fldmap`domain FM CS
-    -> set`leq RS CS
-    -> set`leq WS CS
-    -> sub-annot GS RS WS CS A2 XX
-    -> subtype CM (reftype/ NN1 C1 GS) (ty/ NN2 A2 C2) RS WS XX.
+subtype/ : subtype (reftype/ NN1 C1 Gs) (ty/ NN2 A2 C2) Rs Ws XX
+           <- nat`eq C1 C2
+           <- sub-annot Gs Rs Ws A2 XX.
 
-subtype/null : subtype _ reftype/null ty/null _ _ no-effect.
+subtype/null : subtype reftype/null ty/null _ _ no-effect.
 
-subtype/maynull : subtype _ reftype/null (ty/ nn/may _ _) _ _ no-effect.
-
-
-
-% =======================================
-% ============== Theorems ===============
-% =======================================
+subtype/maynull : subtype reftype/null (ty/ nn/may _ _) _ _ no-effect.

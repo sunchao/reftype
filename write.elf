@@ -1,0 +1,141 @@
+%%% Proving Write
+
+
+%theorem can-carve-out-of-shared/write
+  : forall* {Pi1:fraction -> permission} {Pi2} {Pi3}
+    forall {EQV: {f} equiv (Pi2 f) ((allperm null) , Pi3 f)}
+    exists {IMP: {f} {r} implies
+                 (combine
+                   (unitperm
+                     (nonlinear
+                       (nested (allperm r) null all)))
+                   (combine (Pi1 f)  (Pi2 f)))
+                 (combine (allperm r)
+                   (combine
+                     (unitperm
+                       (encumbered
+                         (allperm r) (Pi2 f)))
+                     (Pi1 f)))}
+    true.
+
+- : can-carve-out-of-shared/write
+    EQV ([f][r] implies/trans3
+          (implies/equiv
+            (equiv/transitive
+              (equiv/combine
+                (equiv/reflexive) equiv/commute)
+              (equiv/associate)))
+          (implies/combine
+            (implies/trans6
+              (implies/combine
+                implies/reflexive (implies/equiv (EQV f)))
+              (implies/equiv equiv/associate)
+              (implies/combine
+                (implies/reflexive)
+                (implies/trans3
+                  (implies/equiv (equiv/symmetric equiv/identity))
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/trans3
+                      (implies/self-implication)
+                      (implies/equiv-encumbered
+                        (equiv/transitive
+                          (EQV f)
+                          (equiv/commute))
+                        (equiv/reflexive))
+                      (implies/combine-assoc-encumbered)))
+                  (implies/linear-modus-ponens)))
+              (implies/combine
+                (implies/carve)
+                (implies/reflexive))
+              (implies/equiv (equiv/symmetric equiv/associate))
+              (implies/combine
+                (implies/reflexive)
+                (implies/chain-implication)))
+            (implies/reflexive))
+          (implies/equiv (equiv/symmetric equiv/associate))).
+
+%worlds () (can-carve-out-of-shared/write _ _).
+%total {} (can-carve-out-of-shared/write _ _).
+
+
+%theorem reftyping-ok/before-write/shared
+  : forall* {CM} {PM} {FM} {C} {NN} {A} {FC} {B} {XM} {MX} {Out} {F}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-L: clsmap`lookup CM C FM}
+    {FM-L: fldmap`lookup FM F (ty/ NN A FC)}
+    {LE: effects`leq (shared-effect efx/write) (effects/ XM MX)}
+    {XX=>Out: effects2output CM PM B
+              (reftype/ nn/yes C targets/shared) (effects/ XM MX) Out}
+    exists {Pi3} {Pi4} {Pi1} {Pi2} {TF}
+    {FT=>TF: ty2perm PM (ty/ NN A FC) TF}
+    {B=>Pi3: cxt2perm CM PM B Pi3}
+    {XM=>Pi4: make-encumbered false CM PM B XM Pi4}
+    {MX=>Pi2: maybe-efx2perm MX Pi2}
+    {XM=>Pi1: efxmap2perm false CM PM B XM Pi1}
+    {TRANS: {f} transform (Out f)
+            (output/exists [r]
+              (output/expr r
+                (combine (combine Pi3 Pi4)
+                  ((unitperm (precise-exists r F TF)) ,
+                    (combine
+                      (unitperm
+                        (encumbered
+                          (unitperm (precise-exists r F TF)) (Pi2 f)))
+                      (Pi1 f))))))}
+    true.
+
+- : reftyping-ok/before-write/shared
+    CM-CM CM2PM CM-L FM-L (effects`leq/ XM1<=XM MX1<=MX)
+    (effects2output/shared B=>Pi3 XM=>Pi4 XM=>Pi1 MX=>Pi2
+      (ty2perm/ PM-L nn2perm/yes annot2perm/shared))
+    %{=>}% _ _ _ _ _ (ty2perm/ PM-LF NN2PF A2AF)
+    B=>Pi3 XM=>Pi4 MX=>Pi2 XM=>Pi1
+    ([f] transform/inside [r]
+      (transform/trans
+        (transform/implies
+          (implies/trans
+            (implies/combine
+              (implies/reflexive)
+              (implies/trans
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine
+                      (equiv/reflexive)
+                      (equiv/transitive3
+                        (equiv/symmetric equiv/associate)
+                        (equiv/combine equiv/reflexive equiv/commute)
+                        (equiv/associate)))))
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/trans6
+                    (implies/combine
+                      (IMP1 f r) (IMP2 r))
+                    (implies/equiv
+                      (equiv/transitive3
+                        (equiv/symmetric equiv/associate)
+                        (equiv/combine equiv/reflexive equiv/commute)
+                        (equiv/associate)))
+                    (implies/combine
+                      (implies/trans
+                        (implies/equiv equiv/commute)
+                        (implies/carve))
+                      (implies/reflexive))
+                    (implies/equiv equiv/associate)
+                    (implies/combine
+                      (implies/trans
+                        (implies/equiv (equiv/symmetric equiv/associate))
+                        (implies/combine implies/reflexive implies/chain-implication))
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))))))
+            (implies/equiv equiv/roll2)))
+        (transform/drop)))
+    <- maybe-efx-leq-implies-permission-leq
+      MX1<=MX (maybe-efx2perm/just apply-efx/write) MX=>Pi2 _ EQV
+    <- can-carve-out-of-shared/write EQV IMP1
+    <- fldperm-can-lookup CM2PM PM-L CM-L FM-L _ _ _ A2AF NN2PF PM-LF ([r] IMP2 r).
+
+%worlds () (reftyping-ok/before-write/shared _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total {} (reftyping-ok/before-write/shared _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).

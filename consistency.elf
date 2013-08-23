@@ -1,61 +1,69 @@
 %%% consistency relation between clsmap, methmap and fldmap
 
-%%% check if a type is in clsmap
+
+% ============================ clsmap-ty ==================================
+% check if a type is in clsmap
+% =========================================================================
 
 clsmap-ty : clsmap -> ty -> type.
 
-clsmap-ty/notnull
-  : clsmap-ty CM (ty/ _ _ C)
-    <- clsmap`lookup CM C _.
+clsmap-ty/notnull : clsmap-ty CM (ty/ _ _ C)
+                    <- clsmap`lookup CM C _.
 
 clsmap-ty/null : clsmap-ty CM ty/null.
 
 
-
+% ============================ clsmap-methty ==============================
 % check if all types appear in methty is also in clsmap
+% =========================================================================
 
 clsmap-methty : clsmap -> methty -> type.
 
-% nothing to check for shared effect
-clsmap-methty/base
-  : clsmap-methty CM (methty/base T _)
-    <- clsmap-ty CM T.
+clsmap-methty/base : clsmap-methty CM (methty/base T _)
+                     <- clsmap-ty CM T.
 
-% should we worried that effect sets are not
-% subsets of class's field set?
-clsmap-methty/args
-  : clsmap-methty CM (methty/arg T _ _ A)
-    <- clsmap-ty CM T
-    <- clsmap-methty CM A.
+clsmap-methty/args : clsmap-methty CM (methty/arg T _ _ A)
+                     <- clsmap-ty CM T
+                     <- clsmap-methty CM A.
+
+% =========================================================================
 
 
-% check if a fldmap is consistent with a clsmap
+% ============================ clsmap-fldmap ==============================
+% check if a fldmap is consistent with a clsmap.
+% =========================================================================
 
 clsmap-fldmap : clsmap -> fldmap -> type.
 
 clsmap-fldmap/0 : clsmap-fldmap _ fldmap/0.
 
-clsmap-fldmap/+
-  : clsmap-fldmap CM (fldmap/+ _ T FM)
-    <- clsmap-ty CM T
-    <- clsmap-fldmap CM FM.
+clsmap-fldmap/+ : clsmap-fldmap CM (fldmap/+ _ T FM)
+                  <- clsmap-ty CM T
+                  <- clsmap-fldmap CM FM.
+
+% =========================================================================
 
 
-% check if a clsmap is consistent with itself
+% ============================ clsmap-clsmap ==============================
+% check if a clsmap is consistent with itself.
+% =========================================================================
 
 clsmap-clsmap : clsmap -> clsmap -> type.
 
 clsmap-clsmap/0 : clsmap-clsmap _ clsmap`map/0.
 
-clsmap-clsmap/+
-  : clsmap-clsmap CM0 (clsmap`map/+ C FM CM)
-    <- clsmap`lookup CM0 C FM
-    <- clsmap-fldmap CM0 FM
-    <- clsmap`shift C CM CMS
-    <- clsmap-clsmap CM0 CMS.
+clsmap-clsmap/+ : clsmap-clsmap CM0 (clsmap`map/+ C FM CM)
+                  <- clsmap`lookup CM0 C FM
+                  <- clsmap-fldmap CM0 FM
+                  <- clsmap`shift C CM CMS
+                  <- clsmap-clsmap CM0 CMS.
+
+% =========================================================================
 
 
+% ============================ clsmap-methmap =============================
 % check if a clsmap is consistent with a methmap
+% =========================================================================
 
 clsmap-methmap : clsmap -> methmap -> type.
 
@@ -76,12 +84,14 @@ clsmap-methmap/const
     <- methmap`shift N MM MMS
     <- clsmap-methmap CM MMS.
 
+% =========================================================================
 
-% ==================== clsmap-cxt =============================
+
+% =========================== clsmap-cxt ==================================
 % Consistency between clsmap and explicit context.
 % All entries in the context should be either shared or
 % borrowed.
-% =============================================================
+% =========================================================================
 
 clsmap-cxt : clsmap -> cxt -> type.
 
@@ -97,61 +107,101 @@ clsmap-cxt/cons/s
     <- clsmap-ty CM (ty/ NN annot/shared C)
     <- clsmap-cxt CM B.
 
-% ==================== end of clsmap-cxt =======================
+% =========================================================================
 
 
 
-% for each entry (L -> M) in efxmap, L must be in cxt, and M must
-% be consistent with SOME fldmap in clsmap.
+% ============================ Good Result ================================
+% Result from reftyping has to be internally consistent and
+% in a good format. This is defined below.
+% =========================================================================
+
+
+% ============================ clsmap-cxt-tgtmap ==========================
+% Since tgtmap is a mapping from objects to set of fields, this relation
+% says each set of fields has to be some subset of the domain of the fldmap
+% that the object corresponds to.
+% =========================================================================
 
 clsmap-cxt-tgtmap : clsmap -> cxt -> tgtmap -> type.
 
 clsmap-cxt-tgtmap/0 : clsmap-cxt-tgtmap _ _ tgtmap/0.
 
-clsmap-cxt-tgtmap/U
-  : clsmap-cxt-tgtmap CM B GMP
-    -> tgtmap`fresh GMP N
-    -> tgtmap`update GMP N S GM
-    -> cxt`lookup B (object/ N) (ty/ _ _ C)
-    -> clsmap`lookup CM C FM
-    -> fldmap`domain FM FS
-    -> set`leq S FS
-    -> clsmap-cxt-tgtmap CM B GM.
+clsmap-cxt-tgtmap/U : clsmap-cxt-tgtmap CM B GM
+                      <- clsmap-cxt-tgtmap CM B GM'
+                      <- tgtmap`fresh GM' N
+                      <- tgtmap`update GM' N S GM
+                      <- cxt`lookup B (object/ N) (ty/ _ _ C)
+                      <- clsmap`lookup CM C FM
+                      <- fldmap`domain FM FS
+                      <- set`leq S FS.
 
+% =========================================================================
+
+
+% ============================ clsmap-cxt-efxmap ==========================
+% Same as clsmap-cxt-efxmap, here we require the domain of each inner-efxmap
+% to be a subset of the corresponding fldmap's domain. 
+% =========================================================================
 
 clsmap-cxt-efxmap : clsmap -> cxt -> efxmap -> type.
 
 clsmap-cxt-efxmap/0 : clsmap-cxt-efxmap _ _ efxmap/0.
 
-clsmap-cxt-efxmap/U
-  : clsmap-cxt-efxmap CM B XMP
-    -> efxmap`fresh XMP N
-    -> efxmap`update XMP N M XM
-    -> cxt`lookup B (object/ N) (ty/ _ _ C)
-    -> clsmap`lookup CM C FM
-    -> fldmap`domain FM FS
-    -> inner-efxmap`domain M MS
-    -> set`leq MS FS
-    -> clsmap-cxt-efxmap CM B XM.
+clsmap-cxt-efxmap/U : clsmap-cxt-efxmap CM B XM
+                      <- clsmap-cxt-efxmap CM B XM'
+                      <- efxmap`fresh XM' N
+                      <- efxmap`update XM' N M XM
+                      <- cxt`lookup B (object/ N) (ty/ _ _ C)
+                      <- clsmap`lookup CM C FM
+                      <- fldmap`domain FM FS
+                      <- inner-efxmap`domain M MS
+                      <- set`leq MS FS.
 
-% a wrapper on clsmap-cxt-efxmap
+% =========================================================================
 
-clsmap-cxt-effects : clsmap -> cxt -> effects -> type.
 
-clsmap-cxt-effects/ : clsmap-cxt-effects CM B (effects/ M X)
-                      <- clsmap-cxt-efxmap CM B M.
+% ============================ cxt-set ====================================
+% This relation says all entries in set are also in context.
+% =========================================================================
 
+cxt-set : cxt -> set -> type.
+
+cxt-set/0 : cxt-set _ set/0.
+
+cxt-set/in : cxt-set (cxt/cons (object/ N) _ B) S
+            <- set`not-member S' N
+            <- set`add S' N S
+            <- cxt-set B S'.
+
+cxt-set/out : cxt-set (cxt/cons (object/ N) _ B) S
+              <- set`not-member S N
+              <- cxt-set B S.
+
+% =========================================================================
+
+
+% ============================ same-class =================================
+% This relation says that all entries (locations) in the set are of the
+% same class.
+% =========================================================================
 
 same-class : cxt -> set -> nat -> type.
 
 same-class/0 : same-class _ set/0 _.
 
-same-class/U
-  : same-class B SP C
-    -> set`not-member SP N
-    -> set`add SP N S
-    -> cxt`lookup B (object/ N) (ty/ _ _ C)
-    -> same-class B S C.
+same-class/U : same-class B S C
+               <- same-class B S' C
+               <- set`not-member S' N
+               <- set`add S' N S
+               <- cxt`lookup B (object/ N) (ty/ _ _ C).
+
+% =========================================================================
+
+
+% ============================ clsmap-cxt-targets =========================
+% A wrapper on same-class and clsmap-cxt-tgtmap.
+% =========================================================================
 
 clsmap-cxt-targets : clsmap -> cxt -> nat -> targets -> type.
 
@@ -162,76 +212,75 @@ clsmap-cxt-targets/unique
     <- same-class B S C
     <- clsmap-cxt-tgtmap CM B GM.
 
+% =========================================================================
+
+
+% ============================ clsmap-cxt-effects =========================
+% Uses clsmap-cxt-efxmap and cxt-set. Also requires that the efxmap
+% and set in effects are disjoint.
+% =========================================================================
+
+clsmap-cxt-effects : clsmap -> cxt -> effects -> type.
+
+clsmap-cxt-effects/ : clsmap-cxt-effects CM B (effects/ M X S)
+                      <- efxmap`domain M Ms
+                      <- set`disjoint Ms S
+                      <- cxt-set B S
+                      <- clsmap-cxt-efxmap CM B M.
+
+% =========================================================================
+
+
+% ============================ targets-effects ============================
+% Targets and effects has to be consistent with each other.
+% =========================================================================
+
+shared-efx-not-none : shared-efx -> type.
+
+shared-efx-not-none/read : shared-efx-not-none shared-efx/read.
+
+shared-efx-not-none/write : shared-efx-not-none shared-efx/write.
+
+
+shared-efx-relation : bool -> shared-efx -> type.
+
+shared-efx-relation/t : shared-efx-relation true SX <- shared-efx-not-none SX.
+
+shared-efx-relation/f : shared-efx-relation false _.
+
 
 targets-effects : targets -> effects -> type.
 
 targets-effects/unique
-  : targets-effects (targets/unique S G _) (effects/ M _)
-    <- tgtmap`leq-efxmap G M.
+  : targets-effects (targets/unique S G B) (effects/ M X C)
+    <- tgtmap`leq-efxmap G M
+    <- select-tgtmap M G M1 M2
+    <- efxmap`no-consume M2
+    <- shared-efx-relation B X.
 
 targets-effects/shared : targets-effects (targets/shared) _.
 
-
-% ===================================
-% =========== Theorems ==============
-% ===================================
+% =========================================================================
 
 
-%theorem same-class-respects-eq
-  : forall* {B} {BP} {S} {SP} {C} {CP}
-    forall {SOC: same-class B S C}
-    {E: cxt`eq B BP} {E: set`eq S SP}
-    {E: nat`eq C CP}
-    exists {SOC: same-class BP SP CP}
-    true.
+good-result : clsmap -> cxt -> result K -> type.
 
-- : same-class-respects-eq SOC cxt`eq/ set`eq/ nat`eq/ SOC.
+good-result/expr : good-result CM B (result/expr (reftype/ _ C G) XX)
+                   <- clsmap`lookup CM C FM
+                   <- clsmap-cxt-targets CM B C G
+                   <- clsmap-cxt-effects CM B XX
+                   <- targets-effects G XX.
 
-%worlds () (same-class-respects-eq _ _ _ _ _).
-%total {} (same-class-respects-eq _ _ _ _ _).
+good-result/cond : good-result CM B (result/cond XX)
+                   <- clsmap-cxt-effects CM B XX.
+
+good-result/args/0 : good-result CM B (result/args/0 XX)
+                     <- clsmap-cxt-effects CM B XX.
+
+good-result/args/+ : good-result CM B (result/args/+ RT AR)
+                     <- good-result CM B AR.
 
 
-%theorem same-class/U-inversion
-  : forall* {B} {S} {SP} {C} {N}
-    forall {SOC: same-class B S C}
-    {NM: set`not-member SP N}
-    {AD: set`add SP N S}
-    exists {NN} {A} {SOC: same-class B SP C}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
-    true.
+% =========================================================================
 
-%theorem same-class/U-inversion/L
-  : forall* {B} {S} {SP1} {C} {N1} {A1} {NN1} {SP} {N} {P}
-    forall {SOC: same-class B SP1 C}
-    {NM1: set`not-member SP1 N1}
-    {AD1: set`add SP1 N1 S}
-    {BL1: cxt`lookup B (object/ N1) (ty/ NN1 A1 C)}
-    {NM: set`not-member SP N}
-    {AD: set`add SP N S}
-    {EQ?: nat`eq? N N1 P}
-    exists {NN} {A} {SOC: same-class B SP C}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
-    true.
 
-- : same-class/U-inversion/L
-    SOC0 F0 U0 BL0 F1 U1 nat`eq?/yes _ _ SOC1 BL0
-    <- set`not-member-add-cancels F0 U0 F1 U1 nat`eq/ set`eq/ S0=S1
-    <- same-class-respects-eq SOC0 cxt`eq/ S0=S1 nat`eq/ SOC1.
-
-- : same-class/U-inversion/L
-    SOC0 F0 U0 BL0 F1 U1 (nat`eq?/no N<>N1) _ _ 
-    (same-class/U SOC2 F3 U3 BL0) BL2
-    <- set`update-commutes-converse U1 U0 N<>N1 _ U3 U2
-    <- set`add-preserves-not-member-converse F1 U3 F2
-    <- set`add-preserves-not-member-converse F0 U2 F3
-    <- same-class/U-inversion SOC0 F2 U2 _ _ SOC2 BL2.
-
-- : same-class/U-inversion
-    (same-class/U SOC0 F0 A0 BL0) F1 A1 _ _ SOC1 BL1
-    <- nat`eq?-total E?
-    <- same-class/U-inversion/L SOC0 F0 A0 BL0 F1 A1 E? _ _ SOC1 BL1.
-
-%worlds () (same-class/U-inversion _ _ _ _ _ _ _)
-(same-class/U-inversion/L _ _ _ _ _ _ _ _ _ _ _).
-%total (C0 C1) (same-class/U-inversion C0 _ _ _ _ _ _)
-(same-class/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _).

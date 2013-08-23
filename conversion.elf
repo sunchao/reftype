@@ -116,18 +116,6 @@ shared-efx2perm/write : shared-efx2perm shared-efx/write Pi
 % =========================================================================
 
 
-% ======================= shared-efx2efx ==================================
-% We need to convert shared-efx to efx so as to get a fraction.
-% =========================================================================
-
-shared-efx2efx : shared-efx -> efx -> type.
-
-shared-efx2efx/read : shared-efx2efx shared-efx/read efx/read.
-
-shared-efx2efx/write : shared-efx2efx shared-efx/write efx/write.
-
-% =========================================================================
-
 
 % ============================ efxmap2perm ================================
 % Convert a efxmap to permissions. Each entry ((O, F), X) in
@@ -189,11 +177,13 @@ effects2input/
 
 minimum-efx : efx -> efx -> efx -> type.
 
-minimum-efx/= : minimum-efx X X X.
+minimum-efx/rr : minimum-efx efx/read efx/read efx/read.
 
-minimum-efx/< : minimum-efx X1 X2 X1 <- efx`lt X1 X2.
+minimum-efx/rw : minimum-efx efx/read efx/write efx/read.
 
-minimum-efx/> : minimum-efx X1 X2 X2 <- efx`lt X2 X1.
+minimum-efx/wr : minimum-efx efx/write efx/read efx/read.
+
+minimum-efx/ww : minimum-efx efx/write efx/write efx/write.
 
 
 efxmap-minimum-efx* : efx -> efxmap -> efx -> type.
@@ -213,8 +203,8 @@ efxmap-minimum-efx/0 : efxmap-minimum-efx* X efxmap/0 X.
 efxmap-minimum-efx/U : efxmap-minimum-efx* X1 XM X3
                 <- efxmap`fresh XM' N
                 <- efxmap`update XM' N M XM
-                <- efxmap-minimum-efx-helper X1 M X2
-                <- efxmap-minimum-efx* X2 XM' X3.
+                <- efxmap-minimum-efx* X1 XM' X2
+                <- efxmap-minimum-efx-helper X2 M X3.
 
 
 %abbrev efxmap-minimum-efx = [M][X] efxmap-minimum-efx* efx/write M X.
@@ -264,7 +254,7 @@ effects2output/shared
 
 effects2output/unique/0
   : effects2output CM PM B
-    (reftype/ NN C (targets/unique S GM SB)) (effects/ XM SX CS)
+    (reftype/ NN C (targets/unique S GM false)) (effects/ XM SX CS)
     (output/exists [r]
       (output/expr r
         (combine Pi1 
@@ -304,8 +294,7 @@ effects2output/unique/0t
           (combine Pi1
             (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
               (combine (scale Q (PF r))
-                (combine (unitperm (encumbered (scale Q (PF r)) Pi3))
-                  Pi2)))))))
+                (combine (unitperm (encumbered (scale Q (PF r)) Pi3)) Pi2)))))))
     <- tgtmap`size GM z
     <- cxt2perm CM PM B Pi1
     <- ({r} set2facts r S (GF r))
@@ -347,8 +336,7 @@ effects2output/unique/+t
             (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
               (combine (scale Q (PF r))
                 (combine
-                  (unitperm (encumbered (scale Q (PF r)) (combine Pi3 Pi4)))
-                  Pi2)))))))
+                  (unitperm (encumbered (scale Q (PF r)) (combine Pi3 Pi4))) Pi2)))))))
     <- tgtmap`size GM (s _)
     <- cxt2perm CM PM B Pi1
     <- ({r} set2facts r S (GF r))
@@ -359,7 +347,8 @@ effects2output/unique/+t
     <- shared-efx2efx SX X2
     <- minimum-efx X1 X2 X
     <- efx2frac X Q
-    <- shared-efx2perm SX Pi4.
+    <- shared-efx2perm SX Pi4
+    <- ty2perm PM (ty/ NN annot/unique C) PF.
 
 % =========================================================================
 
@@ -585,6 +574,20 @@ env2progtype/
 % ============================ minimum-efx ================================
 % =========================================================================
 
+%theorem shared-efx2efx-not-consume
+  : forall* {SX} {X}
+    forall {SX=>X: shared-efx2efx SX X}
+    exists {NC-X: efx`not-consume X}
+    true.
+
+- : shared-efx2efx-not-consume shared-efx2efx/read efx`not-consume/read.
+
+- : shared-efx2efx-not-consume shared-efx2efx/write efx`not-consume/write.
+
+%worlds () (shared-efx2efx-not-consume _ _).
+%total {} (shared-efx2efx-not-consume _ _). 
+
+
 %theorem minimum-efx-commutative
   : forall* {X1} {X2} {X}
     forall {NC: efx`not-consume X1}
@@ -593,14 +596,31 @@ env2progtype/
     exists {MX': minimum-efx X2 X1 X}
     true.
 
-- : minimum-efx-commutative _ _ (minimum-efx/< efx`lt/rw) (minimum-efx/> efx`lt/rw).
+- : minimum-efx-commutative _ _ minimum-efx/rr (minimum-efx/rr).
 
-- : minimum-efx-commutative _ _ (minimum-efx/=) (minimum-efx/=).
+- : minimum-efx-commutative _ _ (minimum-efx/rw) (minimum-efx/wr).
 
-- : minimum-efx-commutative _ _ (minimum-efx/> efx`lt/rw) (minimum-efx/< efx`lt/rw).
+- : minimum-efx-commutative _ _ minimum-efx/wr (minimum-efx/rw).
+
+- : minimum-efx-commutative _ _ (minimum-efx/ww) (minimum-efx/ww).
 
 %worlds () (minimum-efx-commutative _ _ _ _).
 %total {} (minimum-efx-commutative _ _ _ _). 
+
+
+%theorem minimum-efx-associative-converse
+  : forall* {X1} {X2} {X3} {X4} {X}
+    forall {NC: efx`not-consume X1}
+    {NC: efx`not-consume X2}
+    {NC: efx`not-consume X4}
+    {MX12: minimum-efx X1 X2 X4}
+    {MX34: minimum-efx X3 X4 X}
+    exists {X5} {MX31: minimum-efx X3 X1 X5}
+    {MX52: minimum-efx X5 X2 X}
+    true.
+
+%worlds () (minimum-efx-associative-converse _ _ _ _ _ _ _ _).
+%trustme %total {} (minimum-efx-associative-converse _ _ _ _ _ _ _ _).
 
     
 %theorem efx/write-is-upper-bound
@@ -608,13 +628,139 @@ env2progtype/
     exists {MX: minimum-efx efx/write X X}
     true.
 
-- : efx/write-is-upper-bound _ efx`not-consume/read (minimum-efx/> (efx`lt/rw)).
+- : efx/write-is-upper-bound efx/read _ minimum-efx/wr.
 
-- : efx/write-is-upper-bound _ efx`not-consume/write (minimum-efx/=).
+- : efx/write-is-upper-bound efx/write _ minimum-efx/ww.
 
 %worlds () (efx/write-is-upper-bound _ _ _).
 %total {} (efx/write-is-upper-bound _ _ _). 
 
+
+%theorem minimum-efx-not-consume
+  : forall* {X1} {X2} {X}
+    forall {MX: minimum-efx X1 X2 X}
+    exists {NC-X: efx`not-consume X}
+    true.
+
+- : minimum-efx-not-consume minimum-efx/rr efx`not-consume/read.
+
+- : minimum-efx-not-consume minimum-efx/rw efx`not-consume/read.
+
+- : minimum-efx-not-consume minimum-efx/wr efx`not-consume/read.
+
+- : minimum-efx-not-consume minimum-efx/ww efx`not-consume/write.
+
+%worlds () (minimum-efx-not-consume _ _).
+%total {} (minimum-efx-not-consume _ _).
+
+
+%theorem efxmap-minimum-efx-not-consume
+  : forall* {X} {M}
+    forall {MX: efxmap-minimum-efx M X}
+    exists {NC-X: efx`not-consume X}
+    true.
+
+%worlds () (efxmap-minimum-efx-not-consume _ _).
+%trustme %total {} (efxmap-minimum-efx-not-consume _ _). 
+
+
+%theorem not-consume-implies-efx2frac
+  : forall* {X}
+    forall {NC-X: efx`not-consume X}
+    exists {Q} {X2Q: efx2frac X Q}
+    true.
+
+- : not-consume-implies-efx2frac efx`not-consume/read _ efx2frac/read.
+
+- : not-consume-implies-efx2frac efx`not-consume/write _ efx2frac/write.
+
+%worlds (objvar) (not-consume-implies-efx2frac _ _ _).
+%total {} (not-consume-implies-efx2frac _ _ _).
+
+
+%theorem efx2frac-implies-not-consume
+  : forall* {Q} {X}
+    forall {X2Q: efx2frac X Q}
+    exists {NC-X: efx`not-consume X}
+    true.
+
+- : efx2frac-implies-not-consume efx2frac/read efx`not-consume/read.
+
+- : efx2frac-implies-not-consume efx2frac/write efx`not-consume/write.
+
+%worlds (objvar) (efx2frac-implies-not-consume _ _).
+%total {} (efx2frac-implies-not-consume _ _).
+
+
+%theorem not-consume-implies-minimum-efx
+  : forall* {X1} {X2}
+    forall {NC-X1: efx`not-consume X1}
+    {NC-X2: efx`not-consume X2}
+    exists {X} {NC-X: efx`not-consume X}
+    {MX: minimum-efx X1 X2 X}
+    true.
+
+- : not-consume-implies-minimum-efx
+    efx`not-consume/read efx`not-consume/read efx/read
+    efx`not-consume/read minimum-efx/rr.
+
+- : not-consume-implies-minimum-efx
+    efx`not-consume/read efx`not-consume/write efx/read
+    efx`not-consume/read (minimum-efx/rw).
+
+- : not-consume-implies-minimum-efx
+    efx`not-consume/write efx`not-consume/write efx/write
+    efx`not-consume/write minimum-efx/ww.
+
+- : not-consume-implies-minimum-efx
+    efx`not-consume/write efx`not-consume/read efx/read
+    efx`not-consume/read (minimum-efx/wr).
+
+%worlds () (not-consume-implies-minimum-efx _ _ _ _ _).
+%total {} (not-consume-implies-minimum-efx _ _ _ _ _).
+
+
+%theorem no-consume-implies-efxmap-minimum-efx-helper
+  : forall* {X1} {M}
+    forall {NC-M: inner-efxmap`no-consume M}
+    {NC-X: efx`not-consume X1}
+    exists {X2} {NC-X: efx`not-consume X2}
+    {MX-M=X: efxmap-minimum-efx-helper X1 M X2}
+    true.
+
+- : no-consume-implies-efxmap-minimum-efx-helper
+    inner-efxmap`no-consume/0 NC _ NC efxmap-minimum-efx-helper/0.
+
+- : no-consume-implies-efxmap-minimum-efx-helper
+    (inner-efxmap`no-consume/U NC-MP F U NC-X2) NC-X1
+    _ NC-X4 (efxmap-minimum-efx-helper/U MX-MP MX-X U F)
+    <- not-consume-implies-minimum-efx NC-X1 NC-X2 _ NC-X MX-X
+    <- no-consume-implies-efxmap-minimum-efx-helper NC-MP NC-X _ NC-X4 MX-MP.
+
+%worlds () (no-consume-implies-efxmap-minimum-efx-helper _ _ _ _ _).
+%total (NC) (no-consume-implies-efxmap-minimum-efx-helper NC _ _ _ _).
+
+
+%theorem no-consume-implies-efxmap-minimum-efx
+  : forall* {XM} {X1}
+    forall {NC-XM: efxmap`no-consume XM}
+    {NC-X1: efx`not-consume X1}
+    exists {X2} {NC-X: efx`not-consume X2}
+    {MX-XM: efxmap-minimum-efx* X1 XM X2}
+    true.
+
+- : no-consume-implies-efxmap-minimum-efx
+    efxmap`no-consume/0 NC _ NC efxmap-minimum-efx/0.
+
+- : no-consume-implies-efxmap-minimum-efx
+    (efxmap`no-consume/U NC-XMP F U NC-M) NC-X1
+    _ NC-X3 (efxmap-minimum-efx/U MX-M MX-XMP U F)
+    <- no-consume-implies-efxmap-minimum-efx NC-XMP NC-X1 _ NC-X2 MX-XMP
+    <- no-consume-implies-efxmap-minimum-efx-helper
+      NC-M NC-X2 _ NC-X3 MX-M.
+
+%worlds () (no-consume-implies-efxmap-minimum-efx _ _ _ _ _).
+%total (NC) (no-consume-implies-efxmap-minimum-efx NC _ _ _ _). 
 
 % ============================ false-implies-XX ===========================
 % =========================================================================
@@ -658,7 +804,6 @@ env2progtype/
 %total {} (false-implies-efxmap2perm _ _).
 
 % ==================================================================
-
 
 
 % ================== totality (constructive) theorems =====================
@@ -849,6 +994,22 @@ env2progtype/
 %total (T) (clsmap-cxt-efxmap-implies-efxmap2perm _ _ T _ _).
 
 
+%theorem clsmap-cxt-effects-implies-efxmap2perm
+  : forall* {P} {CM} {PM} {B} {XM} {CS} {SX}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B-XM: clsmap-cxt-effects CM B (effects/ XM SX CS)}
+    exists {Pi} {XM=>Pi: efxmap2perm P CM PM B XM Pi}
+    true.
+
+- : clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM
+    (clsmap-cxt-effects/ CM-B-XM _ _ _) _ XM=>Pi
+    <- clsmap-cxt-efxmap-implies-efxmap2perm CM-CM CM2PM CM-B-XM _ XM=>Pi.
+
+%worlds (objvar | fracvar) (clsmap-cxt-effects-implies-efxmap2perm _ _ _ _ _).
+%total {} (clsmap-cxt-effects-implies-efxmap2perm _ _ _ _ _). 
+
+
 %theorem clsmap-cxt-efxmap-implies-effects2input
   : forall* {CM} {PM} {B} {XM} {MX} {CS}
     forall {CM-CM: clsmap-clsmap CM CM}
@@ -869,89 +1030,161 @@ env2progtype/
 %total {} (clsmap-cxt-efxmap-implies-effects2input _ _ _ _ _ _).
 
 
-%theorem not-consume-implies-efx2frac
-  : forall* {X}
-    forall {NC-X: efx`not-consume X}
-    exists {Q} {X2Q: efx2frac X Q}
+%theorem clsmap-cxt-effects-implies-effects2input
+  : forall* {CM} {PM} {B} {XX}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    exists {Pi} {XX=>Pi: effects2input CM PM B XX Pi}
     true.
 
-- : not-consume-implies-efx2frac efx`not-consume/read _ efx2frac/read.
+- : clsmap-cxt-effects-implies-effects2input CM-CM CM2PM CM-B
+    (clsmap-cxt-effects/ CM-B-XM _ _ _) _ XX=>Pi
+    <- clsmap-cxt-efxmap-implies-effects2input CM-CM CM2PM CM-B CM-B-XM _ XX=>Pi.
 
-- : not-consume-implies-efx2frac efx`not-consume/write _ efx2frac/write.
-
-%worlds (objvar) (not-consume-implies-efx2frac _ _ _).
-%total {} (not-consume-implies-efx2frac _ _ _).
+%worlds () (clsmap-cxt-effects-implies-effects2input _ _ _ _ _ _).
+%total {} (clsmap-cxt-effects-implies-effects2input _ _ _ _ _ _).
 
 
-%theorem not-consume-implies-minimum-efx
-  : forall* {X1} {X2}
-    forall {NC-X1: efx`not-consume X1}
-    {NC-X2: efx`not-consume X2}
-    exists {X} {NC-X: efx`not-consume X}
-    {MX: minimum-efx X1 X2 X}
+%theorem clsmap-cxt-effects-implies-effects2output*
+  : forall* {CM} {PM} {B} {XX} {NN} {C} {FM}
+    forall {GS} {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    {GS-XX: targets-effects GS XX}
+    {CML: clsmap`lookup CM C FM}
+    exists {Out} {XX=>Out: effects2output CM PM B (reftype/ NN C GS) XX Out}
     true.
 
-- : not-consume-implies-minimum-efx
-    efx`not-consume/read efx`not-consume/read efx/read
-    efx`not-consume/read minimum-efx/=.
-
-- : not-consume-implies-minimum-efx
-    efx`not-consume/read efx`not-consume/write efx/read
-    efx`not-consume/read (minimum-efx/< efx`lt/rw).
-
-- : not-consume-implies-minimum-efx
-    efx`not-consume/write efx`not-consume/write efx/write
-    efx`not-consume/write minimum-efx/=.
-
-- : not-consume-implies-minimum-efx
-    efx`not-consume/write efx`not-consume/read efx/read
-    efx`not-consume/read (minimum-efx/> efx`lt/rw).
-
-%worlds () (not-consume-implies-minimum-efx _ _ _ _ _).
-%total {} (not-consume-implies-minimum-efx _ _ _ _ _).
- 
-
-%theorem no-consume-implies-efxmap-minimum-efx-helper
-  : forall* {X1} {M}
-    forall {NC-M: inner-efxmap`no-consume M}
-    {NC-X: efx`not-consume X1}
-    exists {X2} {NC-X: efx`not-consume X2}
-    {MX-M=X: efxmap-minimum-efx-helper X1 M X2}
+%theorem clsmap-cxt-effects-implies-effects2output/shared
+  : forall* {CM} {PM} {B} {XX} {NN} {C} {FM}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    {CML: clsmap`lookup CM C FM}
+    exists {Out} {XX=>Out: effects2output CM PM B
+                           (reftype/ NN C targets/shared) XX Out}
     true.
 
-- : no-consume-implies-efxmap-minimum-efx-helper
-    inner-efxmap`no-consume/0 NC _ NC efxmap-minimum-efx-helper/0.
+- : clsmap-cxt-effects-implies-effects2output/shared
+    CM-CM CM2PM CM-B CM-B-XX CML _ (effects2output/shared T2PF SX=>Pi3 XM=>Pi2 B=>Pi1)
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
+    <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ XM=>Pi2
+    <- shared-efx2perm-total SX=>Pi3
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF. 
 
-- : no-consume-implies-efxmap-minimum-efx-helper
-    (inner-efxmap`no-consume/U NC-MP F U NC-X2) NC-X1
-    _ NC-X4 (efxmap-minimum-efx-helper/U MX-MP MX-X U F)
+%worlds () (clsmap-cxt-effects-implies-effects2output/shared _ _ _ _ _ _ _).
+%total {} (clsmap-cxt-effects-implies-effects2output/shared _ _ _ _ _ _ _). 
+
+
+%theorem clsmap-cxt-effects-implies-effects2output/unique*
+  : forall* {CM} {PM} {B} {XX} {NN} {C} {FM}
+    forall {S} {GM} {SB} {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    {G-XX: targets-effects (targets/unique S GM SB) XX}
+    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    {CML: clsmap`lookup CM C FM}
+    exists {Out} {XX=>Out: effects2output CM PM B
+                           (reftype/ NN C (targets/unique S GM SB)) XX Out}
+    true.
+
+- : clsmap-cxt-effects-implies-effects2output/unique*
+    set/0 tgtmap/0 false CM-CM CM2PM CM-B _ CM-B-XX CML _
+    (effects2output/unique/0 T2PF SX=>Pi3 XM=>Pi2 B=>Pi1 tgtmap`size/0 set`size/0)
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
+    <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ XM=>Pi2
+    <- shared-efx2perm-total SX=>Pi3
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF.
+
+- : clsmap-cxt-effects-implies-effects2output/unique*
+    (set/+ _ _) tgtmap/0 false CM-CM CM2PM CM-B _ CM-B-XX CML _
+    (effects2output/unique/0f T2PF SX=>Pi3 XM=>Pi2 S=>G B=>Pi1 tgtmap`size/0
+      (set`size/+ Z))
+    <- set`size-total Z
+    <- ({r} set2facts-total (S=>G r))
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
+    <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ XM=>Pi2
+    <- shared-efx2perm-total SX=>Pi3
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF.
+
+- : clsmap-cxt-effects-implies-effects2output/unique*
+    _ tgtmap/0 true CM-CM CM2PM CM-B
+    (targets-effects/unique (shared-efx-relation/t NN) _ _ _) CM-B-XX CML _
+    (effects2output/unique/0t T2PF X2Q SX2X SX=>Pi3 XM=>Pi2 S=>G B=>Pi1 tgtmap`size/0)
+    <- ({r} set2facts-total (S=>G r))
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
+    <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ XM=>Pi2
+    <- shared-efx2perm-total SX=>Pi3
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF
+    <- shared-efx-not-none-implies-shared-efx2efx NN _ SX2X NC-X
+    <- not-consume-implies-efx2frac NC-X _ X2Q.
+
+- : clsmap-cxt-effects-implies-effects2output/unique*
+    _ (tgtmap/+ _ _ _) false CM-CM CM2PM CM-B
+    (targets-effects/unique _ NC-XM2 SG GM<=XM2) (clsmap-cxt-effects/ CM-B-XM _ _ _) CML _
+    (effects2output/unique/+f T2PF SX=>Pi3 X2Q MX-XM2 XM2=>Pi3 XM1=>Pi2 SG
+      S=>G B=>Pi1 (tgtmap`size/+ Z))
+    <- tgtmap`size-total Z
+    <- ({r} set2facts-total (S=>G r))
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
+    <- select-tgtmap-implies-leq SG LE1 LE2
+    <- leq-preserves-clsmap-cxt-efxmap CM-B-XM LE1 CM-B-XM1
+    <- leq-preserves-clsmap-cxt-efxmap CM-B-XM LE2 CM-B-XM2
+    <- clsmap-cxt-efxmap-implies-efxmap2perm CM-CM CM2PM CM-B-XM1 _ XM1=>Pi2
+    <- clsmap-cxt-efxmap-implies-efxmap2perm CM-CM CM2PM CM-B-XM2 _ XM2=>Pi3
+    <- shared-efx2perm-total SX=>Pi3
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF
+    <- no-consume-implies-efxmap-minimum-efx NC-XM2 efx`not-consume/write _
+      NC-X MX-XM2
+    <- not-consume-implies-efx2frac NC-X _ X2Q.
+
+- : clsmap-cxt-effects-implies-effects2output/unique*
+    _ (tgtmap/+ _ _ _) true CM-CM CM2PM CM-B
+    (targets-effects/unique (shared-efx-relation/t NN)
+      NC-XM2 SG GM<=XM2) (clsmap-cxt-effects/ CM-B-XM _ _ _) CML _
+    (effects2output/unique/+t T2PF SX=>Pi3 X2Q MX-X SX2X MX-XM2 XM2=>Pi3 XM1=>Pi2 SG
+      S=>G B=>Pi1 (tgtmap`size/+ Z))
+    <- tgtmap`size-total Z
+    <- ({r} set2facts-total (S=>G r))
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
+    <- select-tgtmap-implies-leq SG LE1 LE2
+    <- leq-preserves-clsmap-cxt-efxmap CM-B-XM LE1 CM-B-XM1
+    <- leq-preserves-clsmap-cxt-efxmap CM-B-XM LE2 CM-B-XM2
+    <- clsmap-cxt-efxmap-implies-efxmap2perm CM-CM CM2PM CM-B-XM1 _ XM1=>Pi2
+    <- clsmap-cxt-efxmap-implies-efxmap2perm CM-CM CM2PM CM-B-XM2 _ XM2=>Pi3
+    <- shared-efx2perm-total SX=>Pi3
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF
+    <- no-consume-implies-efxmap-minimum-efx NC-XM2 efx`not-consume/write _
+      NC-X1 MX-XM2
+    <- shared-efx-not-none-implies-shared-efx2efx NN _ SX2X NC-X2
     <- not-consume-implies-minimum-efx NC-X1 NC-X2 _ NC-X MX-X
-    <- no-consume-implies-efxmap-minimum-efx-helper NC-MP NC-X _ NC-X4 MX-MP.
+    <- not-consume-implies-efx2frac NC-X _ X2Q.
 
-%worlds () (no-consume-implies-efxmap-minimum-efx-helper _ _ _ _ _).
-%total (NC) (no-consume-implies-efxmap-minimum-efx-helper NC _ _ _ _).
+%worlds () ( clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
+%total {} ( clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
 
+%abbrev clsmap-cxt-effects-implies-effects2output/unique
+  = clsmap-cxt-effects-implies-effects2output/unique* _ _ _.
 
-%theorem no-consume-implies-efxmap-minimum-efx
-  : forall* {XM} {X1}
-    forall {NC-XM: efxmap`no-consume XM}
-    {NC-X1: efx`not-consume X1}
-    exists {X2} {NC-X: efx`not-consume X2}
-    {MX-XM: efxmap-minimum-efx* X1 XM X2}
-    true.
+- : clsmap-cxt-effects-implies-effects2output* targets/shared CM-CM CM2PM CM-B
+    CM-B-XX GS-XX CML _ XX=>Out
+    <- clsmap-cxt-effects-implies-effects2output/shared CM-CM CM2PM CM-B CM-B-XX
+      CML _ XX=>Out.
+    
+- : clsmap-cxt-effects-implies-effects2output* (targets/unique _ _ _)
+    CM-CM CM2PM CM-B CM-B-XX GS-XX CML _ XX=>Out
+    <- clsmap-cxt-effects-implies-effects2output/unique
+      CM-CM CM2PM CM-B GS-XX CM-B-XX CML _ XX=>Out.
 
-- : no-consume-implies-efxmap-minimum-efx
-    efxmap`no-consume/0 NC _ NC efxmap-minimum-efx/0.
+%worlds () (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _).
+%total {} (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _).
 
-- : no-consume-implies-efxmap-minimum-efx
-    (efxmap`no-consume/U NC-XMP F U NC-M) NC-X1
-    _ NC-X3 (efxmap-minimum-efx/U MX-XMP MX-M U F)
-    <- no-consume-implies-efxmap-minimum-efx-helper
-      NC-M NC-X1 _ NC-X2 MX-M
-    <- no-consume-implies-efxmap-minimum-efx NC-XMP NC-X2 _ NC-X3 MX-XMP.
-
-%worlds () (no-consume-implies-efxmap-minimum-efx _ _ _ _ _).
-%total (NC) (no-consume-implies-efxmap-minimum-efx NC _ _ _ _). 
+%abbrev clsmap-cxt-effects-implies-effects2output
+  = clsmap-cxt-effects-implies-effects2output* _.
 
 % =========================================================================
 
@@ -1031,6 +1264,33 @@ env2progtype/
 %total {} (efxmap2perm-respects-eq _ _ _ _ _ _ _ _).
 
 
+%theorem efx2frac-respects-eq
+  : forall* {X} {X'} {Q}
+    forall {X2Q: efx2frac X Q}
+    {XE: efx`eq X X'}
+    exists {X2Q': efx2frac X' Q}
+    true.
+
+- : efx2frac-respects-eq X2Q efx`eq/ X2Q.
+
+%worlds () (efx2frac-respects-eq _ _ _).
+%total {} (efx2frac-respects-eq _ _ _). 
+
+
+%theorem minimum-efx-respects-eq
+  : forall* {X1} {X2} {Y1} {Y2} {X} {Y}
+    forall {MX: minimum-efx X1 X2 X}
+    {E: efx`eq X1 Y1} {E: efx`eq X2 Y2}
+    {E: efx`eq X Y}
+    exists {MX: minimum-efx Y1 Y2 Y}
+    true.
+
+- : minimum-efx-respects-eq MX efx`eq/ efx`eq/ efx`eq/ MX.
+
+%worlds () (minimum-efx-respects-eq _ _ _ _ _).
+%total {} (minimum-efx-respects-eq _ _ _ _ _).
+ 
+
 %theorem efxmap-minimum-efx-helper-respects-eq
   : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
     forall {MX: efxmap-minimum-efx-helper X1 M X2}
@@ -1057,20 +1317,31 @@ env2progtype/
 %total {} (efxmap-minimum-efx-respects-eq _ _ _ _ _).
 
 
-%theorem effects2output-respects-eq
-  : forall* {CM} {PM} {B} {NN} {C} {GS} {XM} {MX}
-    {NN1} {C1} {XM1} {GS1} {MX1} {Out} {CS} {CS1}
-    forall {XX2O: effects2output CM PM B (reftype/ NN C GS) (effects/ XM MX CS) Out}
-    {E: nonnull`eq NN NN1} {E: nat`eq C C1} {E: targets`eq GS GS1}
-    {E: efxmap`eq XM XM1} {E: shared-efx`eq MX MX1} {E: set`eq CS CS1}
-    exists {XX2O: effects2output CM PM B (reftype/ NN1 C1 GS1) (effects/ XM1 MX1 CS1) Out}
+%theorem effects2input-respects-eq
+  : forall* {CM} {PM} {B} {XX} {XX'} {Pi} {Pi'}
+    forall {XX2I: effects2input CM PM B XX Pi}
+    {E: effects`eq XX XX'} {E: permission`eq Pi Pi'}
+    exists {XX2I': effects2input CM PM B XX' Pi'}
     true.
 
-- : effects2output-respects-eq
-    XX nonnull`eq/ nat`eq/ targets`eq/ efxmap`eq/ shared-efx`eq/ set`eq/ XX.
+- : effects2input-respects-eq XX2I effects`eq/ permission`eq/ XX2I.
+
+%worlds () (effects2input-respects-eq _ _ _ _).
+%total {} (effects2input-respects-eq _ _ _ _).
+ 
+
+%theorem effects2output-respects-eq
+  : forall* {CM} {PM} {B} {NN} {C} {XX} {NN1} {C1} {XX1} {Out} {GS} {GS1}
+    forall {XX2O: effects2output CM PM B (reftype/ NN C GS) XX Out}
+    {E: nonnull`eq NN NN1} {E: nat`eq C C1} {E: targets`eq GS GS1}
+    {E: effects`eq XX XX1}
+    exists {XX2O: effects2output CM PM B (reftype/ NN1 C1 GS1) XX1 Out}
+    true.
+
+- : effects2output-respects-eq XX nonnull`eq/ nat`eq/ targets`eq/ effects`eq/ XX.
     
-%worlds () (effects2output-respects-eq _ _ _ _ _ _ _ _).
-%total { } (effects2output-respects-eq _ _ _ _ _ _ _ _).
+%worlds () (effects2output-respects-eq _ _ _ _ _ _).
+%total { } (effects2output-respects-eq _ _ _ _ _ _).
 
 % =========================================================================
 
@@ -1298,12 +1569,13 @@ env2progtype/
     forall {MX-H: efxmap-minimum-efx-helper X1 M X4}
     {FS: inner-efxmap`fresh M' F}
     {U: inner-efxmap`update M' F X2 M}
-    exists {X3} {MX: minimum-efx X1 X2 X3}
+    exists {X3} {NC-X3: efx`not-consume X3}
+    {MX: minimum-efx X1 X2 X3}
     {MH-H': efxmap-minimum-efx-helper X3 M' X4}
     true.
 
-%worlds () (efxmap-minimum-efx-helper/U-inversion _ _ _ _ _ _).
-%trustme %total {} (efxmap-minimum-efx-helper/U-inversion _ _ _ _ _ _).
+%worlds () (efxmap-minimum-efx-helper/U-inversion _ _ _ _ _ _ _).
+%trustme %total {} (efxmap-minimum-efx-helper/U-inversion _ _ _ _ _ _ _).
 
 
 %theorem efxmap-minimum-efx/U-inversion
@@ -1369,7 +1641,20 @@ env2progtype/
 
 %worlds () (minimum-efx-unique _ _ _ _ _).
 %total {} (minimum-efx-unique _ _ _ _ _).
- 
+
+
+%theorem efxmap-minimum-efx-unique
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: efxmap-minimum-efx* X1 M X2}
+    {MX': efxmap-minimum-efx* X1' M' X2'}
+    {E: efx`eq X1 X1'} {E: efxmap`eq M M'}
+    exists {E: efx`eq X2 X2'}
+    true.
+
+- : efxmap-minimum-efx-unique MX MX efx`eq/ efxmap`eq/ efx`eq/.
+
+%worlds () (efxmap-minimum-efx-unique _ _ _ _ _).
+%trustme %total {} (efxmap-minimum-efx-unique _ _ _ _ _).
 
 %theorem inner-efxmap2perm-equiv
   : forall* {P1} {P2} {O1} {O2} {FM1} {FM2}
@@ -1616,14 +1901,17 @@ env2progtype/
     exists {X<=X1: efx`leq X X1} {X<=X2: efx`leq X X2}
     true.
 
-- : minimum-efx-implies-leq minimum-efx/=
+- : minimum-efx-implies-leq minimum-efx/rr
     (efx`leq/eq efx`eq/) (efx`leq/eq efx`eq/).
 
-- : minimum-efx-implies-leq (minimum-efx/< X1<=X2)
-    (efx`leq/eq efx`eq/) (efx`leq/lt X1<=X2).
+- : minimum-efx-implies-leq minimum-efx/ww
+    (efx`leq/eq efx`eq/) (efx`leq/eq efx`eq/).
 
-- : minimum-efx-implies-leq (minimum-efx/> X1<=X2)
-    (efx`leq/lt X1<=X2) (efx`leq/eq efx`eq/).
+- : minimum-efx-implies-leq (minimum-efx/rw)
+    (efx`leq/eq efx`eq/) (efx`leq/lt efx`lt/rw).
+
+- : minimum-efx-implies-leq (minimum-efx/wr)
+    (efx`leq/lt efx`lt/rw) (efx`leq/eq efx`eq/).
 
 %worlds () (minimum-efx-implies-leq _ _ _).
 %total {} (minimum-efx-implies-leq _ _ _).
@@ -2523,3 +2811,65 @@ env2progtype/
 
 %worlds () (clsmap-cxt-lookup-implies-ty2perm _ _ _ _ _ _).
 %total (B) (clsmap-cxt-lookup-implies-ty2perm _ B _ _ _ _).
+
+
+%theorem equiv-empty-implies-minimum-efx-write
+  : forall* {XM} {GM}
+    forall {EQV-EMP: equiv-empty GM}
+    {XM=>GM: efxmap2tgtmap XM GM}
+    exists {MX-W: efxmap-minimum-efx XM efx/write}
+    true.
+
+- : equiv-empty-implies-minimum-efx-write
+    equiv-empty/0 efxmap2tgtmap/0 efxmap-minimum-efx/0.
+
+- : equiv-empty-implies-minimum-efx-write
+    (equiv-empty/U EE-M' F U) M=>G (efxmap-minimum-efx/U MXH MX-M' U' F')
+    <- efxmap2tgtmap/UP-inversion M=>G F U _ _ M'=>G' DM-D U'
+    <- inner-efxmap`domain-empty-implies-empty DM-D D=EMP
+    <- equiv-empty-implies-minimum-efx-write EE-M' M'=>G' MX-M'
+    <- efxmap-minimum-efx-helper-respects-eq efxmap-minimum-efx-helper/0
+      efx`eq/ D=EMP efx`eq/ MXH
+    <- efxmap2tgtmap-preserves-fresh-converse F M'=>G' F'.
+
+%worlds () (equiv-empty-implies-minimum-efx-write _ _ _).
+%total (E) (equiv-empty-implies-minimum-efx-write E _ _).
+
+
+%theorem efxmap-minimum-efx-respects-leq
+  : forall* {M1} {M2} {X1} {X2}
+    forall {M1<=M2: efxmap`leq M1 M2}
+    {MX-M1: efxmap-minimum-efx M1 X1}
+    {MX-M2: efxmap-minimum-efx M2 X2}
+    exists {X2<=X1: efx`leq X2 X1}
+    true.
+
+%worlds () (efxmap-minimum-efx-respects-leq _ _ _ _).
+%trustme %total {} (efxmap-minimum-efx-respects-leq _ _ _ _).
+
+
+%theorem efxmap`join-joins-minimum-efx
+  : forall* {M1} {M2} {M} {X1} {X2}
+    forall {J: efxmap`join M1 M2 M}
+    {MX-M1: efxmap-minimum-efx M1 X1}
+    {MX-M2: efxmap-minimum-efx M2 X2}
+    exists {X} {MX: minimum-efx X1 X2 X}
+    {MX-M: efxmap-minimum-efx M X}
+    true.
+
+%worlds () (efxmap`join-joins-minimum-efx _ _ _ _ _ _).
+%trustme %total {} (efxmap`join-joins-minimum-efx _ _ _ _ _ _).
+
+
+%theorem effects`join-implies-permission-combine-converse
+  : forall* {CM} {PM} {B} {Pi} {XX1} {XX2} {XX}
+    forall {J: effects`join XX1 XX2 XX}
+    {XX=>Pi: effects2input CM PM B XX Pi}
+    exists {Pi1} {Pi2}
+    {XX1=>Pi1: effects2input CM PM B XX1 Pi1}
+    {XX2=>Pi2: effects2input CM PM B XX2 Pi2}
+    {EQV: equiv Pi (Pi1 , Pi2)}
+    true.
+
+%worlds () (effects`join-implies-permission-combine-converse _ _ _ _ _ _ _).
+%trustme %total {} (effects`join-implies-permission-combine-converse _ _ _ _ _ _ _).
