@@ -1,20 +1,5 @@
 %%% Mapping from (obj,field) to efx
-%%% $Id: efxmap-base.elf,v 1.1 2013/09/21 16:09:19 csun Exp csun $
-
-
-efx`is-consume? : efx -> bool -> type.
-
-efx`is-consume?/read : efx`is-consume? efx/read false.
-
-efx`is-consume?/write : efx`is-consume? efx/write false.
-
-efx`is-consume?/consume : efx`is-consume? efx/consume true.
-
-%abbrev efx`not-consume : efx -> type = [X] efx`is-consume? X false.
-%abbrev efx`is-consume : efx -> type = [X] efx`is-consume? X true.
-
-%abbrev efx`is-consume?@ : nat -> efx -> bool -> type = [N][X][B] efx`is-consume? X B.
-
+%%% $Id: efxmap-base.elf,v 1.2 2013/09/22 19:09:37 csun Exp csun $
 
 %{%
 #define data efx
@@ -33,102 +18,10 @@ BEGIN_ELF
 #include "map-join.elf"
 #include "map-domain.elf"
 #include "map-restrict.elf"
-#include "map-all.elf"
 END_ELF
 #undef arg
 #undef data
 %}%
-
-
-%%% Extra theorems about is-consume?
-
-%abbrev no-consume : map -> type = [M] is-consume? M false.
-%abbrev is-consume : map -> type = [M] is-consume? M true.
-
-
-%theorem efx`no-consume-respects-geq
-  : forall* {X} {XP}
-    forall {PX: efx`not-consume X}
-    {L: efx`leq XP X}
-    exists {PX: efx`not-consume XP}
-    true.
-
-- : efx`no-consume-respects-geq
-    efx`is-consume?/read (efx`geq/= efx`eq/) efx`is-consume?/read.
-
-- : efx`no-consume-respects-geq
-    efx`is-consume?/write (efx`geq/> efx`grt/wr) efx`is-consume?/read.
-
-- : efx`no-consume-respects-geq
-    efx`is-consume?/write (efx`geq/= efx`eq/) efx`is-consume?/write.
-
-%worlds () (efx`no-consume-respects-geq _ _ _).
-%total {} (efx`no-consume-respects-geq _ _ _).
-
-
-%theorem efx`join-not-consume
-  : forall* {X1} {X2} {X}
-    forall {J: efx`join X1 X2 X}
-    {NC: efx`not-consume X2}
-    exists {NC: efx`not-consume X}
-    true.
-
-- : efx`join-not-consume
-    efx`join/rr efx`is-consume?/read efx`is-consume?/read.
-
-- : efx`join-not-consume
-    efx`join/wr efx`is-consume?/read efx`is-consume?/write.
-
-- : efx`join-not-consume
-    efx`join/rw efx`is-consume?/write efx`is-consume?/write.
-
-- : efx`join-not-consume
-    efx`join/ww efx`is-consume?/write efx`is-consume?/write.
-
-%worlds () (efx`join-not-consume _ _ _).
-%total {} (efx`join-not-consume _ _ _).
-
-
-%theorem no-consume-respects-geq
-  : forall* {M} {MP}
-    forall {PX: no-consume M}
-    {L: leq MP M}
-    exists {PX: no-consume MP}
-    true.
-
-- : no-consume-respects-geq _ leq/0 is-consume?/0.
-
-%theorem no-consume-respects-geq/L
-  : forall* {M} {MP} {MS} {N} {X} {B}
-    forall {PX: no-consume MS}
-    {F: fresh MS N}
-    {U: update MS N X M}
-    {PX: efx`not-consume X}
-    {L: leq MP M}
-    {DM?: domain? MP N B}
-    exists {PX: no-consume MP}
-    true.
-
-- : no-consume-respects-geq/L
-    PX-MS FS US PX-X MP<=M (domain?/in L) (is-consume?/U PX-MK PX-XP FK UK)
-    <- lookup-implies-fresh-update L MK FK UK
-    <- fresh-update-preserves-leq-converse MP<=M FK UK FS US MK<=MS XP<=X
-    <- no-consume-respects-geq PX-MS MK<=MS PX-MK
-    <- efx`no-consume-respects-geq PX-X XP<=X PX-XP.
-
-- : no-consume-respects-geq/L PX-MS FS US PX-X MP<=M (domain?/out FP) PX-MP
-    <- fresh-update2-preserves-leq-converse MP<=M FP FS US MP<=MS
-    <- no-consume-respects-geq PX-MS MP<=MS PX-MP.
-
-- : no-consume-respects-geq (is-consume?/U PX-MS PX-X FS US) MP<=M PX-MP
-    <- domain?-total DM?
-    <- no-consume-respects-geq/L PX-MS FS US PX-X MP<=M DM? PX-MP.
-
-%worlds () (no-consume-respects-geq _ _ _)
-	(no-consume-respects-geq/L _ _ _ _ _ _ _).
-%total (P1 P2) (no-consume-respects-geq P1 _ _)
-	(no-consume-respects-geq/L P2 _ _ _ _ _ _).
-
 
 
 % We want something stronger than map-restrict - we need
@@ -416,100 +309,6 @@ partition/ : domain M R
 
 %worlds () (partition-associates _ _ _ _ _ _ _ _ _ _ _ _).
 %total {} (partition-associates _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%{%
- this lemma shows that, if we have a efxmap XM2 that contains
- no consume effect, and we have XM1 `join` XM2 = XM, then
- if we remove all targets in XM2 from XM, and get XM1P, XM2P,
- we can show XM2P also does not contain any consume effect.
- From another lemma we can also get the fact that XM2P has same
- targets as XM2. Thus, if XM2P gets converted to permission
- Pi1, and XM2 converted to permission Pi2, we can infer that
- Pi1 = Pi2 , Pi3, for some Pi3.
-%}%
-
-%theorem join-no-consume-right
-  : forall* {M2} {S2} {M1} {M} {M1P} {M2P}
-    forall {D: domain M2 S2}
-    {IC: no-consume M2}
-    {J: join M1 M2 M}
-    {P: partition M S2 M1P M2P}
-    exists {IC: no-consume M2P}
-    true.
-
-- : join-no-consume-right DM-M2=S NC-M join/L M+S=>M1P+M2P NC-M2P
-    <- partition-implies-leq M+S=>M1P+M2P _ M2P<=M
-    <- no-consume-respects-geq NC-M M2P<=M NC-M2P.
-
-- : join-no-consume-right domain/0 _ join/R SS NC
-    <- partition-on-empty-set _ SS2
-    <- partition-unique SS2 SS eq/ set`eq/ E1 E2
-    <- is-consume?-respects-eq is-consume?/0 E2 bool`eq/ NC.
-
-%theorem join-no-consume-right/U
-  : forall* {M1} {M2S} {G2S} {N} {B} {G2} {M} {M2} {M1P} {M2P} {D}
-    forall {DM?: domain? M1 N B}
-    {T: domain M2S G2S}
-    {FS: set`not-member G2S N}
-    {U: set`add G2S N G2}
-    {NC: is-consume? M2S false}
-    {FS: fresh M2S N}
-    {U: update M2S N D M2}
-    {NC: efx`is-consume? D false}
-    {J: join M1 M2 M}
-    {SG: partition M G2 M1P M2P}
-    exists {NC: no-consume M2P}
-    true.
-
-- : join-no-consume-right/U (domain?/out N!<M1)
-    M2S=>G2S N!<G2S G2S+N+S=G2 NC-M2S N!<M2S M2S+N+D=M2 NC-D
-    M1+M2=M M+G2=M1P+M2P NC-M2P
-    <- fresh-update-implies-unit-join N!<M2S M2S+N+D=M2 M2S+D=M2
-    <- join-associative-converse M2S+D=M2 M1+M2=M MS M1+M2S=MS MS+D=M
-    <- join-preserves-fresh* N!<M1 N!<M2S M1+M2S=MS N!<MS
-    <- fresh-unit-join-implies-update N!<MS MS+D=M MS+N+D=M
-    <- fresh-update-preserves-partition-converse*
-      M+G2=M1P+M2P N!<MS MS+N+D=M
-      N!<G2S G2S+N+S=G2 _ M2PS+N+D=M2P MS+G2S=M1P+M2PS
-    <- join-no-consume-right M2S=>G2S NC-M2S
-      M1+M2S=MS MS+G2S=M1P+M2PS NC-M2PS
-    <- efx`is-consume?@-update-preserves-is-consume?
-      NC-M2PS NC-D M2PS+N+D=M2P NC-M2P.
-
-- : join-no-consume-right/U (domain?/in M1->N=D1)
-    M2S=>G2S N!<G2S G2S+N+S2=G2 NC-M2S N!<M2S M2S+N+D2=M2 NC-D2
-    M1+M2=M M+G2=M1P+M2P NC-M2P
-    <- lookup-implies-fresh-update M1->N=D1 M1S N!<M1S M1S+N+D1=M1
-    <- fresh-update-preserves-join-converse N!<M1S M1S+N+D1=M1
-      N!<M2S M2S+N+D2=M2 M1+M2=M MS _ N!<MS MS+N+D=M D1+D2=D M1S+M2S=MS
-    <- fresh-update-preserves-partition-converse*
-      M+G2=M1P+M2P N!<MS MS+N+D=M N!<G2S G2S+N+S2=G2
-      M2PS M2PS+N+D=M2P MS+G2S=M1P+M2PS
-    <- join-no-consume-right
-      M2S=>G2S NC-M2S M1S+M2S=MS MS+G2S=M1P+M2PS NC-M2PS
-    <- efx`join-not-consume D1+D2=D NC-D2 NC-D
-    <- efx`is-consume?@-update-preserves-is-consume?
-      NC-M2PS NC-D M2PS+N+D=M2P NC-M2P.
-
-- : join-no-consume-right M2=>G2
-    (is-consume?/U NC-M2S NC-D2 N!<M2S M2S+N+D2=M2) M1+M2=M
-    M+G2=M1P+M2P NC-M2P
-    <- update-implies-lookup M2S+N+D2=M2 M2->N=D2
-    <- domain-preserves-lookup M2->N=D2 M2=>G2 N<-G2
-    <- set`member-implies-not-member-add N<-G2 G2S N!<G2S G2S+N=G2
-    <- domain-commute-fresh-update-converse
-      M2=>G2 N!<M2S M2S+N+D2=M2 N!<G2S G2S+N=G2 M2S=>G2S
-    <- domain?-total DM?
-    <- join-no-consume-right/U DM? M2S=>G2S
-      N!<G2S G2S+N=G2 NC-M2S N!<M2S M2S+N+D2=M2
-      NC-D2 M1+M2=M M+G2=M1P+M2P NC-M2P.
-
-%worlds () (join-no-consume-right _ _ _ _ _)
-	(join-no-consume-right/U _ _ _ _ _ _ _ _ _ _ _).
-%total (A1 A2) (join-no-consume-right _ A1 _ _ _)
-	(join-no-consume-right/U _ _ _ _ A2 _ _ _ _ _ _).
-
 
 
 %%% Exports
