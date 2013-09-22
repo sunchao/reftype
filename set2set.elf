@@ -1,0 +1,145 @@
+%%% Converting object set to (obj,fld) set
+%%% $Id$
+
+%%% Definitions
+
+%%% 1, set+nat2set (objs + fld => (obj,fld) set)
+
+set+nat2set : set -> nat -> set -> type.
+
+set+nat2set/0 : set+nat2set set/0 _ set/0.
+
+set+nat2set/U : set+nat2set SP F QP
+                -> pair2nat (pair/ N F) K
+                -> set`not-member SP N
+                -> set`add SP N S
+                -> set`add QP K Q
+                -> set+nat2set S F Q.
+
+
+%%% 2, nat+set2set (obj + flds => (obj,fld) set)
+
+nat+set2set : nat -> set -> set -> type.
+
+nat+set2set/0 : nat+set2set _ set/0 set/0.
+
+nat+set2set/U : nat+set2set N SP QP
+                -> pair2nat (pair/ N F) K
+                -> set`not-member SP F
+                -> set`add SP F S
+                -> set`add QP K Q
+                -> nat+set2set N S Q.
+
+
+%%% 3, set+set2set (objs + flds => (obj,fld) set)
+
+set+set2set : set -> set -> set -> type.
+
+set+set2set/0 : set+set2set _ set/0 set/0.
+
+set+set2set/U : set+set2set S FSP QP
+                -> set+nat2set S F R
+                -> set`not-member FSP F
+                -> set`add FSP F FS
+                -> set`union QP R Q
+                -> set+set2set S FS Q.
+
+
+%%% Theorems
+
+
+%%% "non-trivial" theorems
+
+%theorem set+set2set/U-inversion
+  : forall* {S} {FS} {FSP} {F} {Q}
+    forall {S+FS=>Q: set+set2set S FS Q}
+    {NM: set`not-member FSP F}
+    {A: set`add FSP F FS}
+    exists {QP} {S+FSP=>QP: set+set2set S FSP QP}
+    {R} {S+F=>R: set+nat2set S F R}
+    {U: set`union QP R Q}
+    true.
+
+%worlds () (set+set2set/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total {} (set+set2set/U-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem set+nat2set-preserves-fresh
+  : forall* {S} {N} {F} {K} {Q}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {NM: set`not-member S N}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : set+nat2set-preserves-fresh set+nat2set/0
+    set`not-member/0 _ set`not-member/0.
+
+%theorem set+nat2set-preserves-fresh/L
+  : forall* {S} {N} {F} {K} {Q} {SP} {QP} {NP} {KP} {B}
+    forall {S+F=>Q: set+nat2set SP F QP}
+    {NP+F=>KP: pair2nat (pair/ NP F) KP}
+    {NMP: set`not-member SP NP}
+    {UP: set`add SP NP S}
+    {UQ: set`add QP KP Q}
+    {NM: set`not-member S N}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? N NP B}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : set+nat2set-preserves-fresh/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- set`add-implies-member UP MB
+    <- set`not-member-member-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- set`false-implies-not-member V NMQ.
+
+- : set+nat2set-preserves-fresh/L SP+F=>QP NP+F=>KP _
+    SP+NP=S QP+KP=Q N!<S N+F=>K (nat`eq?/no N<>NP) K!<Q
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- set+nat2set-preserves-fresh SP+F=>QP N!<SP N+F=>K K!<QP
+    <- pair2nat-preserves-ne* (natpair`ne/1 N<>NP) N+F=>K NP+F=>KP K<>KP
+    <- set`add-preserves-not-member K!<QP QP+KP=Q K<>KP K!<Q.
+
+- : set+nat2set-preserves-fresh
+    (set+nat2set/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- set+nat2set-preserves-fresh/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (set+nat2set-preserves-fresh _ _ _ _)
+(set+nat2set-preserves-fresh/L _ _ _ _ _ _ _ _ _).
+%total (T1 T2) (set+nat2set-preserves-fresh T1 _ _ _)
+(set+nat2set-preserves-fresh/L T2 _ _ _ _ _ _ _ _).
+
+
+%theorem set+nat2set-no-consume
+  : forall* {S} {F} {Q} {M} {X}
+    forall {S+F=>MS: set+nat2set S F Q}
+    {Q=>M: set2efxmap Q X M} {P: efx`is-consume? X false}
+    exists {PA: efxmap`is-consume? M false}
+    true.
+
+%worlds () (set+nat2set-no-consume _ _ _ _).
+%trustme %total {} (set+nat2set-no-consume _ _ _ _).
+
+
+%theorem set+nat2set-preserves-size
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {SZ: set`size S N}
+    exists {QZ: set`size Q N}
+    true.
+
+%worlds () (set+nat2set-preserves-size _ _ _).
+%trustme %total {} (set+nat2set-preserves-size _ _ _).
+
+
+%theorem set+nat2set-preserves-size-converse
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {QZ: set`size Q N}
+    exists {SZ: set`size S N}
+    true.
+
+%worlds () (set+nat2set-preserves-size-converse _ _ _).
+%trustme %total {} (set+nat2set-preserves-size-converse _ _ _).
