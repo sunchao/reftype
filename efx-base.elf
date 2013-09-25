@@ -1,5 +1,5 @@
 % Unit Effect
-% $Id: efx-base.elf,v 1.3 2013/09/22 20:42:17 csun Exp csun $
+% $Id: efx-base.elf,v 1.4 2013/09/24 04:03:28 csun Exp csun $
 
 %%% Definitions
 
@@ -39,13 +39,11 @@ cmp/> : cmp X Y greater <- grt X Y.
 
 join : efx -> efx -> efx -> type.
 
-join/rr : join efx/read efx/read efx/read.
+join/= : join X X X.
 
-join/rw : join efx/read efx/write efx/write.
+join/< : join X1 X2 X2 <- grt X2 X1.
 
-join/wr : join efx/write efx/read efx/write.
-
-join/ww : join efx/write efx/write efx/write.
+join/> : join X1 X2 X1 <- grt X1 X2.
 
 
 %%% Basic Theorems
@@ -164,18 +162,42 @@ END_ELF
     exists {X} {J: join X1 X2 X}
     true.
 
-- : join-total* efx/read efx/read _ join/rr.
+%theorem join-total*/L
+  : forall* {X1} {X2}
+    forall {C} {CMP: cmp X1 X2 C}
+    exists {X} {J: join X1 X2 X}
+    true.
 
-- : join-total* efx/read efx/write _ join/rw.
+- : join-total*/L equal _ _ join/=.
 
-- : join-total* efx/write efx/read _ join/wr.
+- : join-total*/L less (cmp/< GRT) _ (join/< GRT).
 
-- : join-total* efx/write efx/write _ join/ww.
+- : join-total*/L greater (cmp/> GRT) _ (join/> GRT).
+
+%worlds () (join-total*/L _ _ _ _).
+%total {} (join-total*/L _ _ _ _).
+
+- : join-total* _ _ _ J
+    <- cmp-total CMP
+    <- join-total*/L _ CMP _ J.
 
 %worlds () (join-total* _ _ _ _).
 %total {} (join-total* _ _ _ _).
 
 %abbrev join-total = join-total* _ _ _.
+
+
+%theorem join-preserves-grt
+  : forall* {X1} {X2} {X3} {X}
+    forall {X>X1: grt X X1} {X>X2: grt X X2}
+    {J: join X1 X2 X3}
+    exists {X>X3: grt X X3}
+    true.
+
+- : join-preserves-grt grt/wr grt/wr join/= grt/wr.
+
+%worlds () (join-preserves-grt _ _ _ _).
+%total {} (join-preserves-grt _ _ _ _). 
 
 
 %theorem join-associative
@@ -184,21 +206,27 @@ END_ELF
     exists {X6} {J: join X2 X4 X6} {J: join X1 X6 X7}
     true.
 
-- : join-associative join/rr join/rr _ join/rr join/rr.
+- : join-associative join/= join/= _ join/= join/=.
 
-- : join-associative join/rr join/rw _ join/rw join/rw.
+- : join-associative join/= (join/< GRT) _ (join/< GRT) (join/< GRT).
 
-- : join-associative join/rw join/wr _ join/wr join/rw.
+- : join-associative join/= (join/> GRT) _ (join/> GRT) join/=.
 
-- : join-associative join/rw join/ww _ join/ww join/rw.
+- : join-associative (join/< GRT) join/= _ join/= (join/< GRT).
 
-- : join-associative join/wr join/wr _ join/rr join/wr.
+- : join-associative (join/< GRT) (join/< GRT1) _ (join/< GRT1) (join/< GRT2)
+    <- grt-transitive GRT1 GRT GRT2.
 
-- : join-associative join/wr join/ww _ join/rw join/ww.
+- : join-associative (join/< GRT) (join/> GRT1) _ (join/> GRT1) (join/< GRT).
 
-- : join-associative join/ww join/wr _ join/wr join/ww.
+- : join-associative (join/> GRT) join/= _ (join/< GRT) join/=.
 
-- : join-associative join/ww join/ww _ join/ww join/ww.
+- : join-associative (join/> GRT) (join/< GRT1) _ (join/< GRT2) (join/< GRT1)
+    <- grt-transitive GRT1 GRT GRT2.
+
+- : join-associative (join/> GRT) (join/> GRT1) _ J1 (join/> GRT2)
+    <- join-total J1
+    <- join-preserves-grt GRT GRT1 J1 GRT2.
 
 %worlds () (join-associative _ _ _ _ _).
 %total {} (join-associative _ _ _ _ _).
@@ -210,13 +238,11 @@ END_ELF
     exists {J21: join X2 X1 X}
     true.
 
-- : join-commutative join/rr join/rr.
+- : join-commutative join/= join/=.
 
-- : join-commutative join/rw join/wr.
+- : join-commutative (join/< GRT) (join/> GRT).
 
-- : join-commutative join/wr join/rw.
-
-- : join-commutative join/ww join/ww.
+- : join-commutative (join/> GRT) (join/< GRT).
 
 %worlds () (join-commutative _ _).
 %total {} (join-commutative _ _).
@@ -228,13 +254,11 @@ END_ELF
     exists {X1<=X3: leq X1 X3}
     true.
 
-- : join-implies-leq* join/rr (geq/= eq/).
+- : join-implies-leq* join/= (geq/= eq/).
 
-- : join-implies-leq* join/rw (geq/> grt/wr).
+- : join-implies-leq* (join/< GRT) (geq/> GRT).
 
-- : join-implies-leq* join/wr (geq/= eq/).
-
-- : join-implies-leq* join/ww (geq/= eq/).
+- : join-implies-leq* (join/> GRT) (geq/= eq/).
 
 %worlds () (join-implies-leq* _ _).
 %total {} (join-implies-leq* _ _).
@@ -246,16 +270,15 @@ END_ELF
     exists {X1<=X3: leq X1 X3} {X2<=X3: leq X2 X3}
     true.
 
-- : join-implies-leq join/rr (geq/= eq/) (geq/= eq/).
+- : join-implies-leq join/= (geq/= eq/) (geq/= eq/).
 
-- : join-implies-leq join/rw (geq/> grt/wr) (geq/= eq/).
+- : join-implies-leq (join/< GRT) (geq/> GRT) (geq/= eq/).
 
-- : join-implies-leq join/wr (geq/= eq/) (geq/> grt/wr).
-
-- : join-implies-leq join/ww (geq/= eq/) (geq/= eq/).
+- : join-implies-leq (join/> GRT) (geq/= eq/) (geq/> GRT).
 
 %worlds () (join-implies-leq _ _ _).
 %total {} (join-implies-leq _ _ _).
+
 
 %{%
 #define EQ eq
