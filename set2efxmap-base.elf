@@ -1,0 +1,225 @@
+%%% Converting a set of (obj,fld)s to a efxmap
+%%% $Id: set2efxmap-base.elf,v 1.3 2013/09/22 19:10:31 csun Exp csun $
+
+efx-id : nat -> unit -> efx -> efx -> type.
+
+efx-id/ : efx-id N _ X X.
+
+
+%%% Theorems
+
+%theorem efx-id-eq
+  : forall* {N} {U} {X1} {X2}
+    forall {ID: efx-id N U X1 X2}
+    exists {E: efx`eq X1 X2}
+    true.
+
+- : efx-id-eq efx-id/ efx`eq/.
+
+%worlds () (efx-id-eq _ _).
+%total {} (efx-id-eq _ _).
+
+
+%theorem efx-id-total*
+  : forall {N} {U} {X1}
+    exists {X2} {SE: efx-id N U X1 X2}
+    true.
+
+- : efx-id-total* _ _ _ _ efx-id/.
+
+%worlds () (efx-id-total* _ _ _ _ _).
+%total {} (efx-id-total* _ _ _ _ _).
+
+%abbrev efx-id-total = efx-id-total* _ _ _ _.
+
+
+%theorem efx-id-unique
+  : forall* {N1} {U1} {X1} {Y1} {N2} {U2} {X2} {Y2}
+    forall {SE1: efx-id N1 U1 X1 Y1}
+    {SE2: efx-id N2 U2 X2 Y2}
+    {E: nat`eq N1 N2} {E: unit`eq U1 U2}
+    {E: efx`eq X1 X2}
+    exists {E: efx`eq Y1 Y2}
+    true.
+
+- : efx-id-unique S1 S2 nat`eq/ unit`eq/ efx`eq/ efx`eq/.
+
+%worlds () (efx-id-unique _ _ _ _ _ _).
+%total {} (efx-id-unique _ _ _ _ _ _).
+
+
+%theorem efx-id-right-cancels
+  : forall* {N} {U1} {U2} {X1} {Y1} {X2} {Y2}
+    forall {SE1: efx-id N U1 X1 Y1}
+    {SE2: efx-id N U2 X2 Y2}
+    {E: efx`eq X1 X2} {E: efx`eq Y1 Y2}
+    exists {E: unit`eq U1 U2}
+    true.
+
+- : efx-id-right-cancels efx-id/ efx-id/ _ _ unit`eq/.
+
+%worlds () (efx-id-right-cancels _ _ _ _ _).
+%total {} (efx-id-right-cancels _ _ _ _ _).
+
+
+%theorem efx-id-right-preserves-leq*
+  : forall* {N} {U1} {U2} {X} {Y1} {Y2}
+    forall {U1<=U2: unit`eq U1 U2}
+    {SE1: efx-id N U1 X Y1}
+    {SE2: efx-id N U2 X Y2}
+    exists {Y1<=Y2: efx`leq Y1 Y2}
+    true.
+
+- : efx-id-right-preserves-leq* unit`eq/ efx-id/ efx-id/ Y1<=Y2
+    <- efx`leq-reflexive _ Y1<=Y2.
+
+%worlds () (efx-id-right-preserves-leq* _ _ _ _).
+%total {} (efx-id-right-preserves-leq* _ _ _ _).
+
+
+%theorem efx-id-left-preserves-leq*
+  : forall* {N} {U} {X1} {X2} {Y1} {Y2}
+    forall {X1<=X2: efx`leq X1 X2}
+    {T1: efx-id N U X1 Y1}
+    {T2: efx-id N U X2 Y2}
+    exists {Y1<=Y2: efx`leq Y1 Y2}
+    true.
+
+- : efx-id-left-preserves-leq* L efx-id/ efx-id/ L.
+
+%worlds () (efx-id-left-preserves-leq* _ _ _ _).
+%total {} (efx-id-left-preserves-leq* _ _ _ _).
+
+%{%
+#define map1 set
+#define data1 unit
+#define map2 efxmap
+#define data2 efx
+#define trans efx-id
+#define alltrans set2efxmap
+#define arg efx
+#define MAP_TRANS_CANCEL 1
+#define MAP_LEQ 1
+#define MAP_TRANS_LEQ 1
+#define MAP_TRANS_TOTAL 1
+BEGIN_ELF
+#include "map-trans2.elf"
+END_ELF
+#undef data1
+#undef data2
+%}%
+
+
+%theorem fresh-update-preserves-set2efxmap-converse2
+  : forall* {M} {G} {GP} {X} {F} {S}
+    forall {T: set2efxmap G X M}
+    {FS: set`fresh GP F} {U: set`update GP F S G}
+    exists {MP}
+    {FS: efxmap`fresh MP F} {U: efxmap`update MP F X M}
+    {T: set2efxmap GP X MP}
+    true.
+
+- : fresh-update-preserves-set2efxmap-converse2 T NM A MP F U TP
+    <- fresh-update-preserves-set2efxmap-converse T NM A _ _ ID F Ux TPx
+    <- efx-id-eq ID Ex
+    <- efx`eq-symmetric Ex E
+    <- update-respects-eq Ux eq/ nat`eq/ E eq/ U
+    <- set2efxmap-respects-eq TPx set`eq/ efx`eq/ eq/ TP.
+
+%worlds () (fresh-update-preserves-set2efxmap-converse2 _ _ _ _ _ _ _).
+%total {} (fresh-update-preserves-set2efxmap-converse2 _ _ _ _ _ _ _).
+
+
+%theorem set2efxmap-implies-domain
+  : forall* {S} {X} {M}
+    forall {T: set2efxmap S X M}
+    exists {DM: efxmap`domain M S}
+    true.
+
+- : set2efxmap-implies-domain set2efxmap/0 efxmap`domain/0.
+
+- : set2efxmap-implies-domain
+    (set2efxmap/U SP=>MP efx-id/ N!<SP SP+N=S MP+N=M) DM-M
+    <- set2efxmap-implies-domain SP=>MP DM-MP
+    <- efxmap`domain-commute-update DM-MP MP+N=M SP+N=S DM-M.
+
+%worlds () (set2efxmap-implies-domain _ _).
+%total (T) (set2efxmap-implies-domain T _).
+
+
+%theorem partition-leq-implies-leq
+  : forall* {M} {M1} {M2P} {X} {M2} {S}
+    forall {P: partition M S M1 M2P}
+    {T: set2efxmap S X M2} {LE: leq M2 M}
+    exists {LE: leq M2 M2P}
+    true.
+
+%theorem partition-leq-implies-leq/L
+  : forall* {M} {M2} {M2P} {S} {X}
+    forall {N} {SZ: size M N}
+    {R2: restrict M S M2P}
+    {T: set2efxmap S X M2} {LE: leq M2 M}
+    exists {LE: leq M2 M2P}
+    true.
+
+- : partition-leq-implies-leq/L _ _ restrict/0 _ leq/0 leq/0.
+
+%theorem partition-leq-implies-leq/U/in
+  : forall* {M2S} {M2P} {F} {Z} {MS} {S} {M} {M2} {X} {B}
+    forall {N} {SZ: size M N}
+    {U: update M2S F Z M2P}
+    {R2: restrict MS S M2S}
+    {MB: set`member S F}
+    {U: update MS F Z M} {FS: fresh MS F}
+    {T: set2efxmap S X M2} {LE: leq M2 M}
+    {IN?: domain? M2 F B}
+    exists {LE: leq M2 M2P}
+    true.
+
+- : partition-leq-implies-leq/U/in (s N) SZ M2S+F+Z=M2P
+    MS|S=M2S F<-S MS+F+Z=M F!<MS S+X=>M2 M2<=M (domain?/in M2->F=XP) M2<=M2P
+    <- set`member-implies-not-member-add F<-S SP F!<SP SP+F=S
+    <- fresh-update-preserves-set2efxmap-converse2
+      S+X=>M2 F!<SP SP+F=S M2U F!<M2U M2U+F+XP=M2 SP+X=>M2U
+    <- fresh-update-preserves-leq-converse
+      M2<=M F!<M2U M2U+F+XP=M2 F!<MS MS+F+Z=M M2U<=MS XP<=Z
+    <- fresh-add-preserves-restrict-converse MS|S=M2S F!<MS SP+F=S MS|SP=M2S
+    <- fresh-update-increases-size-converse SZ F!<MS MS+F+Z=M SZP
+    <- partition-leq-implies-leq/L N SZP MS|SP=M2S SP+X=>M2U M2U<=MS M2U<=M2S
+    <- update-preserves-leq* M2U<=M2S XP<=Z M2U+F+XP=M2 M2S+F+Z=M2P M2<=M2P.
+
+- : partition-leq-implies-leq/U/in (s N) SZ M2S+F+Z=M2P
+    MS|S=M2S F<-S MS+F+Z=M F!<MS S+X=>M2 M2<=M (domain?/out F!<M2) M2<=M2P
+    <- fresh-update2-preserves-leq-converse M2<=M F!<M2 F!<MS MS+F+Z=M M2<=MS
+    <- fresh-update-increases-size-converse SZ F!<MS MS+F+Z=M SZP
+    <- partition-leq-implies-leq/L N SZP MS|S=M2S S+X=>M2 M2<=MS M2<=M2S
+    <- restrict-implies-leq MS|S=M2S M2S<=MS
+    <- fresh-respects-geq F!<MS M2S<=MS F!<M2S
+    <- fresh-update-implies-leq F!<M2S M2S+F+Z=M2P M2S<=M2P
+    <- leq-transitive M2<=M2S M2S<=M2P M2<=M2P.
+
+- : partition-leq-implies-leq/L N SZ
+    (restrict/in MS|S=M2S F<-S F!<MS MS+F+Z=M M2S+F+Z=M2P) S+X=>M2 M2<=M M2<=M2P
+    <- domain?-total DM?
+    <- partition-leq-implies-leq/U/in N SZ M2S+F+Z=M2P MS|S=M2S F<-S
+      MS+F+Z=M F!<MS S+X=>M2 M2<=M DM? M2<=M2P.
+
+- : partition-leq-implies-leq/L (s N) SZ
+    (restrict/out MS|S=M2P F!<S F!<MS MS+F+Z=M) S+X=>M2 M2<=M M2<=M2P
+    <- set2efxmap-preserves-fresh F!<S S+X=>M2 F!<M2
+    <- fresh-update2-preserves-leq-converse M2<=M F!<M2 F!<MS MS+F+Z=M M2<=MS
+    <- fresh-update-increases-size-converse SZ F!<MS MS+F+Z=M SZP
+    <- partition-leq-implies-leq/L N SZP MS|S=M2P S+X=>M2 M2<=MS M2<=M2P.
+
+%worlds () (partition-leq-implies-leq/L _ _ _ _ _ _)
+	(partition-leq-implies-leq/U/in _ _ _ _ _ _ _ _ _ _ _).
+%total (N1 N2) (partition-leq-implies-leq/U/in N1 _ _ _ _ _ _ _ _ _ _)
+	(partition-leq-implies-leq/L N2 _ _ _ _ _).
+
+
+- : partition-leq-implies-leq (partition/ _ _ _ R) T LE LE2
+    <- size-total Z
+    <- partition-leq-implies-leq/L _ Z R T LE LE2.
+
+%worlds () (partition-leq-implies-leq _ _ _ _).
+%total {} (partition-leq-implies-leq _ _ _ _).

@@ -1,27 +1,335 @@
-%%% Effect Map
+%%% Mapping from (obj,field) to efx
 
 %{%
-#define data inner-efxmap
+#define data efx
+#define relation efx`is-consume?@
+#define allrelation is-consume?
+#define arg bool
+#define DATA_JOIN_TOTAL_STAR 1
 #define DATA_JOIN_DETERMINISTIC 1
 #define DATA_JOIN_IMPLIES_LEQ 1
 #define DATA_JOIN_ASSOCIATIVE 1
+#define DATA_JOIN_COMMUTATIVE 1
 #define DATA_JOIN_DISJOINT_RIGHT_LEQ_IMPLIES_LEQ 1
+#define DATA_NE 1
+#define DATA_NLE 1
 BEGIN_ELF
 #include "map-base.elf"
 #include "map-leq.elf"
 #include "map-join.elf"
-#include "map-join-extra.elf"
 #include "map-domain.elf"
-#include "map-deep-disjoint.elf"
 #include "map-restrict.elf"
 END_ELF
+#undef arg
 #undef data
 %}%
 
-%%% Renamings
+
+% We want something stronger than map-restrict - we need
+% to keep BOTH the selected ones and the "unselected" ones.
+
+partition : map -> set -> map -> map -> type.
+
+partition/ : domain M R
+             -> set`remove R S Q
+             -> restrict M Q M1
+             -> restrict M S M2
+             -> partition M S M1 M2.
+
+
+%%% Theorems about partition
+
+%theorem false-implies-partition
+  : forall* {M} {S} {M1} {M2}
+    forall {F:void} exists {P: partition M S M1 M2} true.
+
+%worlds () (false-implies-partition _ _).
+%total {} (false-implies-partition _ _).
+
+
+%theorem partition-respects-eq
+  : forall* {M} {S} {M1} {M2} {MP} {SP} {M1P} {M2P}
+    forall {P: partition M S M1 M2}
+    {ME: eq M MP} {SE: set`eq S SP} {M1E: eq M1 M1P} {M2E: eq M2 M2P}
+    exists {PP:partition MP SP M1P M2P}
+    true.
+
+- : partition-respects-eq P eq/ set`eq/ eq/ eq/ P.
+
+%worlds () (partition-respects-eq _ _ _ _ _ _).
+%total {} (partition-respects-eq _ _ _ _ _ _).
+
+
+%theorem partition-total*
+  : forall* {M} {S}
+    exists {M1} {M2} {P: partition M S M1 M2}
+    true.
+
+- : partition-total* _ _ (partition/ DM R R1 R2)
+    <- domain-total DM
+    <- set`remove-total R
+    <- restrict-total R1
+    <- restrict-total R2.
+
+%worlds () (partition-total* _ _ _).
+%total {} (partition-total* _ _ _).
+
+%abbrev partition-total = partition-total* _ _.
+
+
+%theorem partition-unique
+  : forall* {M} {S} {M1} {M2} {MP} {SP} {M1P} {M2P}
+    forall {P: partition M S M1 M2}
+    {PP: partition MP SP M1P M2P}
+    {ME: eq M MP} {SE: set`eq S SP}
+    exists {M1E: eq M1 M1P} {M2E: eq M2 M2P}
+    true.
+
+- : partition-unique (partition/ DM R R1 R2)
+    (partition/ DMP RP R1P R2P) ME SE M1E M2E
+    <- domain-unique DM DMP ME RE
+    <- set`remove-unique R RP RE SE QE
+    <- restrict-unique R1 R1P ME QE M1E
+    <- restrict-unique R2 R2P ME SE M2E.
+
+%worlds () (partition-unique _ _ _ _ _ _).
+%total {} (partition-unique _ _ _ _ _ _).
+
+
+%theorem fresh-update-preserves-partition
+  : forall* {M} {N} {S} {SP} {M1} {M2}
+    forall {P: partition M SP M1 M2}
+    {F: fresh M N}
+    {U: set`add SP N S}
+    exists {P: partition M S M1 M2}
+    true.
+
+- : fresh-update-preserves-partition
+    (partition/ DM-M=R R/SP=Q M|Q=M1 M|SP=M2) N!<M SP+N=S
+    (partition/ DM-M=R R/S=Q M|Q=M1 M|S=M2)
+    <- domain-preserves-fresh N!<M DM-M=R N!<R
+    <- set`remove-not-member-add-same-result-converse R/SP=Q N!<R SP+N=S R/S=Q
+    <- fresh-add-preserves-restrict M|SP=M2 N!<M SP+N=S M|S=M2.
+
+%worlds () (fresh-update-preserves-partition _ _ _ _).
+%total {} (fresh-update-preserves-partition _ _ _ _).
+
+
+%theorem fresh-update-preserves-partition-converse
+  : forall* {M} {N} {S} {SP} {M1} {M2}
+    forall {P: partition M S M1 M2}
+    {F: fresh M N}
+    {U: set`add SP N S}
+    exists {P: partition M SP M1 M2}
+    true.
+
+- : fresh-update-preserves-partition-converse
+    (partition/ DM-M=R R/S=Q M|Q=M1 M|S=M2) N!<M SP+N=S
+    (partition/ DM-M=R R/SP=Q M|Q=M1 M|SP=M2)
+    <- domain-preserves-fresh N!<M DM-M=R N!<R
+    <- set`remove-not-member-add-same-result R/S=Q N!<R SP+N=S R/SP=Q
+    <- fresh-add-preserves-restrict-converse M|S=M2 N!<M SP+N=S M|SP=M2.
+
+%worlds () (fresh-update-preserves-partition-converse _ _ _ _).
+%total {} (fresh-update-preserves-partition-converse _ _ _ _).
+
+
+% not quite the star-version of the above, but hard to come up with a
+% good name.
+
+%theorem fresh-update-preserves-partition-converse*
+  : forall* {M} {MP} {N} {S} {SP} {M1} {M2} {D}
+    forall {P: partition M S M1 M2}
+    {F: fresh MP N}
+    {U: update MP N D M}
+    {F: set`not-member SP N}
+    {U: set`add SP N S}
+    exists {M2P} {U2: update M2P N D M2}
+    {P: partition MP SP M1 M2P}
+    true.
+
+- : fresh-update-preserves-partition-converse*
+    (partition/ DM-M=R R/S=Q M|Q=M1 M|S=M2) N!<MP MP+N+D=M N!<SP SP+N=S
+    _ M2P+N+D=M2 (partition/ DM-MP=RP RP/SP=Q MP|Q=M1 MP|SP=M2P)
+    <- update-implies-lookup MP+N+D=M M->N=D
+    <- domain-preserves-lookup M->N=D DM-M=R N<-R
+    <- set`member-implies-not-member-add N<-R RP N!<RP RP+N=R
+    <- set`remove-not-member-add-same-result-converse* R/S=Q N!<RP RP+N=R
+      N!<SP SP+N=S RP/SP=Q
+    <- domain-commute-fresh-update-converse DM-M=R N!<MP MP+N+D=M N!<RP RP+N=R DM-MP=RP
+    <- set`add-implies-member SP+N=S N<-S
+    <- restrict/in-inversion M|S=M2 N<-S N!<MP MP+N+D=M M2P MP|S=M2P M2P+N+D=M2
+    <- fresh-add-preserves-restrict-converse MP|S=M2P N!<MP SP+N=S MP|SP=M2P
+    <- set`remove-implies-leq RP/SP=Q Q<=RP
+    <- set`not-member-respects-geq N!<RP Q<=RP N!<Q
+    <- restrict/out-inversion M|Q=M1 N!<Q N!<MP MP+N+D=M MP|Q=M1.
+
+%worlds () (fresh-update-preserves-partition-converse* _ _ _ _ _ _ _ _).
+%total {} (fresh-update-preserves-partition-converse* _ _ _ _ _ _ _ _).
+
+
+%theorem partition-implies-leq
+  : forall* {M} {S} {M1} {M2}
+    forall {P: partition M S M1 M2}
+    exists {M1<=M: leq M1 M} {M2<=M: leq M2 M}
+    true.
+
+- : partition-implies-leq (partition/ DM RM R1 R2) LE1 LE2
+    <- restrict-implies-leq R1 LE1
+    <- restrict-implies-leq R2 LE2.
+
+%worlds () (partition-implies-leq _ _ _).
+%total {} (partition-implies-leq _ _ _).
+
+
+%theorem partition-implies-disjoint-join
+  : forall* {M} {S} {M1} {M2}
+    forall {P: partition M S M1 M2}
+    exists {D: disjoint M1 M2} {J: join M1 M2 M}
+    true.
+
+- : partition-implies-disjoint-join (partition/ DM-M=R R/S=Q M|Q=M1 M|S=M2)
+    M1^M2 M1+M2=M
+    <- set`remove-implies-disjoint R/S=Q S^Q
+    <- set`disjoint-symmetric S^Q Q^S
+    <- set`union-total S+Q=T
+    <- set`union-commutative S+Q=T Q+S=T
+    <- set`remove-implies-leq-union R/S=Q S+Q=T R<=T
+    <- restrict-left-preserves-disjoint Q^S M|Q=M1 M|S=M2 M1^M2
+    <- restrict-associates-disjoint-union M|Q=M1 M|S=M2 Q^S Q+S=T
+      _ M1+M2=MP M|T=MP
+    <- domain-leq-implies-no-restriction DM-M=R R<=T M|T=M
+    <- restrict-unique M|T=MP M|T=M eq/ set`eq/ MP=M
+    <- join-respects-eq M1+M2=MP eq/ eq/ MP=M M1+M2=M.
+
+%worlds () (partition-implies-disjoint-join _ _ _).
+%total {} (partition-implies-disjoint-join _ _ _).
+
+
+%theorem partition-on-empty-set
+  : forall {M}
+    exists {P: partition M set/0 M map/0}
+    true.
+
+- : partition-on-empty-set _
+    (partition/ DM R R1 R2)
+    <- domain-total DM
+    <- set`disjoint-implies-remove-nothing set`disjoint/R R
+    <- set`leq-reflexive _ LE
+    <- domain-leq-implies-no-restriction DM LE R1
+    <- empty-restriction R2.
+
+%worlds () (partition-on-empty-set _ _).
+%total {} (partition-on-empty-set _ _).
+
+
+%theorem partition-implies-domain
+  : forall* {M} {S} {MS} {M1} {M2}
+    forall {P: partition M S M1 M2}
+    {DM: domain M MS} {LE: set`leq S MS}
+    exists {DM: domain M2 S}
+    true.
+
+- : partition-implies-domain (partition/ DM-M=R R/S=Q M|Q=M1 M|S=M2)
+    DM-M=RP S<=RP DM-M2=S
+    <- domain-unique DM-M=RP DM-M=R eq/ RP=R
+    <- set`leq-respects-eq S<=RP set`eq/ RP=R S<=R
+    <- domain-total DM-M2=SP
+    <- restrict-implies-domain-intersection* M|S=M2 DM-M=R DM-M2=SP R|S=SP
+    <- set`leq-implies-intersection S<=R S|R=S
+    <- set`intersection-commutative S|R=S R|S=S
+    <- set`intersection-unique R|S=SP R|S=S set`eq/ set`eq/ SP=S
+    <- domain-respects-eq DM-M2=SP eq/ SP=S DM-M2=S.
+
+%worlds () (partition-implies-domain _ _ _ _).
+%total {} (partition-implies-domain _ _ _ _).
+
+
+%theorem partition-right-preserves-leq
+  : forall* {M} {MP} {M1} {M2} {M1P} {M2P} {S}
+    forall {L: leq M MP}
+    {M|S=M1+M2: partition M S M1 M2}
+    {MP|S=M1P+M2P: partition MP S M1P M2P}
+    exists {L: leq M2 M2P}
+    true.
+
+- : partition-right-preserves-leq M<=MP
+    (partition/ _ _ _ M|S=M2) (partition/ _ _ _ MP|S=M2P) M2<=M2P
+    <- restrict-right-preserves-leq M<=MP M|S=M2 MP|S=M2P M2<=M2P.
+
+%worlds () (partition-right-preserves-leq _ _ _ _).
+%total { } (partition-right-preserves-leq _ _ _ _).
+
+
+%theorem disjoint-join-right-domain-implies-partition
+  : forall* {M1} {M2} {M} {S2}
+    forall {T: domain M2 S2}
+    {D: disjoint M1 M2}
+    {J: join M1 M2 M}
+    exists {P: partition M S2 M1 M2}
+    true.
+
+- : disjoint-join-right-domain-implies-partition DM-M2=S2 M1^M2 M1+M2=M
+    (partition/ DM-M=R R/S2=Q M|Q=M1 M|S2=M2)
+    <- domain-total DM-M=R
+    <- join-implies-leq M1+M2=M M1<=M M2<=M
+    <- domain-preserves-leq* M2<=M DM-M2=S2 DM-M=R S2<=R
+    <- domain-total DM-M1=Q
+    <- set`leq-reflexive _ Q<=Q
+    <- domain-preserves-disjoint M1^M2 DM-M1=Q DM-M2=S2 Q^S2
+    <- set`disjoint-symmetric Q^S2 S2^Q
+    <- restrict-characterization M1+M2=M DM-M1=Q Q<=Q DM-M2=S2 S2^Q M|Q=M1
+    <- domain-preserves-leq* M1<=M DM-M1=Q DM-M=R Q<=R
+    <- join-commute-domain M1+M2=M DM-M1=Q DM-M2=S2 DM-M=R Q+S2=R
+    <- set`union-commutative Q+S2=R S2+Q=R
+    <- set`leq-reflexive _ R<=R
+    <- set`remove-characterization Q<=R S2^Q S2+Q=R R<=R R/S2=Q
+    <- join-commutative M1+M2=M M2+M1=M % TODO: avoid using commutative
+    <- set`leq-reflexive _ S2<=S2
+    <- restrict-characterization M2+M1=M DM-M2=S2 S2<=S2 DM-M1=Q Q^S2 M|S2=M2.
+
+%worlds () (disjoint-join-right-domain-implies-partition _ _ _ _).
+%total {} (disjoint-join-right-domain-implies-partition _ _ _ _).
+
+
+%theorem partition-associates
+  : forall* {M} {M1} {M2} {M3} {M4} {G1} {G2} {G} {S1} {S2}
+    forall {SG1: partition M G1 M1 M2}
+    {SG2: partition M1 G2 M3 M4}
+    {DM1: domain M S1} {DM2: domain M1 S2}
+    {G1<=S1: set`leq G1 S1} {G2<=S2: set`leq G2 S2}
+    {X: set`disjoint G1 G2}
+    {J: set`union G1 G2 G}
+    exists {M5} {X: disjoint M4 M2}
+    {J: join M4 M2 M5}
+    {SG: partition M G M3 M5}
+    true.
+
+- : partition-associates M+G1=>M1+M2 M1+G2=>M3+M4
+    DM-M=MS DM-M1=MS1 G1<=MS G2<=MS1 G1^G2 G1+G2=G M5 M4^M2 M4+M2=M5 M+G=>M3+M5
+    <- partition-implies-disjoint-join M+G1=>M1+M2 M1^M2 M1+M2=M
+    <- partition-implies-disjoint-join M1+G2=>M3+M4 M3^M4 M3+M4=M1
+    <- partition-implies-domain M+G1=>M1+M2 DM-M=MS G1<=MS DM-M2=G1
+    <- partition-implies-domain M1+G2=>M3+M4 DM-M1=MS1 G2<=MS1 DM-M4=G2
+    <- join-associative M3+M4=M1 M1+M2=M M5 M4+M2=M5 M3+M5=M
+    <- partition-implies-leq M1+G2=>M3+M4 M3<=M1 _
+    <- disjoint-respects-geq* M1^M2 M3<=M1 M3^M2
+    <- disjoint-symmetric M3^M2 M2^M3
+    <- disjoint-symmetric M3^M4 M4^M3
+    <- join-preserves-disjoint* M4^M3 M2^M3 M4+M2=M5 M5^M3
+    <- disjoint-symmetric M5^M3 M3^M5
+    <- set`union-commutative G1+G2=G G2+G1=G
+    <- domain-commute-join DM-M4=G2 DM-M2=G1 M4+M2=M5 G2+G1=G DM-M5=G
+    <- disjoint-join-right-domain-implies-partition DM-M5=G M3^M5 M3+M5=M M+G=>M3+M5
+    <- domain-preserves-disjoint-converse G1^G2 DM-M2=G1 DM-M4=G2 M2^M4
+    <- disjoint-symmetric M2^M4 M4^M2.
+
+%worlds () (partition-associates _ _ _ _ _ _ _ _ _ _ _ _).
+%total {} (partition-associates _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%%% Exports
 
 %abbrev efxmap = map.
 %abbrev efxmap/0 = map/0.
 %abbrev efxmap/+ = map/+.
-%abbrev efxmap/1 : nat -> nat -> efx -> map
-  = [N][F][X] (map/+ N (inner-efxmap/+ F X inner-efxmap/0) map/0).

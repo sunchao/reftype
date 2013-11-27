@@ -1,100 +1,148 @@
-% Reference Type
+%%% Reference Type
+
+%%% Definitions
+
+% 1, non-nullness
+
+nonnull : type. %name nonnull NN nn.
+
+nonnull/yes : nonnull.
+
+nonnull/may : nonnull.
 
 
-% =========================================================================
-% ============================ Definitions ================================
-% =========================================================================
+nonnull`eq : nonnull -> nonnull -> type.
 
-% non-nullness
-
-nonnull	    	: type.
-%name nonnull NN nn.
-
-nonnull/yes 	: nonnull.
-
-nonnull/may 	: nonnull.
+nonnull`eq/ : nonnull`eq NN NN.
 
 
-nonnull`eq	: nonnull -> nonnull -> type.
+nonnull`leq : nonnull -> nonnull -> type.
 
-nonnull`eq/	: nonnull`eq NN NN.
+nonnull`leq/= : nonnull`leq NN1 NN2 <- nonnull`eq NN1 NN2.
 
-
-% annotation
-
-annot     		: type.		%name annot A.
-
-annot/unique	: annot.
-
-annot/shared	: annot.
-
-annot/borrow	: annot.	% borrow CANNOT be used on fields
+nonnull`leq/< : nonnull`leq nonnull/may nonnull/yes.
 
 
-% equality
+% 2, annotation
 
-annot`eq	: annot -> annot -> type.
+annot : type.		%name annot A.
 
-annot`eq/	: annot`eq A A.
+annot/unique : annot.
 
+annot/shared : annot.
 
-% annotated type
-
-ty    		: type.		%name ty T.
-
-ty/	    	: nonnull -> annot -> nat -> ty.
-
-ty/null		: ty.
+annot/borrow : annot.	% borrow CANNOT be used on fields
 
 
-% reference type
+not-borrowed : annot -> type.
 
-targets        : type. %name targets GS.
+not-borrowed/unique : not-borrowed annot/unique.
+
+not-borrowed/shared : not-borrowed annot/shared.
+
+
+annot`eq : annot -> annot -> type.
+
+annot`eq/ : annot`eq A A.
+
+
+annot`lt : annot -> annot -> type.
+
+annot`lt/su : annot`lt annot/shared annot/unique.
+
+annot`lt/bu : annot`lt annot/borrow annot/unique.
+
+annot`lt/bs : annot`lt annot/borrow annot/shared.
+
+
+annot`leq : annot -> annot -> type.
+
+annot`leq/= : annot`leq A A.
+
+annot`leq/< : annot`leq A1 A2 <- annot`lt A1 A2.
+
+
+% 3, annotated type
+
+ty : type.		%name ty T.
+
+ty/ : nonnull -> annot -> nat -> ty.
+
+ty/null : ty.
+
+
+% 4, targets
+
+targets : type. %name targets G.
 
 targets`eq : targets -> targets -> type.
 
-targets`eq/ : targets`eq GS GS.
+targets`eq/ : targets`eq G G.
 
-targets/unique : set -> tgtmap -> bool -> targets.
+
+targets/unique : set -> set -> bool -> targets.
 
 targets/shared : targets.
 
 
+% 5, reference type
+
 reftype : type.	%name reftype RT.
 
-reftype/     : nonnull -> nat -> targets -> reftype.
+reftype/ : nonnull -> nat -> targets -> reftype.
 
 reftype/null : reftype.
 
+
+% equality on reference type
 
 reftype`eq : reftype -> reftype -> type.
 
 reftype`eq/ : reftype`eq RT RT.
 
 
-
-% =========================================================================
-% ============================ Theorems ===================================
-% =========================================================================
+%%% Theorems
 
 %theorem targets/unique-preserves-eq
-  : forall* {S1} {S2} {G1} {G2} {B1} {B2}
-    forall {E: set`eq S1 S2} {E: tgtmap`eq G1 G2}
+  : forall* {S1} {S2} {R1} {R2} {B1} {B2}
+    forall {E: set`eq S1 S2} {E: set`eq R1 R2}
     {E: bool`eq B1 B2}
-    exists {E: targets`eq (targets/unique S1 G1 B1) (targets/unique S2 G2 B2)}
+    exists {E: targets`eq (targets/unique S1 R1 B1) (targets/unique S2 R2 B2)}
     true.
 
-- : targets/unique-preserves-eq set`eq/ tgtmap`eq/ bool`eq/ targets`eq/.
+- : targets/unique-preserves-eq set`eq/ set`eq/ bool`eq/ targets`eq/.
 
 %worlds () (targets/unique-preserves-eq _ _ _ _).
 %total {} (targets/unique-preserves-eq _ _ _ _).
 
 
+%theorem nonnull`leq-respects-eq
+  : forall* {NN} {NN'} {NN1} {NN1'}
+    forall {LE: nonnull`leq NN NN1}
+    {NN=NN': nonnull`eq NN NN'} {NN1=NN1': nonnull`eq NN1 NN1'}
+    exists {LE: nonnull`leq NN' NN1'}
+    true.
 
-% =========================================================================
-% ============================ Abbreviations ==============================
-% =========================================================================
+- : nonnull`leq-respects-eq LE nonnull`eq/ nonnull`eq/ LE.
 
+%worlds () (nonnull`leq-respects-eq _ _ _ _).
+%total { } (nonnull`leq-respects-eq _ _ _ _).
+
+
+%theorem annot`leq-respects-eq
+  : forall* {A} {A'} {A1} {A1'}
+    forall {LE: annot`leq A A1}
+    {A=A': annot`eq A A'} {A1=A1': annot`eq A1 A1'}
+    exists {LE: annot`leq A' A1'}
+    true.
+
+- : annot`leq-respects-eq LE annot`eq/ annot`eq/ LE.
+
+%worlds () (annot`leq-respects-eq _ _ _ _).
+%total { } (annot`leq-respects-eq _ _ _ _).
+
+
+%%% Exports
 
 %abbrev nn	= nonnull.
 %abbrev nn/yes	= nonnull/yes.
