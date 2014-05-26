@@ -1,5 +1,4 @@
 %%% Converting *map to permission
-%%% $Id$
 
 % Convert a set of object locations to a disjunction of objequal
 % facts. Used in output.
@@ -201,13 +200,19 @@ efxmap-minimum-efx/U : efxmap-minimum-efx* X1 M X4
  only appear as input.
 }%
 
+simple-targets : targets -> type.
+
+simple-targets/shared : simple-targets targets/shared.
+
+simple-targets/unique : simple-targets (targets/unique set/0 set/0 false).
+
 
 effects2output : clsmap -> predmap ->
 	cxt -> reftype -> effects -> expr-output -> type.
 
-effects2output/shared
+effects2output/simple
   : effects2output CM PM B
-    (reftype/ NN C targets/shared) (effects/ M _ SX _)
+    (reftype/ NN C G) (effects/ M _ SX _)
     (output/exists [r]
       (output/expr r % "shared" don't need scaling
         (combine Pi1
@@ -215,21 +220,9 @@ effects2output/shared
     <- cxt2perm CM PM B Pi1
     <- efxmap2perm CM PM B M Pi2
     <- shared-efx2perm SX Pi3
-    <- ty2perm PM (ty/ NN annot/shared C) PF.
-
-effects2output/unique/0
-  : effects2output CM PM B
-    (reftype/ NN C (targets/unique S S2 false)) (effects/ M _ SX _)
-    (output/exists [r]
-      (output/expr r
-        (combine Pi1
-          (combine (PF r) (combine Pi2 Pi3)))))
-    <- set`size S z
-    <- set`size S2 z
-    <- cxt2perm CM PM B Pi1
-    <- efxmap2perm CM PM B M Pi2
-    <- shared-efx2perm SX Pi3
-    <- ty2perm PM (ty/ NN annot/unique C) PF.
+    <- simple-targets G
+    <- reftype2ty (reftype/ NN C G) T
+    <- ty2perm PM T PF.
 
 effects2output/unique/0f
   : effects2output CM PM B
@@ -368,7 +361,8 @@ consty2proctype/args/shared
     <- ty2perm PM (ty/ NN annot/shared C) PF
     <- ({x} consty2proctype* PM FM Pi Pic CT (CTF x)).
 
-%abbrev consty2proctype = [PM][FM][CT][PTF] consty2proctype* PM FM empty empty CT PTF.
+%abbrev consty2proctype = [PM][FM][CT][PTF]
+                          consty2proctype* PM FM empty empty CT PTF.
 
 
 % Convert methmap to progtype, calls methty2proctype and consty2proctype.
@@ -380,7 +374,8 @@ methmap2progtype/0 : methmap2progtype _ _ methmap`map/0 progtype`map/0.
 methmap2progtype/U/c
   : methmap2progtype CM PM MM W
     <- methmap`fresh MMP N
-    <- methmap`update MMP N (methty/arg (ty/ nn/yes annot/unique C) set/0 set/0 CT) MM
+    <- methmap`update MMP N
+      (methty/arg (ty/ nn/yes annot/unique C) set/0 set/0 CT) MM
     <- clsmap`lookup CM N FM
     <- consty2proctype PM FM CT PTF
     <- methmap2progtype CM PM MMP WP
@@ -974,7 +969,9 @@ env2progtype/
     true.
 
 - : clsmap-cxt-effects-implies-effects2output/shared
-    CM-CM CM2PM CM-B CM-B-XX CML _ (effects2output/shared T2PF SX=>Pi3 M=>Pi2 B=>Pi1)
+    CM-CM CM2PM CM-B CM-B-XX CML _
+    (effects2output/simple T2PF reftype2ty/shared simple-targets/shared
+      SX=>Pi3 M=>Pi2 B=>Pi1)
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
     <- shared-efx2perm-total SX=>Pi3
@@ -998,7 +995,8 @@ env2progtype/
 
 - : clsmap-cxt-effects-implies-effects2output/unique*
     set/0 set/0 false CM-CM CM2PM CM-B _ CM-B-XX CML _
-    (effects2output/unique/0 T2PF SX=>Pi3 M=>Pi2 B=>Pi1 set`size/0 set`size/0)
+    (effects2output/simple T2PF reftype2ty/unique simple-targets/unique
+      SX=>Pi3 M=>Pi2 B=>Pi1)
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
     <- shared-efx2perm-total SX=>Pi3
@@ -1010,29 +1008,17 @@ env2progtype/
       (set`size/+ Z))
     <- set`size-total Z
     <- ({r} set2facts-total (S=>G r))
-%    <- consider-nn-total G+NN=>G'
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
     <- shared-efx2perm-total SX=>Pi3
     <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF.
 
-% - : clsmap-cxt-effects-implies-effects2output/unique*
-%     _ set/0 true CM-CM CM2PM CM-B
-%     (targets-effects/unique _ _ (shared-efx-relation/t NN)) CM-B-XX CML _
-%     (effects2output/unique/0t T2PF X2Q SX2X SX=>Pi3 M=>Pi2 S=>G B=>Pi1 set`size/0)
-%     <- ({r} set2facts-total (S=>G r))
-%     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-%     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
-%     <- shared-efx2perm-total SX=>Pi3
-%     <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF
-%     <- shared-efx-not-none-implies-shared-efx2efx NN _ SX2X
-%     <- efx2frac-total X2Q.
-
 - : clsmap-cxt-effects-implies-effects2output/unique*
     _ (set/+ _ _) false CM-CM CM2PM CM-B
     (targets-effects/unique _ S2<=M2 _)
     (clsmap-cxt-effects/ DM _ _ _ CM-B-S _) CML _
-    (effects2output/unique/+f T2PF SX=>Pi3 X2Q MX-M2 M2=>Pi3 M1=>Pi2 R
+    (effects2output/unique/+f T2PF
+      SX=>Pi3 X2Q MX-M2 M2=>Pi3 M1=>Pi2 R
       S=>G B=>Pi1 (set`size/+ Z))
     <- set`size-total Z
     <- ({r} set2facts-total (S=>G r))
@@ -1077,8 +1063,11 @@ env2progtype/
     <- efx`min-total MX-X
     <- efx2frac-total X2Q.
 
-%worlds (objvar) ( clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
-%total {} ( clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar)
+  (clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
+%total {}
+  (clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
+
 
 %abbrev clsmap-cxt-effects-implies-effects2output/unique
   = clsmap-cxt-effects-implies-effects2output/unique* _ _ _.
