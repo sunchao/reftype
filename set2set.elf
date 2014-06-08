@@ -45,6 +45,31 @@ set+set2set/U : set+set2set SP FS QP
                 -> set+set2set S FS Q.
 
 
+%%% 4, set+nat2map (objs + fld + efx => ((obj,fld) => efx))
+nat+map2map : nat -> efxmap -> efxmap -> type.
+
+nat+map2map/0 : nat+map2map _ efxmap/0 efxmap/0.
+
+nat+map2map/U : nat+map2map F XMin' XMout'
+                -> pair2nat (pair/ N F) K
+                -> efxmap`fresh XMin' N
+                -> efxmap`update XMin' N X XMin
+                -> efxmap`update XMout' K X XMout
+                -> nat+map2map F XMin XMout.
+
+%%% 4, set+map2map (objs + (flds => efx) => ((obj,fld) => efx)
+
+set+map2map : set -> efxmap -> efxmap -> type.
+
+set+map2map/0 : set+map2map set/0 _ efxmap/0.
+
+set+map2map/U : set+map2map S' XMin XMout1
+                -> nat+map2map N XMin XMout2
+                -> set`not-member S' N
+                -> set`add S' N S
+                -> efxmap`join XMout1 XMout2 XMout
+                -> set+map2map S XMin XMout.
+
 %%% Theorems
 
 % 1. set+nat2set
@@ -389,3 +414,188 @@ set+set2set/U : set+set2set SP FS QP
 	(set+set2set-lookup-implies-nat2pair/L _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A0 A1) (set+set2set-lookup-implies-nat2pair A0 _ _ _ _ _ _)
 	(set+set2set-lookup-implies-nat2pair/L A1 _ _ _ _ _ _ _ _ _ _ _).
+
+
+%%% 3, theorems about nat+map2map
+
+%theorem nat+map2map-total*
+  : forall {N} {XMin}
+    exists {XMout} {N+XMin=>XMout: nat+map2map N XMin XMout} true.
+
+%worlds () (nat+map2map-total* _ _ _ _).
+%trustme %total {} (nat+map2map-total* _ _ _ _).
+
+
+%theorem nat+map2map/U-inversion
+  : forall* {N} {F} {X} {XMin} {XMin'} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {FS: efxmap`fresh XMin' F}
+    {UD: efxmap`update XMin' F X XMin}
+    exists {XMout'} {N+XMin'=>XMout': nat+map2map N XMin' XMout'}
+    {K} {N+F=>K: pair2nat (pair/ N F) K}
+    {UD: efxmap`update XMout' K X XMout}
+    true.
+
+%worlds () (nat+map2map/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total {} (nat+map2map/U-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map/UP-inversion
+  : forall* {N} {K} {X} {XMin} {XMout} {XMout'}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {FS: efxmap`fresh XMout' K}
+    {UD: efxmap`update XMout' K X XMin}
+    exists {XMin'} {N+XMin'=>XMout': nat+map2map N XMin' XMout'}
+    {F} {N+F=>K: pair2nat (pair/ N F) K}
+    {UD: efxmap`update XMin' F X XMin}
+    true.
+
+%worlds () (nat+map2map/UP-inversion _ _ _ _ _ _ _ _).
+%trustme %total {} (nat+map2map/UP-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map-unique
+  : forall* {N} {XMin} {XMout} {N'} {XMin'} {XMout'}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {N'+XMin'=>XMout': nat+map2map N' XMin' XMout'}
+    {N=N': nat`eq N N'} {XMin=XMin': efxmap`eq XMin XMin'}
+    exists {XMout=XMout': efxmap`eq XMout XMout'}
+    true.
+
+%worlds () (nat+map2map-unique _ _ _ _ _).
+%trustme %total {} (nat+map2map-unique _ _ _ _ _).
+
+
+%theorem nat+map2map-preserves-fresh
+  : forall* {N} {F} {K} {XMin} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {FS: efxmap`fresh XMin F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {FS: efxmap`fresh XMout K}
+    true.
+
+- : nat+map2map-preserves-fresh nat+map2map/0
+    efxmap`fresh/0 _ efxmap`fresh/0.
+
+
+%theorem nat+map2map-preserves-fresh/L
+  : forall* {N} {F} {F'} {K} {K'} {X} {XMin} {XMin'} {XMout} {XMout'} {B}
+    forall {N+XMin'=>XMout': nat+map2map N XMin' XMout'}
+    {N+F'=>K': pair2nat (pair/ N F') K'}
+    {FS': efxmap`fresh XMin' F'}
+    {UD: efxmap`update XMin' F' X XMin}
+    {UD: efxmap`update XMout' K' X XMout}
+    {FS: efxmap`fresh XMin F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? F F' B}
+    exists {NM: efxmap`fresh XMout K}
+    true.
+
+- : nat+map2map-preserves-fresh/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- efxmap`update-implies-lookup UP MB
+    <- efxmap`fresh-lookup-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- efxmap`false-implies-fresh V NMQ.
+
+- : nat+map2map-preserves-fresh/L SP+F=>QP NP+F=>KP _
+    SP+NP=S QP+KP=Q N!<S N+F=>K (nat`eq?/no N<>NP) K!<Q
+    <- efxmap`update-preserves-fresh-converse N!<S SP+NP=S N!<SP
+    <- nat+map2map-preserves-fresh SP+F=>QP N!<SP N+F=>K K!<QP
+    <- pair2nat-preserves-ne* (natpair`ne/2 N<>NP) N+F=>K NP+F=>KP K<>KP
+    <- efxmap`update-preserves-fresh K!<QP QP+KP=Q K<>KP K!<Q.
+
+- : nat+map2map-preserves-fresh
+    (nat+map2map/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- nat+map2map-preserves-fresh/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (nat+map2map-preserves-fresh _ _ _ _)
+	(nat+map2map-preserves-fresh/L _ _ _ _ _ _ _ _ _).
+%trustme %total (T1 T2) (nat+map2map-preserves-fresh T1 _ _ _)
+	(nat+map2map-preserves-fresh/L T2 _ _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map-preserves-size
+  : forall* {N} {K} {XMin} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {SZ: efxmap`size XMin K}
+    exists {SZ: efxmap`size XMout K}
+    true.
+
+%worlds () (nat+map2map-preserves-size _ _ _).
+%trustme %total {} (nat+map2map-preserves-size _ _ _).
+
+
+%theorem nat+map2map-preserves-size-converse
+  : forall* {N} {K} {XMin} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {SZ: efxmap`size XMout K}
+    exists {SZ: efxmap`size XMin K}
+    true.
+
+%worlds () (nat+map2map-preserves-size-converse _ _ _).
+%trustme %total {} (nat+map2map-preserves-size-converse _ _ _).
+
+
+%%% 4, theorems about set+map2map
+
+%theorem set+map2map-respects-eq
+  : forall* {S} {S'} {XMin} {XMin'} {XMout} {XMout'}
+    forall {S+XMin=>XMout: set+map2map S XMin XMout}
+    {SE: set`eq S S'} {XME: efxmap`eq XMin XMin'}
+    {XME: efxmap`eq XMout XMout'}
+    exists {S'+XMin'=>XMout': set+map2map S' XMin' XMout'}
+    true.
+
+- : set+map2map-respects-eq T set`eq/ efxmap`eq/ efxmap`eq/ T.
+
+%worlds () (set+map2map-respects-eq _ _ _ _ _).
+%total {} (set+map2map-respects-eq _ _ _ _ _).
+
+
+%theorem set+map2map/U-inversion
+  : forall* {S} {S'} {XMin} {N} {XMout}
+    forall {S+XMin=>XMout: set+map2map S XMin XMout}
+    {NM: set`not-member S' N}
+    {A: set`add S' N S}
+    exists {XMout1} {S'+XMin=>XMout1: set+map2map S' XMin XMout1}
+    {XMout2} {N+XMin=>XMout2: nat+map2map N XMin XMout2}
+    {J: efxmap`join XMout1 XMout2 XMout}
+    true.
+
+%worlds () (set+map2map/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total {} (set+map2map/U-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem set+map2map-unique
+  : forall* {S} {XMin} {XMout} {S'} {XMin'} {XMout'}
+    forall {T: set+map2map S XMin XMout}
+    {T': set+map2map S' XMin' XMout'}
+    {SE: set`eq S S'} {XME: efxmap`eq XMin XMin'}
+    exists {XME: efxmap`eq XMout XMout'}
+    true.
+
+%worlds () (set+map2map-unique _ _ _ _ _).
+%trustme %total {} (set+map2map-unique _ _ _ _ _).
+
+
+%theorem set+map2map-on-empty-set
+  : forall* {XMin} exists {T: set+map2map set/0 XMin efxmap/0} true.
+
+- : set+map2map-on-empty-set set+map2map/0.
+
+%worlds () (set+map2map-on-empty-set _).
+%total {} (set+map2map-on-empty-set _).
+
+
+%theorem set+map2map-lookup-implies-nat2pair
+  : forall* {S} {XMin} {XMout} {K} {X}
+    forall {S+XMin=>XMout: set+map2map S XMin XMout}
+    {L: efxmap`lookup XMout K X}
+    exists {N} {F} {L: set`member S N}
+    {L: efxmap`lookup XMin F X}
+    {K=>NF: nat2pair K (pair/ N F)}
+    true.
+
+%worlds () (set+map2map-lookup-implies-nat2pair _ _ _ _ _ _ _).
+%trustme %total {} (set+map2map-lookup-implies-nat2pair _ _ _ _ _ _ _).
