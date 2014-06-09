@@ -9,11 +9,11 @@ set+nat2set : set -> nat -> set -> type.
 
 set+nat2set/0 : set+nat2set set/0 _ set/0.
 
-set+nat2set/U : set+nat2set SP F QP
+set+nat2set/U : set+nat2set S' F Q'
                 -> pair2nat (pair/ N F) K
-                -> set`not-member SP N
-                -> set`add SP N S
-                -> set`add QP K Q
+                -> set`not-member S' N
+                -> set`add S' N S
+                -> set`add Q' K Q
                 -> set+nat2set S F Q.
 
 
@@ -23,11 +23,11 @@ nat+set2set : nat -> set -> set -> type.
 
 nat+set2set/0 : nat+set2set _ set/0 set/0.
 
-nat+set2set/U : nat+set2set N SP QP
+nat+set2set/U : nat+set2set N S' Q'
                 -> pair2nat (pair/ N F) K
-                -> set`not-member SP F
-                -> set`add SP F S
-                -> set`add QP K Q
+                -> set`not-member S' F
+                -> set`add S' F S
+                -> set`add Q' K Q
                 -> nat+set2set N S Q.
 
 
@@ -37,11 +37,11 @@ set+set2set : set -> set -> set -> type.
 
 set+set2set/0 : set+set2set set/0 _ set/0.
 
-set+set2set/U : set+set2set SP FS QP
+set+set2set/U : set+set2set S' FS Q'
                 -> nat+set2set N FS R
-                -> set`not-member SP N
-                -> set`add SP N S
-                -> set`union QP R Q
+                -> set`not-member S' N
+                -> set`add S' N S
+                -> set`union Q' R Q
                 -> set+set2set S FS Q.
 
 
@@ -50,12 +50,12 @@ nat+map2map : nat -> efxmap -> efxmap -> type.
 
 nat+map2map/0 : nat+map2map _ efxmap/0 efxmap/0.
 
-nat+map2map/U : nat+map2map F XMin' XMout'
+nat+map2map/U : nat+map2map N XMin' XMout'
                 -> pair2nat (pair/ N F) K
-                -> efxmap`fresh XMin' N
-                -> efxmap`update XMin' N X XMin
+                -> efxmap`fresh XMin' F
+                -> efxmap`update XMin' F X XMin
                 -> efxmap`update XMout' K X XMout
-                -> nat+map2map F XMin XMout.
+                -> nat+map2map N XMin XMout.
 
 %%% 4, set+map2map (objs + (flds => efx) => ((obj,fld) => efx)
 
@@ -599,3 +599,60 @@ set+map2map/U : set+map2map S' XMin XMout1
 
 %worlds () (set+map2map-lookup-implies-nat2pair _ _ _ _ _ _ _).
 %trustme %total {} (set+map2map-lookup-implies-nat2pair _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map-implies-nat+set2set
+  : forall* {N} {XMin} {XMout} {S} {Sout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {DM-XMin=FS: efxmap`domain XMin S}
+    {DM-XMout=Sout: efxmap`domain XMout Sout}
+    exists {FS+N=Sout: nat+set2set N S Sout}
+    true.
+
+- : nat+map2map-implies-nat+set2set nat+map2map/0 _ _ nat+set2set/0.
+
+- : nat+map2map-implies-nat+set2set
+    (nat+map2map/U N+XMin'=>XMout' N+F=>K F!<XMin'
+      XMin'+F+X=XMin XMout'+K+X=XMout)
+    (DM-XMin=S:efxmap`domain XMin S) (DM-XMout=Sout:efxmap`domain XMout Sout)
+    (nat+set2set/U N+S'=>Sout' N+F=>K F!<S' S'+F=S Sout'+K=Sout)
+    <- efxmap`domain-total DM-XMin'=S'
+    <- efxmap`domain-total DM-XMout'=Sout'
+    <- nat+map2map-implies-nat+set2set N+XMin'=>XMout'
+      DM-XMin'=S' DM-XMout'=Sout' N+S'=>Sout'
+    <- efxmap`domain-preserves-fresh F!<XMin' DM-XMin'=S' F!<S'
+    <- efxmap`update-commute-domain XMin'+F+X=XMin DM-XMin'=S' DM-XMin=S S'+F=S
+    <- efxmap`update-commute-domain XMout'+K+X=XMout DM-XMout'=Sout'
+      DM-XMout=Sout Sout'+K=Sout.
+
+%worlds () (nat+map2map-implies-nat+set2set _ _ _ _).
+%total (T) (nat+map2map-implies-nat+set2set T _ _ _).
+
+
+%theorem set+map2map-implies-set+set2set
+  : forall* {S} {XMin} {XMout} {FS} {Sout}
+    forall {S+XMin=>XMout: set+map2map S XMin XMout}
+    {DM-XMin: efxmap`domain XMin FS}
+    {DM-XMout: efxmap`domain XMout Sout}
+    exists {S+Sin=>Sout: set+set2set S FS Sout}
+    true.
+
+- : set+map2map-implies-set+set2set set+map2map/0 _ _ set+set2set/0.
+
+- : set+map2map-implies-set+set2set
+    (set+map2map/U S'+XMin=>XMout1 N+XMin=>XMout2 N!<S' S'+N=S
+      XMout1+XMout2=XMout) (DM-XMin=FS:efxmap`domain XMin FS)
+    (DM-XMout=Sout:efxmap`domain XMout Sout)
+    (set+set2set/U (S'+FS=>Sout1:set+set2set S' FS Sout1)
+      N+FS=>Sout2 N!<S' S'+N=S Sout1+Sout2=Sout)
+    <- efxmap`domain-total DM-XMout1=Sout1
+    <- efxmap`domain-total DM-XMout2=Sout2
+    <- set+map2map-implies-set+set2set
+      S'+XMin=>XMout1 DM-XMin=FS DM-XMout1=Sout1 S'+FS=>Sout1
+    <- nat+map2map-implies-nat+set2set
+      N+XMin=>XMout2 DM-XMin=FS DM-XMout2=Sout2 N+FS=>Sout2
+    <- efxmap`join-commute-domain XMout1+XMout2=XMout DM-XMout1=Sout1
+      DM-XMout2=Sout2 DM-XMout=Sout Sout1+Sout2=Sout.
+
+%worlds () (set+map2map-implies-set+set2set _ _ _ _).
+%total (T) (set+map2map-implies-set+set2set T _ _ _).
