@@ -1,41 +1,65 @@
 %% Consistency relation between various contexts.
+%% TODO:
+%% 1. do we really need ty/null?
 
 % A well-formed clsmap contains well-formed fldmap, which
-% must: 1) contain no borrowed fldtype, and 2) must not be empty.
+% must contain no borrowed field type.
 
-fldmap-no-borrowed : fldmap -> type.
+wf-fldmap-ty : ty -> type.
 
-fldmap-no-borrowed/0 : fldmap-no-borrowed fldmap/0.
+wf-fldmap-ty/null : wf-fldmap-ty ty/null.
 
-fldmap-no-borrowed/U : fldmap-no-borrowed FM'
-                       -> not-borrowed A
-                       -> fldmap`fresh FM' F
-                       -> fldmap`update FM' F (ty/ _ A _) FM
-                       -> fldmap-no-borrowed FM.
+wf-fldmap-ty/ : wf-fldmap-ty (ty/ _ A _) <- not-borrowed A.
+
 
 wf-fldmap : fldmap -> type.
 
-wf-fldmap/ : fldmap`size FM (s _)
-             -> fldmap-no-borrowed FM
-             -> wf-fldmap FM.
+wf-fldmap/0 : wf-fldmap (fldmap/+ z ty/null fldmap/0).
+
+wf-fldmap/U : wf-fldmap FM'
+              -> wf-fldmap-ty T
+              -> fldmap`fresh FM' F
+              -> fldmap`update FM' F T FM
+              -> wf-fldmap FM.
+
 
 wf-clsmap : clsmap -> type.
 
-wf-clsmap/0 : wf-clsmap clsmap/0.
+%%% Well-formed clsmap should contain at least a mapping for shared.
+wf-clsmap/0 : wf-clsmap (clsmap/+ z (fldmap/+ z ty/null fldmap/0) clsmap/0).
 
-wf-clsmap/U : wf-clsmap CM'
-              -> wf-fldmap FM
-              -> clsmap`fresh CM' C
-              -> clsmap`update CM' C FM CM
-              -> wf-clsmap CM.
+wf-clsmap/U
+  : wf-clsmap CM'
+    -> wf-fldmap FM
+    -> clsmap`fresh CM' C
+    -> clsmap`update CM' C FM CM
+    -> wf-clsmap CM.
+
+
+
+
+%% Well-formed context:
+%% 1, all type are not unique
+%% 2, at least contain an entry for shared
+
+wf-cxt : cxt -> type.
+
+wf-cxt/1 : wf-cxt (cxt/+ z (cxt-info/ null shared-ty) cxt/0).
+
+wf-cxt/U
+  : wf-cxt B'
+    -> cxt`fresh B' N
+    -> cxt`update B' N (cxt-info/ O (ty/ NN A C)) B
+    -> not-unique A
+    -> wf-cxt B.
 
 
 % Check if a type is in clsmap
 
 clsmap-ty : clsmap -> ty -> type.
 
-clsmap-ty/notnull : clsmap-ty CM (ty/ _ _ C)
-                    <- clsmap`lookup CM C _.
+clsmap-ty/ : clsmap-ty CM (ty/ _ _ C)
+             <- clsmap`lookup CM C _.
 
 clsmap-ty/null : clsmap-ty CM ty/null.
 
@@ -44,10 +68,10 @@ clsmap-ty/null : clsmap-ty CM ty/null.
 
 clsmap-methty : clsmap -> methty -> type.
 
-clsmap-methty/base : clsmap-methty CM (methty/base T _)
+clsmap-methty/base : clsmap-methty CM (methty/base T)
                      <- clsmap-ty CM T.
 
-clsmap-methty/args : clsmap-methty CM (methty/arg T _ _ A)
+clsmap-methty/args : clsmap-methty CM (methty/arg T _ A)
                      <- clsmap-ty CM T
                      <- clsmap-methty CM A.
 
@@ -91,11 +115,12 @@ clsmap-methmap/meth
 
 clsmap-methmap/const
   : clsmap-methmap CM
-    (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) _ _ MT) MM)
+    (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) _ MT) MM)
     <- clsmap`lookup CM N _
     <- clsmap-methty CM MT
     <- methmap`shift N MM MMS
     <- clsmap-methmap CM MMS.
+
 
 
 % Consistency between clsmap and explicit context.
@@ -103,24 +128,19 @@ clsmap-methmap/const
 
 clsmap-cxt : clsmap -> cxt -> type.
 
-clsmap-cxt/nil : clsmap-cxt _ cxt/nil.
+clsmap-cxt/0 : clsmap-cxt _ cxt/0.
 
-clsmap-cxt/cons/b
-  : clsmap-cxt CM (cxt/cons O (ty/ NN annot/borrow C) B)
-    <- clsmap-ty CM (ty/ NN annot/borrow C)
-    <- clsmap-cxt CM B.
+clsmap-cxt/U
+  : clsmap-cxt CM B'
+    -> clsmap-ty CM T
+    -> cxt`update B' N (cxt-info/ _ T) B
+    -> clsmap-cxt CM B.
 
-clsmap-cxt/cons/s
-  : clsmap-cxt CM (cxt/cons O (ty/ NN annot/shared C) B)
-    <- clsmap-ty CM (ty/ NN annot/shared C)
-    <- clsmap-cxt CM B.
 
-%{
- A whole object can be consumed, for instance, in x.f = a, object
- a is consumed. In this case, we treated as if all of a's field are
- consumed. But, we also need the encumbered permission:
-  \forall f (P(a.f) encumbered-in P(a.all))
-}%
+% A whole object can be consumed, for instance, in x.f = a, object
+% a is consumed. In this case, we treated as if all of a's field are
+% consumed. But, we also need the encumbered permission:
+%  \forall f (P(a.f) encumbered-in P(a.all))
 
 collect-objs* : set -> set -> set -> type.
 
@@ -136,6 +156,8 @@ collect-objs/U : collect-objs* S1 R' S2
 %abbrev collect-objs = collect-objs* set/0.
 
 
+% Whether all object ids in the set are of the same class C.
+
 same-class : cxt -> set -> nat -> type.
 
 same-class/0 : same-class _ set/0 _.
@@ -143,40 +165,39 @@ same-class/0 : same-class _ set/0 _.
 same-class/U : same-class B S' C
                -> set`not-member S' N
                -> set`add S' N S
-               -> cxt`lookup B (object/ N) (ty/ _ _ C)
+               -> cxt`lookup B N (cxt-info/ _ (ty/ _ _ C))
                -> same-class B S C.
 
-%{
- This relation says all "pairs" (obj,fld) in the set are valid:
- i.e., you can find obj in the context B with class id C, find C
- in the clsmap CM with FM, and find fld in FM with type T.
-}%
+
+% This relation says all "pairs" (obj,fld) in the set are valid:
+% i.e., you can find obj in the context B with class id C, find C
+% in the clsmap CM with FM, and find fld in FM with type T.
 
 clsmap-cxt-set : clsmap -> cxt -> set -> type.
 
 clsmap-cxt-set/0 : clsmap-cxt-set _ _ set/0.
 
-clsmap-cxt-set/U : clsmap-cxt-set CM B S'
-                   -> nat2pair K (pair/ N F)
-                   -> cxt`lookup B (object/ N) (ty/ _ _ C)
-                   -> clsmap`lookup CM C FM
-                   -> fldmap`lookup FM F T
-                   -> set`not-member S' K
-                   -> set`add S' K S
-                   -> clsmap-cxt-set CM B S.
+clsmap-cxt-set/U
+  : clsmap-cxt-set CM B S'
+    -> nat2pair K (pair/ N F)
+    -> cxt`lookup B N (cxt-info/ _ (ty/ _ _ C))
+    -> clsmap`lookup CM C FM
+    -> fldmap`lookup FM F T
+    -> set`not-member S' K
+    -> set`add S' K S
+    -> clsmap-cxt-set CM B S.
 
-%{
- This relation likes the one above, except all elements in the
- set are objs. So, we just need them to be in the context B.
- This is very similar to same-class, but weaker.
-}%
+
+% This relation likes the one above, except all elements in the
+% set are objs. So, we just need them to be in the context B.
+% This is very similar to same-class, but weaker.
 
 clsmap-cxt-set2 : clsmap -> cxt -> set -> type.
 
 clsmap-cxt-set2/0 : clsmap-cxt-set2 _ _ set/0.
 
 clsmap-cxt-set2/U : clsmap-cxt-set2 CM B S'
-                    -> cxt`lookup B (object/ N) (ty/ _ _ C)
+                    -> cxt`lookup B N (cxt-info/ O (ty/ _ _ C))
                     -> clsmap`lookup CM C FM
                     -> set`not-member S' N
                     -> set`add S' N S
@@ -191,7 +212,7 @@ clsmap-cxt-targets/unique
   : same-class B S C
     -> clsmap-cxt-set2 CM B S
     -> clsmap-cxt-set CM B S2
-    -> clsmap-cxt-targets CM B C (targets/unique S S2 _).
+    -> clsmap-cxt-targets CM B C (targets/unique S S2).
 
 
 least-nn : nn -> nn -> nn -> type.
@@ -210,7 +231,7 @@ find-least-nn/0 : find-least-nn* NN B set/0 NN.
 find-least-nn/U : find-least-nn* NN1 B S' NN2
                   -> set`not-member S' N
                   -> set`add S' N S
-                  -> cxt`lookup B (object/ N) (ty/ NN _ _)
+                  -> cxt`lookup B N (cxt-info/ _ (ty/ NN _ _))
                   -> least-nn NN2 NN NN3
                   -> find-least-nn* NN1 B S NN3.
 
@@ -226,7 +247,7 @@ nn-all-less-than/U
   : nn-all-less-than B S' NN
     -> set`not-member S' N
     -> set`add S' N S
-    -> cxt`lookup B (object/ N) (ty/ NN' _ _)
+    -> cxt`lookup B N (cxt-info/ O (ty/ NN' _ _))
     -> nonnull`leq NN NN'
     -> nn-all-less-than B S NN.
 
@@ -234,12 +255,13 @@ clsmap-cxt-reftype : clsmap -> cxt -> reftype -> type.
 
 clsmap-cxt-reftype/shared : clsmap-cxt-reftype _ _ (reftype/ _ _ targets/shared).
 
+%%% TODO: use clsmap-cxt-targets here?
 clsmap-cxt-reftype/unique
   : same-class B S C % objset should be of same class
     -> nn-all-less-than B S NN % NN is the least precise nonnull info
     -> clsmap-cxt-set2 CM B S % classes for all objs in S are in CM
     -> clsmap-cxt-set CM B S2 % classes for all objs in S2 are in CM
-    -> clsmap-cxt-reftype CM B (reftype/ NN C (targets/unique S S2 _)).
+    -> clsmap-cxt-reftype CM B (reftype/ NN C (targets/unique S S2)).
 
 
 clsmap-cxt-effects : clsmap -> cxt -> effects -> type.
@@ -251,7 +273,7 @@ clsmap-cxt-effects/
     -> set`leq Q SQ % we can get clsmap-cxt-set2 on Q by S
     -> clsmap-cxt-set CM B R
     -> clsmap-cxt-set CM B S
-    -> clsmap-cxt-effects CM B (effects/ M S _ Q).
+    -> clsmap-cxt-effects CM B (effects/ M S Q).
 
 %abbrev clsmap-cxt-effects/0 =
 	(clsmap-cxt-effects/ efxmap`domain/0
@@ -261,27 +283,13 @@ clsmap-cxt-effects/
 
 % Targets and effects has to be consistent with each other.
 
-shared-efx-not-none : shared-efx -> type.
-
-shared-efx-not-none/ : shared-efx-not-none (shared-efx/ _).
-
-
-shared-efx-relation : bool -> shared-efx -> type.
-
-shared-efx-relation/t : shared-efx-relation true SX <- shared-efx-not-none SX.
-
-shared-efx-relation/f : shared-efx-relation false _.
-
-
 targets-effects : targets -> effects -> type.
 
 targets-effects/unique
-  : efxmap`domain M R
-    -> set`leq S2 R
-    -> shared-efx-relation B X
-    -> targets-effects (targets/unique S1 S2 B) (effects/ M _ X _).
+  : efxmap`domain M R -> set`leq S2 R
+    -> targets-effects (targets/unique S1 S2) (effects/ M _ _).
 
-targets-effects/shared : targets-effects (targets/shared) _.
+targets-effects/shared : targets-effects targets/shared _.
 
 
 
@@ -390,10 +398,10 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 
 %theorem nn-all-less-than/U-inversion
-  : forall* {B} {S} {NN} {S'} {N}
+  : forall* {B} {S} {NN} {S'} {N} {O}
     forall {B-S-NN: nn-all-less-than B S NN}
     {FS: set`not-member S' N} {AD: set`add S' N S}
-    exists {NN'} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN' A C)}
+    exists {NN'} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' A C))}
     {LE: nonnull`leq NN NN'} {B-S'-NN: nn-all-less-than B S' NN}
     true.
 
@@ -426,6 +434,40 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %trustme %total {} (wf-clsmap-lookup-not-empty _ _ _ _).
 
 
+%theorem wf-clsmap-can-lookup-shared
+  : forall* {CM}
+    forall {WF-CM: wf-clsmap CM}
+    exists {CML: clsmap`lookup CM z (fldmap/+ z ty/null fldmap/0)}
+    true.
+
+- : wf-clsmap-can-lookup-shared wf-clsmap/0 (clsmap`lookup/= nat`eq/).
+
+- : wf-clsmap-can-lookup-shared
+    (wf-clsmap/U WF-CM' WF-FM F U) CML
+    <- wf-clsmap-can-lookup-shared WF-CM' CML'
+    <- clsmap`fresh-update-preserves-lookup CML' F U CML.
+
+%worlds (objvar) (wf-clsmap-can-lookup-shared _ _).
+%total (WF) (wf-clsmap-can-lookup-shared WF _).
+
+
+%theorem wf-cxt-can-lookup-shared
+  : forall* {B}
+    forall {WF-B: wf-cxt B}
+    exists {BL: cxt`lookup B z (cxt-info/ null shared-ty)}
+    true.
+
+- : wf-cxt-can-lookup-shared wf-cxt/1 (cxt`lookup/= nat`eq/).
+
+- : wf-cxt-can-lookup-shared
+    (wf-cxt/U WF-B' F U _) BL
+    <- wf-cxt-can-lookup-shared WF-B' BL'
+    <- cxt`fresh-update-preserves-lookup BL' F U BL.
+
+%worlds (objvar) (wf-cxt-can-lookup-shared _ _).
+%total (WF) (wf-cxt-can-lookup-shared WF _).
+
+
 %theorem clsmap-ty-respects-eq
   : forall* {CM1} {CM2} {T1} {T2}
     forall {CM1-T1: clsmap-ty CM1 T1}
@@ -446,8 +488,8 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     exists {CM1-T: clsmap-ty CM1 T}
     true.
 
-- : clsmap-ty-respects-leq (clsmap-ty/notnull L0)
-    CM0<=CM1 (clsmap-ty/notnull L1)
+- : clsmap-ty-respects-leq (clsmap-ty/ L0)
+    CM0<=CM1 (clsmap-ty/ L1)
     <- clsmap`lookup-respects-leq L0 CM0<=CM1 _ L1 _.
 
 - : clsmap-ty-respects-leq clsmap-ty/null _ clsmap-ty/null.
@@ -566,7 +608,7 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 - : lookup-implies-clsmap-methty
      (clsmap-methmap/const _ _ (CM-MT) CML) (methmap`lookup/= _)
-     (clsmap-methty/args CM-MT (clsmap-ty/notnull CML)).
+     (clsmap-methty/args CM-MT (clsmap-ty/ CML)).
 
 - : lookup-implies-clsmap-methty
      (clsmap-methmap/meth CM-MMP N<<MM=MMP _ _)
@@ -588,29 +630,63 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %total (L) (lookup-implies-clsmap-methty L _ _).
 
 
+%%% Theorems about clsmap-cxt
+
+
 %theorem cxt-lookup-implies-clsmap-ty
-  : forall* {CM} {B} {T} {O}
-    forall {CM-B: clsmap-cxt CM B}
-    {B-L: cxt`lookup B O T}
+  : forall* {CM} {B} {T} {O} {N}
+    forall {WF-CM: wf-clsmap CM}
+    {CM-B: clsmap-cxt CM B}
+    {B-L: cxt`lookup B N (cxt-info/ O T)}
     exists {CM-T: clsmap-ty CM T}
     true.
 
-- : cxt-lookup-implies-clsmap-ty
-    (clsmap-cxt/cons/s _ CM-T) cxt`lookup/hit CM-T.
+%theorem cxt-lookup-implies-clsmap-ty/L
+  : forall* {CM} {B} {B'} {T} {O} {T'} {O'} {N} {N'} {K}
+    forall {WF-CM: wf-clsmap CM}
+    {CM-B: clsmap-cxt CM B'}
+    {CM-T: clsmap-ty CM T'}
+    {U: cxt`update B' N' (cxt-info/ O' T') B}
+    {BL: cxt`lookup B N (cxt-info/ O T)}
+    {EQ?: nat`eq? N N' K}
+    exists {CM-T: clsmap-ty CM T}
+    true.
 
-- : cxt-lookup-implies-clsmap-ty
-    (clsmap-cxt/cons/b _ CM-T) cxt`lookup/hit CM-T.
+- : cxt-lookup-implies-clsmap-ty/L WF-CM CM-B' CM-T' U BL nat`eq?/yes CM-T
+    <- cxt`update-implies-lookup U BL'
+    <- cxt`lookup-unique BL' BL cxt`eq/ nat`eq/ CIE
+    <- cxt-info-eq-inversion CIE _ TE
+    <- clsmap-ty-respects-eq CM-T' clsmap`eq/ TE CM-T.
 
-- : cxt-lookup-implies-clsmap-ty
-    (clsmap-cxt/cons/s CM-B _) (cxt`lookup/miss B-L _) CM-T
-    <- cxt-lookup-implies-clsmap-ty CM-B B-L CM-T.
+- : cxt-lookup-implies-clsmap-ty/L WF-CM CM-B' CM-T' U BL
+    (nat`eq?/no (N<>N':nat`ne N N')) CM-T
+    <- cxt`update-preserves-lookup-converse BL U N<>N' BL'
+    <- cxt-lookup-implies-clsmap-ty WF-CM CM-B' BL' CM-T.
 
-- : cxt-lookup-implies-clsmap-ty
-    (clsmap-cxt/cons/b CM-B _) (cxt`lookup/miss B-L _) CM-T
-    <- cxt-lookup-implies-clsmap-ty CM-B B-L CM-T.
+- : cxt-lookup-implies-clsmap-ty WF-CM
+    (clsmap-cxt/U CM-B' CM-T' U) BL CM-T
+    <- nat`eq?-total EQ?
+    <- cxt-lookup-implies-clsmap-ty/L WF-CM CM-B' CM-T' U BL EQ? CM-T.
 
-%worlds (objvar) (cxt-lookup-implies-clsmap-ty _ _ _).
-%total (CM-B) (cxt-lookup-implies-clsmap-ty CM-B _ _).
+%worlds (objvar) (cxt-lookup-implies-clsmap-ty _ _ _ _)
+  (cxt-lookup-implies-clsmap-ty/L _ _ _ _ _ _ _).
+%total (CM-B CM-B') (cxt-lookup-implies-clsmap-ty _ CM-B _ _)
+  (cxt-lookup-implies-clsmap-ty/L _ CM-B' _ _ _ _ _).
+
+
+%theorem cxt-lookup-obj-implies-clsmap-ty
+  : forall* {CM} {B} {T} {N} {O}
+    forall {WF-CM: wf-clsmap CM}
+    {CM-B: clsmap-cxt CM B}
+    {B-L: cxt`lookup-obj B O N T}
+    exists {CM-T: clsmap-ty CM T}
+    true.
+
+- : cxt-lookup-obj-implies-clsmap-ty WF-CM CM-B (cxt`lookup-obj/ BL) CM-T
+    <- cxt-lookup-implies-clsmap-ty WF-CM CM-B BL CM-T.
+
+%worlds (objvar) (cxt-lookup-obj-implies-clsmap-ty _ _ _ _).
+%total (CM-B) (cxt-lookup-obj-implies-clsmap-ty _ CM-B _ _).
 
 
 %theorem targets-effects-respects-eq
@@ -634,8 +710,8 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     exists {CM-B-XX': clsmap-cxt-effects CM' B' XX'}
     true.
 
-- : clsmap-cxt-effects-respects-eq CM-B-XX clsmap`eq/ cxt`eq/ effects`eq/
-    CM-B-XX.
+- : clsmap-cxt-effects-respects-eq
+    CM-B-XX clsmap`eq/ cxt`eq/ effects`eq/ CM-B-XX.
 
 %worlds (objvar) (clsmap-cxt-effects-respects-eq _ _ _ _ _).
 %total {} (clsmap-cxt-effects-respects-eq _ _ _ _ _).
@@ -849,45 +925,45 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     forall {SOC: same-class B S C}
     {NM: set`not-member SP N}
     {AD: set`add SP N S}
-    exists {NN} {A} {SOC: same-class B SP C}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    exists {O} {NN} {A} {SOC: same-class B SP C}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     true.
 
 %theorem same-class/U-inversion/L
-  : forall* {B} {S} {SP1} {C} {N1} {A1} {NN1} {SP} {N} {P}
+  : forall* {B} {S} {SP1} {C} {N1} {A1} {NN1} {SP} {N} {P} {O1}
     forall {SOC: same-class B SP1 C}
     {NM1: set`not-member SP1 N1}
     {AD1: set`add SP1 N1 S}
-    {BL1: cxt`lookup B (object/ N1) (ty/ NN1 A1 C)}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C))}
     {NM: set`not-member SP N}
     {AD: set`add SP N S}
     {EQ?: nat`eq? N N1 P}
-    exists {NN} {A} {SOC: same-class B SP C}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    exists {O} {NN} {A} {SOC: same-class B SP C}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     true.
 
 - : same-class/U-inversion/L
-    SOC0 F0 U0 BL0 F1 U1 nat`eq?/yes _ _ SOC1 BL0
+    SOC0 F0 U0 BL0 F1 U1 nat`eq?/yes _ _ _ SOC1 BL0
     <- set`not-member-add-cancels F0 U0 F1 U1 nat`eq/ set`eq/ S0=S1
     <- same-class-respects-eq SOC0 cxt`eq/ S0=S1 nat`eq/ SOC1.
 
 - : same-class/U-inversion/L
-    SOC0 F0 U0 BL0 F1 U1 (nat`eq?/no N<>N1) _ _
+    SOC0 F0 U0 BL0 F1 U1 (nat`eq?/no N<>N1) _ _ _
     (same-class/U SOC2 F3 U3 BL0) BL2
     <- set`update-commutes-converse U1 U0 N<>N1 _ U3 U2
     <- set`add-preserves-not-member-converse F1 U3 F2
     <- set`add-preserves-not-member-converse F0 U2 F3
-    <- same-class/U-inversion SOC0 F2 U2 _ _ SOC2 BL2.
+    <- same-class/U-inversion SOC0 F2 U2 _ _ _ SOC2 BL2.
 
 - : same-class/U-inversion
-    (same-class/U SOC0 F0 A0 BL0) F1 A1 _ _ SOC1 BL1
+    (same-class/U SOC0 F0 A0 BL0) F1 A1 _ _ _ SOC1 BL1
     <- nat`eq?-total E?
-    <- same-class/U-inversion/L SOC0 F0 A0 BL0 F1 A1 E? _ _ SOC1 BL1.
+    <- same-class/U-inversion/L SOC0 F0 A0 BL0 F1 A1 E? _ _ _ SOC1 BL1.
 
-%worlds (objvar) (same-class/U-inversion _ _ _ _ _ _ _)
-	(same-class/U-inversion/L _ _ _ _ _ _ _ _ _ _ _).
-%total (C0 C1) (same-class/U-inversion C0 _ _ _ _ _ _)
-	(same-class/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (same-class/U-inversion _ _ _ _ _ _ _ _)
+	(same-class/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _).
+%total (C0 C1) (same-class/U-inversion C0 _ _ _ _ _ _ _)
+	(same-class/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem clsmap-cxt-set/U-inversion
@@ -897,19 +973,19 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     {AD: set`add S' K S}
     exists {CM-B-S': clsmap-cxt-set CM B S'}
     {N} {F} {N+F=>K: nat2pair K (pair/ N F)}
-    {NN} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     true.
 
 %theorem clsmap-cxt-set/U-inversion/L
-  : forall* {CM} {B} {S} {S'} {S1'} {K} {K1} {NN1}
+  : forall* {CM} {B} {S} {S'} {S1'} {K} {K1} {O1} {NN1}
     {A1} {C1} {FM1} {P} {N1} {F1} {T1}
     forall {CM-B-S: clsmap-cxt-set CM B S1'}
     {NM1: set`not-member S1' K1}
     {AD1: set`add S1' K1 S}
     {K1=>N1+F1: nat2pair K1 (pair/ N1 F1)}
-    {BL1: cxt`lookup B (object/ N1) (ty/ NN1 A1 C1)}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
     {CML1: clsmap`lookup CM C1 FM1}
     {FML1: fldmap`lookup FM1 F1 T1}
     {NM: set`not-member S' K}
@@ -917,36 +993,36 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     {EQ?: nat`eq? K K1 P}
     exists {CM-B-S': clsmap-cxt-set CM B S'}
     {N} {F} {K=>N+F: nat2pair K (pair/ N F)}
-    {NN} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     true.
 
 - : clsmap-cxt-set/U-inversion/L CM-B-S F1 U1 N2P1 BL1 CML1 FML1 F U
-    nat`eq?/yes CM-B-S' _ _ N2P1 _ _ _ BL1 _ CML1 _ FML1
+    nat`eq?/yes CM-B-S' _ _ N2P1 _ _ _ _ BL1 _ CML1 _ FML1
     <- set`not-member-add-cancels F1 U1 F U nat`eq/ set`eq/ S1=S
     <- clsmap-cxt-set-respects-eq CM-B-S clsmap`eq/ cxt`eq/ S1=S CM-B-S'.
 
 - : clsmap-cxt-set/U-inversion/L CM-B-S F1 U1 N2P BL CML FML
     F U (nat`eq?/no N<>N1) (clsmap-cxt-set/U CM-B-S2 N2P BL CML FML F3 U3)
-    _ _ N2P2 _ _ _ BL2 _ CML2 _ FML2
+    _ _ N2P2 _ _ _ _ BL2 _ CML2 _ FML2
     <- set`add-commutes-converse U U1 N<>N1 _ U3 U2
     <- set`add-preserves-fresh-converse F U3 F2
     <- set`add-preserves-fresh-converse F1 U2 F3
     <- clsmap-cxt-set/U-inversion CM-B-S F2 U2 CM-B-S2
-      _ _ N2P2 _ _ _ BL2 _ CML2 _ FML2.
+      _ _ N2P2 _ _ _ _ BL2 _ CML2 _ FML2.
 
 - : clsmap-cxt-set/U-inversion
     (clsmap-cxt-set/U CM-B-S0 N2P0 BL0 CML0 FML0 F0 U0) F1 U1
-    CM-B-S1 _ _ N2P1 _ _ _ BL1 _ CML1 _ FML1
+    CM-B-S1 _ _ N2P1 _ _ _ _ BL1 _ CML1 _ FML1
     <- nat`eq?-total E?
     <- clsmap-cxt-set/U-inversion/L CM-B-S0 F0 U0 N2P0 BL0 CML0 FML0
-      F1 U1 E? CM-B-S1 _ _ N2P1 _ _ _ BL1 _ CML1 _ FML1.
+      F1 U1 E? CM-B-S1 _ _ N2P1 _ _ _ _ BL1 _ CML1 _ FML1.
 
-%worlds (objvar) (clsmap-cxt-set/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-	(clsmap-cxt-set/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (C0 C1) (clsmap-cxt-set/U-inversion C0 _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-	(clsmap-cxt-set/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (clsmap-cxt-set/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(clsmap-cxt-set/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (C0 C1) (clsmap-cxt-set/U-inversion C0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(clsmap-cxt-set/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem clsmap-cxt-set2/U-inversion
@@ -955,49 +1031,48 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     {NM: set`not-member S' N}
     {AD: set`add S' N S}
     exists {CM-B-S': clsmap-cxt-set2 CM B S'}
-    {NN} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {FM} {CML: clsmap`lookup CM C FM}
     true.
 
 %theorem clsmap-cxt-set2/U-inversion/L
-  : forall* {CM} {B} {S} {S'} {S1'} {N} {NN1}
-    {A1} {FM1} {P} {N1} {C1}
+  : forall* {CM} {B} {S} {S'} {S1'} {N} {N1} {P} {O1} {NN1} {A1} {C1} {FM1}
     forall {CM-B-S: clsmap-cxt-set2 CM B S1'}
     {NM1: set`not-member S1' N1}
     {AD1: set`add S1' N1 S}
-    {BL1: cxt`lookup B (object/ N1) (ty/ NN1 A1 C1)}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
     {CML1: clsmap`lookup CM C1 FM1}
     {NM: set`not-member S' N}
     {AD: set`add S' N S}
     {EQ?: nat`eq? N N1 P}
     exists {CM-B-S': clsmap-cxt-set2 CM B S'}
-    {NN} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {FM} {CML: clsmap`lookup CM C FM}
     true.
 
 - : clsmap-cxt-set2/U-inversion/L CM-B-S F1 U1 BL1 CML1 F U
-    nat`eq?/yes CM-B-S' _ _ _ BL1 _ CML1
+    nat`eq?/yes CM-B-S' _ _ _ _ BL1 _ CML1
     <- set`not-member-add-cancels F1 U1 F U nat`eq/ set`eq/ S1=S
     <- clsmap-cxt-set2-respects-eq CM-B-S clsmap`eq/ cxt`eq/ S1=S CM-B-S'.
 
 - : clsmap-cxt-set2/U-inversion/L CM-B-S F1 U1 BL CML
     F U (nat`eq?/no N<>N1) (clsmap-cxt-set2/U CM-B-S2 BL CML F3 U3)
-    _ _ _ BL2 _ CML2
+    _ _ _ _ BL2 _ CML2
     <- set`add-commutes-converse U U1 N<>N1 _ U3 U2
     <- set`add-preserves-fresh-converse F U3 F2
     <- set`add-preserves-fresh-converse F1 U2 F3
-    <- clsmap-cxt-set2/U-inversion CM-B-S F2 U2 CM-B-S2 _ _ _ BL2 _ CML2.
+    <- clsmap-cxt-set2/U-inversion CM-B-S F2 U2 CM-B-S2 _ _ _ _ BL2 _ CML2.
 
 - : clsmap-cxt-set2/U-inversion
-    (clsmap-cxt-set2/U CM-B-S0 BL0 CML0 F0 U0) F1 U1 CM-B-S1 _ _ _ BL1 _ CML1
+    (clsmap-cxt-set2/U CM-B-S0 BL0 CML F0 U0) F1 U1 CM-B-S1 _ _ _ _ BL1 _ CML1
     <- nat`eq?-total E?
-    <- clsmap-cxt-set2/U-inversion/L CM-B-S0 F0 U0 BL0 CML0
-      F1 U1 E? CM-B-S1 _ _ _ BL1 _ CML1.
+    <- clsmap-cxt-set2/U-inversion/L CM-B-S0 F0 U0 BL0 CML
+      F1 U1 E? CM-B-S1 _ _ _ _ BL1 _ CML1.
 
-%worlds (objvar) (clsmap-cxt-set2/U-inversion _ _ _ _ _ _ _ _ _ _)
-	(clsmap-cxt-set2/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (C0 C1) (clsmap-cxt-set2/U-inversion C0 _ _ _ _ _ _ _ _ _)
-	(clsmap-cxt-set2/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (clsmap-cxt-set2/U-inversion _ _ _ _ _ _ _ _ _ _ _)
+	(clsmap-cxt-set2/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (C0 C1) (clsmap-cxt-set2/U-inversion C0 _ _ _ _ _ _ _ _ _ _)
+	(clsmap-cxt-set2/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem clsmap-cxt-set-respects-geq
@@ -1010,12 +1085,12 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 - : clsmap-cxt-set-respects-geq clsmap-cxt-set/0 set`leq/0 clsmap-cxt-set/0.
 
 %theorem clsmap-cxt-set-respects-geq/U
-  : forall* {CM} {FM} {SS} {SP} {N} {B} {NN} {A} {C} {S} {K} {T} {F}
+  : forall* {CM} {FM} {SS} {SP} {N} {B} {NN} {A} {C} {S} {K} {T} {F} {O}
     forall {P} {IN?: set`member? S K P}
     {NM: set`not-member SS K}
     {UD: set`add SS K SP}
     {NP: nat2pair K (pair/ N F)}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F T}
     {CM-B-SS: clsmap-cxt-set CM B SS}
@@ -1057,11 +1132,11 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 - : clsmap-cxt-set2-respects-geq clsmap-cxt-set2/0 set`leq/0 clsmap-cxt-set2/0.
 
 %theorem clsmap-cxt-set2-respects-geq/U
-  : forall* {CM} {FM} {SS} {SP} {N} {B} {NN} {A} {C} {S}
+  : forall* {CM} {SS} {SP} {N} {B} {NN} {A} {C} {S} {O} {FM}
     forall {P} {IN?: set`member? S N P}
     {NM: set`not-member SS N}
     {UD: set`add SS N SP}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM}
     {CM-B-SS: clsmap-cxt-set2 CM B SS}
     {S<=SP: set`leq S SP}
@@ -1108,8 +1183,8 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 
 %theorem nat+set2set-implies-clsmap-cxt-set
-  : forall* {CM} {B} {N} {FS} {S} {NN} {A} {C} {FM} {FS0}
-    forall {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+  : forall* {CM} {B} {N} {FS} {S} {NN} {A} {C} {FM} {FS0} {O}
+    forall {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM} {FM-DM: fldmap`domain FM FS0}
     {LE: set`leq FS FS0}
     {N+FS=>S: nat+set2set N FS S}
@@ -1171,7 +1246,7 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 - : collect-objs-implies-clsmap-cxt-set2/U CM-B-S1
     CO-S1'=S3 S3+N=S2 K=>N+F K!<S1' S1'+K=S1 _ (set`member?/in N<-S3) CM-B-S2
     <- clsmap-cxt-set/U-inversion CM-B-S1 K!<S1' S1'+K=S1 CM-B-S1'
-      _ _ _ _ _ _ BL _ CML _ FML
+      _ _ _ _ _ _ _ BL _ CML _ FML
     <- collect-objs-implies-clsmap-cxt-set2 CM-B-S1' CO-S1'=S3 CM-B-S3
     <- set`add-member-has-no-effect N<-S3 S3+N=S2 S3=S2
     <- clsmap-cxt-set2-respects-eq CM-B-S3 clsmap`eq/ cxt`eq/ S3=S2 CM-B-S2.
@@ -1180,11 +1255,10 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     CO-S1'=S3 S3+N=S2 K=>N+F K!<S1' S1'+K=S1 _ (set`member?/out N!<S3)
     (clsmap-cxt-set2/U CM-B-S3 BL CML N!<S3 S3+N=S2)
     <- clsmap-cxt-set/U-inversion CM-B-S1 K!<S1' S1'+K=S1 CM-B-S1'
-      _ _ K=>N+F1 _ _ _ BL1 _ CML _ _
+      _ _ K=>N+F1 _ _ _ _ BL1 _ CML _ _
     <- nat2pair-unique K=>N+F1 K=>N+F nat`eq/ PE
-    <- pair-eq-implies-eq PE NE FE
-    <- object-preserves-eq NE OE
-    <- cxt`lookup-respects-eq BL1 cxt`eq/ OE ty`eq/ BL
+    <- pair-eq-implies-eq PE NE _
+    <- cxt`lookup-respects-eq BL1 cxt`eq/ NE cxt-info`eq/ BL
     <- collect-objs-implies-clsmap-cxt-set2 CM-B-S1' CO-S1'=S3 CM-B-S3.
 
 - : collect-objs-implies-clsmap-cxt-set2 (CM-B-S1:clsmap-cxt-set CM B S1)
@@ -1252,21 +1326,21 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %trustme %total (N) (set+set2set-implies-collect-objs N _ _ _).
 
 
-%theorem shared-efx-relation-respects-geq
-  : forall* {B} {SX1} {SX2}
-    forall {B-SX1: shared-efx-relation B SX1}
-    {SX1<=SX2: shared-efx`leq SX1 SX2}
-    exists {B-SX2: shared-efx-relation B SX2}
-    true.
+% %theorem shared-efx-relation-respects-geq
+%   : forall* {B} {SX1} {SX2}
+%     forall {B-SX1: shared-efx-relation B SX1}
+%     {SX1<=SX2: shared-efx`leq SX1 SX2}
+%     exists {B-SX2: shared-efx-relation B SX2}
+%     true.
 
-- : shared-efx-relation-respects-geq shared-efx-relation/f _ shared-efx-relation/f.
+% - : shared-efx-relation-respects-geq shared-efx-relation/f _ shared-efx-relation/f.
 
-- : shared-efx-relation-respects-geq
-    (shared-efx-relation/t shared-efx-not-none/) (shared-efx`leq/= _)
-    (shared-efx-relation/t shared-efx-not-none/).
+% - : shared-efx-relation-respects-geq
+%     (shared-efx-relation/t shared-efx-not-none/) (shared-efx`leq/= _)
+%     (shared-efx-relation/t shared-efx-not-none/).
 
-%worlds (objvar) (shared-efx-relation-respects-geq _ _ _).
-%total {} (shared-efx-relation-respects-geq _ _ _).
+% %worlds (objvar) (shared-efx-relation-respects-geq _ _ _).
+% %total {} (shared-efx-relation-respects-geq _ _ _).
 
 
 %theorem effects`join-right-preserves-targets-effects
@@ -1280,14 +1354,12 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     targets-effects/shared _ targets-effects/shared.
 
 - : effects`join-right-preserves-targets-effects
-    (targets-effects/unique DM-M2=R2 S2<=R2 B-X2)
-    (effects`join/ _ _ _ _ _ _ _ _ J _ XJ _ (QJ:set`union Q1 Q2 Q))
-    (targets-effects/unique DM-M=R S2<=R B-X)
+    (targets-effects/unique DM-M2=R2 S2<=R2)
+    (effects`join/ _ _ _ _ _ _ _ _ J _ _ (QJ:set`union Q1 Q2 Q))
+    (targets-effects/unique DM-M=R S2<=R)
     <- efxmap`join-implies-leq J _ M2<=M
     <- efxmap`domain-preserves-leq M2<=M DM-M2=R2 R DM-M=R R2<=R
-    <- set`leq-transitive S2<=R2 R2<=R S2<=R
-    <- shared-efx`join-implies-leq XJ _ X2<=X
-    <- shared-efx-relation-respects-geq B-X2 X2<=X B-X.
+    <- set`leq-transitive S2<=R2 R2<=R S2<=R.
 
 %worlds (objvar) (effects`join-right-preserves-targets-effects _ _ _).
 %total {} (effects`join-right-preserves-targets-effects _ _ _).
@@ -1339,12 +1411,12 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 	(compatible-right-join-preserves-targets-effects/L _ _ _ _ _ _ _ _ _).
 
 - : compatible-right-join-preserves-targets-effects
-    (targets-effects/unique (DM-M1=R1:efxmap`domain M1 R1) G<=R1 B-X1)
+    (targets-effects/unique (DM-M1=R1:efxmap`domain M1 R1) G<=R1)
     (effects`join/ _ _ _ _ _ _ RM RS (J:efxmap`join M1' M2 M)
-      _ (XJ:shared-efx`join Xx1 Xx2 Xx) _ _)
+      _ _ _)
     (compatible/unique (DM-M2=R2:efxmap`domain M2 R2) (G^R2:set`disjoint G R2)
-      (G^S2:set`disjoint G S2) B-X2)
-    (targets-effects/unique DM-M=R G<=R (B-X:shared-efx-relation B Xx))
+      (G^S2:set`disjoint G S2))
+    (targets-effects/unique DM-M=R G<=R)
     <- efxmap`domain-total (DM-M1'=R1':efxmap`domain M1' R1')
     <- set`leq?-total LE?
     <- compatible-right-join-preserves-targets-effects/L
@@ -1352,9 +1424,7 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     <- efxmap`domain-total (DM-M=R:efxmap`domain M R)
     <- efxmap`join-commute-domain J DM-M1'=R1' DM-M2=R2 DM-M=R R1'+R2=R
     <- set`union-implies-leq R1'+R2=R R1'<=R _
-    <- set`leq-transitive G<=R1' R1'<=R G<=R
-    <- shared-efx`join-implies-leq XJ LE1 LE2
-    <- shared-efx-relation-respects-geq B-X1 LE1 B-X.
+    <- set`leq-transitive G<=R1' R1'<=R G<=R.
 
 - : compatible-right-join-preserves-targets-effects
     (targets-effects/shared) _ _ targets-effects/shared.
@@ -1374,12 +1444,11 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     targets-effects/shared _ targets-effects/shared.
 
 - : targets-effects-respects-geq
-    (targets-effects/unique DM-M1=R1 S<=R1 B-SX1)
-    (effects-leq-no-consume/ M1<=M2 SX1<=SX2)
-    (targets-effects/unique DM-M2=R2 S<=R2 B-SX2)
+    (targets-effects/unique DM-M1=R1 S<=R1)
+    (effects-leq-no-consume/ M1<=M2)
+    (targets-effects/unique DM-M2=R2 S<=R2)
     <- efxmap`domain-preserves-leq M1<=M2 DM-M1=R1 _ DM-M2=R2 R1<=R2
-    <- set`leq-transitive S<=R1 R1<=R2 S<=R2
-    <- shared-efx-relation-respects-geq B-SX1 SX1<=SX2 B-SX2.
+    <- set`leq-transitive S<=R1 R1<=R2 S<=R2.
 
 %worlds (objvar) (targets-effects-respects-geq _ _ _).
 %total {} (targets-effects-respects-geq _ _ _).
@@ -1413,7 +1482,7 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     (clsmap-cxt-effects/ DM-M1=R1 R1^S1 S1=>SQ1 Q1<=SQ1 CM-B-R1 CM-B-S1)
     (clsmap-cxt-effects/ DM-M2=R2 R2^S2 S2=>SQ2 Q2<=SQ2 CM-B-R2 CM-B-S2)
     (effects`join/ DM-M1=R1' DM-M2=R2' S1^R1' S2^R2' S1^R2' S1^S2
-      R1'/S2=S3 M1|S3=M1' M1'+M2=M S1+S2=S X1+X2=X Q1^Q2 Q1+Q2=Q)
+      R1'/S2=S3 M1|S3=M1' M1'+M2=M S1+S2=S Q1^Q2 Q1+Q2=Q)
     (clsmap-cxt-effects/ DM-M=R R^S S=>SQ Q<=SQ CM-B-R CM-B-S)
     <- join-preserves-clsmap-cxt-set CM-B-S1 CM-B-S2 S1+S2=S CM-B-S
     <- efxmap`restrict-implies-leq M1|S3=M1' M1'<=M1
@@ -1466,7 +1535,7 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 - : set+nat2set-implies-clsmap-cxt-set CML FML SOC
     (set+nat2set/U SP+F=>QP N+F=>K FS US UQ)
     (clsmap-cxt-set/U CM-B-QP N+F=>K BL CML FML FQ UQ)
-    <- same-class/U-inversion SOC FS US _ _ SOCP BL
+    <- same-class/U-inversion SOC FS US _ _ _ SOCP BL
     <- set+nat2set-implies-clsmap-cxt-set CML FML SOCP SP+F=>QP CM-B-QP
     <- set+nat2set-preserves-fresh SP+F=>QP FS N+F=>K FQ.
 
@@ -1504,39 +1573,10 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %trustme %total (S) (set+set2set-implies-clsmap-cxt-set _ S _ _ _ _ ).
 
 
-%theorem create-shared-efx-not-none
-  : forall* {SX} {X}
-    forall {CX: create-shared-efx X SX}
-    exists {SN: shared-efx-not-none SX}
-    true.
-
-- : create-shared-efx-not-none create-shared-efx/read shared-efx-not-none/.
-
-- : create-shared-efx-not-none create-shared-efx/write shared-efx-not-none/.
-
-%worlds (objvar) (create-shared-efx-not-none _ _).
-%total {} (create-shared-efx-not-none _ _).
-
-
-%theorem efx-on-shared-implies-shared-efx-relation
-  : forall* {B} {SX} {SX'}
-    forall {NN: shared-efx-not-none SX} {EOS: efx-on-shared B SX SX'}
-    exists {B-SX: shared-efx-relation B SX'}
-    true.
-
-- : efx-on-shared-implies-shared-efx-relation NN efx-on-shared/true
-    (shared-efx-relation/t NN).
-
-- : efx-on-shared-implies-shared-efx-relation _ efx-on-shared/false
-    shared-efx-relation/f.
-
-%worlds (objvar) (efx-on-shared-implies-shared-efx-relation _ _ _).
-%total {} (efx-on-shared-implies-shared-efx-relation _ _ _).
-
-
 %theorem make-targets-and-effects-consistent
   : forall* {CM} {B} {G} {A} {X} {GP} {XX} {F} {C} {FM} {NN} {FC} {G1} {FNN}
-    forall {CML: clsmap`lookup CM C FM}
+    forall {WF-CM: wf-clsmap CM} {WF-B: wf-cxt B}
+    {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F (ty/ FNN A FC)}
     {CM-B-G: clsmap-cxt-reftype CM B (reftype/ NN C G)}
     {MG: make-targets-and-effects G F X G1 XX}
@@ -1547,66 +1587,90 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     true.
 
 - : make-targets-and-effects-consistent
-    _ _ clsmap-cxt-reftype/shared
-    (make-targets-and-effects/shared CX) consider-ftype/shared
-    clsmap-cxt-reftype/shared clsmap-cxt-effects/0
-    (targets-effects/unique efxmap`domain/0 set`leq/0
-      (shared-efx-relation/t SN))
-    <- create-shared-efx-not-none CX SN.
+    WF-CM WF-B _ _ clsmap-cxt-reftype/shared
+    make-targets-and-effects/shared consider-ftype/shared
+    clsmap-cxt-reftype/shared
+    (clsmap-cxt-effects/ (efxmap`domain/+ efxmap`domain/0)
+      set`disjoint/R collect-objs/0
+      set`leq/0 (clsmap-cxt-set/U clsmap-cxt-set/0 pair2nat/00 BL
+                  CML (fldmap`lookup/= nat`eq/)
+                  set`not-member/0 set`update/0) clsmap-cxt-set/0)
+    (targets-effects/unique (efxmap`domain/+ efxmap`domain/0)
+      (set`leq/= set`leq/0 unit`eq/ nat`eq/))
+    <- wf-clsmap-can-lookup-shared WF-CM CML
+    <- wf-cxt-can-lookup-shared WF-B BL.
 
 - : make-targets-and-effects-consistent
-    _ _ clsmap-cxt-reftype/shared
-    (make-targets-and-effects/shared CX) consider-ftype/unique
+    WF-CM WF-B _ _ clsmap-cxt-reftype/shared
+    make-targets-and-effects/shared consider-ftype/unique
     (clsmap-cxt-reftype/unique same-class/0 nn-all-less-than/0
-      clsmap-cxt-set2/0 clsmap-cxt-set/0) clsmap-cxt-effects/0
-    (targets-effects/unique efxmap`domain/0 set`leq/0
-      (shared-efx-relation/t SN))
-    <- create-shared-efx-not-none CX SN.
+      clsmap-cxt-set2/0
+      (clsmap-cxt-set/U clsmap-cxt-set/0 pair2nat/00 BL
+                  CML (fldmap`lookup/= nat`eq/)
+                  set`not-member/0 set`update/0))
+    (clsmap-cxt-effects/ (efxmap`domain/+ efxmap`domain/0)
+      set`disjoint/R collect-objs/0
+      set`leq/0 (clsmap-cxt-set/U clsmap-cxt-set/0 pair2nat/00 BL
+                  CML (fldmap`lookup/= nat`eq/)
+                  set`not-member/0 set`update/0) clsmap-cxt-set/0)
+    (targets-effects/unique (efxmap`domain/+ efxmap`domain/0)
+      (set`leq/= set`leq/0 unit`eq/ nat`eq/))
+    <- wf-clsmap-can-lookup-shared WF-CM CML
+    <- wf-cxt-can-lookup-shared WF-B BL.
 
 - : make-targets-and-effects-consistent
-    CML FML (clsmap-cxt-reftype/unique SOC NAL CM-B-S CM-B-G1)
+    WF-CM WF-B CML FML (clsmap-cxt-reftype/unique SOC NAL CM-B-S CM-B-G1)
     (make-targets-and-effects/unique
-      S=>G2 G1^G2 G1+G2=G G=>M CX EOS) consider-ftype/shared
+      S=>G2 G1^G2 G1+G2=G G=>M) consider-ftype/shared
     clsmap-cxt-reftype/shared
     (clsmap-cxt-effects/ DM set`disjoint/R
       collect-objs/0 set`leq/0 CM-B-G clsmap-cxt-set/0)
-    (targets-effects/unique DM LE B-SX)
+    (targets-effects/unique DM LE)
     <- set2efxmap-implies-domain G=>M DM
     <- set+nat2set-implies-clsmap-cxt-set CML FML SOC S=>G2 CM-B-G2
     <- join-preserves-clsmap-cxt-set CM-B-G1 CM-B-G2 G1+G2=G CM-B-G
-    <- set`leq-reflexive _ LE
-    <- create-shared-efx-not-none CX SN
-    <- efx-on-shared-implies-shared-efx-relation SN EOS B-SX.
+    <- set`leq-reflexive _ LE.
 
 - : make-targets-and-effects-consistent
-    CML FML (clsmap-cxt-reftype/unique SOC NAL _ CM-B-G1)
+    WF-CM WF-B CML FML (clsmap-cxt-reftype/unique SOC NAL _ CM-B-G1)
     (make-targets-and-effects/unique
-      S=>G2 (G1^G2:set`disjoint G1 G2) G1+G2=G G=>M CSE EOS)
+      S=>G2 (G1^G2:set`disjoint G1 G2) G1+G2=G G=>M)
     consider-ftype/unique (clsmap-cxt-reftype/unique
       same-class/0 nn-all-less-than/0 clsmap-cxt-set2/0 CM-B-G)
     (clsmap-cxt-effects/ DM set`disjoint/R collect-objs/0
       set`leq/0 CM-B-G clsmap-cxt-set/0)
-    (targets-effects/unique DM LE B-SX)
+    (targets-effects/unique DM LE)
     <- set+nat2set-implies-clsmap-cxt-set CML FML SOC S=>G2 CM-B-G2
     <- join-preserves-clsmap-cxt-set CM-B-G1 CM-B-G2 G1+G2=G CM-B-G
     <- set2efxmap-implies-domain G=>M DM
-    <- set`leq-reflexive _ LE
-    <- create-shared-efx-not-none CSE SN
-    <- efx-on-shared-implies-shared-efx-relation SN EOS B-SX.
+    <- set`leq-reflexive _ LE.
 
-%worlds (objvar) (make-targets-and-effects-consistent _ _ _ _ _ _ _ _).
-%total {} (make-targets-and-effects-consistent _ _ _ _ _ _ _ _).
+%worlds (objvar) (make-targets-and-effects-consistent _ _ _ _ _ _ _ _ _ _).
+%total {} (make-targets-and-effects-consistent _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem subtyping-consistent
-  : forall* {CM} {B} {NN1} {C1} {G} {NN2} {A2} {C2} {S1} {S2} {XX}
-    forall {WF-CM: wf-clsmap CM}
+  : forall* {CM} {B} {NN1} {C1} {G} {NN2} {A2} {C2} {XM} {XX}
+    forall {WF-CM: wf-clsmap CM} {WF-B: wf-cxt B}
     {CM-B-G: clsmap-cxt-reftype CM B (reftype/ NN1 C1 G)}
-    {STYP: subtype CM (reftype/ NN1 C1 G) (ty/ NN2 A2 C2) S1 S2 XX}
+    {STYP: subtype CM (reftype/ NN1 C1 G) (ty/ NN2 A2 C2) XM XX}
     exists {CM-B-XX: clsmap-cxt-effects CM B XX}
     true.
 
-- : subtyping-consistent WF
+- : subtyping-consistent WF-CM WF-B clsmap-cxt-reftype/shared
+    (subtype/ (sub-annot-efx/shared2borrow _) _ _ _ _ _ _)
+    (clsmap-cxt-effects/ (efxmap`domain/+ efxmap`domain/0)
+      set`disjoint/R collect-objs/0
+      set`leq/0 (clsmap-cxt-set/U clsmap-cxt-set/0 pair2nat/00 BL
+                  CML (fldmap`lookup/= nat`eq/)
+                  set`not-member/0 set`update/0) clsmap-cxt-set/0)
+    <- wf-clsmap-can-lookup-shared WF-CM CML
+    <- wf-cxt-can-lookup-shared WF-B BL.
+
+- : subtyping-consistent _ _ clsmap-cxt-reftype/shared
+    (subtype/ sub-annot-efx/shared2shared _ _ _ _ _ _) clsmap-cxt-effects/0.
+
+- : subtyping-consistent WF-CM WF-B
     (clsmap-cxt-reftype/unique SOC _ CM-B-S CM-B-G1)
     (subtype/ (sub-annot-efx/consume G1+G2=G _ S+Cs=>G2 _) _ _ DM CML _ nat`eq/)
     (clsmap-cxt-effects/ efxmap`domain/0 set`disjoint/L
@@ -1614,40 +1678,32 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     <- set`leq-reflexive _ LE
     <- set+set2set-implies-clsmap-cxt-set SOC S+Cs=>G2 CML DM LE CM-B-G2
     <- join-preserves-clsmap-cxt-set CM-B-G1 CM-B-G2 G1+G2=G CM-B-G
-    <- wf-clsmap-lookup-not-empty WF CML _ FMZ
+    <- wf-clsmap-lookup-not-empty WF-CM CML _ FMZ
     <- fldmap`domain-preserves-size FMZ DM SZ
     <- set+set2set-implies-collect-objs _ SZ S+Cs=>G2 G2=>S
     <- set`union-implies-leq G1+G2=G _ G2<=G
     <- collect-objs-respects-geq G2<=G G2=>S _ G=>S' S<=S'.
 
-- : subtyping-consistent _
-    (clsmap-cxt-reftype/unique SOC _ CM-B-S CM-B-G)
+- : subtyping-consistent _ _
+    (clsmap-cxt-reftype/unique (SOC:same-class B S1 C) _ CM-B-S1 CM-B-S2)
     (subtype/
-      (sub-annot-efx/unique2borrow
-        B+SX1=SX S1+S2=SX1 M1+M2=M G2x=>M2 G1x=>M1
-        G+G2=G2x G+G1=G1x S+WS=>G2 S+RS=>G1) (WS<=FS:set`leq WS FS)
-      (RS<=FS:set`leq RS FS) DM CML _ nat`eq/)
-    (clsmap-cxt-effects/ DM-M=Gx set`disjoint/R
-      collect-objs/0 set`leq/0 CM-B-Gx clsmap-cxt-set/0)
-    <- set+set2set-implies-clsmap-cxt-set SOC S+RS=>G1 CML DM RS<=FS CM-B-G1
-    <- set+set2set-implies-clsmap-cxt-set SOC S+WS=>G2 CML DM WS<=FS CM-B-G2
-    <- join-preserves-clsmap-cxt-set CM-B-G CM-B-G1 G+G1=G1x CM-B-G1x
-    <- join-preserves-clsmap-cxt-set CM-B-G CM-B-G2 G+G2=G2x CM-B-G2x
-    <- set2efxmap-implies-domain G1x=>M1 DM-M1=G1x
-    <- set2efxmap-implies-domain G2x=>M2 DM-M2=G2x
-    <- efxmap`domain-total DM-M=Gx
-    <- efxmap`join-commute-domain
-      M1+M2=M DM-M1=G1x DM-M2=G2x DM-M=Gx G1x+G2x=Gx
-    <- join-preserves-clsmap-cxt-set CM-B-G1x CM-B-G2x G1x+G2x=Gx CM-B-Gx.
+      (sub-annot-efx/unique2borrow (XM1+XM2=XM:efxmap`join XM1 XM2 XM)
+        (S2+X=>XM2:set2efxmap S2 X XM2)
+        MX-XMd=X S1+XMd=>XM1) (XS<=FS:set`leq XS FS)
+      (DM-XMd=XS:efxmap`domain XMd XS) DM-FM=FS
+      CML _ nat`eq/)
+    (clsmap-cxt-effects/ DM-XM=S set`disjoint/R
+      collect-objs/0 set`leq/0 CM-B-S clsmap-cxt-set/0)
+    <- efxmap`domain-total DM-XM1=XS1
+    <- set+map2map-implies-set+set2set S1+XMd=>XM1 DM-XMd=XS DM-XM1=XS1 S1+XS=>XS1
+    <- set+set2set-implies-clsmap-cxt-set SOC S1+XS=>XS1 CML DM-FM=FS XS<=FS CM-B-XS1
+    <- set2efxmap-implies-domain S2+X=>XM2 DM-XM2=S2
+    <- efxmap`domain-total DM-XM=S
+    <- efxmap`join-commute-domain XM1+XM2=XM DM-XM1=XS1 DM-XM2=S2 DM-XM=S S1+S2=S
+    <- join-preserves-clsmap-cxt-set CM-B-XS1 CM-B-S2 S1+S2=S CM-B-S.
 
-- : subtyping-consistent _ clsmap-cxt-reftype/shared
-    (subtype/ (sub-annot-efx/shared2borrow _) _ _ _ _ _ _) clsmap-cxt-effects/0.
-
-- : subtyping-consistent _ clsmap-cxt-reftype/shared
-    (subtype/ sub-annot-efx/shared2shared _ _ _ _ _ _) clsmap-cxt-effects/0.
-
-%worlds (objvar) (subtyping-consistent _ _ _ _).
-%total {} (subtyping-consistent _ _ _ _).
+%worlds (objvar) (subtyping-consistent _ _ _ _ _).
+%total {} (subtyping-consistent _ _ _ _ _).
 
 
 %{
@@ -1656,21 +1712,21 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 }%
 
 %theorem reftyping-implies-good-result
-  : forall* {CM} {MM} {B} {E: expr} {R}
-    forall {WF: wf-clsmap CM}
+  : forall* {N} {CM} {MM} {B} {E: expr} {R}
+    forall {WF-CM: wf-clsmap CM} {WF-B: wf-cxt B}
     {CM-CM: clsmap-clsmap CM CM}
     {CM-B: clsmap-cxt CM B}
-    {TYP: reftyping CM MM B E R}
+    {TYP: reftyping N CM MM B E R}
     exists {WF-Rslt: good-result CM B R}
     true.
 
-- : reftyping-implies-good-result _ _ _ (reftyping/lit ty2reftype/shared _ _)
+- : reftyping-implies-good-result _ _ _ _ (reftyping/lit ty2reftype/shared _)
     (good-result/expr (clsmap-cxt-reftype/shared)
       clsmap-cxt-effects/0 targets-effects/shared).
 
-- : reftyping-implies-good-result _ _ (CM-B:clsmap-cxt CM B)
-    (reftyping/lit ty2reftype/borrow _
-      (BL:cxt`lookup B (object/ N) (ty/ NN annot/borrow C)))
+- : reftyping-implies-good-result WF-CM _ _ (CM-B:clsmap-cxt CM B)
+    (reftyping/lit ty2reftype/borrow
+      (BLO:cxt`lookup-obj B O N (ty/ NN annot/borrow C)))
     (good-result/expr
       (clsmap-cxt-reftype/unique
         (same-class/U same-class/0 set`not-member/0
@@ -1679,19 +1735,19 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
           set`update/0 BL (nonnull`leq/= nonnull`eq/))
         (clsmap-cxt-set2/U clsmap-cxt-set2/0 BL CML set`not-member/0 set`update/0)
         clsmap-cxt-set/0) clsmap-cxt-effects/0
-      (targets-effects/unique efxmap`domain/0 set`leq/0 shared-efx-relation/f))
-    <- cxt-lookup-implies-clsmap-ty CM-B BL (clsmap-ty/notnull CML).
+      (targets-effects/unique efxmap`domain/0 set`leq/0))
+    <- cxt`lookup-obj-implies-lookup BLO BL
+    <- cxt-lookup-implies-clsmap-ty WF-CM CM-B BL (clsmap-ty/ CML).
 
-- : reftyping-implies-good-result WF CM-CM CM-B
+- : reftyping-implies-good-result WF-CM WF-B CM-CM CM-B
     (reftyping/read TYP-E CML FML MG
       (CF:consider-ftype G1 A Gx) (XJ:effects`join XXx1 _ XXx))
     (good-result/expr CM-B-GP CM-B-XX GP-XX)
-    <- reftyping-implies-good-result WF CM-CM CM-B TYP-E
+    <- reftyping-implies-good-result WF-CM WF-B CM-CM CM-B TYP-E
       (good-result/expr CM-B-G CM-B-XX1 G-XX1)
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
-    <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/notnull CML2)
     <- make-targets-and-effects-consistent
-      CML FML CM-B-G MG CF CM-B-GP CM-B-XX2 G1-XX2
+      WF-CM WF-B CML FML CM-B-G MG CF CM-B-GP CM-B-XX2 G1-XX2
     <- effects`join-right-preserves-targets-effects G1-XX2 XJ G1-XX
     <- join-preserves-clsmap-cxt-effects CM-B-XX1 CM-B-XX2 XJ CM-B-XX
     <- consider-ftype-preserves-targets-effects G1-XX CF GP-XX.
@@ -1706,22 +1762,22 @@ in XX6, but also read/write effects in XX6, since read/write
 effects are encumbered and thus cannot be reused.
 }%
 
-- : reftyping-implies-good-result WF CM-CM CM-B
+- : reftyping-implies-good-result WF-CM WF-B CM-CM CM-B
     (reftyping/write RTYP-E1 RTYP-E2 CML FML MG CF SUB
       (XX1+XX3=XX5:effects`join XXx1 _ XXx5)
       (XX2+XX4=XX6:effects`join XXx2 XXx4 XXx6)
       (XX5+XX6=XX7:effects`join XXx5 XXx6 XXx7) GSP)
     (good-result/expr CM-B-G CM-B-XX7 G-XX7)
-    <- reftyping-implies-good-result WF CM-CM CM-B RTYP-E1
+    <- reftyping-implies-good-result WF-CM WF-B CM-CM CM-B RTYP-E1
       (good-result/expr CM-B-G1 CM-B-XX1 (G-XX1:targets-effects G1x XXx1))
-    <- reftyping-implies-good-result WF CM-CM CM-B RTYP-E2
+    <- reftyping-implies-good-result WF-CM WF-B CM-CM CM-B RTYP-E2
       (good-result/expr CM-B-G2 CM-B-XX2 (G-XX2:targets-effects G2x XXx2))
-    <- make-targets-and-effects-consistent
+    <- make-targets-and-effects-consistent WF-CM WF-B
       CML FML CM-B-G1 MG (CF:consider-ftype G1 A Gx)
       CM-B-G CM-B-XX3 (G1-XX3:targets-effects G1 _)
     <- join-preserves-clsmap-cxt-effects
       CM-B-XX1 CM-B-XX3 XX1+XX3=XX5 CM-B-XX5
-    <- subtyping-consistent WF CM-B-G2 SUB CM-B-XX4
+    <- subtyping-consistent WF-CM WF-B CM-B-G2 SUB CM-B-XX4
     <- join-preserves-clsmap-cxt-effects
       CM-B-XX2 CM-B-XX4 XX2+XX4=XX6 CM-B-XX6
     <- join-preserves-clsmap-cxt-effects
@@ -1731,5 +1787,23 @@ effects are encumbered and thus cannot be reused.
       G1-XX5 XX5+XX6=XX7 GSP G1-XX7
     <- consider-ftype-preserves-targets-effects G1-XX7 CF G-XX7.
 
-%worlds (objvar) (reftyping-implies-good-result _ _ _ _ _).
-%trustme %total (T) (reftyping-implies-good-result _ _ _ T _).
+% - : reftyping-implies-good-result WF-CM WF-B CM-CM CM-B
+%     (reftyping/let RTYP-E1 RT2T ([x] UD x) ([x] RTYP-E2 x)
+%       GS-XX2 SUB-GS SUB-XX XXJ) WW
+%     <- reftyping-implies-good-result WF-CM WF-B CM-CM CM-B RTYP-E1
+%       (good-result/expr CM-B-GS CM-B-XX1 GS-XX1)
+%     <- reftyping-implies-good-result WF CM-CM
+%       (clsmap-cxt/U CM-B CM-T1 
+
+
+% %theorem reftyping-implies-good-result
+%   : forall* {N} {CM} {MM} {B} {E: expr} {R}
+%     forall {WF: wf-clsmap CM}
+%     {CM-CM: clsmap-clsmap CM CM}
+%     {CM-B: clsmap-cxt CM B}
+%     {TYP: reftyping N CM MM B E R}
+%     exists {WF-Rslt: good-result CM B R}
+%     true.
+
+%worlds (objvar) (reftyping-implies-good-result _ _ _ _ _ _).
+%total (T) (reftyping-implies-good-result _ _ _ _ T _).

@@ -14,39 +14,39 @@ x.g.
 
 <2013-03-04 Mon>
 
-Right now I am using a special target 0.0 to represent 
-the world target. However, this causes much problem in 
+Right now I am using a special target 0.0 to represent
+the world target. However, this causes much problem in
 transformation. Maybe we don't need to represent the "world" target
-at all. 
+at all.
 
 <2013-03-05 Tue>
 
-Looks like we need a special treatment on shared type. 
+Looks like we need a special treatment on shared type.
 For shared type, it should be associated with no target, since all
 effects are mapped to the world object, and we enforce that
 the input and output both have write shared effects.
 
-Checking shared targets should be pretty easy, suppose we have a 
+Checking shared targets should be pretty easy, suppose we have a
 expression a.b.c...f, then on the path from f to a, any of them
 is shared type, then the target should be shared, otherwise it
 will be unique, and have a set and tgtmap associated.
 
 [after a lot of changes...]
 
-A problem occured when proving s.u, 
+A problem occured when proving s.u,
 we need to have this unique permission in the output. However,
 the current transformation only takes reftgts as input, and thus
-will produce a nesting fact about the result value, which is 
-not correct. 
+will produce a nesting fact about the result value, which is
+not correct.
 
- 
+
 Let's consider the four possible cases:
 
 base (e)       field  (f)      result targets      result effects
 unique         unique          unique {e.f}        X e.f
 unique         shared          shared              X shared
-shared         unique          
-shared         shared         
+shared         unique
+shared         shared
 
 <2013-03-21 Thu>
 
@@ -60,28 +60,28 @@ To type check the above, we first need to type check
 if x < 3 then a else a.f, and get following permission as output:
 
 \exists z \exists r
-    (r == r_a \/ r == r' + 
-    z(r'.all -> 0 + P(r')) + z(r'.all -> 0 + P(r')) --+- 
+    (r == r_a \/ r == r' +
+    z(r'.all -> 0 + P(r')) + z(r'.all -> 0 + P(r')) --+-
     \exists r_f z(r.f -> r_f + r_f.all -> 0 + P(r_f)))
 
 (assuming f is unique)
 
 The input effect for above is "read a.f"
 
-Then, to check the whole expression, we have "write a.f" as 
+Then, to check the whole expression, we have "write a.f" as
 input effect, and we have essentially the same permission
-as above except the fraction z is removed. 
+as above except the fraction z is removed.
 
 The problem is we cannot use this permission to read field f,
 since we need (\exists r_f (r.f -> r_f + r_f.all -> 0 + P(r_f)))
 to check the "then" case, but this permission is encumbered
-by the "else" case. 
+by the "else" case.
 
 <2013-05-05 Sun>
 
 When checking E.F, we need to differentiate the cases when
-E is shared or borrow. When E is shared, we should produce a 
-read effect on the special "shared" target directly. When E 
+E is shared or borrow. When E is shared, we should produce a
+read effect on the special "shared" target directly. When E
 is unique (which only happens when E is a method parameter), then
 we should produce a read effect on E.F.
 
@@ -98,19 +98,19 @@ For option 1), the main problem is it adds extra complexity to the
 other operations and theorems. For instance, when we do methtymatch,
 we need to do extra check for each parameter, to see it's unique or
 shared. If later, we should use 0 as its target. When we converting
-tgtmap to efxmap, we need to do extra processing, so that the 
-converted efxmap can later generate the right permission 
-for shared: 0.0 -> 0. 
+tgtmap to efxmap, we need to do extra processing, so that the
+converted efxmap can later generate the right permission
+for shared: 0.0 -> 0.
 
-For option 2), the main problem is some of existing 
+For option 2), the main problem is some of existing
 assumptions/proofs need to be redone. For instance, one important
-assumption right now is for every tgtmap GM and efxmap XM in 
+assumption right now is for every tgtmap GM and efxmap XM in
 output/expr, GM <= XM. This won't be true if we allow 0->0 in GM.
 
 I chose option 3) at end. The biggest advantage is it won't violate
 many theorems I had so far, so it's easier to adapt. Also, it makes
-things more clear by using a distinct "shared" flag - if we put 
-shared target in either set or tgtmap, then many operations on 
+things more clear by using a distinct "shared" flag - if we put
+shared target in either set or tgtmap, then many operations on
 set/tgtmap need to treat the shared target differently than other
 values.
 
@@ -173,10 +173,10 @@ to return value, then all permissions from effect are marked as consumed.
 There are two restrictions on tWrite.
 
 1. after a unique field is consumed, there's no way to "restore"
-the permission, even in some cases it is perfectly possible. 
+the permission, even in some cases it is perfectly possible.
 (for instance, assign a new object to the consumed immediately after.)
 
-2. expressions like a.f = a.f.g is not allowed. (checking a.f.g 
+2. expressions like a.f = a.f.g is not allowed. (checking a.f.g
 requires a "packed" field permission on a.f, but the same permission
 should be kept unpacked on the left side.
 
@@ -185,7 +185,7 @@ should be kept unpacked on the left side.
 
 It turns out my current definition for reftype is still not precise
 enough. For shared reference, it doesn't actually need the
-target information,since its only target is the special "world" object. 
+target information,since its only target is the special "world" object.
 For unique reference, its target is unchanged.
 
 Now I have two choices. First, I could define shared reftype as:
@@ -193,11 +193,11 @@ Now I have two choices. First, I could define shared reftype as:
   reftype/shared : nonnull -> nat -> reftype.
 
 and unique reftype as:
-  
+
   reftype/unique : nonnull -> nat -> set -> tgtmap -> reftype.
 
 But the ugly part is, unique reference can also be coming from shared,
-and thus we need to encode shared target in reftype/unique. 
+and thus we need to encode shared target in reftype/unique.
 Also, how about borrowed references? Can they use the same reftype/unique?
 Obviously NO!
 
@@ -206,7 +206,7 @@ My current definition, instead, is as follows:
   reftype/ : ty -> set -> tgtmap -> reftype.
 
 For a well-formed shared reftype, it should have empty set, and the
-only element in tgtmap is the shared target. 
+only element in tgtmap is the shared target.
 
 
 <2013-05-13 Mon>
@@ -245,7 +245,7 @@ won't work. We can change it to the following:
 
   \exists r_f (r_a.f->r_f, r_f.all->0, P(r_f)) < null.all
 
-And then, we need to be more conservative about expose: expose 
+And then, we need to be more conservative about expose: expose
 will produce a write effect on shared target. We then can type check
 write /\ expose = expose.
 
@@ -265,21 +265,21 @@ current design of tgtmap in our system.
 
 For read and write effects, we only need to track on the first level
 because of the way method effects are declared. For consume and expose
-effects, it would be nice if we can track them on arbitrary level. 
+effects, it would be nice if we can track them on arbitrary level.
 However, this poses problems:
 
   how to convert these *arbitrary level* effects into permissions?
-I spend a longtime last summer trying to find a nice and elegant 
+I spend a longtime last summer trying to find a nice and elegant
 solution to this, but failed.
 
-Also, it is important to remember that, read and write effects are 
+Also, it is important to remember that, read and write effects are
 on field permission, i.e., r.f -> r_f, while expose and consume
 effects are on object permission, i.e., r_f.all -> 0.
 
 
 <2013-05-17 Fri>
 
-Another issue I neglected is *local effect*. When we have 
+Another issue I neglected is *local effect*. When we have
 expression like the following:
 
   let x = new C in x
@@ -287,15 +287,15 @@ expression like the following:
 In current system, expression *new C* will take a new location,
 and use it as result target. Then, this target needs to *flow* out
 of the let-expression, so that in future we can track effects on
-reference x (for instance, x.u won't get consumed twice). 
+reference x (for instance, x.u won't get consumed twice).
 
 The problem is, at the point that we are out of the let-expression,
 we lost track on the information on x: we don't know its type anymore.
 
-Looks like not a problem, if target indeed *flow* out of the 
+Looks like not a problem, if target indeed *flow* out of the
 let-expression, for instance, like the following:
 
-  let y = 
+  let y =
     let x = new C in x.f end
   in a.u = y end
 
@@ -319,8 +319,8 @@ and then remove them from the existing efxmap.
 
 I redefined cxt yesterday. Now it uses the map signature. One motivation
 for this is I don't need to carry wf-cxt around in each theorem about
-cxt. In cxt, every object is bound to a distinct location, a set and 
-a target map. 
+cxt. In cxt, every object is bound to a distinct location, a set and
+a target map.
 
 As usual, shared tgt needs special attention. My original idea is to
 use a empty set and a singleton tgtmap for shared tgt. However, this
@@ -332,9 +332,9 @@ Then, we handle them specially in set+nat2tgtmap. In this process,
 we check each location's type, and if it's shared, we insert a special
 value in the resulting tgtmap.
 
-We then need to prove that, given a set+nat2tgtmap relation, and 
+We then need to prove that, given a set+nat2tgtmap relation, and
 a tgtmap2efxmap relation. If we convert the result efxmap to a set of
-permissions, and if the set is of the same class. Then, we can 
+permissions, and if the set is of the same class. Then, we can
 *transform* the permissions (say Pi) into the following format:
 
   PF(x) , PF(x) --|- Pi
@@ -342,28 +342,28 @@ permissions, and if the set is of the same class. Then, we can
 while PF(x) is field permission.
 
 However, this proposal requires many changes on existing proof. Also,
-it doesn't look right. It is possible for a method to have effect 
+it doesn't look right. It is possible for a method to have effect
 directly on x.f, where x is a shared parameter, instead of have effect
 on shared. Therefore, we'd better produce effect on the target x.f
 in this case, instead of converting to effects on shared in set+nat2tgtmap.
-But, if we have a effect on x.f.g, while f is a shared field, then 
+But, if we have a effect on x.f.g, while f is a shared field, then
 we need to produce a effect on shared, since getting from x.f to
 x.f.g requires permission on shared.
 (edited: above paragraph is *wrong*, see <2013-06-03 Mon> log)
 
-This poses a problem: let's say we are checking 
+This poses a problem: let's say we are checking
 
   let x = if 3 > y then a.f else b in x.g
 
 while f and g are both shared. In this example, following the above
-thought, we would generate "read b.g" effect from the "else" 
+thought, we would generate "read b.g" effect from the "else"
 branch, and generate "read shared" effect from the "then" branch.
 However, the input effect *cannot* include both, since they are
-not compatible. 
+not compatible.
 
 In general, once we produced a effect on shared, we need to find out
 all other effects on shared parameters, and eliminate them. Sometimes,
-we need to promote the effect on shared too. For instance, if 
+we need to promote the effect on shared too. For instance, if
 we have a "read shared" effect, and another "write x.f" effect, then
 we need to eliminate the latter, and promote the former to "write shared".
 
@@ -372,10 +372,10 @@ This looks like complex enough to implement. I need to think more on it.
 
 <2013-06-03 Mon>
 
-A continue from yesterday's thought. In turns of effects annotation, it 
+A continue from yesterday's thought. In turns of effects annotation, it
 is *impossible* to have an effect annotation on a shared parameter. Since
 on the one hand, effects will be translated to field permissions on the
-parameter object, and on the other hand, the shared annotation is 
+parameter object, and on the other hand, the shared annotation is
 translated to: x.all <- 0.owned, which is useless since we would never be
 able to get anything out of this (unless you know you have effects on
 all fields of x, then you can get permission for 0.owned, but this is
@@ -387,14 +387,14 @@ parameter can have effect annotations.
 
 So now we are back to the old question, how should we handle shared parameters?
 We could associate them with (set/0, (tgtmap/1 z (set/1 z))) in cxt, but then
-we won't type check reftyping/lit, since it produces effects/0. Also, this 
+we won't type check reftyping/lit, since it produces effects/0. Also, this
 doesn't translate to permissions smoothly. When reading a object reference,
-it should produce a objequal relation. 
+it should produce a objequal relation.
 
 
 Another topic: for unique parameter, we could use similar approach as shared
 parameter. That is, when a unique parameter is consumed, we mark it by putting
-it in a set (like the set for exposed unique parameter that we are using 
+it in a set (like the set for exposed unique parameter that we are using
 right now) in output. Also, we check if this set is compatible with the result
 efxmap (the efxmap should not contain any consume effect on any field of any
 object in the set). Then, input permission could either contain some field
@@ -416,23 +416,23 @@ like this:
 
 When converting effects into input permission, I take context into consideration
 too. For each unique parameter x in context, we check if it's in set. If so,
-we create a permission x.all <- 0.all. If not, we create an encumbered 
+we create a permission x.all <- 0.all. If not, we create an encumbered
 permission:
 
-  \Pi_f --|- x.all 
+  \Pi_f --|- x.all
 
 The problem is, reftyping-frame requires, if we have two effects:
 (effects/ S1 XM1) and (effects/ S2 XM2), and S1 <= S2, XM1 <= XM2.
 Then, after converting them seperately to permissions Pi1 and Pi2, we need to
-show that Pi2 implies Pi1, Pi3, for some Pi3. However, we cannot infer 
-x.all <- 0.all from \Pi_f --|- x.all. 
+show that Pi2 implies Pi1, Pi3, for some Pi3. However, we cannot infer
+x.all <- 0.all from \Pi_f --|- x.all.
 
 One proposal is to have another set in effects:
 
   effects/ : set -> set -> efxmap -> effects.
 
 which contains all parameters that are consumed. But, this still will not solve
-the problem. 
+the problem.
 
 
 <2013-06-06 Thu>
@@ -459,7 +459,7 @@ and f2 are unique fields. We need to implement this in the *substitution* rules.
 Another question is *whether we can handle expose effect in a simple way?*
 I still don't want to give up on expose effect, even if we can only handle
 a small subset of cases for it. But, I don't want to make any radical change
-on what I have right now. 
+on what I have right now.
 
 
 <2013-06-14 Fri>
@@ -482,12 +482,12 @@ What I have is two options:
    converted to empty permission. On the other hand, the unique
    parameter is converted to empty --+- Pi, so we can get the whole
    permission for Pi easily. We need to empty inner-efxmap simply
-   because we have to keep a record when the object is consumed. 
+   because we have to keep a record when the object is consumed.
 
 Another problem is checking method call. We need to check aliasing
 when passing arguments to a method call. For instance, argument a and
-b maybe aliasing, and if the method is annotated with, for instance, 
-read a.f and write b.f, then it should not check. 
+b maybe aliasing, and if the method is annotated with, for instance,
+read a.f and write b.f, then it should not check.
 
 To make sure this won't happen, we can do a extra check in
 ref-calltyping. But it is quite tedious to do. Suppose we have two
@@ -523,7 +523,7 @@ in other words, outputs with arbitrary level of "exists". We then
 need to establish a relation between inner-efxmap/efxmap and output.
 2. allow a little bit flow-sensitivity, e.g., allow join operation
 between read/write and consume, but not the other way around.
-3. allow consumed field permission to be restored by later on 
+3. allow consumed field permission to be restored by later on
 assigning it a new object.
 
 *More notes*:
@@ -541,7 +541,7 @@ It turns out I couldn't say something like:
 The reason is for read effect - to create a permission for
 the effect, we create a "fracperm" that sort of like a function that
 takes a fraction as parameter. Then, when we define methmap2progtype,
-we can plug-in the fraction. 
+we can plug-in the fraction.
 
 However, because we don't know what precisely is the fraction, we have
 no way to get it from a "whole" fraction. The fraction variable could
@@ -558,8 +558,6 @@ This is the frame-rule for reftyping.
 
 <2013-07-06 Sat>
 
-* New Locations
-
 In my current type system, there are two places that introduce new
 bindings: *let-expression* and *calling method* (include new).
 However, these two are a little bit difference, the new binding for
@@ -572,7 +570,6 @@ about aliasing. The only possibility for aliasing on result of method
 call is when it is later assigned to a let-binding, in which case we
 will handle via the substitution.
 
-* Checking Examples
 
 Another tricky problem that I spent sometime thinking today is the
 several test cases that I'm trying to check with my type system. For
@@ -626,15 +623,15 @@ check the write.
 
 <2013-07-28 Sun>
 
-* Regarding creating read permission
+Regarding creating read permission
   For read effects, maybe we can just convert them to some concrete
   fraction permission, like 1/2. This is possible under the current
   systems because when checking method call, we require effects for
   each argument to be mutually disjoint. Thus, a read effect will not
   be used to check more than one argument. However, this is not so
   desireable, since we may loosen this restriction in future.
-  
-** TODO define conversion for read effect
+
+- TODO: define conversion for read effect
 
 
 <2013-07-30 Tue>
@@ -683,11 +680,11 @@ But, how can I show this?
 Maybe I can do case analysis on the output format. The input
 permission be split into two parts, the part that is equal to the
 original permission generated by X, and the rest. Then I can use frame
-rule to show that the output is in a certain format, and given 
+rule to show that the output is in a certain format, and given
 
 <2013-08-06 Tue>
 
-I've been stucked on this problem for a while: suppose we 
+I've been stucked on this problem for a while: suppose we
 
 
 <2013-08-10 Sat>
@@ -697,7 +694,7 @@ conversion so that checking "read" would be simplier (right now it has
 lots of duplicated code). One idea is instead of generate something
 like:
 
-  x == r \/ ..., 
+  x == r \/ ...,
   (r.all -> 0, P(r)) , (r.all -> 0, P(r)) --|- (Pi_1, Pi_2, .., Pi_n)
 
 generate the following:
@@ -710,7 +707,7 @@ generate the following:
 
 One main disadvantage for the first approach is, it contains different
 cases. For one, n may be 0, in which case we cannot encumber the
-permission for r from "empty". 
+permission for r from "empty".
 
 The second approach doesn't work though. Consider checking expression
 e.f, first we suppose that checking e gives us the output formatted in
@@ -718,4 +715,81 @@ the second apprach. But then, we need to convert the disjunction into
 a sequence of conditionals, then use this to get a single permission
 for r, and the encumbered permission for it, much like the second part
 of the first approach. Then, after checking read, we cannot go back to
-the original format. 
+the original format.
+
+
+<2014-04-27 Sun>
+
+Thinking about how to prove the `let` case.
+Given a let expression like this:
+
+  let x = e1 in e2
+
+Depending on the type of e1 and e2, we have the following cases:
+
+- e1: shared, e2: shared: nothing needs to be done
+- e1: unique, e2: shared: nothing needs to be done
+- e1: unique, e2: shared: nothing needs to be done, since the targets
+  of e1 won't be in the targets of e2.
+- e1: unique, e2: unique: targets of e1 might be in both the targets
+     and effects of e2, in which case we need to do the substitution.
+
+Also, think about how to do substitution in this case:
+
+  x == r1 \/ ... \/ x == rn \/ x == o, Pi_o, Pi_o --|- Pi_1,
+  y == r1' \/ ... \/ y == rn' \/ y == o', Pi_o', Pi_o' --|- x.f
+
+
+<2014-05-14 Wed>
+
+The problem I'm thing at present:
+
+  Given a let expression:
+
+    let x = e1 in e2
+
+  How to prove it?
+
+First, with induction hypothesis, we can show that e1 can be proved.
+That is, we can take the environment, output (both targets and effects) from
+checking e1, and convert them to input & output, respectively, and
+show that the same expression e1 can be type checked under the FP
+system. Same with e2, we can show that with the *augmented*
+environment, we can prove e2 similarly.
+
+Now the question is how to show the *whole* expression can be proved.
+This is where *substitution* is needed: we need to first do
+substitution on the targets and effects from checking the whole
+expression, and then show that after converting the result to input &
+output, we can check the same expression under FP.
+
+For instance, with the following example:
+
+  let x = if true then y else z in x.f
+
+After substitution, the result target will be { y.f, z.f }, and
+result effects will be { read x.f, read z.f }.
+
+Then, we can show that with the permission converted from the above
+effects, we can check the whole expression.
+
+
+<2014-06-03 Tue>
+
+Following the previous thought, we still need to tackle some tough
+problems.
+
+Suppose the expression to check is: *let x = e1 in e2*, and suppose we
+have the effects from checking *e1*, say *X1*. Now, by induction
+hypothesis, we can take *X1* and convert it to a set of input
+permissions *Pi1*, and output *Out1*. In addition, we know that we can
+(sort of) check e1 with *Pi1* and *Out1*.
+
+Also, for *e2*, we have the effects *X2*, in which the variable *x* may
+appear. Same as above, we can use induction hypothesis to get a set of
+input permissions *Pi2*, and output *Out2*. We can check *e2* under
+FP with *Pi2* and *Out2*.
+
+The question is: how to check the whole expression?
+
+

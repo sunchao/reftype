@@ -3,14 +3,15 @@
 % Convert a set of object locations to a disjunction of objequal
 % facts. Used in output.
 
-set2facts : object -> set -> formula -> type.
+set2facts : cxt -> object -> set -> formula -> type.
 
-set2facts/0 : set2facts _ set/0 f.
+set2facts/0 : set2facts _ _ set/0 f.
 
-set2facts/U : set2facts O S (disj (objequal O (object/ N)) G)
+set2facts/U : set2facts B O S (disj (objequal O O') G)
+              <- cxt`lookup B N (cxt-info/ O' _)
               <- set`not-member S' N
               <- set`add S' N S
-              <- set2facts O S' G.
+              <- set2facts B O S' G.
 
 %{%
  Convert the explicit context to permissions, which
@@ -24,11 +25,13 @@ set2facts/U : set2facts O S (disj (objequal O (object/ N)) G)
 
 cxt2perm : clsmap -> predmap -> cxt -> permission -> type.
 
-cxt2perm/nil : cxt2perm _ _ cxt/nil empty.
+cxt2perm/0 : cxt2perm _ _ cxt/0 empty.
 
-cxt2perm/cons : cxt2perm CM PM (cxt/cons O T B) ((PF O) , Pi2)
-                <- ty2perm PM T PF
-                <- cxt2perm CM PM B Pi2.
+cxt2perm/U
+  : cxt2perm CM PM B' Pi2
+    -> cxt`update B' N (cxt-info/ O T) B
+    -> ty2perm PM T PF
+    -> cxt2perm CM PM B ((PF O) , Pi2).
 
 
 % Apply given effect to the input permission, and convert
@@ -52,21 +55,7 @@ efx2frac/read : efx2frac efx/read half.
 efx2frac/write : efx2frac efx/write (fraction/ one).
 
 
-% Convert "shared-efx" to permissions. "shared-efx" is used to
-% record effects on shared.
-
-shared-efx2perm : shared-efx -> permission -> type.
-
-shared-efx2perm/none : shared-efx2perm shared-efx/none empty.
-
-shared-efx2perm/read : shared-efx2perm shared-efx/read Pi
-                       <- apply-efx efx/read (allperm null) Pi.
-
-shared-efx2perm/write : shared-efx2perm shared-efx/write Pi
-                        <- apply-efx efx/write (allperm null) Pi.
-
-
-% consider nonnull type and produce a conditional if
+% Consider nonnull type and produce a conditional if
 % the object could be null.
 
 consider-nn : (object -> permission) -> nn ->
@@ -89,12 +78,12 @@ efxmap2perm/0 : efxmap2perm _ _ _ efxmap/0 empty.
 efxmap2perm/U
   : efxmap2perm CM PM B M' Pi2
     -> nat2pair K (pair/ N F)
-    -> cxt`lookup B (object/ N) (ty/ NN _ C)
+    -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F T
     -> ty2perm PM T PF
     -> consider-nn ([x] unitperm (precise-exists x F PF)) NN Pi1F
-    -> apply-efx X (Pi1F (object/ N)) Pi1
+    -> apply-efx X (Pi1F O) Pi1
     -> efxmap`fresh M' K
     -> efxmap`update M' K X M
     -> efxmap2perm CM PM B M (Pi1 , Pi2).
@@ -108,7 +97,7 @@ efxmap2perm/U
 
  Given a set of objects, the relation "make-fperm" construct
  such an encumbered permission for each object, using "make-fperm1".
-}%
+ }%
 
 make-fperm1 : predmap -> object -> fldmap -> set -> permission -> type.
 
@@ -128,7 +117,7 @@ make-fperm : clsmap -> predmap -> cxt -> set -> permission -> type.
 make-fperm/0 : make-fperm _ _ _ set/0 empty.
 
 make-fperm/U : make-fperm CM PM B SP Pi
-               -> cxt`lookup B (object/ N) (ty/ NN _ C)
+               -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
                -> predmap`lookup PM C CP
                -> clsmap`lookup CM C FM
                -> fldmap`domain FM FS
@@ -139,7 +128,7 @@ make-fperm/U : make-fperm CM PM B SP Pi
                           (unitperm (encumbered (Pi2 x) (allperm x)))))) NN PiF
                -> set`not-member SP N
                -> set`add SP N S
-               -> make-fperm CM PM B S ((PiF (object/ N)), Pi).
+               -> make-fperm CM PM B S ((PiF O), Pi).
 
 % Convert effects to input permissions. This is simply a wrapper on
 % efxmap2perm and shared-efx2perm, as the definition of effects.
@@ -152,24 +141,8 @@ effects2input/
     -> set2efxmap S efx/write M'
     -> efxmap2perm CM PM B M' Pi3
     -> efxmap2perm CM PM B M Pi4
-    -> shared-efx2perm SX Pi5
     -> effects2input CM PM B
-      (effects/ M S SX Q) ((Pi1 , (Pi2 , Pi3)) , Pi4 , Pi5).
-
-
-% compute minimum effects for this efxmap, start with efx/write.
-
-efxmap-minimum-efx* : efx -> efxmap -> efx -> type.
-
-efxmap-minimum-efx/0 : efxmap-minimum-efx* X efxmap/0 X.
-
-efxmap-minimum-efx/U : efxmap-minimum-efx* X1 M X4
-                <- efxmap`fresh M' N
-                <- efxmap`update M' N X2 M
-                <- efx`min X1 X2 X3
-                <- efxmap-minimum-efx* X3 M' X4.
-
-%abbrev efxmap-minimum-efx = [M][X] efxmap-minimum-efx* efx/write M X.
+      (effects/ M S Q) ((Pi1 , (Pi2 , Pi3)) , Pi4).
 
 
 %{
@@ -204,7 +177,37 @@ simple-targets : targets -> type.
 
 simple-targets/shared : simple-targets targets/shared.
 
-simple-targets/unique : simple-targets (targets/unique set/0 set/0 false).
+simple-targets/unique : simple-targets (targets/unique set/0 set/0).
+
+% in output, the first "object -> formula" is a list of objequal relations,
+% the second permission is those that are encumbered, and the third
+% permission is those that are not.
+
+tgtefx2perm : clsmap -> predmap -> cxt -> targets ->
+  efxmap -> (object -> formula) -> permission -> permission -> type.
+
+tgtefx2perm/shared
+  : tgtefx2perm CM PM B targets/shared M ([_] t) empty Pi
+    <- efxmap2perm CM PM B M Pi.
+
+tgtefx2perm/unique
+  : tgtefx2perm CM PM B (targets/unique S S2) M GF Pi1 Pi2
+    <- ({r} set2facts B r S (GF r))
+    <- efxmap`partition M S2 M1 M2
+    <- efxmap2perm CM PM B M1 Pi1
+    <- efxmap2perm CM PM B M2 Pi2
+    <- efxmap-min-efx M2 X
+    <- efx2frac X Q.
+
+% reftype2perm : clsmap -> predmap -> reftype -> permission -> type.
+
+% reftype2perm/shared
+%   : reftype2perm CM PM (reftype/ NN C targets/shared) PF
+%     <- ty2perm PM (ty/ NN annot/shared C) PF.
+
+
+% effects2output : clsmap -> predmap -> cxt -> reftype -> effects
+%   -> expr-output -> type.
 
 
 effects2output : clsmap -> predmap ->
@@ -212,79 +215,50 @@ effects2output : clsmap -> predmap ->
 
 effects2output/simple
   : effects2output CM PM B
-    (reftype/ NN C G) (effects/ M _ SX _)
+    (reftype/ NN C G) (effects/ M _ _)
     (output/exists [r]
       (output/expr r % "shared" don't need scaling
         (combine Pi1
-          (combine (PF r) (combine Pi2 Pi3)))))
+          (combine (PF r) Pi2))))
     <- cxt2perm CM PM B Pi1
     <- efxmap2perm CM PM B M Pi2
-    <- shared-efx2perm SX Pi3
     <- simple-targets G
     <- reftype2ty (reftype/ NN C G) T
     <- ty2perm PM T PF.
 
 effects2output/unique/0f
   : effects2output CM PM B
-    (reftype/ NN C (targets/unique S S2 false)) (effects/ M _ SX _)
+    (reftype/ NN C (targets/unique S S2)) (effects/ M _ _)
     (output/exists [r]
       (output/expr r
         (combine Pi1
           (combine (PF r)
-            (combine (unitperm (nonlinear (GF r)))
-              (combine Pi2 Pi3))))))
+            (combine (unitperm (nonlinear (GF r))) Pi2)))))
     <- set`size S (s _)
     <- set`size S2 z
     <- cxt2perm CM PM B Pi1
-    <- ({r} set2facts r S (GF r))
+    <- ({r} set2facts B r S (GF r))
     <- efxmap2perm CM PM B M Pi2
-    <- shared-efx2perm SX Pi3
     <- ty2perm PM (ty/ NN annot/borrow C) PF.
 
 effects2output/unique/+f
   : effects2output CM PM B
-    (reftype/ NN C (targets/unique S S2 false)) (effects/ M _ SX _)
+    (reftype/ NN C (targets/unique S S2)) (effects/ M _ _)
     (output/exists [o]
       (output/exists [r]
         (output/expr o
           (combine Pi1
             (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
               (combine (scale Q (PF r))
-                (combine (unitperm (encumbered (scale Q (PF r)) Pi3))
-                  (combine Pi2 Pi4))))))))
+                (combine (unitperm (encumbered (scale Q (PF r)) Pi3)) Pi2)))))))
     <- set`size S2 (s _)
     <- cxt2perm CM PM B Pi1
-    <- ({r} set2facts r S (GF r))
+    <- ({r} set2facts B r S (GF r))
     <- efxmap`partition M S2 M1 M2
     <- efxmap2perm CM PM B M1 Pi2
     <- efxmap2perm CM PM B M2 Pi3
-    <- efxmap-minimum-efx M2 X
+    <- efxmap-min-efx M2 X
     <- efx2frac X Q
-    <- shared-efx2perm SX Pi4
-    <- ty2perm PM (ty/ NN annot/unique C) PF.
-
-effects2output/unique/t
-  : effects2output CM PM B
-    (reftype/ NN C (targets/unique S S2 true)) (effects/ M _ SX _)
-    (output/exists [o]
-      (output/exists [r]
-        (output/expr o
-          (combine Pi1
-            (combine (unitperm (nonlinear (disj (objequal o r) (GF o))))
-              (combine (scale Q (PF r))
-                (combine
-                  (unitperm (encumbered (scale Q (PF r)) (combine Pi3 Pi4)))
-                  Pi2)))))))
-    <- cxt2perm CM PM B Pi1
-    <- ({r} set2facts r S (GF r))
-    <- efxmap`partition M S2 M1 M2
-    <- efxmap2perm CM PM B M1 Pi2
-    <- efxmap2perm CM PM B M2 Pi3
-    <- efxmap-minimum-efx M2 X1
-    <- shared-efx2efx SX X2
-    <- efx`min X1 X2 X
-    <- efx2frac X Q
-    <- shared-efx2perm SX Pi4
     <- ty2perm PM (ty/ NN annot/unique C) PF.
 
 
@@ -293,32 +267,32 @@ effects2output/unique/t
 % The first set of permissions are those from read and write effects,
 % the second set of permissions are those from consumed effects.
 
-methty2proctype* : predmap -> permission -> permission -> methty -> proctype -> type.
+methty2proctype*
+  : predmap -> permission -> permission -> methty -> proctype -> type.
 
 methty2proctype/base
-  : methty2proctype* PM Pi Pic (methty/base T SX)
+  : methty2proctype* PM Pi Pic (methty/base T)
     (proctype/base (combine Pi (combine Pic Pis))
       (output/exists [ret]
         (output/expr ret (combine (PF ret) (combine Pi Pis)))))
-    <- ty2perm PM T PF
-    <- shared-efx2perm MX Pis.
+    <- ty2perm PM T PF.
 
 methty2proctype/args/unique
   : methty2proctype* PM Pi Pic
-    (methty/arg (ty/ NN annot/unique C) set/0 set/0 MT) (proctype/arg PTF)
+    (methty/arg (ty/ NN annot/unique C) efxmap/0 MT) (proctype/arg PTF)
     <- ty2perm PM (ty/ NN annot/unique C) PF
     <- ({x:object} methty2proctype* PM Pi (Pic , (PF x)) MT (PTF x)).
 
 methty2proctype/args/borrow
   : methty2proctype* PM Pi1 Pic
-    (methty/arg (ty/ NN annot/borrow C) Rs Ws MT) (proctype/arg PTF)
+    (methty/arg (ty/ NN annot/borrow C) XM MT) (proctype/arg PTF)
     <- ty2perm PM (ty/ NN annot/borrow C) PF
     <- ({x} methty2proctype* PM
          (Pi1 , (Pi2 x)) (Pic , PF x) MT (PTF x)).
 
 methty2proctype/args/shared
   : methty2proctype* PM Pi Pic
-    (methty/arg (ty/ NN annot/shared C) set/0 set/0 MT) (proctype/arg PTF)
+    (methty/arg (ty/ NN annot/shared C) efxmap/0 MT) (proctype/arg PTF)
     <- ty2perm PM (ty/ NN annot/shared C) PF
     <- ({x} methty2proctype* PM Pi Pic MT (PTF x)).
 
@@ -332,7 +306,7 @@ consty2proctype* : predmap -> fldmap -> permission
 
 consty2proctype/base
   : consty2proctype* PM FM Pi Pic
-    (methty/base (ty/ nn/yes annot/unique C) MX)
+    (methty/base (ty/ nn/yes annot/unique C))
     ([t] (proctype/base
            (combine (obj-ne-null t)
              (combine (OS t) (combine Pi (combine Pic Pis))))
@@ -345,24 +319,24 @@ consty2proctype/base
 
 consty2proctype/args/unique
   : consty2proctype* PM FM Pi Pic
-    (methty/arg (ty/ NN annot/unique C) set/0 set/0 CT) ([t] proctype/arg (PTF t))
+    (methty/arg (ty/ NN annot/unique C) efxmap/0 CT) ([t] proctype/arg (PTF t))
     <- ty2perm PM (ty/ NN annot/unique C) PF
     <- ({x} consty2proctype* PM FM Pi (Pic , PF x) CT ([t] (PTF t x))).
 
 consty2proctype/args/borrow
   : consty2proctype* PM FM Pi1 Pic
-    (methty/arg (ty/ NN annot/borrow C) Rs Ws CT) ([t] proctype/arg (CTF t))
+    (methty/arg (ty/ NN annot/borrow C) XM CT) ([t] proctype/arg (CTF t))
     <- ty2perm PM (ty/ NN annot/unique C) PF
     <- ({x} consty2proctype* PM FM (Pi1 , (Pi2 x)) (Pic , PF x) CT ([t] (CTF t x))).
 
 consty2proctype/args/shared
   : consty2proctype* PM FM Pi Pic
-    (methty/arg (ty/ NN annot/shared C) set/0 set/0 CT) ([t] proctype/arg (CTF t))
+    (methty/arg (ty/ NN annot/shared C) efxmap/0 CT) ([t] proctype/arg (CTF t))
     <- ty2perm PM (ty/ NN annot/shared C) PF
     <- ({x} consty2proctype* PM FM Pi Pic CT (CTF x)).
 
 %abbrev consty2proctype = [PM][FM][CT][PTF]
-                          consty2proctype* PM FM empty empty CT PTF.
+  consty2proctype* PM FM empty empty CT PTF.
 
 
 % Convert methmap to progtype, calls methty2proctype and consty2proctype.
@@ -375,7 +349,7 @@ methmap2progtype/U/c
   : methmap2progtype CM PM MM W
     <- methmap`fresh MMP N
     <- methmap`update MMP N
-      (methty/arg (ty/ nn/yes annot/unique C) set/0 set/0 CT) MM
+      (methty/arg (ty/ nn/yes annot/unique C) efxmap/0 CT) MM
     <- clsmap`lookup CM N FM
     <- consty2proctype PM FM CT PTF
     <- methmap2progtype CM PM MMP WP
@@ -403,25 +377,12 @@ env2progtype/
 
 %%% Theorems
 
-%theorem shared-efx-not-none-implies-shared-efx2efx
-  : forall* {SX}
-    forall {NN: shared-efx-not-none SX}
-    exists {X} {SX2X: shared-efx2efx SX X}
-    true.
-
-- : shared-efx-not-none-implies-shared-efx2efx
-    shared-efx-not-none/ _ shared-efx2efx/.
-
-%worlds (objvar) (shared-efx-not-none-implies-shared-efx2efx _ _ _).
-%total {} (shared-efx-not-none-implies-shared-efx2efx _ _ _).
-
-
 % false-implies
 
 %theorem false-implies-set2facts
-  : forall* {O} {S} {G}
+  : forall* {O} {S} {G} {B}
     forall {V:void}
-    exists {S=>G: set2facts O S G}
+    exists {S=>G: set2facts B O S G}
     true.
 
 %worlds (objvar) (false-implies-set2facts _ _).
@@ -451,17 +412,17 @@ env2progtype/
 % respects-eq
 
 %theorem set2facts-respects-eq
-  : forall* {S1} {S2} {O1} {O2} {G1} {G2}
-    forall {S2G: set2facts O1 S1 G1}
-    {E: object`eq O1 O2} {E: set`eq S1 S2}
+  : forall* {S1} {S2} {O1} {O2} {G1} {G2} {B1} {B2}
+    forall {S2G: set2facts B1 O1 S1 G1}
+    {E: cxt`eq B1 B2} {E: object`eq O1 O2} {E: set`eq S1 S2}
     {E: permission`eq (unitperm (nonlinear G1)) (unitperm (nonlinear G2))}
-    exists {S2G2: set2facts O2 S2 G2}
+    exists {S2G2: set2facts B2 O2 S2 G2}
     true.
 
-- : set2facts-respects-eq S2G object`eq/ set`eq/ permission`eq/ S2G.
+- : set2facts-respects-eq S2G cxt`eq/ object`eq/ set`eq/ permission`eq/ S2G.
 
-%worlds (objvar) (set2facts-respects-eq _ _ _ _ _).
-%total {} (set2facts-respects-eq _ _ _ _ _).
+%worlds (objvar) (set2facts-respects-eq _ _ _ _ _ _).
+%total {} (set2facts-respects-eq _ _ _ _ _ _).
 
 
 %theorem cxt2perm-respects-eq
@@ -524,19 +485,6 @@ env2progtype/
 
 %worlds (objvar) (consider-nn-respects-eq _ _ _ _ _ ).
 %total { } (consider-nn-respects-eq _ _ _ _ _ ).
-
-
-%theorem shared-efx2perm-respects-eq
-  : forall* {SX} {SX'} {Pi} {Pi'}
-    forall {SX2P: shared-efx2perm SX Pi}
-    {XE: shared-efx`eq SX SX'} {PE: permission`eq Pi Pi'}
-    exists {SX2P': shared-efx2perm SX' Pi'}
-    true.
-
-- : shared-efx2perm-respects-eq SX2P shared-efx`eq/ permission`eq/ SX2P.
-
-%worlds (objvar) (shared-efx2perm-respects-eq _ _ _ _).
-%total {} (shared-efx2perm-respects-eq _ _ _ _).
 
 
 %theorem efxmap2perm-respects-eq
@@ -602,19 +550,6 @@ env2progtype/
 %total {} (effects2input-respects-eq _ _ _ _).
 
 
-%theorem efxmap-minimum-efx-respects-eq
-  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
-    forall {MX: efxmap-minimum-efx* X1 M X2}
-    {E: efx`eq X1 X1'} {E: efxmap`eq M M'} {E: efx`eq X2 X2'}
-    exists {MX: efxmap-minimum-efx* X1' M' X2'}
-    true.
-
-- : efxmap-minimum-efx-respects-eq MX efx`eq/ efxmap`eq/ efx`eq/ MX.
-
-%worlds (objvar) (efxmap-minimum-efx-respects-eq _ _ _ _ _).
-%total {} (efxmap-minimum-efx-respects-eq _ _ _ _ _).
-
-
 %theorem effects2output-respects-eq
   : forall* {CM} {PM} {B} {NN} {C} {XX} {NN1} {C1} {XX1} {Out} {GS} {GS1}
     forall {XX2O: effects2output CM PM B (reftype/ NN C GS) XX Out}
@@ -630,34 +565,38 @@ env2progtype/
 
 % TODO: respects-eq for methty2proctype and consty2proctype..
 
-% totality
 
-%theorem set2facts-total* : forall {O}{S} exists {G} {S=>G: set2facts O S G} true.
-
-%theorem set2facts-total/L
-  : forall* {S} {O}
-    forall {N} {Z: set`size S N}
-    exists {G} {S=>G: set2facts O S G}
+%theorem same-class-implies-set2facts
+  : forall* {B} {S} {C} {O}
+    forall {SOC: same-class B S C}
+    exists {G} {S2G: set2facts B O S G}
     true.
 
-- : set2facts-total/L z _ f set2facts/0.
+- : same-class-implies-set2facts same-class/0 _ set2facts/0.
 
-- : set2facts-total/L (s N) Z _ (set2facts/U SP=>GP A F)
-    <- set`lookup-implies-not-member-update (set`lookup/= nat`eq/) SP F A
-    <- set`not-member-add-increases-size-converse Z F A Z'
-    <- set2facts-total/L N Z' _ SP=>GP.
+- : same-class-implies-set2facts (same-class/U SOC' F U BL)
+    _ (set2facts/U S2G' U F BL)
+    <- same-class-implies-set2facts SOC' _ S2G'.
 
-%worlds (objvar) (set2facts-total/L _ _ _ _).
-%total (N) (set2facts-total/L N _ _ _).
+%worlds (objvar) (same-class-implies-set2facts _ _ _).
+%total (CM) (same-class-implies-set2facts CM _ _).
 
-- : set2facts-total* _ _ G S=>G
-    <- set`size-total Z
-    <- set2facts-total/L _ Z G S=>G.
 
-%worlds (objvar) (set2facts-total* _ _ _ _).
-%total {} (set2facts-total* _ _ _ _).
+%theorem clsmap-cxt-set2-implies-set2facts
+  : forall* {CM} {B} {S} {O}
+    forall {CM-B-S: clsmap-cxt-set2 CM B S}
+    exists {G} {S2G: set2facts B O S G}
+    true.
 
-%abbrev set2facts-total = set2facts-total* _ _ _.
+- : clsmap-cxt-set2-implies-set2facts clsmap-cxt-set2/0 _ set2facts/0.
+
+- : clsmap-cxt-set2-implies-set2facts
+    (clsmap-cxt-set2/U CM-B-S' BL CML FS U)
+    _ (set2facts/U S'2G U FS BL)
+    <- clsmap-cxt-set2-implies-set2facts CM-B-S' _ S'2G.
+
+%worlds () (clsmap-cxt-set2-implies-set2facts _ _ _).
+%total (CM) (clsmap-cxt-set2-implies-set2facts CM _ _).
 
 
 % cxt needs to be consistent with clsmap
@@ -670,19 +609,18 @@ env2progtype/
     exists {Pi:permission} {B=>Pi: cxt2perm CM PM B Pi}
     true.
 
-- : clsmap-cxt-implies-cxt2perm _ _ clsmap-cxt/nil _ cxt2perm/nil.
+- : clsmap-cxt-implies-cxt2perm _ _ clsmap-cxt/0 _ cxt2perm/0.
 
 - : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
-    (clsmap-cxt/cons/b CM-B (clsmap-ty/notnull L))
-    _ (cxt2perm/cons B2P T2PF)
+    (clsmap-cxt/U CM-B' (clsmap-ty/ L) BU)
+    _ (cxt2perm/U B2P' BU T2PF)
     <- clsmap-lookup-implies-ty2perm CM2PM L _ T2PF
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B2P.
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B' _ B2P'.
 
 - : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
-    (clsmap-cxt/cons/s CM-B (clsmap-ty/notnull L))
-    _ (cxt2perm/cons B2P T2PF)
-    <- clsmap-lookup-implies-ty2perm CM2PM L _ T2PF
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B2P.
+    (clsmap-cxt/U CM-B' clsmap-ty/null BU)
+    _ (cxt2perm/U B2P' BU ty2perm/null)
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B' _ B2P'.
 
 %worlds (objvar) (clsmap-cxt-implies-cxt2perm _ _ _ _ _).
 %total (CM-B) (clsmap-cxt-implies-cxt2perm _ _ CM-B _ _).
@@ -716,25 +654,6 @@ env2progtype/
 %total {} (apply-efx-total* _ _ _ _).
 
 %abbrev apply-efx-total = apply-efx-total* _ _ _.
-
-
-%theorem shared-efx2perm-total*
-  : forall {MX}
-    exists {Pi} {MX=>Pi: shared-efx2perm MX Pi}
-    true.
-
-- : shared-efx2perm-total* shared-efx/none _ shared-efx2perm/none.
-
-- : shared-efx2perm-total* shared-efx/read _ (shared-efx2perm/read AP)
-    <- apply-efx-total AP.
-
-- : shared-efx2perm-total* shared-efx/write _ (shared-efx2perm/write AP)
-    <- apply-efx-total AP.
-
-%worlds (objvar) (shared-efx2perm-total* _ _ _).
-%total {} (shared-efx2perm-total* _ _ _).
-
-%abbrev shared-efx2perm-total = shared-efx2perm-total* _ _.
 
 
 %theorem consider-nn-total*
@@ -782,10 +701,10 @@ env2progtype/
 
 
 %theorem clsmap-cxt-effects-implies-efxmap2perm
-  : forall* {CM} {PM} {B} {M} {SX} {S} {Q}
+  : forall* {CM} {PM} {B} {M} {S} {Q}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {B-M: clsmap-cxt-effects CM B (effects/ M S SX Q)}
+    {B-M: clsmap-cxt-effects CM B (effects/ M S Q)}
     exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
     true.
 
@@ -857,7 +776,7 @@ env2progtype/
 
 - : make-fperm-total CM-CM CM2PM
     (clsmap-cxt-set2/U CM-B-S' BL CML FS U) _
-    (make-fperm/U MFP' BL PML CML FM-DM MF1 CNN FS U)
+    (make-fperm/U MFP' BL PML CML  FM-DM MF1 CNN FS U)
     <- fldmap`domain-total FM-DM
     <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
     <- ({x} make-fperm1-total CM-CM CM2PM CML FM-DM _ (MF1 x))
@@ -879,7 +798,7 @@ env2progtype/
 
 - : clsmap-cxt-effects-implies-effects2input CM-CM CM2PM CM-B
     (clsmap-cxt-effects/ DM _ S=>SQ Q<=SQ CM-B-R CM-B-S) _
-    (effects2input/ B=>Pi1 MFP S=>M' M'=>Pi3 M=>Pi4 SX=>Pi5)
+    (effects2input/ B=>Pi1 MFP S=>M' M'=>Pi3 M=>Pi4)
     <- collect-objs-implies-clsmap-cxt-set2 CM-B-S S=>SQ CM-B-SQ
     <- clsmap-cxt-set2-respects-geq CM-B-SQ Q<=SQ CM-B-Q
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
@@ -887,63 +806,10 @@ env2progtype/
     <- set2efxmap-total S=>M'
     <- set2efxmap-implies-domain S=>M' DM'
     <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM' CM-B-S _ M'=>Pi3
-    <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM CM-B-R _ M=>Pi4
-    <- shared-efx2perm-total SX=>Pi5.
+    <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM CM-B-R _ M=>Pi4.
 
 %worlds (objvar) (clsmap-cxt-effects-implies-effects2input _ _ _ _ _ _).
 %total {} (clsmap-cxt-effects-implies-effects2input _ _ _ _ _ _).
-
-
-%theorem efxmap-minimum-efx-total*
-  : forall* {M} {X1}
-    exists {X2} {MX: efxmap-minimum-efx* X1 M X2} true.
-
-%theorem efxmap-minimum-efx-total*/L
-  : forall* {M} {X1}
-    forall {N} {Z: efxmap`size M N}
-    exists {X2} {MX: efxmap-minimum-efx* X1 M X2} true.
-
-- : efxmap-minimum-efx-total*/L z _  _ efxmap-minimum-efx/0.
-
-- : efxmap-minimum-efx-total*/L (s N) Z _ (efxmap-minimum-efx/U MX MIN U F)
-    <- efxmap`lookup-implies-fresh-update (efxmap`lookup/= nat`eq/) MP F U
-    <- efx`min-total MIN
-    <- efxmap`fresh-update-increases-size-converse Z F U ZP
-    <- efxmap-minimum-efx-total*/L N ZP _ MX.
-
-%worlds (objvar) (efxmap-minimum-efx-total*/L _ _ _ _).
-%total (N) (efxmap-minimum-efx-total*/L N _ _ _).
-
-- : efxmap-minimum-efx-total* _ MX
-    <- efxmap`size-total Z
-    <- efxmap-minimum-efx-total*/L _ Z _ MX.
-
-%worlds (objvar) (efxmap-minimum-efx-total* _ _).
-%total {} (efxmap-minimum-efx-total* _ _).
-
-%abbrev efxmap-minimum-efx-total = efxmap-minimum-efx-total* _.
-
-
-%theorem set2efxmap-implies-efxmap-minimum-efx
-  : forall* {X} {S} {M}
-    forall {N} {SZ: set`size S (s N)} {S+X=>M: set2efxmap S X M}
-    exists {MX: efxmap-minimum-efx M X}
-    true.
-
-% - : set2efxmap-implies-efxmap-minimum-efx z (set`size/+ set`size/0)
-%     (set2efxmap/U S+X=>M ID F U MUx)
-%     (efxmap-minimum-efx/U KK MIN MU MF)
-%     <- set`not-member-update-increases-size-converse 
-%       (set`size/+ set`size/0) F U SZ
-%     <- set`size-zero-implies-empty SZ S=0
-%     <- efx-id-eq ID EQx
-%     <- efx`eq-symmetric EQx EQ
-%     <- efxmap`update-respects-eq MUx 
-%     <- set2efxmap-unique S+X=>M set2efxmap/0 set`eq/ 
-%     <- set2efxmap-
-
-%worlds () (set2efxmap-implies-efxmap-minimum-efx _ _ _ _).
-%trustme %total { } (set2efxmap-implies-efxmap-minimum-efx _ _ _ _).
 
 
 %theorem clsmap-cxt-effects-implies-effects2output*
@@ -951,6 +817,7 @@ env2progtype/
     forall {GS} {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CM-B: clsmap-cxt CM B}
+    {CM-B-GS: clsmap-cxt-targets CM B C GS}
     {CM-B-XX: clsmap-cxt-effects CM B XX}
     {GS-XX: targets-effects GS XX}
     {CML: clsmap`lookup CM C FM}
@@ -971,11 +838,10 @@ env2progtype/
 - : clsmap-cxt-effects-implies-effects2output/shared
     CM-CM CM2PM CM-B CM-B-XX CML _
     (effects2output/simple T2PF reftype2ty/shared simple-targets/shared
-      SX=>Pi3 M=>Pi2 B=>Pi1)
+      M=>Pi2 B=>Pi1)
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
-    <- shared-efx2perm-total SX=>Pi3
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF.
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
 
 %worlds (objvar) (clsmap-cxt-effects-implies-effects2output/shared _ _ _ _ _ _ _).
 %total {} (clsmap-cxt-effects-implies-effects2output/shared _ _ _ _ _ _ _).
@@ -983,45 +849,44 @@ env2progtype/
 
 %theorem clsmap-cxt-effects-implies-effects2output/unique*
   : forall* {CM} {PM} {B} {XX} {NN} {C} {FM}
-    forall {S} {S2} {SB} {CM-CM: clsmap-clsmap CM CM}
+    forall {S} {S2} {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CM-B: clsmap-cxt CM B}
-    {G-XX: targets-effects (targets/unique S S2 SB) XX}
+    {CM-B-S2: same-class B S C}
+    {G-XX: targets-effects (targets/unique S S2) XX}
     {CM-B-XX: clsmap-cxt-effects CM B XX}
     {CML: clsmap`lookup CM C FM}
     exists {Out} {XX=>Out: effects2output CM PM B
-                           (reftype/ NN C (targets/unique S S2 SB)) XX Out}
+                           (reftype/ NN C (targets/unique S S2)) XX Out}
     true.
 
 - : clsmap-cxt-effects-implies-effects2output/unique*
-    set/0 set/0 false CM-CM CM2PM CM-B _ CM-B-XX CML _
+    set/0 set/0 CM-CM CM2PM CM-B SOC _ CM-B-XX CML _
     (effects2output/simple T2PF reftype2ty/unique simple-targets/unique
-      SX=>Pi3 M=>Pi2 B=>Pi1)
+      M=>Pi2 B=>Pi1)
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
-    <- shared-efx2perm-total SX=>Pi3
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF.
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
 
 - : clsmap-cxt-effects-implies-effects2output/unique*
-    (set/+ _ _) set/0 false CM-CM CM2PM CM-B _ CM-B-XX CML _
-    (effects2output/unique/0f T2PF SX=>Pi3 M=>Pi2 S=>G B=>Pi1 set`size/0
+    (set/+ _ _) set/0 CM-CM CM2PM CM-B SOC _ CM-B-XX CML _
+    (effects2output/unique/0f T2PF M=>Pi2 S=>G B=>Pi1 set`size/0
       (set`size/+ Z))
     <- set`size-total Z
-    <- ({r} set2facts-total (S=>G r))
+    <- ({r} same-class-implies-set2facts SOC _ (S=>G r))
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
-    <- shared-efx2perm-total SX=>Pi3
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF.
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
 
 - : clsmap-cxt-effects-implies-effects2output/unique*
-    _ (set/+ _ _) false CM-CM CM2PM CM-B
-    (targets-effects/unique _ S2<=M2 _)
+    _ (set/+ _ _) CM-CM CM2PM CM-B SOC
+    (targets-effects/unique _ S2<=M2)
     (clsmap-cxt-effects/ DM _ _ _ CM-B-S _) CML _
     (effects2output/unique/+f T2PF
-      SX=>Pi3 X2Q MX-M2 M2=>Pi3 M1=>Pi2 R
+      X2Q MX-M2 M2=>Pi3 M1=>Pi2 R
       S=>G B=>Pi1 (set`size/+ Z))
     <- set`size-total Z
-    <- ({r} set2facts-total (S=>G r))
+    <- ({r} same-class-implies-set2facts SOC _ (S=>G r))
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- efxmap`partition-total R
     <- efxmap`partition-implies-leq R LE1 LE2
@@ -1033,34 +898,8 @@ env2progtype/
     <- clsmap-cxt-set-respects-geq CM-B-S SLE2 CM-B-S2
     <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM1 CM-B-S1 _ M1=>Pi2
     <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM2 CM-B-S2 _ M2=>Pi3
-    <- shared-efx2perm-total SX=>Pi3
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF
-    <- efxmap-minimum-efx-total MX-M2
-    <- efx2frac-total X2Q.
-
-- : clsmap-cxt-effects-implies-effects2output/unique*
-    _ _ true CM-CM CM2PM CM-B
-    (targets-effects/unique _ S2<=M2 (shared-efx-relation/t NN))
-    (clsmap-cxt-effects/ DM _ _ _ CM-B-S _) CML _
-    (effects2output/unique/t T2PF SX=>Pi3 X2Q MX-X SX2X MX-M2 M2=>Pi3 M1=>Pi2 SG
-      S=>G B=>Pi1)
-    <- ({r} set2facts-total (S=>G r))
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- efxmap`partition-total SG
-    <- efxmap`partition-implies-leq SG LE1 LE2
-    <- efxmap`domain-total DM1
-    <- efxmap`domain-total DM2
-    <- efxmap`domain-preserves-leq* LE1 DM1 DM SLE1
-    <- efxmap`domain-preserves-leq* LE2 DM2 DM SLE2
-    <- clsmap-cxt-set-respects-geq CM-B-S SLE1 CM-B-S1
-    <- clsmap-cxt-set-respects-geq CM-B-S SLE2 CM-B-S2
-    <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM1 CM-B-S1 _ M1=>Pi2
-    <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM2 CM-B-S2 _ M2=>Pi3
-    <- shared-efx2perm-total SX=>Pi3
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/notnull CML) _ T2PF
-    <- efxmap-minimum-efx-total MX-M2
-    <- shared-efx-not-none-implies-shared-efx2efx NN _ SX2X
-    <- efx`min-total MX-X
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF
+    <- efxmap-min-efx-total MX-M2
     <- efx2frac-total X2Q.
 
 %worlds (objvar)
@@ -1070,20 +909,21 @@ env2progtype/
 
 
 %abbrev clsmap-cxt-effects-implies-effects2output/unique
-  = clsmap-cxt-effects-implies-effects2output/unique* _ _ _.
+  = clsmap-cxt-effects-implies-effects2output/unique* _ _.
 
-- : clsmap-cxt-effects-implies-effects2output* targets/shared CM-CM CM2PM CM-B
-    CM-B-XX GS-XX CML _ XX=>Out
+- : clsmap-cxt-effects-implies-effects2output*
+    targets/shared CM-CM CM2PM CM-B CM-B-GS CM-B-XX GS-XX CML _ XX=>Out
     <- clsmap-cxt-effects-implies-effects2output/shared CM-CM CM2PM CM-B CM-B-XX
       CML _ XX=>Out.
 
-- : clsmap-cxt-effects-implies-effects2output* (targets/unique _ _ _)
-    CM-CM CM2PM CM-B CM-B-XX GS-XX CML _ XX=>Out
+- : clsmap-cxt-effects-implies-effects2output* (targets/unique _ _)
+    CM-CM CM2PM CM-B (clsmap-cxt-targets/unique SOC _ _)
+    CM-B-XX GS-XX CML _ XX=>Out
     <- clsmap-cxt-effects-implies-effects2output/unique
-      CM-CM CM2PM CM-B GS-XX CM-B-XX CML _ XX=>Out.
+      CM-CM CM2PM CM-B SOC GS-XX CM-B-XX CML _ XX=>Out.
 
-%worlds (objvar) (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _).
-%total {} (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _ _).
+%total {} (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _ _).
 
 %abbrev clsmap-cxt-effects-implies-effects2output
   = clsmap-cxt-effects-implies-effects2output* _.
@@ -1092,39 +932,42 @@ env2progtype/
 % U-inversions
 
 %theorem set2facts/U-inversion
-  : forall* {O} {S} {SP} {G} {N}
-    forall {S=>G: set2facts O S G}
+  : forall* {B} {O} {S} {SP} {G} {N}
+    forall {S=>G: set2facts B O S G}
     {NM: set`not-member SP N}
     {A: set`add SP N S}
-    exists {GP} {SP=>GP: set2facts O SP GP}
-    {IMP1: bimplies true G (disj (objequal O (object/ N)) GP)}
-    {IMP2: bimplies true (disj (objequal O (object/ N)) GP) G}
+    exists {GP} {SP=>GP: set2facts B O SP GP}
+    {O'} {T} {BL: cxt`lookup B N (cxt-info/ O' T)}
+    {IMP1: bimplies true G (disj (objequal O O') GP)}
+    {IMP2: bimplies true (disj (objequal O O') GP) G}
     true.
 
 %theorem set2facts/U-inversion/L
-  : forall* {O} {S} {SP} {N} {S1} {N1} {G1} {P}
+  : forall* {B} {O} {S} {SP} {N} {S1} {N1} {G1} {P} {O1'} {T1}
     forall {NM1: set`not-member S1 N1}
     {A1: set`add S1 N1 S}
-    {S1=>G1: set2facts O S1 G1}
+    {S1=>G1: set2facts B O S1 G1}
+    {BL: cxt`lookup B N1 (cxt-info/ O1' T1)}
     {NM: set`not-member SP N}
     {A: set`add SP N S}
     {E?: nat`eq? N N1 P}
-    exists {GP} {SP=>GP: set2facts O SP GP}
+    exists {GP} {SP=>GP: set2facts B O SP GP}
+    {O'} {T} {BL: cxt`lookup B N (cxt-info/ O' T)}
     {IMP1: bimplies true
-          (disj (objequal O (object/ N1)) G1)
-          (disj (objequal O (object/ N)) GP)}
+           (disj (objequal O O') G1)
+           (disj (objequal O O') GP)}
     {IMP2: bimplies true
-           (disj (objequal O (object/ N)) GP)
-           (disj (objequal O (object/ N1)) G1)}
+           (disj (objequal O O') GP)
+           (disj (objequal O O') G1)}
     true.
 
-- : set2facts/U-inversion/L F1 U1 S2G1 F2 U2 nat`eq?/yes _ S2G
+- : set2facts/U-inversion/L F1 U1 S2G1 BL1 F2 U2 nat`eq?/yes _ S2G _ _ BL1
     (bimplies/reflexive) (bimplies/reflexive)
     <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ S1=S2
-    <- set2facts-respects-eq S2G1 object`eq/ S1=S2 permission`eq/ S2G.
+    <- set2facts-respects-eq S2G1 cxt`eq/ object`eq/ S1=S2 permission`eq/ S2G.
 
-- : set2facts/U-inversion/L F1 U1 S2G1 F2 U2 (nat`eq?/no N<>N1) _
-    (set2facts/U S2G U4 F4)
+- : set2facts/U-inversion/L F1 U1 S2G1 BL1 F2 U2 (nat`eq?/no N<>N1) _
+    (set2facts/U S2G U4 F4 BL1) _ _ BL3
     (bimplies/neg
       (bimplies/trans
         (bimplies/conj/XX
@@ -1166,16 +1009,17 @@ env2progtype/
     <- set`add-commutes-converse U2 U1 N<>N1 _ U4 U3
     <- set`add-preserves-not-member-converse F2 U4 F3
     <- set`add-preserves-not-member-converse F1 U3 F4
-    <- set2facts/U-inversion S2G1 F3 U3 _ S2G IMP1 IMP2.
+    <- set2facts/U-inversion S2G1 F3 U3 _ S2G _ _ BL3 IMP1 IMP2.
 
-- : set2facts/U-inversion (set2facts/U S2G1 U1 F1) F2 U2 _ S2G IMP1 IMP2
+- : set2facts/U-inversion
+    (set2facts/U S2G1 U1 F1 BL1) F2 U2 _ S2G _ _ BL IMP1 IMP2
     <- nat`eq?-total E?
-    <- set2facts/U-inversion/L F1 U1 S2G1 F2 U2 E? _ S2G IMP1 IMP2.
+    <- set2facts/U-inversion/L F1 U1 S2G1 BL1 F2 U2 E? _ S2G _ _ BL IMP1 IMP2.
 
-%worlds (objvar) (set2facts/U-inversion _ _ _ _ _ _ _)
-(set2facts/U-inversion/L _ _ _ _ _ _ _ _ _ _).
-%total (N N1) (set2facts/U-inversion N _ _ _ _ _ _)
-(set2facts/U-inversion/L _ _ N1 _ _ _ _ _ _ _).
+%worlds (objvar) (set2facts/U-inversion _ _ _ _ _ _ _ _ _ _)
+(set2facts/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (N N1) (set2facts/U-inversion N _ _ _ _ _ _ _ _ _)
+(set2facts/U-inversion/L _ _ N1 _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem make-fperm1/U-inversion
@@ -1199,15 +1043,15 @@ env2progtype/
     {NM: set`not-member SP N}
     {UD: set`add SP N S}
     exists {Pi'} {MFP: make-fperm CM PM B SP Pi'}
-    {NN} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {FM} {CML: clsmap`lookup CM C FM}
     {FS} {DM: fldmap`domain FM FS}
-    {Pi2} {MF1: make-fperm1 PM (object/ N) FM FS Pi2}
-    {EQV: equiv ((unitperm (encumbered Pi2 (allperm (object/ N)))) , Pi') Pi}
+    {Pi2} {MF1: make-fperm1 PM O FM FS Pi2}
+    {EQV: equiv ((unitperm (encumbered Pi2 (allperm O))) , Pi') Pi}
     true.
 
-%worlds (objvar) (make-fperm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%trustme %total {} (make-fperm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (make-fperm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total {} (make-fperm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem efxmap2perm/U-inversion
@@ -1216,45 +1060,45 @@ env2progtype/
     {FS: efxmap`fresh MP K}
     {U: efxmap`update MP K X M}
     exists {N} {F} {K=>N+F: nat2pair K (pair/ N F)}
-    {NN} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     {PF} {T2PF: ty2perm PM T PF}
     {PiF} {CNN: consider-nn ([x] unitperm (precise-exists x F PF)) NN PiF}
-    {Pi1} {AP: apply-efx X (PiF (object/ N)) Pi1}
+    {Pi1} {AP: apply-efx X (PiF O) Pi1}
     {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
     {EQV: equiv (Pi1 , Pi2) Pi}
     true.
 
 %theorem efxmap2perm/U-inversion/L
   : forall* {BP} {M} {B} {CM} {PM} {K} {K1} {X1} {X} {T1} {PF1}
-    {MP1} {MP} {Pi11} {Pi21} {NN1} {A1} {C1} {FM1} {N1} {F1} {PiF1}
+    {MP1} {MP} {Pi11} {Pi21} {NN1} {A1} {C1} {FM1} {N1} {F1} {PiF1} {O1}
     forall {FS1: efxmap`fresh MP1 K1}
     {U1: efxmap`update MP1 K1 X1 M}
     {K=>N+F: nat2pair K1 (pair/ N1 F1)}
-    {BL1: cxt`lookup B (object/ N1) (ty/ NN1 A1 C1)}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
     {CML1: clsmap`lookup CM C1 FM1}
     {FML1: fldmap`lookup FM1 F1 T1}
     {T2PF1: ty2perm PM T1 PF1}
     {CNN1: consider-nn ([x] unitperm (precise-exists x F1 PF1)) NN1 PiF1}
-    {AP1: apply-efx X1 (PiF1 (object/ N1)) Pi11}
+    {AP1: apply-efx X1 (PiF1 O1) Pi11}
     {M2P: efxmap2perm CM PM B MP1 Pi21}
     {FS2: efxmap`fresh MP K}
     {U2: efxmap`update MP K X M}
     {EQ: nat`eq? K K1 BP}
     exists {N} {F} {K=>N+F: nat2pair K (pair/ N F)}
-    {NN} {A} {C} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     {PF} {T2PF: ty2perm PM T PF}
     {PiF} {CNN: consider-nn ([x] unitperm (precise-exists x F PF)) NN PiF}
-    {Pi1} {AP: apply-efx X (PiF (object/ N)) Pi1}
+    {Pi1} {AP: apply-efx X (PiF O) Pi1}
     {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
     {EQV: equiv (Pi1 , Pi2) (Pi11 , Pi21)}
     true.
 
 - : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 M2P1 F2 U2
-    nat`eq?/yes _ _ N2P1 _ _ _ BL1 _ CML1 _ FML1 _ T2PF1 _ CNN1 _ AP2 _ M2P
+    nat`eq?/yes _ _ N2P1 _ _ _ _ BL1 _ CML1 _ FML1 _ T2PF1 _ CNN1 _ AP2 _ M2P
     equiv/reflexive
     <- efxmap`fresh-update-cancels F1 U1 F2 U2 nat`eq/ efxmap`eq/ X1=X2 M1=M2
     <- apply-efx-respects-eq AP1 X1=X2 permission`eq/
@@ -1263,44 +1107,31 @@ env2progtype/
       M1=M2 permission`eq/ M2P.
 
 - : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 M2P1 F2 U2
-    (nat`eq?/no K<>K1) _ _ N2P2 _ _ _ BL2 _ CML2 _ FML2 _ T2PF2 _ CNN2 _ AP2 _
+    (nat`eq?/no K<>K1) _ _ N2P2 _ _ _ _ BL2 _ CML2 _ FML2 _ T2PF2 _ CNN2 _ AP2 _
     (efxmap2perm/U M2P2 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 F4 U4)
     (equiv/transitive equiv/roll2 (equiv/combine equiv/reflexive EQV2))
     <- efxmap`update-commutes-converse U2 U1 K<>K1 _ U4 U3
     <- efxmap`update-preserves-fresh-converse F2 U4 F3
     <- efxmap`update-preserves-fresh-converse F1 U3 F4
-    <- efxmap2perm/U-inversion M2P1 F3 U3 _ _ N2P2 _ _ _ BL2 _ CML2 _
+    <- efxmap2perm/U-inversion M2P1 F3 U3 _ _ N2P2 _ _ _ _ BL2 _ CML2 _
       FML2 _ T2PF2 _ CNN2 _ AP2 _ M2P2 EQV2.
 
 - : efxmap2perm/U-inversion
     (efxmap2perm/U M2P1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 F1 U1)
-    F2 U2 _ _ N2P _ _ _ BL _ CML _ FML _ T2PF _ CNN _ AP _ M2P EQV
+    F2 U2 _ _ N2P _ _ _ _ BL _ CML _ FML _ T2PF _ CNN _ AP _ M2P EQV
     <- nat`eq?-total E?
     <- efxmap2perm/U-inversion/L
       F1 U1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 M2P1 F2 U2 E? _ _ N2P
-      _ _ _ BL _ CML _ FML _ T2PF _ CNN _ AP _ M2P EQV.
+      _ _ _ _ BL _ CML _ FML _ T2PF _ CNN _ AP _ M2P EQV.
 
 %worlds (objvar)
-	(efxmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(efxmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 	(efxmap2perm/U-inversion/L
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A B)
-	(efxmap2perm/U-inversion A _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(efxmap2perm/U-inversion A _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 	(efxmap2perm/U-inversion/L
-    _ _ _ _ _ _ _ _ _ B _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem efxmap-minimum-efx/U-inversion
-  : forall* {M'} {N} {M} {X1} {X2} {X3} {X4}
-    forall {MX: efxmap-minimum-efx* X1 M X4}
-    {F: efxmap`fresh M' N}
-    {U: efxmap`update M' N X2 M}
-    exists {X2} {MX: efx`min X1 X2 X3}
-    {MX': efxmap-minimum-efx* X3 M' X4}
-    true.
-
-%worlds (objvar) (efxmap-minimum-efx/U-inversion _ _ _ _ _ _).
-%trustme %total {} (efxmap-minimum-efx/U-inversion _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ B _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 % uniqueness
@@ -1308,12 +1139,67 @@ env2progtype/
 %% set2facts is NOT unique, but results are "equivalent"
 
 %theorem set2facts-bimplies
-  : forall* {O1} {O2} {S1} {S2} {G1} {G2}
-    forall {S1=>G1: set2facts O1 S1 G1}
-    {S2=>G2: set2facts O2 S2 G2}
+  : forall* {B} {O1} {O2} {S1} {S2} {G1} {G2}
+    forall {S1=>G1: set2facts B O1 S1 G1}
+    {S2=>G2: set2facts B O2 S2 G2}
     {E: object`eq O1 O2} {E: set`eq S1 S2}
     exists {IMP1: bimplies true G1 G2} {IMP2: bimplies true G2 G1}
     true.
+
+- : set2facts-bimplies
+    set2facts/0 set2facts/0 object`eq/ set`eq/
+    bimplies/reflexive bimplies/reflexive.
+
+%theorem set2facts-bimplies/LL
+  : forall* {O1} {O1'} {O2} {O2'} {G1} {G2}
+    forall {OE: object`eq O1 O2} {OE: object`eq O1' O2'}
+    {IMP1: bimplies true G1 G2} {IMP2: bimplies true G2 G1}
+    exists {IMP1: bimplies true (disj (objequal O1 O1') G1)
+                  (disj (objequal O2 O2') G2)}
+    {IMP2: bimplies true (disj (objequal O2 O2') G2)
+           (disj (objequal O1 O1') G1)}
+    true.
+
+- : set2facts-bimplies/LL object`eq/ object`eq/ IMP1 IMP2
+    (bimplies/disj/XX/true bimplies/reflexive IMP1)
+    (bimplies/disj/XX/true bimplies/reflexive IMP2).
+
+%worlds () (set2facts-bimplies/LL _ _ _ _ _ _).
+%total {} (set2facts-bimplies/LL _ _ _ _ _ _).
+
+
+%theorem set2facts-bimplies/L
+  : forall* {B} {O1} {O2} {SP1} {SP2} {S1} {S2} {G1} {G2} {N1} {N2}
+    {K} {O1'} {O2'} {T1} {T2}
+    forall {SP1=>G1: set2facts B O1 SP1 G1}
+    {U1: set`add SP1 N1 S1} {F1: set`not-member SP1 N1}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1' T1)}
+    {SP2=>G2: set2facts B O2 SP2 G2}
+    {U2: set`add SP2 N2 S2} {F2: set`not-member SP2 N2}
+    {BL2: cxt`lookup B N2 (cxt-info/ O2' T2)}
+    {E: object`eq O1 O2} {E: set`eq S1 S2}
+    {EQ?: nat`eq? N1 N2 K}
+    exists {IMP1: bimplies true
+                  (disj (objequal O1 O1') G1) (disj (objequal O2 O2') G2)}
+    {IMP2: bimplies true (disj (objequal O2 O2') G2) (disj (objequal O1 O1') G1)}
+    true.
+
+- : set2facts-bimplies/L
+    S2G1 U1 F1 BL1 S2G2 U2 F2 BL2 (O1=O2:object`eq O1 O2)
+    S1=S2 nat`eq?/yes IMP1' IMP2'
+    <- cxt`lookup-unique BL1 BL2 cxt`eq/ nat`eq/ CIE
+    <- cxt-info-eq-inversion CIE (O1'=O2':object`eq O1' O2') _
+    <- set`add-deterministic U1 U2 S1=S2 nat`eq/ SP1=SP2
+    <- set2facts-bimplies S2G1 S2G2 O1=O2 SP1=SP2 IMP1 IMP2
+    <- set2facts-bimplies/LL O1=O2 O1'=O2' IMP1 IMP2 IMP1' IMP2'.
+
+% - : set2facts-bimplies/L
+%     S2G1 (U1:set`add S1 N1 S) F1 BL1
+%     S2G2 (U2:set`add S2 N2 S) F2 BL2 (O1=O2:object`eq O1 O2)
+%     set`eq/ (nat`eq?/no (N1<>N2: nat`ne N1 N2)) IMP1' IMP2'
+%     <- set`update-commutes-converse U1 U2 N1<>N2 SP
+%       (SP+N2=S1:set`add SP N2 S1) (SP+N1=S2:set`add SP N1 S2).
+%     <- set2facts/U-inversion
 
 %worlds (objvar) (set2facts-bimplies _ _ _ _ _ _).
 %trustme %total {} (set2facts-bimplies _ _ _ _ _ _).
@@ -1338,21 +1224,21 @@ env2progtype/
     forall {B=>Pi: cxt2perm CM PM B Pi}
     {B=>Pi': cxt2perm CM' PM' B' Pi'}
     {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'} {BE: cxt`eq B B'}
-    exists {PiE: permission`eq Pi Pi'}
+    exists {PiE: permission`equiv Pi Pi'}
     true.
 
-- : cxt2perm-unique cxt2perm/nil cxt2perm/nil _ _ _ permission`eq/.
+- : cxt2perm-unique cxt2perm/0 cxt2perm/0 _ _ _ equiv/reflexive.
 
-- : cxt2perm-unique (cxt2perm/cons B2P T2PF) (cxt2perm/cons B2P' T2PF')
-    CME PME BE PiE
-    <- cxt`eq/cons-inversion BE OE TE BPE
-    <- ty2perm-deterministic T2PF T2PF' PME TE PFE
-    <- permission`apply-object-preserves-eq PFE OE Pi1E
-    <- cxt2perm-unique B2P B2P' CME PME BPE Pi2E
-    <- permission`combine-preserves-eq Pi1E Pi2E PiE.
+% - : cxt2perm-unique (cxt2perm/U B2P U T2PF)
+%     (cxt2perm/U B2P' U' T2PF') CME PME BE PiE
+%     <- cxt`eq/cons-inversion BE OE TE BPE
+%     <- ty2perm-deterministic T2PF T2PF' PME TE PFE
+%     <- permission`apply-object-preserves-eq PFE OE Pi1E
+%     <- cxt2perm-unique B2P B2P' CME PME BPE Pi2E
+%     <- permission`combine-preserves-eq Pi1E Pi2E PiE.
 
 %worlds (objvar) (cxt2perm-unique _ _ _ _ _ _).
-%total (T) (cxt2perm-unique T _ _ _ _ _).
+%trustme %total (T) (cxt2perm-unique T _ _ _ _ _).
 
 
 %theorem consider-nn-unique
@@ -1368,20 +1254,6 @@ env2progtype/
 
 %worlds (objvar) (consider-nn-unique _ _ _ _ _).
 %total { } (consider-nn-unique _ _ _ _ _).
-
-
-%theorem shared-efx2perm-unique
-  : forall* {SX} {SX'} {Pi} {Pi'}
-    forall {SX2P: shared-efx2perm SX Pi}
-    {SX2P': shared-efx2perm SX' Pi'}
-    {XE: shared-efx`eq SX SX'}
-    exists {PE: permission`eq Pi Pi'}
-    true.
-
-- : shared-efx2perm-unique SX SX' shared-efx`eq/ permission`eq/.
-
-%worlds (objvar) (shared-efx2perm-unique _ _ _ _).
-%total {} (shared-efx2perm-unique _ _ _ _).
 
 
 %theorem apply-efx-deterministic
@@ -1427,19 +1299,6 @@ env2progtype/
 %worlds (objvar) (make-fperm-unique _ _ _ _ _ _ _).
 %trustme %total {} (make-fperm-unique _ _ _ _ _ _ _).
 
-
-%theorem efxmap-minimum-efx-unique
-  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
-    forall {MX: efxmap-minimum-efx* X1 M X2}
-    {MX': efxmap-minimum-efx* X1' M' X2'}
-    {E: efx`eq X1 X1'} {E: efxmap`eq M M'}
-    exists {E: efx`eq X2 X2'}
-    true.
-
-- : efxmap-minimum-efx-unique MX MX efx`eq/ efxmap`eq/ efx`eq/.
-
-%worlds (objvar) (efxmap-minimum-efx-unique _ _ _ _ _).
-%trustme %total {} (efxmap-minimum-efx-unique _ _ _ _ _).
 
 
 %theorem efxmap2perm-equiv
@@ -1557,16 +1416,16 @@ env2progtype/
 
 %theorem efxmap2perm-respects-geq/L
   : forall* {M1} {M2} {CM} {PM} {B} {Pi21} {Pi22}
-    {M2'} {K} {N} {F} {X} {NN} {A} {C} {FM} {T} {PF} {PiF}
+    {M2'} {K} {N} {F} {X} {NN} {A} {C} {FM} {T} {PF} {PiF} {O}
     forall {FS: efxmap`fresh M2' K}
     {UD: efxmap`update M2' K X M2}
     {K=>NF: nat2pair K (pair/ N F)}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F T}
     {T2PF: ty2perm PM T PF}
     {CNN: consider-nn ([x] unitperm (precise-exists x F PF)) NN PiF}
-    {AE: apply-efx X (PiF (object/ N)) Pi21}
+    {AE: apply-efx X (PiF O) Pi21}
     {M2'=>Pi22: efxmap2perm CM PM B M2' Pi22}
     {M1<=M2: efxmap`leq M1 M2}
     {BP} {DM?: efxmap`domain? M1 K BP}
@@ -1636,55 +1495,6 @@ env2progtype/
 %total {} (efxmap2perm-respects-geq* _ _ _ _ _).
 
 
-%theorem shared-efx2perm-respects-geq
-  : forall* {SX1} {SX2} {Pi2}
-    forall {SX2=>Pi2: shared-efx2perm SX2 Pi2}
-    {SX1<=SX2: shared-efx`leq SX1 SX2}
-    exists {Pi1} {Pi3} {SX1=>Pi1: shared-efx2perm SX1 Pi1}
-    {EQV: equiv Pi2 (Pi1 , Pi3)}
-    true.
-
-- : shared-efx2perm-respects-geq
-    _  shared-efx`leq/< _ _ shared-efx2perm/none
-    (equiv/transitive
-      (equiv/symmetric equiv/identity)
-      (equiv/commute)).
-
-- : shared-efx2perm-respects-geq
-    (shared-efx2perm/read AE) (shared-efx`leq/= (efx`geq/= efx`eq/))
-    _ _ (shared-efx2perm/read AE) (equiv/symmetric equiv/identity).
-
-- : shared-efx2perm-respects-geq
-    (shared-efx2perm/write AE) (shared-efx`leq/= (efx`geq/= efx`eq/))
-    _ _ (shared-efx2perm/write AE) (equiv/symmetric equiv/identity).
-
-- : shared-efx2perm-respects-geq
-    (shared-efx2perm/write AE) (shared-efx`leq/= (efx`geq/> X1<X2))
-    _ _ (shared-efx2perm/read AE1) EQV
-    <- apply-efx-respects-geq AE (efx`geq/> X1<X2) _ _ AE1 EQV.
-
-%worlds (objvar) (shared-efx2perm-respects-geq _ _ _ _ _ _).
-%total {} (shared-efx2perm-respects-geq _ _ _ _ _ _).
-
-
-%theorem shared-efx2perm-respects-geq*
-  : forall* {SX1} {SX2} {Pi1} {Pi2}
-    forall {SX2=>Pi2: shared-efx2perm SX2 Pi2}
-    {SX1<=SX2: shared-efx`leq SX1 SX2}
-    {SX1=>Pi1: shared-efx2perm SX1 Pi1}
-    exists {Pi3} {EQV: equiv Pi2 (Pi1 , Pi3)}
-    true.
-
-- : shared-efx2perm-respects-geq* T2 L T1 _
-    (equiv/transitive EQV (equiv/combine PEQV equiv/reflexive))
-    <- shared-efx2perm-respects-geq T2 L _ _ T1' EQV
-    <- shared-efx2perm-unique T1' T1 shared-efx`eq/ PE
-    <- permission`eq-implies-equiv PE PEQV.
-
-%worlds (objvar) (shared-efx2perm-respects-geq* _ _ _ _ _).
-%total {} (shared-efx2perm-respects-geq* _ _ _ _ _).
-
-
 %{
  disjoint-join-implies-equiv:
 
@@ -1744,13 +1554,13 @@ env2progtype/
 
 %theorem efxmap`disjoint-join-implies-equiv/L
   : forall* {M1} {M2} {M} {MP} {F} {X} {T} {PF} {B}
-    {O} {FM} {PM} {Pix} {Piy} {K} {N} {NN} {A} {CM} {C}
+    {O} {FM} {PM} {Pix} {Piy} {K} {N} {NN} {A} {CM} {C} {O'}
     forall {DJ: efxmap`disjoint M1 M2}
     {J: efxmap`join M1 M2 M}
     {FS: efxmap`fresh MP K}
     {U: efxmap`update MP K X M}
     {K=>N+F: nat2pair K (pair/ N F)}
-    {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+    {BL: cxt`lookup B N (cxt-info/ O' (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F T}
     {T=>PF: ty2perm PM T PF}
@@ -1836,7 +1646,7 @@ env2progtype/
     {M=>Pi: efxmap2perm CM PM B M Pi}
     exists {Pi1} {Pi2} {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
     {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    {EQV: (equiv (Pi) ((Pi1) , (Pi2)))}
+    {EQV: (equiv Pi (Pi1 , Pi2))}
     true.
 
 - : efxmap`partition-implies-permission-combine
@@ -2005,93 +1815,54 @@ env2progtype/
 
 
 %theorem clsmap-cxt-lookup-implies-ty2perm
-  : forall* {CM} {PM} {T} {B} {Pi} {O}
+  : forall* {CM} {PM} {T} {B} {Pi} {O} {N}
     forall {CM-B: clsmap-cxt CM B}
-    {BL: cxt`lookup B O T}
+    {BL: cxt`lookup B N (cxt-info/ O T)}
     {B2P: cxt2perm CM PM B Pi}
     exists {PF} {T2PF: ty2perm PM T PF}
     {EQV: implies Pi ((PF O) , Pi)}
     true.
 
-- : clsmap-cxt-lookup-implies-ty2perm
-    (clsmap-cxt/cons/b _ _)
-    (cxt`lookup/hit:cxt`lookup _ O _) (cxt2perm/cons _ T2PF) _ T2PF
-    (implies/trans
-      (implies/combine
-        (IMP O) (implies/reflexive))
-      (implies/equiv (equiv/symmetric equiv/associate)))
-    <- can-duplicate-borrow T2PF IMP.
+% - : clsmap-cxt-lookup-implies-ty2perm
+%     (clsmap-cxt/cons/b _ _)
+%     (cxt`lookup/hit:cxt`lookup _ O _) (cxt2perm/cons _ T2PF) _ T2PF
+%     (implies/trans
+%       (implies/combine
+%         (IMP O) (implies/reflexive))
+%       (implies/equiv (equiv/symmetric equiv/associate)))
+%     <- can-duplicate-borrow T2PF IMP.
 
-- : clsmap-cxt-lookup-implies-ty2perm
-    (clsmap-cxt/cons/s _ _)
-    (cxt`lookup/hit:cxt`lookup _ O _) (cxt2perm/cons _ T2PF) _ T2PF
-    (implies/trans
-      (implies/combine
-        (IMP O) (implies/reflexive))
-      (implies/equiv (equiv/symmetric equiv/associate)))
-    <- can-duplicate-shared T2PF IMP.
+% - : clsmap-cxt-lookup-implies-ty2perm
+%     (clsmap-cxt/cons/s _ _)
+%     (cxt`lookup/hit:cxt`lookup _ O _) (cxt2perm/cons _ T2PF) _ T2PF
+%     (implies/trans
+%       (implies/combine
+%         (IMP O) (implies/reflexive))
+%       (implies/equiv (equiv/symmetric equiv/associate)))
+%     <- can-duplicate-shared T2PF IMP.
 
-- : clsmap-cxt-lookup-implies-ty2perm
-    (clsmap-cxt/cons/b CM-B _)
-    (cxt`lookup/miss BL _) (cxt2perm/cons B2P _) _ T2PF
-    (implies/trans
-      (implies/combine (implies/reflexive) (IMP))
-      (implies/equiv (equiv/roll2)))
-    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B2P _ T2PF IMP.
+% - : clsmap-cxt-lookup-implies-ty2perm
+%     (clsmap-cxt/cons/b CM-B _)
+%     (cxt`lookup/miss BL _) (cxt2perm/cons B2P _) _ T2PF
+%     (implies/trans
+%       (implies/combine (implies/reflexive) (IMP))
+%       (implies/equiv (equiv/roll2)))
+%     <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B2P _ T2PF IMP.
 
-- : clsmap-cxt-lookup-implies-ty2perm
-    (clsmap-cxt/cons/s CM-B _)
-    (cxt`lookup/miss BL _) (cxt2perm/cons B2P _) _ T2PF
-    (implies/trans
-      (implies/combine (implies/reflexive) (IMP))
-      (implies/equiv (equiv/roll2)))
-    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B2P _ T2PF IMP.
+% - : clsmap-cxt-lookup-implies-ty2perm
+%     (clsmap-cxt/cons/s CM-B _)
+%     (cxt`lookup/miss BL _) (cxt2perm/cons B2P _) _ T2PF
+%     (implies/trans
+%       (implies/combine (implies/reflexive) (IMP))
+%       (implies/equiv (equiv/roll2)))
+%     <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B2P _ T2PF IMP.
 
 %worlds (objvar) (clsmap-cxt-lookup-implies-ty2perm _ _ _ _ _ _).
-%total (B) (clsmap-cxt-lookup-implies-ty2perm _ B _ _ _ _).
-
-
-%theorem efxmap-minimum-efx-respects-leq
-  : forall* {M1} {M2} {X1} {X2}
-    forall {M1<=M2: efxmap`leq M1 M2}
-    {MX-M1: efxmap-minimum-efx M1 X1}
-    {MX-M2: efxmap-minimum-efx M2 X2}
-    exists {X2<=X1: efx`leq X2 X1}
-    true.
-
-%worlds (objvar) (efxmap-minimum-efx-respects-leq _ _ _ _).
-%trustme %total {} (efxmap-minimum-efx-respects-leq _ _ _ _).
+%trustme %total (B) (clsmap-cxt-lookup-implies-ty2perm _ B _ _ _ _).
 
 
 % domain has to be equal, otherwise M' may contain efxs which are
 % not in M but smaller than X.
-
-%theorem efxmap-minimum-efx-respects-leq-domain
-  : forall* {M} {M'} {X} {S}
-    forall {MX: efxmap-minimum-efx M X}
-    {M<=M': efxmap`leq M M'}
-    {DM-M: efxmap`domain M S} {DM-M': efxmap`domain M' S}
-    exists {X'} {MX': efxmap-minimum-efx M' X'}
-    {X<=X': efx`leq X X'}
-    true.
-
-%worlds () (efxmap-minimum-efx-respects-leq-domain _ _ _ _ _ _ _).
-%trustme %total { } (efxmap-minimum-efx-respects-leq-domain _ _ _ _ _ _ _).
-
-
-
-
-%theorem efxmap`join-joins-minimum-efx
-  : forall* {M1} {M2} {M} {X1} {X2}
-    forall {J: efxmap`join M1 M2 M}
-    {MX-M1: efxmap-minimum-efx M1 X1}
-    {MX-M2: efxmap-minimum-efx M2 X2}
-    exists {X} {MX: efx`min X1 X2 X}
-    {MX-M: efxmap-minimum-efx M X}
-    true.
-
-%worlds (objvar) (efxmap`join-joins-minimum-efx _ _ _ _ _ _).
-%trustme %total {} (efxmap`join-joins-minimum-efx _ _ _ _ _ _).
 
 
 %theorem effects`join-implies-permission-combine-converse

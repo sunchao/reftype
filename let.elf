@@ -1,0 +1,92 @@
+% TODO: here I need to define something that can combines the
+% output from e1 and output from e2.
+
+combine-outputs : object -> expr-output -> expr-output -> expr-output -> type.
+
+combine-outputs/base
+  : combine-outputs O (output/expr O1 Pi1) (output/expr O2 Pi2)
+    (output/expr O2 (unitperm (nonlinear (objequal O O1)) , (Pi1 , Pi2))).
+
+combine-outputs/exists1
+  : combine-outputs O (output/exists ([y] (Out1 y))) Out2
+    (output/exists [y] (Out y))
+    <- ({y} combine-outputs O (Out1 y) Out2 (Out y)).
+
+combine-outputs/exists2
+  : combine-outputs O (output/expr O1 Pi1)
+    (output/exists [y] (Out2 y)) (output/exists [y] (Out y))
+    <- ({y} combine-outputs O (output/expr O1 Pi1) (Out2 y) (Out y)).
+
+
+%{%
+  We need to prove that, taking the output Out1 from checking e1, and
+  the effects XX from checking e2,
+%}%
+
+
+% This theorem says if we have a let expression:
+
+%   let x = e1 in e2 end
+% and that the output from checking e1 is Out1, from e2 is
+% Out2. Then, we can substitute all occurrences of x in Out2
+% with some form derived from Out1, and the result of substitution
+% Out2' is equivalent to the combination of Out1 and Out2.
+
+% TODO: think about commutativity
+% TODO: look at map-domain.elf for example.
+
+
+%{%
+ Here we need to show that, given the output effects XX = XX1 + XX3,
+ we can split XX into XX1' + XX3', such that with XX1', we can check
+ e1, and get output Out1'. With permission from XX3', we can
+ converting them into permissions from XX2.
+
+ Especially, we need to handle cases like this:
+   let x = a.f in x.g = 3 end
+
+ In this case, the first expression generates "read a.f", while the
+ second expression generates "write a.f".
+
+%}%
+
+%{%
+ Format for let expression
+%}%
+
+let-format : targets -> effects -> permission -> permission -> type.
+
+%theorem subst-same-permission
+  : forall* {CM} {PM} {B} {BP} {NN} {C} {GS} {A} {XX1} {XX2} {Out1}
+    {NN2} {C2} {GS3} {XX3} {O} {N} {XX4} {Pi2}
+    forall {XX1=>Out1: effects2output CM PM B (reftype/ NN C GS) XX1 Out1}
+    {RT2T: reftype2ty (reftype/ NN C GS) (ty/ NN A C)}
+    {UD: cxt`update B N (cxt-info/ O (ty/ NN A C)) BP}
+    {XX2=>Pi2: effects2input CM PM BP XX2 Pi2}
+    {CB: compatible GS XX2}
+    {SUB2: subst-effects GS N XX2 XX3}
+    {XX1+XX2=XX3: effects`join XX1 XX3 XX4}
+    exists {Out3} {Out}
+    {EA: envadd Pi2 Out1 Out}
+    {XX3=>Out3: effects2output CM PM B (reftype/ NN2 C2 GS3) XX4 Out3}
+    {TRANS: transform Out3 Out}
+    true.
+
+% case 1: targets are shared - after substitution, the effects are the same
+
+- : subst-same-permission
+    (effects2output/simple T2PF reftype2ty/shared
+      simple-targets/shared SX=>Pi3 M=>Pi2 B=>Pi1) reftype2ty/shared UD
+    (effects2input/ BP=>Pi1' MP-Pi2' S2M M'=>Pi3' M'=>Pi4' SX=>Pi5')
+    GS-XX2 subst-effects/shared XX1+XX3=XX4 %{=>}% _ _ EA XX4=>Out3 Out3=>Out.
+
+
+
+
+
+
+% x == r1 \/ ... x == rn \/ x == o, Pio , Pio --|- Pi1 +
+
+% y == r1' \/ ... \/ y == rm' \/ y == x \/ y == o', Pio', Pio' --|- Pi2
+
+

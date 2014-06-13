@@ -1,3 +1,4 @@
+%%% Theorems about conversion
 
 %theorem wf-clsmap-lookup-implies-wf-fldmap :
 	forall*	{M} {N} {D}
@@ -35,13 +36,14 @@
 
 
 %theorem reftyping-ok/expr-helper
-  : forall* {CM} {PM} {MM} {W} {B} {E} {RT} {XX} {XX'}
-    forall {WF-CM: wf-clsmap CM} {CM-CM: clsmap-clsmap CM CM}
+  : forall* {CM} {PM} {MM} {W} {B} {E} {RT} {XX} {XX'} {N}
+    forall {WF-CM: wf-clsmap CM} {WF-B: wf-cxt B}
+    {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {MM2W: methmap2progtype CM PM MM W}
     {CM-B: clsmap-cxt CM B}
     {CM-B-XX': clsmap-cxt-effects CM B XX'}
-    {RTYP: reftyping CM MM B E (result/expr RT XX)}
+    {RTYP: reftyping N CM MM B E (result/expr RT XX)}
     {XX<=XX': effects-leq-no-consume XX XX'}
     exists {Pi} {Out} {XX2I: effects2input CM PM B XX' Pi}
     {XX2O: effects2output CM PM B RT XX' Out}
@@ -50,7 +52,7 @@
 
 % oh my
 
-- : reftyping-ok/expr-helper WF CM-CM CM2PM MM2W CM-B CM-B-XX
+- : reftyping-ok/expr-helper WF-CM WF-B CM-CM CM2PM MM2W CM-B CM-B-XX
     (reftyping/write RTYP-E1 RTYP-E2 CML FML MG CF SUB
       XX1+XX3=XX5 XX2+XX4=XX6 XX5+XX6=XX7 GSP-XX6) XX7<c=XX _ _ XX=>Pi1 XX=>Out
     (tTrans2
@@ -79,14 +81,14 @@
           (letTyping/base x
             (TYP x))))
       (transform/rem-unused))
-    <- wf-clsmap-lookup-implies-wf-fldmap WF CML WF-FM
+    <- wf-clsmap-lookup-implies-wf-fldmap WF-CM CML WF-FM
     <- wf-fldmap-lookup-implies-not-borrowed WF-FM FML NB
-    <- effects`join-no-consume-canonical XX1+XX3=XX5 M1+M3=M5 S5=S1 SX1+SX3=SX5 Q5=Q1
-    <- reftyping-implies-good-result WF CM-CM CM-B RTYP-E1
+    <- effects`join-no-consume-canonical XX1+XX3=XX5 M1+M3=M5 S5=S1 Q5=Q1
+    <- reftyping-implies-good-result WF-CM WF-B CM-CM CM-B RTYP-E1
       (good-result/expr CM-B-G1 CM-B-XX1 G1-XX1)
-    <- reftyping-implies-good-result WF CM-CM CM-B RTYP-E2
+    <- reftyping-implies-good-result WF-CM WF-B CM-CM CM-B RTYP-E2
       (good-result/expr CM-B-G2 CM-B-XX2 G2-XX2)
-    <- make-targets-and-effects-consistent
+    <- make-targets-and-effects-consistent WF-CM WF-B
       CML FML CM-B-G1 MG CF CM-B-GP CM-B-XX3 G3-XX3
     <- consider-ftype-preserves-targets-effects G3-XX3 CF GP-XX3
     <- join-preserves-clsmap-cxt-effects CM-B-XX1 CM-B-XX3 XX1+XX3=XX5 CM-B-XX5
@@ -100,7 +102,7 @@
     <- effects-leq-implies-transfer-consume CM-B-XX1 CM-B-XX XX1<=XX
       _ Q6 XX=>XX' CM-B-XX' (XX1<c=XX':effects-leq-no-consume _ XXx')
     <- clsmap-cxt-effects-implies-effects2input CM-CM CM2PM CM-B CM-B-XX _ XX=>Pi1
-    <- reftyping-ok/expr-helper WF CM-CM CM2PM MM2W CM-B
+    <- reftyping-ok/expr-helper WF-CM WF-B CM-CM CM2PM MM2W CM-B
       CM-B-XX' RTYP-E1 XX1<c=XX' _ _ XX'=>Pi1 XX'=>Out1 TYP-E1
     <- targets-effects-respects-geq G1-XX1 XX1<c=XX' G1-XX'
     <- reftyping-ok/expr-helper/write/L1 MG GSP-XX6 XX1+XX3=XX5 XX5+XX6=XX7
@@ -117,7 +119,7 @@
     <- envadd-total EA
     <- typing-frame* TYP-E1 EA TYP-E1'
     <- transform-commutes-envadd* TRANS EA (envadd/exists [r] envadd/expr) TRANS'
-    <- subtyping-consistent WF CM-B-G2 SUB CM-B-XX4
+    <- subtyping-consistent WF-CM WF-B CM-B-G2 SUB CM-B-XX4
     <- join-preserves-clsmap-cxt-effects CM-B-XX2 CM-B-XX4 XX2+XX4=XX6 CM-B-XX6
     <- write-efx-means-whole-fldperm MG XX3<c=XX' REE Q=1
     <- make-write-intermediate-format CM-B-XX CM-B-XX6 XX5+XX6=XX7 XX7<c=XX XX=>XX''
@@ -127,7 +129,7 @@
     <- effects`leq-transitive XX2<=XX6 XX6<=XX6' XX2<=XX6'
     <- effects-leq-implies-transfer-consume CM-B-XX2 CM-B-XX6'
       XX2<=XX6' _ _ XX6=>XX6c CM-B-XX6c XX2<c=XX6c
-    <- reftyping-ok/expr-helper WF CM-CM CM2PM MM2W
+    <- reftyping-ok/expr-helper WF-CM WF-B CM-CM CM2PM MM2W
       CM-B CM-B-XX6c RTYP-E2 XX2<c=XX6c _ _ XX6c=>Pi' XX6c=>Out2 TYP-E2
     <- reftyping-ok/expr-helper/write/L3 CM-CM CM2PM CM-B-XX6' XX2+XX4=XX6
       XX6<c=XX6' XX6=>XX6c _ GQ Q=>PiQ
@@ -141,103 +143,84 @@
       (tTrans (transform/implies (implies/equiv EQV2))
         (letTyping/base null TYP-E2') TRANS2) BWF CF _ TYP XX=>Out.
 
-- : reftyping-ok/expr-helper WF CM-CM CM2PM MM2W CM-B CM-B-XX
+- : reftyping-ok/expr-helper WF-CM WF-B CM-CM CM2PM MM2W CM-B CM-B-XX
     (reftyping/read RTYP-E CML FML MG CF XX1+XX2=XX)
-    (effects-leq-no-consume/ M<=M' SX<=SX') Pi Out XX=>Pi XX=>Out2 TYP
-    <- reftyping-implies-good-result WF CM-CM CM-B RTYP-E
+    (effects-leq-no-consume/ M<=M') Pi Out XX=>Pi XX=>Out2 TYP
+    <- reftyping-implies-good-result WF-CM WF-B CM-CM CM-B RTYP-E
       (good-result/expr CM-B-G CM-B-XX11 G-XX11)
-    <- effects`join-no-consume-canonical XX1+XX2=XX M1+M2=M S=S1 SX1+SX2=SX Q=Q1
+    <- effects`join-no-consume-canonical XX1+XX2=XX M1+M2=M S=S1 Q=Q1
     <- efxmap`join-implies-leq M1+M2=M M1<=M M2<=M
-    <- shared-efx`join-implies-leq SX1+SX2=SX SX1<=SX SX2<=SX
     <- efxmap`leq-transitive M1<=M M<=M' M1<=M'
     <- efxmap`leq-transitive M2<=M M<=M' M2<=M'
-    <- shared-efx`leq-transitive SX1<=SX SX<=SX' SX1<=SX'
-    <- shared-efx`leq-transitive SX2<=SX SX<=SX' SX2<=SX'
-    <- effects/-preserves-eq efxmap`eq/ S=S1 shared-efx`eq/ Q=Q1 XXEx
+    <- effects/-preserves-eq efxmap`eq/ S=S1 Q=Q1 XXEx
     <- effects`eq-symmetric XXEx XXE
     <- clsmap-cxt-effects-respects-eq CM-B-XX clsmap`eq/ cxt`eq/ XXEx CM-B-XX'
-    <- reftyping-ok/expr-helper WF CM-CM CM2PM MM2W CM-B CM-B-XX'
-      RTYP-E (effects-leq-no-consume/ M1<=M' SX1<=SX') _ _ XX=>Pi' XX=>Out TYP-E
+    <- reftyping-ok/expr-helper WF-CM WF-B CM-CM CM2PM MM2W CM-B CM-B-XX'
+      RTYP-E (effects-leq-no-consume/ M1<=M') _ _ XX=>Pi' XX=>Out TYP-E
     <- effects2input-respects-eq XX=>Pi' XXE permission`eq/ XX=>Pi
-    <- targets-effects-respects-geq
-      G-XX11 (effects-leq-no-consume/ M1<=M' SX1<=SX') G-XX
+    <- targets-effects-respects-geq G-XX11 (effects-leq-no-consume/ M1<=M') G-XX
     <- targets-effects-respects-eq G-XX targets`eq/ XXE G-XX'
     <- effects2output-respects-eq XX=>Out nonnull`eq/ nat`eq/ targets`eq/ XXE XX=>Out'
     <- reftyping-ok/read _ CM-CM CM2PM CM-B-G CM-B-XX G-XX' XX=>Pi XX=>Out'
-      TYP-E CML FML MG CF (effects-leq-without-consume/ M2<=M' SX2<=SX') _ XX=>Out2 TYP.
+      TYP-E CML FML MG CF (effects-leq-without-consume/ M2<=M') _ XX=>Out2 TYP.
 
-- : reftyping-ok/expr-helper WF CM-CM CM2PM _ CM-B
+- : reftyping-ok/expr-helper WF-CM WF-B CM-CM CM2PM _ CM-B
     (clsmap-cxt-effects/ DM _ _ _ CM-B-R CM-B-S)
-    (reftyping/lit ty2reftype/borrow _ BL) _ _ _
-    (effects2input/ B=>Pi1 make-fperm/0
-      set2efxmap/0 efxmap2perm/0 XM=>Pi4 SX=>Pi5)
-    (effects2output/unique/0f T2PF SX=>Pi5 XM=>Pi4
-      ([_] (set2facts/U set2facts/0 set`update/0 set`not-member/0))
+    (reftyping/lit ty2reftype/borrow (cxt`lookup-obj/ BL)) _ _ _
+    (effects2input/ B=>Pi1 make-fperm/0 set2efxmap/0 efxmap2perm/0 XM=>Pi4)
+    (effects2output/unique/0f T2PF XM=>Pi4
+      ([_] (set2facts/U set2facts/0 set`update/0 set`not-member/0 BL))
       B=>Pi1 set`size/0 (set`size/+ set`size/0))
     (tTrans2
       (tObjLoc)
       (transform/trans
         (transform/implies
-          (implies/trans4
+          (implies/trans3
             (implies/combine
-              (implies/combine
+              (implies/trans
                 (implies/combine
                   (implies/reflexive)
                   (implies/equiv equiv/identity))
-                (implies/reflexive))
+                (implies/equiv equiv/identity))
               (implies/reflexive))
-            (implies/equiv (equiv/symmetric equiv/associate))
             (implies/combine
+              (implies/trans IMP (implies/equiv equiv/commute))
               (implies/trans3
-                (implies/equiv equiv/identity)
-                (IMP)
-                (implies/equiv equiv/commute))
-              (implies/trans
-                (implies/equiv
-                  (equiv/transitive
-                    (equiv/symmetric equiv/identity)
-                    (equiv/commute)))
-                (implies/combine
-                  (gen-objequal-self _)
-                  (implies/reflexive))))
+                (implies/equiv (equiv/symmetric equiv/identity))
+                (implies/combine implies/reflexive (gen-objequal-self _))
+                (implies/equiv equiv/commute)))
             (implies/equiv (equiv/symmetric equiv/associate))))
         (transform/gen-exists _)))
     <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM CM-B-R _ XM=>Pi4
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B=>Pi1 _ T2PF IMP
-    <- shared-efx2perm-total SX=>Pi5.
+    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B=>Pi1 _ T2PF IMP.
 
-- : reftyping-ok/expr-helper WF CM-CM CM2PM _ CM-B
+- : reftyping-ok/expr-helper WF-CM WF-B CM-CM CM2PM _ CM-B
     (clsmap-cxt-effects/ DM _ _ _ CM-B-R _)
-    (reftyping/lit ty2reftype/shared _ BL) _ _ _
-    (effects2input/ B=>Pi1 make-fperm/0
-      set2efxmap/0 efxmap2perm/0 M=>Pi4 SX=>Pi5)
-    (effects2output/shared T2PF SX=>Pi5 M=>Pi4 B=>Pi1)
+    (reftyping/lit ty2reftype/shared (cxt`lookup-obj/ BL)) _ _ _
+    (effects2input/ B=>Pi1 make-fperm/0 set2efxmap/0 efxmap2perm/0 M=>Pi4)
+    (effects2output/simple T2PF reftype2ty/shared simple-targets/shared
+      M=>Pi4 B=>Pi1)
     (tTrans2
       (tObjLoc)
       (transform/trans
         (transform/implies
-          (implies/trans4
+          (implies/trans3
             (implies/combine
-              (implies/combine
+              (implies/trans
                 (implies/combine
                   (implies/reflexive)
                   (implies/equiv equiv/identity))
-                (implies/reflexive))
+                (implies/equiv equiv/identity))
               (implies/reflexive))
-            (implies/equiv (equiv/symmetric equiv/associate))
             (implies/combine
-              (implies/trans3
-                (implies/equiv equiv/identity)
-                (IMP)
-                (implies/equiv equiv/commute))
+              (implies/trans IMP (implies/equiv equiv/commute))
               (implies/reflexive))
             (implies/equiv (equiv/symmetric equiv/associate))))
         (transform/gen-exists _)))
     <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM CM-B-R _ M=>Pi4
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B=>Pi1 _ T2PF IMP
-    <- shared-efx2perm-total SX=>Pi5.
+    <- clsmap-cxt-lookup-implies-ty2perm CM-B BL B=>Pi1 _ T2PF IMP.
 
-%worlds () (reftyping-ok/expr-helper _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (T) (reftyping-ok/expr-helper _ _ _ _ _ _ T _ _ _ _ _ _).
+%worlds () (reftyping-ok/expr-helper _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (T) (reftyping-ok/expr-helper _ _ _ _ _ _ _ T _ _ _ _ _ _).

@@ -1,4 +1,3 @@
-
 % Definitions
 
 transfer-consume : effects -> effects -> effects -> set -> type.
@@ -10,13 +9,13 @@ transfer-consume/
     -> set`remove Q Q1 Q2
     -> set2efxmap S2 efx/write M3
     -> efxmap`join M M3 M2
-    -> transfer-consume (effects/ M S X Q)
-      (effects/ M1 S1 X1 Q1) (effects/ M2 S1 X Q1) Q2.
+    -> transfer-consume (effects/ M S Q)
+      (effects/ M1 S1 Q1) (effects/ M2 S1 Q1) Q2.
 
 
 effects-getq : effects -> set -> type.
 
-effects-getq/ : effects-getq (effects/ _ _ _ Q) Q.
+effects-getq/ : effects-getq (effects/ _ _ Q) Q.
 
 
 write-intermediate-format : clsmap -> predmap -> cxt -> nat
@@ -28,50 +27,34 @@ write-intermediate-format/0
     -> efxmap`domain M' R'
     -> efxmap`partition M R' M11 M'
     -> efxmap2perm CM PM B M11 Pi1
-    -> write-intermediate-format CM PM B C (targets/unique set/0 set/0 false)
-      (effects/ M _ SX _) (effects/ M' _ SX _)
+    -> write-intermediate-format CM PM B C (targets/unique set/0 set/0)
+      (effects/ M _ _) (effects/ M' _ _)
       ([x] nonnull-unique-perm x CP) Pi1.
 
 write-intermediate-format/+f
   : set`size S (s _)
     -> efxmap`partition M S M1 M2
     -> efxmap2perm CM PM B M2 Pi2
-    -> efxmap-minimum-efx M2 X
+    -> efxmap-min-efx M2 X
     -> efx2frac X (fraction/ Z)
     -> rat`eq Z one
     -> efxmap`domain M' R'
     -> efxmap`partition M1 R' M11 M'
     -> efxmap2perm CM PM B M11 Pi1
-    -> write-intermediate-format CM PM B C (targets/unique set/0 S false)
-      (effects/ M _ SX _) (effects/ M' _ SX _) ([_] Pi2) Pi1.
-
-write-intermediate-format/+t
-  : efxmap`partition M S M1 M2
-    -> efxmap2perm CM PM B M2 Pi2
-    -> efxmap-minimum-efx M2 X1
-    -> shared-efx2efx SX X2
-    -> efx`min X1 X2 X
-    -> efx2frac X (fraction/ Z)
-    -> rat`eq Z one
-    -> shared-efx2perm SX Pi3
-    -> efxmap`domain M' R'
-    -> efxmap`partition M1 R' M11 M'
-    -> efxmap2perm CM PM B M11 Pi1
-    -> write-intermediate-format CM PM B C (targets/unique set/0 S true)
-      (effects/ M _ SX _) (effects/ M' _ shared-efx/none _) ([_] Pi2 , Pi3) Pi1.
+    -> write-intermediate-format CM PM B C (targets/unique set/0 S)
+      (effects/ M _ _) (effects/ M' _ _) ([_] Pi2) Pi1.
 
 
 before-write-format : clsmap -> predmap -> cxt ->
 	reftype -> effects -> expr-output -> type.
 
 before-write-format/
-  : before-write-format CM PM B RT (effects/ M S SX Q)
+  : before-write-format CM PM B RT (effects/ M S Q)
     (output/exists [r]
       (output/expr r
-        (combine Pi1 (combine (PF r) (combine Pi2 Pi3)))))
+        (combine Pi1 (combine (PF r) Pi2))))
     <- cxt2perm CM PM B Pi1
     <- efxmap2perm CM PM B M Pi2
-    <- shared-efx2perm SX Pi3
     <- reftype2ty RT T
     <- ty2perm PM T PF.
 
@@ -84,9 +67,9 @@ set-all-permissions/U
   : set-all-permissions PM B C S' Pi
     -> set`not-member S' N
     -> set`add S' N S
-    -> cxt`lookup B (object/ N) (ty/ NN _ C)
+    -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
     -> ty2perm PM (ty/ NN annot/unique C) PF
-    -> set-all-permissions PM B C S ((PF (object/ N)) , Pi).
+    -> set-all-permissions PM B C S ((PF O) , Pi).
 
 
 
@@ -119,7 +102,7 @@ set-all-permissions/U
     true.
 
 - : leq-implies-transfer-consume
-    (effects`leq/ _ _ _ _ _ S1<=S _ Q1<=Q) _ _
+    (effects`leq/ _ _ _ _ _ S1<=S Q1<=Q) _ _
     (transfer-consume/ S1<=S Q1<=Q S/S1=S2 Q/Q1=Q2 S2=>M1 M+M1=M2)
     <- set`remove-total S/S1=S2
     <- set`remove-total Q/Q1=Q2
@@ -139,12 +122,12 @@ set-all-permissions/U
     true.
 
 %theorem leq-transfer-consume-implies-leq-no-consume/L
-  : forall* {M1} {R1} {S1} {X1} {Q1} {M} {S} {X} {Q} {M2} {Q2}
+  : forall* {M1} {R1} {S1} {Q1} {M} {S} {Q} {M2} {Q2}
     forall {DM-M1=R1: efxmap`domain M1 R1}
     {R1^S1: set`disjoint R1 S1}
-    {XX1<=XX2: effects`leq (effects/ M1 S1 X1 Q1) (effects/ M S X Q)}
-    {TC: transfer-consume (effects/ M S X Q) (effects/ M1 S1 X1 Q1)
-         (effects/ M2 S1 X Q1) Q2}
+    {XX1<=XX2: effects`leq (effects/ M1 S1 Q1) (effects/ M S Q)}
+    {TC: transfer-consume (effects/ M S Q) (effects/ M1 S1 Q1)
+         (effects/ M2 S1 Q1) Q2}
     {B} {M1<=M2?: efxmap`leq? M1 M2 B}
     exists {M1<=M2: efxmap`leq M1 M2}
     true.
@@ -188,8 +171,7 @@ set-all-permissions/U
 
 - : leq-transfer-consume-implies-leq-no-consume/L DM-M1=R1' R1'^S1
     (effects`leq/ (DM-M1=R1:efxmap`domain M1 R1)
-      DM-M=R R1/S=S3 M1|S3=M1' M1'<=M S1<=S
-      X1<=X Q1<=Q)
+      DM-M=R R1/S=S3 M1|S3=M1' M1'<=M S1<=S Q1<=Q)
     (transfer-consume/ S1<=S' Q1<=Q' S/S1=S2 Q/Q1=Q2 S2=>M3
       (M+M3=M2:efxmap`join M M3 M2)) % N must be in M
     false (efxmap`leq?/no (efxmap`nle/= M1->N=W M2->N=R efx`grt/wr)) M1<=M2
@@ -215,8 +197,7 @@ set-all-permissions/U
 
 - : leq-transfer-consume-implies-leq-no-consume/L DM-M1=R1' R1'^S1
     (effects`leq/ (DM-M1=R1:efxmap`domain M1 R1)
-      DM-M=R R1/S=S3 M1|S3=M1' M1'<=M S1<=S
-      X1<=X Q1<=Q)
+      DM-M=R R1/S=S3 M1|S3=M1' M1'<=M S1<=S Q1<=Q)
     (transfer-consume/ S1<=S' Q1<=Q' S/S1=S2 Q/Q1=Q2 S2=>M3
       (M+M3=M2:efxmap`join M M3 M2))
     false (efxmap`leq?/no (efxmap`nle/< M1->N N!<M2)) M1<=M2
@@ -245,9 +226,9 @@ set-all-permissions/U
 %total {} (leq-transfer-consume-implies-leq-no-consume/L _ _ _ _ _ _ _).
 
 - : leq-transfer-consume-implies-leq-no-consume (clsmap-cxt-effects/ DM DJ _ _ _ _)
-    LE TC (effects-leq-no-consume/ MLE XLE)
+    LE TC (effects-leq-no-consume/ MLE)
     <- efxmap`leq?-total LE?
-    <- effects`leq-inversion LE _ _ _ _ _ _ _ _ XLE _
+    <- effects`leq-inversion LE _ _ _ _ _ _ _ _ _
     <- leq-transfer-consume-implies-leq-no-consume/L DM DJ LE TC _ LE? MLE.
 
 %worlds () (leq-transfer-consume-implies-leq-no-consume _ _ _ _).
@@ -297,10 +278,12 @@ set-all-permissions/U
 
 - : effects-leq-implies-transfer-consume
     CM-B-XX1 CM-B-XX2 XX1<=XX2 _ _  XX2=>XX CM-B-XX XX1<=XX
-    <- effects`leq-inversion XX1<=XX2 _ _ _ _ _ _ _ _ X1<=X2 _
+    <- effects`leq-inversion XX1<=XX2 _ _ _ _ _ _ _ _ _
     <- leq-implies-transfer-consume XX1<=XX2 XX _ XX2=>XX
-    <- leq-transfer-consume-implies-leq-no-consume CM-B-XX1 XX1<=XX2 XX2=>XX XX1<=XX
-    <- transfer-consume-preserves-clsmap-cxt-effects CM-B-XX1 CM-B-XX2 XX2=>XX CM-B-XX.
+    <- leq-transfer-consume-implies-leq-no-consume
+      CM-B-XX1 XX1<=XX2 XX2=>XX XX1<=XX
+    <- transfer-consume-preserves-clsmap-cxt-effects
+      CM-B-XX1 CM-B-XX2 XX2=>XX CM-B-XX.
 
 %worlds () (effects-leq-implies-transfer-consume _ _ _ _ _ _ _ _).
 %total {} (effects-leq-implies-transfer-consume _ _ _ _ _ _ _ _).
@@ -313,8 +296,8 @@ set-all-permissions/U
     true.
 
 - : effects-leq-no-consume-implies-leq
-    (effects-leq-no-consume/ M<=M' SX<=SX')
-    (effects`leq/ DM1 DM2 RM RS M1<=M' SLE SX<=SX' QLE)
+    (effects-leq-no-consume/ M<=M')
+    (effects`leq/ DM1 DM2 RM RS M1<=M' SLE QLE)
     <- efxmap`domain-total DM1
     <- efxmap`domain-total DM2
     <- set`remove-total RM
@@ -349,10 +332,13 @@ still generate the same permission.
 - : consume-as-write CM-CM CM2PM
     (clsmap-cxt-effects/ DM-M=R R^S S=>SQ Q<=SQ CM-B-R CM-B-S)
     (transfer-consume/ S1<=S Q1<=Q S/S1=S3 Q/Q1=Q3 S3=>M3 M+M3=M4)
-    (effects2input/ B=>Pi1 Q=>Pi2 S=>Ms Ms=>Pi3 M=>Pi4 X=>Pi5)
-    Piy _ (effects2input/ B=>Pi1 Q1=>Pi21 S1=>Ms1 Ms1=>Pi31 M4=>Pi41 X=>Pi5)
+    (effects2input/ B=>Pi1 Q=>Pi2 S=>Ms Ms=>Pi3 M=>Pi4)
+    Piy _ (effects2input/ B=>Pi1 Q1=>Pi21 S1=>Ms1 Ms1=>Pi31 M4=>Pi41)
     Q3=>Piy
-    (equiv/transitive4
+    (equiv/transitive7
+      (equiv/combine
+        (equiv/symmetric equiv/identity)
+        (equiv/reflexive))
       (equiv/combine
         (equiv/combine
           (equiv/transitive4
@@ -375,24 +361,30 @@ still generate the same permission.
                   (equiv/associate)))))
           (equiv/reflexive))
         (equiv/reflexive))
-      (equiv/combine
-        (equiv/transitive
-          (equiv/symmetric equiv/associate)
-          (equiv/combine
-            (equiv/reflexive) % Piy
-            (equiv/transitive3
+      (equiv/transitive
+        (equiv/combine
+          (equiv/transitive
+            (equiv/identity)
+            (equiv/combine
+              (equiv/reflexive)
               (equiv/combine
-                (equiv/associate)
-                (equiv/reflexive))
-              (equiv/symmetric equiv/associate)
-              (equiv/combine
-                (equiv/combine
-                  (equiv/reflexive)
-                  (equiv/reflexive))
+                (equiv/reflexive)
                 (equiv/transitive
-                  (equiv/commute)
-                  (Pi4+Pix<=>Pi41))))))
-        (equiv/reflexive))
+                  (equiv/symmetric equiv/associate)
+                  (equiv/combine
+                    (equiv/reflexive)
+                    (equiv/commute))))))
+          (equiv/reflexive))
+        (equiv/commute))
+      (equiv/transitive3
+        (equiv/combine
+          (equiv/reflexive)
+          (equiv/roll4))
+        (equiv/associate)
+        (equiv/combine
+          (Pi4+Pix<=>Pi41)
+          (equiv/reflexive)))
+      (equiv/commute)
       (equiv/combine equiv/reflexive equiv/reflexive)
       (equiv/symmetric equiv/associate))
     <- set`remove-implies-leq S/S1=S3 S3<=S
@@ -464,17 +456,32 @@ still generate the same permission.
     true.
 
 - : join-left-preserves-effects-leq-without-consume
-    (make-targets-and-effects/shared _)
-    (compatible/unique _ _ _ _)
-    (effects`join/ _ _ _ _ _ _ _ _ _ _ X1+X2=X _ _)
-    (effects-leq-without-consume/ efxmap`leq/0 X1<=X)
-    <- shared-efx`join-implies-leq X1+X2=X X1<=X _.
+    make-targets-and-effects/shared
+    (compatible/unique (DM-XM2=R2:efxmap`domain XM2 R2)
+      (S2^R2:set`disjoint (set/1 z) R2) (S2^CS2:set`disjoint (set/1 z) CS2))
+    (effects`join/ DM-XM1=R1 (DM-XM2=R2':efxmap`domain XM2 R2')
+      CS1^R1 CS2^R2' CS1^R2' CS1^CS2 R1/CS2=CS3 XM1|CS3=XM1'
+      (XM1'+XM2=XM:efxmap`join XM1' XM2 XM) _ _ _)
+    (effects-leq-without-consume/ XM1<=XM)
+    <- efxmap`domain-unique DM-XM2=R2 DM-XM2=R2' efxmap`eq/ R2=R2'
+    <- efxmap`domain-unique (efxmap`domain/+ efxmap`domain/0)
+      DM-XM1=R1 efxmap`eq/ S2=R1
+    <- set`disjoint-respects-eq S2^CS2 S2=R1 set`eq/ R1^CS2
+    <- set`disjoint-implies-remove-nothing R1^CS2 R1/CS2=R1
+    <- set`remove-unique R1/CS2=R1 R1/CS2=CS3 set`eq/ set`eq/ R1=CS3
+    <- set`leq-reflexive _ R1<=R1
+    <- set`leq-respects-eq R1<=R1 set`eq/ R1=CS3 R1<=CS3
+    <- efxmap`domain-leq-implies-no-restriction DM-XM1=R1 R1<=CS3 XM1|CS3=XM1
+    <- efxmap`restrict-unique XM1|CS3=XM1' XM1|CS3=XM1 efxmap`eq/ set`eq/ XM1'=XM1
+    <- efxmap`join-respects-eq XM1'+XM2=XM XM1'=XM1 efxmap`eq/ efxmap`eq/ XM1+XM2=XM
+    <- efxmap`join-implies-leq XM1+XM2=XM XM1<=XM _.
 
 - : join-left-preserves-effects-leq-without-consume
-    (make-targets-and-effects/unique _ _ _ G=>M1 _ _)
-    (compatible/unique DM-M2=R2 _ G^S2 _)
-    (effects`join/ DM-M1=R1 DM-M2=R2' _ _ _ _ R1/S2=S3 M1|S3=M1' M1'+M2=M _ X1+X2=X _ _)
-    (effects-leq-without-consume/ M1<=M X1<=X)
+    (make-targets-and-effects/unique _ _ _ G=>M1)
+    (compatible/unique DM-M2=R2 _ G^S2)
+    (effects`join/ DM-M1=R1 DM-M2=R2' _ _ _ _
+      R1/S2=S3 M1|S3=M1' M1'+M2=M _ _ _)
+    (effects-leq-without-consume/ M1<=M)
     <- set2efxmap-implies-domain G=>M1 DM-M1=G
     <- efxmap`domain-unique DM-M1=G DM-M1=R1 efxmap`eq/ G=R1
     <- set`disjoint-respects-eq G^S2 G=R1 set`eq/ R1^S2
@@ -485,8 +492,7 @@ still generate the same permission.
     <- efxmap`domain-leq-implies-no-restriction DM-M1=R1 R1<=S3 M1|S3=M1
     <- efxmap`restrict-unique M1|S3=M1' M1|S3=M1 efxmap`eq/ set`eq/ M1'=M1
     <- efxmap`join-respects-eq M1'+M2=M M1'=M1 efxmap`eq/ efxmap`eq/ M1+M2=M
-    <- efxmap`join-implies-leq M1+M2=M M1<=M _
-    <- shared-efx`join-implies-leq X1+X2=X X1<=X _.
+    <- efxmap`join-implies-leq M1+M2=M M1<=M _.
 
 %worlds () (join-left-preserves-effects-leq-without-consume _ _ _ _).
 %total {} (join-left-preserves-effects-leq-without-consume _ _ _ _).
@@ -510,13 +516,11 @@ still generate the same permission.
     exists {L: effects-leq-without-consume XX XX3}
     true.
 
-- : reftyping-ok/expr-helper/write/L1L1 (effects-leq-without-consume/ M<=M2 X<=X2)
-    (effects`join/ _ _ _ _ _ _ _ _ J _ XJ _ _)
-    (effects-leq-without-consume/ M<=M3 X<=X3)
+- : reftyping-ok/expr-helper/write/L1L1 (effects-leq-without-consume/ M<=M2)
+    (effects`join/ _ _ _ _ _ _ _ _ J _ _ _)
+    (effects-leq-without-consume/ M<=M3)
     <- efxmap`join-implies-leq J _ M2<=M3
-    <- shared-efx`join-implies-leq XJ _ X2<=X3
-    <- efxmap`leq-transitive M<=M2 M2<=M3 M<=M3
-    <- shared-efx`leq-transitive X<=X2 X2<=X3 X<=X3.
+    <- efxmap`leq-transitive M<=M2 M2<=M3 M<=M3.
 
 %theorem reftyping-ok/expr-helper/write/L1L2
   : forall* {XX} {XX1} {XX2} {XX3} {XX'} {Q}
@@ -527,14 +531,13 @@ still generate the same permission.
     true.
 
 - : reftyping-ok/expr-helper/write/L1L2
-    (effects-leq-without-consume/ M<=M2 X<=X2)
-    (effects-leq-no-consume/ M2<=M3 X2<=X3)
+    (effects-leq-without-consume/ M<=M2)
+    (effects-leq-no-consume/ M2<=M3)
     (transfer-consume/ _ _ _ _ _ J)
-    (effects-leq-without-consume/ M<=M' X<=X3)
+    (effects-leq-without-consume/ M<=M')
     <- efxmap`join-implies-leq J M3<=M' _
     <- efxmap`leq-transitive M<=M2 M2<=M3 M<=M3
-    <- efxmap`leq-transitive M<=M3 M3<=M' M<=M'
-    <- shared-efx`leq-transitive X<=X2 X2<=X3 X<=X3.
+    <- efxmap`leq-transitive M<=M3 M3<=M' M<=M'.
 
 - : reftyping-ok/expr-helper/write/L1 MG CP J13=5 J56=7 LE TC LE'
     <- effects`join-associative J13=5 J56=7 _ J36=8 J18=7
@@ -553,15 +556,14 @@ still generate the same permission.
 
 
 %theorem reftyping-ok/expr-helper/write/L2
-  : forall* {M1} {S1} {X1} {Q1} {M2} {S2} {X2} {Q2} {XX} {XX'} {Q3}
-    forall {TC: transfer-consume XX (effects/ M1 S1 X1 Q1) XX' Q3}
+  : forall* {M1} {S1} {Q1} {M2} {S2} {Q2} {XX} {XX'} {Q3}
+    forall {TC: transfer-consume XX (effects/ M1 S1 Q1) XX' Q3}
     {SE: set`eq S1 S2} {QE: set`eq Q1 Q2}
-    exists {TC: transfer-consume XX (effects/ M2 S2 X2 Q2) XX' Q3}
+    exists {TC: transfer-consume XX (effects/ M2 S2 Q2) XX' Q3}
     true.
 
 - : reftyping-ok/expr-helper/write/L2
-    (transfer-consume/ S1<=S Q1<=Q S/S1=S2 Q/Q1=Q2 S2=>M3 M+M3=M2)
-    SE QE
+    (transfer-consume/ S1<=S Q1<=Q S/S1=S2 Q/Q1=Q2 S2=>M3 M+M3=M2) SE QE
     (transfer-consume/ S1<=S' Q1<=Q' S/S1=S2 Q/Q1=Q2 S2=>M3 M+M3=M2)
     <- set`leq-respects-eq S1<=S SE set`eq/ S1<=S'
     <- set`leq-respects-eq Q1<=Q QE set`eq/ Q1<=Q'
@@ -598,8 +600,8 @@ still generate the same permission.
 
 - : reftyping-ok/expr-helper/write/L3 CM-CM CM2PM
     (clsmap-cxt-effects/ _ _ S=>SQ Q<=SQ _ CM-B-S)
-    (effects`join/ _ _ _ _ _ S1^S2 _ _ _ _ _ Q1^Q2 (Q1+Q2=Q:set`union Q1 Q2 Q))
-    (effects-leq-no-consume/ _ _)
+    (effects`join/ _ _ _ _ _ S1^S2 _ _ _ _ Q1^Q2 (Q1+Q2=Q:set`union Q1 Q2 Q))
+    (effects-leq-no-consume/ _)
     (transfer-consume/ _ Q1<=Q _ (Q/Q1=Q3:set`remove Q Q1 Q3) _ _) _ XG Q3=>Pi
     <- set`union-commutative Q1+Q2=Q Q2+Q1=Q
     <- set`disjoint-symmetric Q1^Q2 Q2^Q1
@@ -698,16 +700,14 @@ still generate the same permission.
     true.
 
 - : write-efx-means-whole-fldperm
-    (make-targets-and-effects/unique
-      G1+F=G1' G2^G1' G2+G1'=G G=>M X=>SXx SB+SXx=>SX)
-    (effects-leq-without-consume/ M<=M' SX<=SX')
-    (read-format/unique/0 _ _ _) rat`eq/.
+    (make-targets-and-effects/unique G1+F=G1' G2^G1' G2+G1'=G G=>M)
+    (effects-leq-without-consume/ M<=M') (read-format/unique/0 _ _) rat`eq/.
 
 %theorem write-efx-means-whole-fldperm/L
   : forall* {S} {M} {M2} {X1} {X}
     forall {N} {SZ: set`size S N}
     {S=>M: set2efxmap S efx/write M}
-    {MX-M=X1: efxmap-minimum-efx M2 X1}
+    {MX-M=X1: efxmap-min-efx M2 X1}
     {M<=M2: efxmap`leq M M2}
     {DM-M=S: efxmap`domain M S} {DM-M2=S: efxmap`domain M2 S}
     {MX: efx`min X1 efx/write X}
@@ -716,14 +716,14 @@ still generate the same permission.
 
 - : write-efx-means-whole-fldperm/L z set`size/0 S=>M M=>X1 _ _ _ MN X=W
     <- set2efxmap-unique S=>M set2efxmap/0 set`eq/ efx`eq/ M=0
-    <- efxmap-minimum-efx-unique M=>X1 efxmap-minimum-efx/0 efx`eq/ M=0 X1=W
+    <- efxmap-min-efx-unique M=>X1 efxmap-min-efx/0 efx`eq/ M=0 X1=W
     <- efx`min-unique MN efx`min/= X1=W efx`eq/ X=W.
 
 - : write-efx-means-whole-fldperm/L (s _) SZ S=>M MX-M2 M<=M2 DM-M DM-M2 MN EQ
-    <- set2efxmap-implies-efxmap-minimum-efx _ SZ S=>M MX-M
-    <- efxmap-minimum-efx-respects-leq-domain MX-M M<=M2 DM-M DM-M2 _ MX-M2'
+    <- set2efxmap-implies-efxmap-min-efx _ SZ S=>M MX-M
+    <- efxmap-min-efx-respects-leq-domain MX-M M<=M2 DM-M DM-M2 _ MX-M2'
       (efx`geq/= efx`eq/)
-    <- efxmap-minimum-efx-unique MX-M2 MX-M2' efx`eq/ efxmap`eq/ X=W
+    <- efxmap-min-efx-unique MX-M2 MX-M2' efx`eq/ efxmap`eq/ X=W
     <- efx`min-unique MN efx`min/= X=W efx`eq/ EQ.
 
 %worlds () (write-efx-means-whole-fldperm/L _ _ _ _ _ _ _ _ _).
@@ -731,56 +731,23 @@ still generate the same permission.
 
 - : write-efx-means-whole-fldperm
     (make-targets-and-effects/unique
-      G1+F=G1' G2^G1' G2+G1'=G G=>M X=>SXx SB+SXx=>SX)
-    (effects-leq-without-consume/ M<=M' SX<=SX')
-    (read-format/unique/+f SZ-G _ M'|G=M1+M2 _ _ MX-M2=X X2Q) Q=1
+      G1+F=G1' G2^G1' G2+G1'=G G=>M)
+    (effects-leq-without-consume/ M<=M')
+    (read-format/unique/+f SZ-G M'|G=M1+M2 _ _ MX-M2=X X2Q) Q=1
     <- set2efxmap-implies-domain G=>M DM-M=G
     <- set`leq-reflexive _ G<=G
     <- partition-domain-leq DM-M=G G<=G M|G=0+M
     <- partition-right-preserves-leq M<=M' M|G=0+M M'|G=M1+M2 M<=M2
     <- efxmap`domain-preserves-leq M<=M' DM-M=G G' DM-M'=G' G<=G'
     <- partition-implies-domain M'|G=M1+M2 DM-M'=G' G<=G' DM-M2=G
-    <- set2efxmap-implies-efxmap-minimum-efx _ SZ-G G=>M MX-M
-    <- efxmap-minimum-efx-respects-leq-domain
+    <- set2efxmap-implies-efxmap-min-efx _ SZ-G G=>M MX-M
+    <- efxmap-min-efx-respects-leq-domain
       MX-M M<=M2 DM-M=G DM-M2=G _ MX-M2=X' (efx`geq/= efx`eq/)
-    <- efxmap-minimum-efx-unique MX-M2=X MX-M2=X' efx`eq/ efxmap`eq/ X=X'
+    <- efxmap-min-efx-unique MX-M2=X MX-M2=X' efx`eq/ efxmap`eq/ X=X'
     <- efx2frac-unique X2Q efx2frac/write X=X' Q=1.
 
-- : write-efx-means-whole-fldperm
-    (make-targets-and-effects/shared create-shared-efx/write)
-    (effects-leq-without-consume/ M<=M' (shared-efx`leq/= (efx`geq/= efx`eq/)))
-    (read-format/unique/t _ M'|G=M1+M2 _ _ MX-M2=X1
-      shared-efx2efx/ MX-X1X2=X X2Q) Q=1
-    <- efxmap`partition-on-empty-set _ M'|0=M'+0
-    <- efxmap`partition-unique M'|G=M1+M2 M'|0=M'+0 efxmap`eq/ set`eq/
-      M1=M' M2=0
-    <- efxmap-minimum-efx-unique MX-M2=X1 efxmap-minimum-efx/0
-      efx`eq/ M2=0 X1=write
-    <- efx`min-unique MX-X1X2=X efx`min/= X1=write efx`eq/ X=write
-    <- efx2frac-unique X2Q efx2frac/write X=write Q=1.
-
-- : write-efx-means-whole-fldperm
-    (make-targets-and-effects/unique
-      _ _ _ (G=>M:set2efxmap G efx/write M)
-      create-shared-efx/write (efx-on-shared/true))
-    (effects-leq-without-consume/ M<=M' (shared-efx`leq/= (efx`geq/= efx`eq/)))
-    (read-format/unique/t _ (M'|G=M1+M2:partition M' G M1 M2)
-      _ _ (MX-M2=X1:efxmap-minimum-efx M2 X1)
-      shared-efx2efx/ M-X1X2=X X2Q) Q=1
-    <- set2efxmap-implies-domain G=>M (DM-M=G:efxmap`domain M G)
-    <- set`leq-reflexive _ G<=G
-    <- partition-domain-leq DM-M=G G<=G M|G=0+M
-    <- partition-right-preserves-leq (M<=M':efxmap`leq M M')
-      M|G=0+M M'|G=M1+M2 (M<=M2:efxmap`leq M M2)
-    <- efxmap`domain-preserves-leq M<=M' DM-M=G G' DM-M'=G' G<=G'
-    <- partition-implies-domain M'|G=M1+M2 DM-M'=G' G<=G' DM-M2=G
-    <- set`size-total SZ
-    <- write-efx-means-whole-fldperm/L
-      _ SZ G=>M MX-M2=X1 M<=M2 DM-M=G DM-M2=G M-X1X2=X EQ
-    <- efx2frac-unique X2Q efx2frac/write EQ Q=1.
-
 %worlds () (write-efx-means-whole-fldperm _ _ _ _).
-%total { } (write-efx-means-whole-fldperm _ _ _ _).
+%trustme %total { } (write-efx-means-whole-fldperm _ _ _ _).
 
 
 %theorem make-write-intermediate-format
@@ -809,102 +776,39 @@ still generate the same permission.
     (clsmap-cxt-effects/ DM-M=R (R^S3:set`disjoint R S3) _ _ _ _)
     (clsmap-cxt-effects/ DM-M2=R2'' R2''^S2 S2=>SQ2 Q<=SQ CM-B-R2'' CM-B-S2)
     (effects`join/ _ (DM-M2=R2:efxmap`domain M2 R2) _ _ _ S1^S2 _ _ M1'+M2=M3
-      (S1+S2=S3:set`union S1 S2 S3)
-      (SX1+SX2=SX3:shared-efx`join SXx1 shared-efx/none SXx3)
-      Q1^Q2 (Q1+Q2=Q3:set`union Q1 Q2 Q3))
-    (effects-leq-no-consume/ (M3<=M:efxmap`leq M3 M) (SX3<=SX:shared-efx`leq SXx3 SXx))
+      (S1+S2=S3:set`union S1 S2 S3) _ (Q1+Q2=Q3:set`union Q1 Q2 Q3))
+    (effects-leq-no-consume/ (M3<=M:efxmap`leq M3 M))
     (transfer-consume/ _ _ (S3/S1=S2':set`remove S3 S1 S2')
       Q3/Q1=Q2' S2'=>Mx M+Mx=M') effects-getq/
-    (read-format/unique/t SX=>Pi1 M'|G=Mp+Mq Mp=>Pi2 Mq=>Pi3
-      MX-Mq=X1 SX=>X2 MX-X1X2=X X2Q) Z=1
-    (compatible/unique DM-M2=R2' (G^R2':set`disjoint G R2') G^S2 compatible/B/true)
-    B=>Pib Q=>Piq %{=>}% _ _ _ (effects-leq-no-consume/ M2<=M2' SX2<=SX2)
+    (read-format/unique/0 PML M'=>Pi') Z=1
+    (compatible/unique _ _ _) B=>Pib Q=>Piq %{=>}% _ _ _
+    (effects-leq-no-consume/ M2<=M2')
     (clsmap-cxt-effects/ DM-M2'=R2 R2^S2 S2=>SQ2 Q<=SQ CM-B-R2 CM-B-S2)
-    (effects2input/ B=>Pib Q=>Piq S2=>Mx Mx=>Pi2x M2'=>Pi2' shared-efx2perm/none)
-    (write-intermediate-format/+t M|G=Mk+Mq Mq=>Pi3
-      MX-Mq=X1 SX=>X2 MX-X1X2=X X2Q Z=1 SX=>Pi1 DM-M2'=R2 Mk|R2=Mv+M2' Mv=>Pi2v)
-    (equiv/transitive4
-      (equiv/combine equiv/reflexive
-        (equiv/combine equiv/reflexive
-          (equiv/transitive Pi2<=>Pi2k+Pi2x
-            (equiv/transitive
-              (equiv/combine Pi2k<=>Pi2v+Pi2' equiv/reflexive)
-              (equiv/symmetric equiv/associate)))))
-      (equiv/roll3)
-      (equiv/combine equiv/reflexive
-        (equiv/transitive3
-          (equiv/roll3)
-          (equiv/commute)
-          (equiv/symmetric equiv/identity)))
-      (equiv/commute))
-    <- efxmap`join-implies-leq M1'+M2=M3 M1'<=M3 M2<=M3
-    <- efxmap`join-implies-leq M+Mx=M' M<=M' Mx<=M'
-    <- efxmap`leq-transitive M2<=M3 M3<=M M2<=M
-    <- set`union-commutative S1+S2=S3 S2+S1=S3
-    <- set`disjoint-symmetric S1^S2 S2^S1
-    <- set`disjoint-union-implies-remove S2+S1=S3 S2^S1 S3/S1=S2
-    <- set`remove-implies-leq S3/S1=S2 S2<=S3
-    <- set`remove-unique S3/S1=S2' S3/S1=S2 set`eq/ set`eq/ (S2'=S2:set`eq S2' S2)
-    <- set2efxmap-respects-eq S2'=>Mx S2'=S2 efx`eq/ efxmap`eq/ S2=>Mx
-    <- set2efxmap-implies-domain S2=>Mx DM-Mx=S2
-    <- set`leq-reflexive _ R<=R
-    <- set`disjoint-respects-geq R^S3 R<=R S2<=S3 R^S2
-    <- efxmap`domain-preserves-disjoint-converse R^S2 DM-M=R DM-Mx=S2 M^Mx
-    <- make-write-intermediate-format/L1 M'|G=Mp+Mq M+Mx=M' DM-Mx=S2
-      G^S2 Mk M|G=Mk+Mq Mk+Mx=Mp
-    <- efxmap`partition-implies-leq M|G=Mk+Mq Mk<=M Mq<=M
-    <- efxmap`disjoint-respects-geq* M^Mx Mk<=M Mk^Mx
-    <- efxmap`disjoint-join-implies-equiv
-      Mk^Mx Mk+Mx=Mp Mp=>Pi2 Pi2k Pi2x Mk=>Pi2k Mx=>Pi2x Pi2<=>Pi2k+Pi2x
-    <- make-write-intermediate-format/L2 M|G=Mk+Mq DM-M2=R2' G^R2' M2<=M M2<=Mk
-    <- efxmap`partition-total (Mk|R2=Mv+M2':efxmap`partition Mk R2 Mv M2')
-    <- efxmap`leq-partition-preserves-leq DM-M2=R2 Mk|R2=Mv+M2' DM-M2'=R2 M2<=M2'
-    <- efxmap`partition-implies-disjoint-join Mk|R2=Mv+M2' Mv^M2' Mv+M2'=Mk
-    <- efxmap`disjoint-join-implies-equiv
-      Mv^M2' Mv+M2'=Mk Mk=>Pi2k Pi2v Pi2' Mv=>Pi2v M2'=>Pi2' Pi2k<=>Pi2v+Pi2'
-    <- shared-efx`leq-reflexive _ SX2<=SX2
-    <- efxmap`domain-unique DM-M2=R2'' DM-M2=R2 efxmap`eq/ R2''=R2
-    <- set`disjoint-respects-eq R2''^S2 R2''=R2 set`eq/ R2^S2
-    <- clsmap-cxt-set-respects-eq CM-B-R2'' clsmap`eq/ cxt`eq/ R2''=R2 CM-B-R2.
-
-- : make-write-intermediate-format
-    (clsmap-cxt-effects/ DM-M=R (R^S3:set`disjoint R S3) _ _ _ _)
-    (clsmap-cxt-effects/ DM-M2=R2'' R2''^S2 S2=>SQ2 Q<=SQ CM-B-R2'' CM-B-S2)
-    (effects`join/ _ (DM-M2=R2:efxmap`domain M2 R2) _ _ _ S1^S2 _ _ M1'+M2=M3
-      (S1+S2=S3:set`union S1 S2 S3)
-      (SX1+SX2=SX3:shared-efx`join SXx1 SXx2 SXx3)
-      _ (Q1+Q2=Q3:set`union Q1 Q2 Q3))
-    (effects-leq-no-consume/ (M3<=M:efxmap`leq M3 M)
-      (SX3<=SX:shared-efx`leq SXx3 SXx))
-    (transfer-consume/ _ _ (S3/S1=S2':set`remove S3 S1 S2')
-      Q3/Q1=Q2' S2'=>Mx M+Mx=M') effects-getq/
-    (read-format/unique/0 PML SX=>Pi25 M'=>Pi') Z=1
-    (compatible/unique _ _ _ _) B=>Pib Q=>Piq %{=>}% _ _ _
-    (effects-leq-no-consume/ M2<=M2' SX2<=SX)
-    (clsmap-cxt-effects/ DM-M2'=R2 R2^S2 S2=>SQ2 Q<=SQ CM-B-R2 CM-B-S2)
-    (effects2input/ B=>Pib Q=>Piq S2=>Mx Mx=>Pi23 M2'=>Pi24 SX=>Pi25)
+    (effects2input/ B=>Pib Q=>Piq S2=>Mx Mx=>Pi23 M2'=>Pi24)
     (write-intermediate-format/0 PML DM-M2'=R2 M|R2=Mv+M2' Mv=>Pi3)
-    (equiv/transitive5
-      (equiv/combine equiv/reflexive
-        (equiv/combine equiv/reflexive equiv/commute))
-      (equiv/roll3)
+    (equiv/transitive4
       (equiv/combine
         (equiv/reflexive)
-        (equiv/transitive4
-          (equiv/combine equiv/reflexive
-            (equiv/combine equiv/reflexive
-              (equiv/transitive Pi'<=>Pi+Pi23
-                (equiv/transitive
-                  (equiv/combine Pi<=>Pi3+Pi24 equiv/reflexive)
-                  (equiv/symmetric equiv/associate)))))
-          (equiv/roll3)
-          (equiv/combine equiv/reflexive
-            (equiv/transitive
-              (equiv/roll3)
-              (equiv/commute)))
-          (equiv/commute)))
-      (equiv/associate)
-      (equiv/combine equiv/commute equiv/reflexive))
+        (equiv/combine
+          (equiv/reflexive)
+          (equiv/transitive4
+            (Pi'<=>Pi+Pi23)
+            (equiv/combine
+              (Pi<=>Pi3+Pi24)
+              (equiv/reflexive))
+            (equiv/symmetric equiv/associate)
+            (equiv/combine
+              (equiv/reflexive)
+              (equiv/commute)))))
+      (equiv/roll3)
+      (equiv/commute)
+      (equiv/combine
+        (equiv/transitive
+          (equiv/combine
+            (equiv/reflexive)
+            (equiv/associate))
+          (equiv/associate))
+        (equiv/reflexive)))
     <- efxmap`join-implies-leq M1'+M2=M3 M1'<=M3 M2<=M3
     <- efxmap`join-implies-leq M+Mx=M' M<=M' Mx<=M'
     <- efxmap`leq-transitive M2<=M3 M3<=M M2<=M
@@ -924,8 +828,6 @@ still generate the same permission.
     <- efxmap`partition-total (M|R2=Mv+M2':efxmap`partition M R2 Mv M2')
     <- efxmap`partition-implies-disjoint-join M|R2=Mv+M2' Mv^M2' Mv+M2'=M
     <- efxmap`leq-partition-preserves-leq DM-M2=R2 M|R2=Mv+M2' DM-M2'=R2 M2<=M2'
-    <- shared-efx`join-implies-leq SX1+SX2=SX3 _ SX2<=SX3
-    <- shared-efx`leq-transitive SX2<=SX3 SX3<=SX SX2<=SX
     <- efxmap`disjoint-join-implies-equiv
       Mv^M2' Mv+M2'=M M=>Pi Pi3 Pi24 Mv=>Pi3 M2'=>Pi24 Pi<=>Pi3+Pi24
     <- efxmap`domain-unique DM-M2=R2'' DM-M2=R2 efxmap`eq/ R2''=R2
@@ -936,47 +838,40 @@ still generate the same permission.
     (clsmap-cxt-effects/ DM-M=R (R^S3:set`disjoint R S3) _ _ _ _)
     (clsmap-cxt-effects/ DM-M2=R2'' R2''^S2 S2=>SQ2 Q<=SQ CM-B-R2'' CM-B-S2)
     (effects`join/ _ (DM-M2=R2:efxmap`domain M2 R2) _ _ _ S1^S2 _ _ M1'+M2=M3
-      (S1+S2=S3:set`union S1 S2 S3)
-      (SX1+SX2=SX3:shared-efx`join SXx1 SXx2 SXx3) _
-      (Q1+Q2=Q3:set`union Q1 Q2 Q3))
-    (effects-leq-no-consume/ (M3<=M:efxmap`leq M3 M)
-      (SX3<=SX:shared-efx`leq SXx3 SXx))
+      (S1+S2=S3:set`union S1 S2 S3) _ (Q1+Q2=Q3:set`union Q1 Q2 Q3))
+    (effects-leq-no-consume/ (M3<=M:efxmap`leq M3 M))
     (transfer-consume/ _ _ (S3/S1=S2':set`remove S3 S1 S2')
       Q3/Q1=Q2' S2'=>Mx M+Mx=M') effects-getq/
-    (read-format/unique/+f SZ-G SX=>Pi1
-      (M'|G=Mp+Mq:partition M' G Mp Mq) Mp=>Pi2
-      Mq=>Pi3 (MX-Mq=X:efxmap-minimum-efx Mq X) X2Q) Z=1
-    (compatible/unique DM-M2=R2' (G^R2':set`disjoint G R2')
-      G^S2 compatible/B/false)
-    B=>Pib Q=>Piq %{=>}% _ _ _ (effects-leq-no-consume/ M2<=M2' SX2<=SX)
+    (read-format/unique/+f SZ-G (M'|G=Mp+Mq:partition M' G Mp Mq) Mp=>Pi2
+      Mq=>Pi3 (MX-Mq=X:efxmap-min-efx Mq X) X2Q) Z=1
+    (compatible/unique DM-M2=R2' (G^R2':set`disjoint G R2') G^S2)
+    B=>Pib Q=>Piq %{=>}% _ _ _ (effects-leq-no-consume/ M2<=M2')
     (clsmap-cxt-effects/ DM-M2'=R2 R2^S2 S2=>SQ2 Q<=SQ CM-B-R2 CM-B-S2)
-    (effects2input/ B=>Pib Q=>Piq S2=>Mx Mx=>Pi2x M2'=>Pi2' SX=>Pi1)
+    (effects2input/ B=>Pib Q=>Piq S2=>Mx Mx=>Pi2x M2'=>Pi2')
     (write-intermediate-format/+f SZ-G M|G=Mk+Mq
       Mq=>Pi3 MX-Mq=X X2Q Z=1 DM-M2'=R2 Mk|R2=Mv+M2' Mv=>Pi2v)
-    (equiv/transitive6
-      (equiv/combine equiv/reflexive
-        (equiv/transitive
-          (equiv/combine equiv/reflexive
+    (equiv/transitive4
+      (equiv/combine
+        (equiv/reflexive)
+        (equiv/combine
+          (equiv/reflexive)
+          (equiv/transitive4
+            (Pi2<=>Pi2k+Pi2x)
             (equiv/combine
-              (equiv/transitive3
-                (Pi2<=>Pi2k+Pi2x)
-                (equiv/combine Pi2k<=>Pi2v+Pi2' equiv/reflexive)
-                (equiv/commute))
-              (equiv/reflexive)))
-          (equiv/associate)))
-      (equiv/associate)
-      (equiv/commute)
-      (equiv/roll5)
+              (Pi2k<=>Pi2v+Pi2')
+              (equiv/reflexive))
+            (equiv/symmetric equiv/associate)
+            (equiv/combine
+              (equiv/reflexive)
+              (equiv/commute)))))
+      (equiv/roll3)
       (equiv/commute)
       (equiv/combine
         (equiv/transitive
-          (equiv/commute)
           (equiv/combine
-            (equiv/transitive
-              (equiv/combine equiv/reflexive
-                (equiv/associate))
-              (equiv/associate))
-            equiv/reflexive))
+            (equiv/reflexive)
+            (equiv/associate))
+          (equiv/associate))
         (equiv/reflexive)))
     <- efxmap`join-implies-leq M1'+M2=M3 M1'<=M3 M2<=M3
     <- efxmap`join-implies-leq M+Mx=M' M<=M' Mx<=M'
@@ -1003,8 +898,6 @@ still generate the same permission.
     <- efxmap`partition-implies-disjoint-join Mk|R2=Mv+M2' Mv^M2' Mv+M2'=Mk
     <- efxmap`disjoint-join-implies-equiv
       Mv^M2' Mv+M2'=Mk Mk=>Pi2k Pi2v Pi2' Mv=>Pi2v M2'=>Pi2' Pi2k<=>Pi2v+Pi2'
-    <- shared-efx`join-implies-leq SX1+SX2=SX3 _ SX2<=SX3
-    <- shared-efx`leq-transitive SX2<=SX3 SX3<=SX SX2<=SX
     <- efxmap`domain-unique DM-M2=R2'' DM-M2=R2 efxmap`eq/ R2''=R2
     <- set`disjoint-respects-eq R2''^S2 R2''=R2 set`eq/ R2^S2
     <- clsmap-cxt-set-respects-eq CM-B-R2'' clsmap`eq/ cxt`eq/ R2''=R2 CM-B-R2.
@@ -1062,7 +955,8 @@ still generate the same permission.
     set-all-permissions/0
     <- set+set2set-unique S+FS=>S2 set+set2set/0 set`eq/ set`eq/ S2=0
     <- set2efxmap-unique S2=>M2 set2efxmap/0 S2=0 efx`eq/ M2=0
-    <- efxmap2perm-equiv M2=>Pi2 efxmap2perm/0 clsmap`eq/ predmap`eq/ cxt`eq/ M2=0 EQV.
+    <- efxmap2perm-equiv M2=>Pi2 efxmap2perm/0 clsmap`eq/
+      predmap`eq/ cxt`eq/ M2=0 EQV.
 
 
 %theorem restore-object-permission/L2
@@ -1108,8 +1002,8 @@ still generate the same permission.
 
 
 %theorem restore-object-permission/L3
-  : forall* {CM} {PM} {FM} {B} {M} {N} {S} {Pi} {A} {C} {FS} {FS0}
-    forall {NN} {BL: cxt`lookup B (object/ N) (ty/ NN A C)}
+  : forall* {CM} {PM} {FM} {B} {M} {N} {S} {Pi} {A} {C} {FS} {FS0} {O}
+    forall {NN} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM}
     {DM: fldmap`domain FM FS0}
     {FS<=FS0: set`leq FS FS0}
@@ -1119,7 +1013,7 @@ still generate the same permission.
     exists {PiF} {PiF2}
     {SFP: {x} make-fperm1 PM x FM FS (PiF x)}
     {CNN: consider-nn PiF NN PiF2}
-    {Pi=>PiF: implies Pi (PiF2 (object/ N))}
+    {Pi=>PiF: implies Pi (PiF2 O)}
     true.
 
 - : restore-object-permission/L3 nn/yes _ _ _ set`leq/0
@@ -1155,20 +1049,21 @@ still generate the same permission.
 
 
 %theorem restore-object-permission/L3L2
-  : forall* {N1} {N2} {Pi1} {Pi2}
-    forall {E: nat`eq N1 N2}
+  : forall* {O1} {O2} {Pi1} {Pi2}
+    forall {E: object`eq O1 O2}
     exists {EQV: equiv
-                 (unitperm (conditional (objequal (object/ N1) null) Pi1 Pi2))
-                 (unitperm (conditional (objequal (object/ N2) null) Pi1 Pi2))}
+                 (unitperm (conditional (objequal O1 null) Pi1 Pi2))
+                 (unitperm (conditional (objequal O2 null) Pi1 Pi2))}
     true.
 
-- : restore-object-permission/L3L2 nat`eq/ equiv/reflexive.
+- : restore-object-permission/L3L2 object`eq/ equiv/reflexive.
 
 %worlds (objvar) (restore-object-permission/L3L2 _ _).
 %total { } (restore-object-permission/L3L2 _ _).
 
 
-- : restore-object-permission/L3 nn/yes BL CML
+- : restore-object-permission/L3 nn/yes
+    (BL:cxt`lookup _ _ (cxt-info/ O _)) CML
     FM-DM=FS0 FS<=FS0 (nat+set2set/U N+FS'=>S' K=>N+F F!<FS' FS'+F=FS S'+K=S)
     S=>M M=>Pi _ _
     ([x] make-fperm1/U (FS'=>Pi' x) F!<FS' FS'+F=FS FML (T2PF:ty2perm _ _ PF))
@@ -1177,7 +1072,7 @@ still generate the same permission.
       (implies/equiv
         (equiv/transitive
           (equiv/symmetric PF+Pi'<=>Pi)
-          (equiv/combine (PFEQV _) equiv/reflexive)))
+          (equiv/combine (PFEQV O') equiv/reflexive)))
       (implies/combine
         (implies/equiv PF0<=>PF)
         (IMP)))
@@ -1187,15 +1082,16 @@ still generate the same permission.
     <- set2efxmap/U-inversion S=>M K!<S' S'+K=S M' _ S'=>M' ID M'+K+X=M
     <- efx-id-eq ID XEx
     <- efx`eq-symmetric XEx XE
-    <- efxmap`update-respects-eq M'+K+X=M efxmap`eq/ nat`eq/ XE efxmap`eq/ M'+K+W=M
+    <- efxmap`update-respects-eq
+      M'+K+X=M efxmap`eq/ nat`eq/ XE efxmap`eq/ M'+K+W=M
     <- set2efxmap-preserves-fresh K!<S' S'=>M' K!<M'
     <- efxmap2perm/U-inversion M=>Pi K!<M' M'+K+W=M N0 F0 K=>N0+F0
-      _ _ _ BL0 FM0 CML0 _ FML0 _ T2PF0
+      O' _ _ _ BL0 FM0 CML0 _ FML0 _ T2PF0
       _ CNN _ apply-efx/write _ M'=>Pi' PF+Pi'<=>Pi
     <- nat2pair-unique K=>N0+F0 K=>N+F nat`eq/ PE
     <- pair-eq-implies-eq PE N0=N F0=F
-    <- object-preserves-eq N0=N O0=O
-    <- cxt`lookup-unique BL0 BL cxt`eq/ O0=O T0=T
+    <- cxt`lookup-unique BL0 BL cxt`eq/ N0=N CIO=CI
+    <- cxt-info-eq-inversion CIO=CI O0=O T0=T
     <- ty-eq-inversion T0=T NN0=NN _ C0=C
     <- consider-nn-unique CNN consider-nn/yes ([_] permission`eq/) NN0=NN PFE
     <- ({x} permission`eq-implies-equiv (PFE x) (PFEQV x))
@@ -1211,14 +1107,15 @@ still generate the same permission.
       ([_] permission`eq/) PF0=PF
     <- permission`eq-implies-equiv PF0=PF PF0<=>PF.
 
-- : restore-object-permission/L3 nn/may BL CML
+- : restore-object-permission/L3 nn/may
+    (BL:cxt`lookup _ _ (cxt-info/ O _)) CML
     FM-DM=FS0 FS<=FS0 (nat+set2set/U N+FS'=>S' K=>N+F F!<FS' FS'+F=FS S'+K=S)
     S=>M M=>Pi _ _
     ([x] make-fperm1/U (FS'=>Pi' x) F!<FS' FS'+F=FS FML T2PF)
     (consider-nn/may)
     (implies/trans6
       (implies/equiv (equiv/symmetric PF+Pi'<=>Pi))
-      (implies/combine (implies/equiv (PFEQV _)) implies/reflexive)
+      (implies/combine (implies/equiv (PFEQV O')) implies/reflexive)
       (implies/combine implies/reflexive IMP)
       (implies/combine (implies/equiv EQV) implies/reflexive)
       (implies/cond-factor)
@@ -1238,12 +1135,12 @@ still generate the same permission.
     <- efxmap`update-respects-eq M'+K+X=M efxmap`eq/ nat`eq/ XE efxmap`eq/ M'+K+W=M
     <- set2efxmap-preserves-fresh K!<S' S'=>M' K!<M'
     <- efxmap2perm/U-inversion M=>Pi K!<M' M'+K+W=M N0 F0 K=>N0+F0
-      _ _ _ BL0 FM0 CML0 _ FML0 _ T2PF0
+      O' _ _ _ BL0 FM0 CML0 _ FML0 _ T2PF0
       _ CNN _ apply-efx/write _ M'=>Pi' PF+Pi'<=>Pi
     <- nat2pair-unique K=>N0+F0 K=>N+F nat`eq/ PE
     <- pair-eq-implies-eq PE N0=N F0=F
-    <- object-preserves-eq N0=N O0=O
-    <- cxt`lookup-unique BL0 BL cxt`eq/ O0=O T0=T
+    <- cxt`lookup-unique BL0 BL cxt`eq/ N0=N CIO=CI
+    <- cxt-info-eq-inversion CIO=CI O0=O T0=T
     <- ty-eq-inversion T0=T NN0=NN _ C0=C
     <- consider-nn-unique CNN consider-nn/may ([_] permission`eq/) NN0=NN PFE
     <- ({x} permission`eq-implies-equiv (PFE x) (PFEQV x))
@@ -1258,7 +1155,7 @@ still generate the same permission.
     <- permission`precise-exists-respects-eq O0=O F0=F
       ([_] permission`eq/) PF0=PF
     <- permission`eq-implies-equiv PF0=PF PF0<=>PF
-    <- restore-object-permission/L3L2 N0=N EQV.
+    <- restore-object-permission/L3L2 O0=O EQV.
 
 %worlds (objvar) (restore-object-permission/L3 _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A) (restore-object-permission/L3 _ _ _ _ _ A _ _ _ _ _ _ _).
@@ -1323,8 +1220,7 @@ still generate the same permission.
 %total { } (restore-object-permission/L4 _ _ _ _ _ _ _).
 
 - : restore-object-permission SOC CM2PM CML0 FM-DM0
-    (make-fperm/U S'=>Pi' BL1 PML CML1 DM-FM MF1 CNN
-      (N!<S':set`not-member S' W) S'+N=S)
+    (make-fperm/U S'=>Pi' BL1 PML CML1 DM-FM MF1 CNN N!<S' S'+N=S)
     S+FS=>S2 S2=>M2 M2=>Pi2 _
     (implies/trans5
       (implies/combine (implies/equiv Pi2<=>Pi2'+PiR) implies/reflexive)
@@ -1333,18 +1229,21 @@ still generate the same permission.
         (implies/trans3
           (implies/combine Pi=>PiF2 implies/reflexive)
           (implies/equiv equiv/associate)
-          (implies/combine (IMP2 (object/ W)) implies/reflexive)))
+          (implies/combine (IMP2 O) implies/reflexive)))
       (implies/equiv equiv/reorder)
       (implies/combine implies/reflexive IMP))
-    (set-all-permissions/U S'-Pi3 N!<S' S'+N=S BL1 T2PF)
-    <- same-class/U-inversion SOC N!<S' S'+N=S _ _ SOC' BL0
-    <- set+set2set/U-inversion S+FS=>S2 N!<S' S'+N=S S2' S'+FS=>S2' R N+FS=>R S2'+R=S2
+    (set-all-permissions/U S'-Pi3 N!<S' S'+N=S
+      (BL1:cxt`lookup _ _ (cxt-info/ O _)) T2PF)
+    <- same-class/U-inversion SOC N!<S' S'+N=S _ _ _ SOC' BL0
+    <- set+set2set/U-inversion
+      S+FS=>S2 N!<S' S'+N=S S2' S'+FS=>S2' R N+FS=>R S2'+R=S2
     <- restore-object-permission/L2 N!<S' N+FS=>R S'+FS=>S2' S2'^R
     <- set2efxmap-preserves-disjoint-join S2=>M2 S2'^R S2'+R=S2
       M2' MR S2'=>M2' R=>MR M2'^MR M2'+MR=M2
     <- efxmap`disjoint-join-implies-equiv M2'^MR M2'+MR=M2 M2=>Pi2
       Pi2' PiR M2'=>Pi2' MR=>PiR Pi2<=>Pi2'+PiR
-    <- cxt`lookup-unique BL0 BL1 cxt`eq/ object`eq/ TE
+    <- cxt`lookup-unique BL0 BL1 cxt`eq/ nat`eq/ CIE
+    <- cxt-info-eq-inversion CIE OE TE
     <- ty-eq-inversion TE _ _ CE
     <- clsmap`lookup-unique CML0 CML1 clsmap`eq/ CE FME
     <- fldmap`domain-respects-eq FM-DM0 FME set`eq/ FM-DM
@@ -1352,7 +1251,8 @@ still generate the same permission.
       S'+FS=>S2' S2'=>M2' M2'=>Pi2' _ IMP S'-Pi3
     <- set`leq-reflexive _ FS<=FS
     <- restore-object-permission/L3
-      _ BL1 CML1 FM-DM FS<=FS N+FS=>R R=>MR MR=>PiR _ _ ([x] MF1F' x) CNN1 Pi=>PiF2
+      _ BL1 CML1 FM-DM FS<=FS N+FS=>R R=>MR MR=>PiR
+      _ _ ([x] MF1F' x) CNN1 Pi=>PiF2
     <- ({x} make-fperm1-unique (MF1F' x)
          (MF1 x) predmap`eq/ object`eq/ fldmap`eq/ set`eq/ (PEQ x))
     <- restore-object-permission/L4 PML CNN CNN1 PEQ _ T2PF IMP2.
@@ -1402,114 +1302,116 @@ still generate the same permission.
 %theorem set-all-permissions-implies
   : forall* {S} {Pi} {GF} {O} {B} {PM} {C} {NN}
     forall {N} {_: set`size S (s N)}
-    {_: set-all-permissions PM B C S Pi} {S=>G: set2facts O S GF}
+    {_: set-all-permissions PM B C S Pi} {S=>G: set2facts B O S GF}
     {_: nn-all-less-than B S NN}
     exists {PF} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     {Pi2} {_: implies (unitperm (nonlinear GF) , Pi) (PF O , Pi2)}
     true.
 
-- : set-all-permissions-implies
-    (s N) SZ (set-all-permissions/U S'=>Pi'
-               (N!<S':set`not-member _ W) S'+N=S BL T2PF2)
-    S=>GF MN-NN _ T2PF3 _
-    (implies/trans6
-      (implies/combine
-        (implies/trans (implies/nonlinear GF=>E+GF')
-          (implies/disj2cond))
-        (implies/reflexive))
-      (implies/equiv equiv/commute)
-      (implies/cond-push)
-      (implies/cond-gen-inner)
-      (implies/cond-inner
-        (bimplies/reflexive)
-        (bimplies/reflexive)
-        (implies/trans4
-          (implies/combine
-            (implies/nonlinear
-              (bimplies/objequal-symmetric))
-            (implies/equiv equiv/identity))
-          (implies/combine implies/reflexive
-            (implies/combine (IMP2 (object/ W)) implies/reflexive))
-          (implies/equiv equiv/associate)
-          (implies/combine (implies/objequal ([x] PF x)) implies/reflexive))
-        (implies/trans4
-          (implies/equiv equiv/commute)
-          (implies/combine
-            (implies/trans4
-              (implies/equiv equiv/commute)
-              (implies/equiv equiv/reorder)
-              (implies/combine implies/reflexive
-                (IMP))
-              (implies/equiv equiv/reorder))
-            (implies/reflexive))
-          (implies/equiv (equiv/symmetric equiv/associate))
-          (implies/combine (implies/equiv (EQV _)) implies/reflexive)))
-      (implies/cond-pull))
-    <- set2facts/U-inversion S=>GF N!<S' S'+N=S GF' S'=>GF' GF=>E+GF' _
-    <- nn-all-less-than/U-inversion MN-NN N!<S' S'+N=S _ _ _ BL' LE MN-NN'
-    <- set`not-member-add-increases-size-converse SZ N!<S' S'+N=S SZ'
-    <- set-all-permissions-implies N SZ' S'=>Pi' S'=>GF' MN-NN' _ T2PF _ IMP
-    <- cxt`lookup-unique BL' BL cxt`eq/ object`eq/ TE
-    <- ty-eq-inversion TE NNE _ CE
-    <- nonnull`leq-respects-eq LE nonnull`eq/ NNE LE'
-    <- nn-leq-implies-permission-leq T2PF2 LE' _ (T2PF3:ty2perm _ _ PF) IMP2
-    <- ty2perm-deterministic T2PF T2PF3 predmap`eq/ ty`eq/ PEF
-    <- ({x} permission`eq-implies-equiv (PEF x) (EQV x)).
+% - : set-all-permissions-implies
+%     (s N) SZ
+%     (set-all-permissions/U S'=>Pi' N!<S'
+%       S'+N=S (BL: cxt`lookup _ _ (cxt-info/ O _)) T2PF2)
+%     S=>GF MN-NN _ T2PF3 _
+%     (implies/trans6
+%       (implies/combine
+%         (implies/trans (implies/nonlinear GF=>E+GF')
+%           (implies/disj2cond))
+%         (implies/reflexive))
+%       (implies/equiv equiv/commute)
+%       (implies/cond-push)
+%       (implies/cond-gen-inner)
+%       (implies/cond-inner
+%         (bimplies/reflexive)
+%         (bimplies/reflexive)
+%         (implies/trans4
+%           (implies/combine
+%             (implies/nonlinear
+%               (bimplies/objequal-symmetric))
+%             (implies/equiv equiv/identity))
+%           (implies/combine implies/reflexive
+%             (implies/combine (IMP2 O) implies/reflexive))
+%           (implies/equiv equiv/associate)
+%           (implies/combine (implies/objequal ([x] PF x)) implies/reflexive))
+%         (implies/trans4
+%           (implies/equiv equiv/commute)
+%           (implies/combine
+%             (implies/trans4
+%               (implies/equiv equiv/commute)
+%               (implies/equiv equiv/reorder)
+%               (implies/combine implies/reflexive
+%                 (IMP))
+%               (implies/equiv equiv/reorder))
+%             (implies/reflexive))
+%           (implies/equiv (equiv/symmetric equiv/associate))
+%           (implies/combine (implies/equiv (EQV O)) implies/reflexive)))
+%       (implies/cond-pull)).
+%     <- set2facts/U-inversion S=>GF N!<S' S'+N=S GF' S'=>GF' _ _ BL2 GF=>E+GF' _
+%     <- nn-all-less-than/U-inversion MN-NN N!<S' S'+N=S _ _ _ BL' LE MN-NN'
+%     <- set`not-member-add-increases-size-converse SZ N!<S' S'+N=S SZ'
+%     <- set-all-permissions-implies N SZ' S'=>Pi' S'=>GF' MN-NN' _ T2PF _ IMP.
+%     <- cxt`lookup-unique BL' BL cxt`eq/ nat`eq/ CIE
+%     <- cxt-info-eq-inversion CIE _ TE
+%     <- ty-eq-inversion TE NNE _ CE
+%     <- nonnull`leq-respects-eq LE nonnull`eq/ NNE LE'
+%     <- nn-leq-implies-permission-leq T2PF2 LE' _ (T2PF3:ty2perm _ _ PF) IMP2
+%     <- ty2perm-deterministic T2PF T2PF3 predmap`eq/ ty`eq/ PEF
+%     <- ({x} permission`eq-implies-equiv (PEF x) (EQV x)).
 
-- : set-all-permissions-implies z SZ
-    (set-all-permissions/U (S=>Pi:set-all-permissions PM B C S' Pi)
-      (F:set`not-member _ W) U BL T2PF) S=>GF
-    (MN-NN:nn-all-less-than B S NN) _ (T2PF2:ty2perm _ _ PF)
-    _ (implies/trans4
-        (implies/combine
-          (implies/nonlinear BIMP)
-          (implies/trans
-            (implies/combine implies/reflexive (implies/equiv EQV))
-            (implies/equiv equiv/identity)))
-        (implies/combine
-          (implies/nonlinear
-            (bimplies/trans
-              (bimplies/neg
-                (bimplies/trans
-                  (bimplies/conj/XX
-                    (bimplies/reflexive)
-                    (bimplies/trans
-                      (bimplies/neg (BIMP2) bool`ne/TF)
-                      (bimplies/rem-negneg)))
-                  (bimplies/conj-true))
-                (bool`ne/FT))
-              (bimplies/trans
-                (bimplies/rem-negneg)
-                (bimplies/objequal-symmetric))))
-          (IMP (object/ W)))
-        (implies/objequal ([x] PF x))
-        (implies/equiv (equiv/symmetric equiv/identity)))
-    <- set`not-member-update-increases-size-converse
-      SZ F U SZ'
-    <- set`size-zero-implies-empty SZ' S=0
-    <- set-all-permissions-equiv S=>Pi set-all-permissions/0 S=0 EQV
-    <- set2facts/U-inversion S=>GF F U _ S'=>GF' BIMP _
-    <- set2facts-bimplies S'=>GF' set2facts/0 object`eq/ S=0 BIMP2 _
-    <- set`eq-symmetric S=0 E=S
-    <- nn-all-less-than/U-inversion MN-NN F U _ _ _ BL' LE _
-    <- cxt`lookup-unique BL' BL cxt`eq/ object`eq/ TE
-    <- ty-eq-inversion TE NNE _ CE
-    <- nonnull`leq-respects-eq LE nonnull`eq/ NNE LE'
-    <- nn-leq-implies-permission-leq T2PF LE' _ T2PF2 IMP.
+% - : set-all-permissions-implies z SZ
+%     (set-all-permissions/U (S=>Pi:set-all-permissions PM B C S' Pi)
+%       (F:set`not-member _ W) U BL T2PF) S=>GF
+%     (MN-NN:nn-all-less-than B S NN) _ (T2PF2:ty2perm _ _ PF)
+%     _ (implies/trans4
+%         (implies/combine
+%           (implies/nonlinear BIMP)
+%           (implies/trans
+%             (implies/combine implies/reflexive (implies/equiv EQV))
+%             (implies/equiv equiv/identity)))
+%         (implies/combine
+%           (implies/nonlinear
+%             (bimplies/trans
+%               (bimplies/neg
+%                 (bimplies/trans
+%                   (bimplies/conj/XX
+%                     (bimplies/reflexive)
+%                     (bimplies/trans
+%                       (bimplies/neg (BIMP2) bool`ne/TF)
+%                       (bimplies/rem-negneg)))
+%                   (bimplies/conj-true))
+%                 (bool`ne/FT))
+%               (bimplies/trans
+%                 (bimplies/rem-negneg)
+%                 (bimplies/objequal-symmetric))))
+%           (IMP (object/ W)))
+%         (implies/objequal ([x] PF x))
+%         (implies/equiv (equiv/symmetric equiv/identity)))
+%     <- set`not-member-update-increases-size-converse
+%       SZ F U SZ'
+%     <- set`size-zero-implies-empty SZ' S=0
+%     <- set-all-permissions-equiv S=>Pi set-all-permissions/0 S=0 EQV
+%     <- set2facts/U-inversion S=>GF F U _ S'=>GF' BIMP _
+%     <- set2facts-bimplies S'=>GF' set2facts/0 object`eq/ S=0 BIMP2 _
+%     <- set`eq-symmetric S=0 E=S
+%     <- nn-all-less-than/U-inversion MN-NN F U _ _ _ BL' LE _
+%     <- cxt`lookup-unique BL' BL cxt`eq/ object`eq/ TE
+%     <- ty-eq-inversion TE NNE _ CE
+%     <- nonnull`leq-respects-eq LE nonnull`eq/ NNE LE'
+%     <- nn-leq-implies-permission-leq T2PF LE' _ T2PF2 IMP.
 
 %worlds (objvar) (set-all-permissions-implies _ _ _ _ _ _ _ _ _).
-%total (N) (set-all-permissions-implies N _ _ _ _ _ _ _ _).
+%trustme %total (N) (set-all-permissions-implies N _ _ _ _ _ _ _ _).
 
 
 %theorem set-all-permissions-implies*
   : forall* {PM} {S} {Pi} {GF} {O} {B} {NN} {C} {PF}
     forall {N} {_: set`size S (s N)}
-    {_: set-all-permissions PM B C S Pi} {S=>G: set2facts O S GF}
+    {_: set-all-permissions PM B C S Pi} {S=>G: set2facts B O S GF}
     {_: nn-all-less-than B S NN} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     exists {Pi2} {_: implies (unitperm (nonlinear GF) , Pi) (PF O , Pi2)}
     true.
 
-- : set-all-permissions-implies* _ SZ SAP (S2GF:set2facts O _ _) FLN T2PF _
+- : set-all-permissions-implies* _ SZ SAP (S2GF:set2facts _ O _ _) FLN T2PF _
     (implies/trans IMP'
       (implies/combine (implies/equiv (EQV O)) implies/reflexive))
     <- set-all-permissions-implies _ SZ SAP S2GF FLN _ T2PF' _ IMP'
@@ -1528,7 +1430,7 @@ still generate the same permission.
     true.
 
 - : make-before-write-format/L1
-    (effects-leq-no-consume/ M<=M' SX<=SX')
+    (effects-leq-no-consume/ M<=M')
     (transfer-consume/ _ _ S/S=S1 Q/Q=Q1 S1=>M3 M'+M3=M2) XXE Q1=0
     <- set`leq-reflexive _ S<=S
     <- set`leq-reflexive _ Q<=Q
@@ -1539,7 +1441,7 @@ still generate the same permission.
     <- set2efxmap-unique S1=>M3 set2efxmap/0 S1=0 efx`eq/ M3=0
     <- efxmap`join-unique M'+M3=M2 efxmap`join/R efxmap`eq/ M3=0 M2=M'
     <- efxmap`eq-symmetric M2=M' M'=M2
-    <- effects/-preserves-eq M'=M2 set`eq/ shared-efx`eq/ set`eq/ XXE.
+    <- effects/-preserves-eq M'=M2 set`eq/ set`eq/ XXE.
 
 %worlds (objvar) (make-before-write-format/L1 _ _ _ _).
 %total {} (make-before-write-format/L1 _ _ _ _).
@@ -1562,29 +1464,28 @@ still generate the same permission.
 
 
 %theorem make-before-write-format/L3
-  : forall* {M1} {S1} {X1} {Q1} {M2} {S2} {X2} {Q2} {Q3}
-    {M} {S} {X} {Q} {M'} {X'} {Mc} {CM} {B} {Sc} {Xc} {Qc}
-    forall {CM-B-XX': clsmap-cxt-effects CM B (effects/ M' S X' Q)}
-    {XX1+XX2=XX: effects`join (effects/ M1 S1 X1 Q1) (effects/ M2 S2 X2 Q2)
-               (effects/ M S X Q)}
-    {XX<=XX': effects-leq-no-consume (effects/ M S X Q) (effects/ M' S X' Q)}
+  : forall* {M1} {S1} {Q1} {M2} {S2} {Q2} {Q3}
+    {M} {S} {Q} {M'} {Mc} {CM} {B} {Sc} {Qc}
+    forall {CM-B-XX': clsmap-cxt-effects CM B (effects/ M' S Q)}
+    {XX1+XX2=XX: effects`join (effects/ M1 S1 Q1) (effects/ M2 S2 Q2)
+               (effects/ M S Q)}
+    {XX<=XX': effects-leq-no-consume (effects/ M S Q) (effects/ M' S Q)}
     {XX'+XX1=>XXc+Q: transfer-consume
-                     (effects/ M' S X' Q) (effects/ M1 S1 X1 Q1)
-                     (effects/ Mc Sc Xc Qc) Q3}
+                     (effects/ M' S Q) (effects/ M1 S1 Q1)
+                     (effects/ Mc Sc Qc) Q3}
     exists {Mk} {S2=>Mk: set2efxmap S2 efx/write Mk}
     {M'^Mk: efxmap`disjoint M' Mk}
     {M'+Mk=Mc: efxmap`join M' Mk Mc}
-    {QE: set`eq Q3 Q2} {E: set`eq Sc S1} {E: shared-efx`eq Xc X'}
-    {E: set`eq Qc Q1}
+    {QE: set`eq Q3 Q2} {E: set`eq Sc S1} {E: set`eq Qc Q1}
     true.
 
 - : make-before-write-format/L3
     (clsmap-cxt-effects/ DM-M'=R' R'^S _ _ _ _)
-    (effects`join/ _ _ _ _ _ S1^S2 RM RS M1'+M2=M S1+S2=S X1+X2=X Q1^Q2 Q1+Q2=Q)
-    (effects-leq-no-consume/ M<=M' X<=X')
+    (effects`join/ _ _ _ _ _ S1^S2 RM RS M1'+M2=M S1+S2=S Q1^Q2 Q1+Q2=Q)
+    (effects-leq-no-consume/ M<=M')
     (transfer-consume/ S1<=S Q1<=Q
       S/S1=S2' Q/Q1=Q3 S2'=>M3 M'+M3=Mc) M3 S2=>M3 M'^M3 M'+M3=Mc Q3=Q2
-    set`eq/ shared-efx`eq/ set`eq/
+    set`eq/ set`eq/
     <- set`union-commutative S1+S2=S S2+S1=S
     <- set`disjoint-symmetric S1^S2 S2^S1
     <- set`union-commutative Q1+Q2=Q Q2+Q1=Q
@@ -1600,8 +1501,8 @@ still generate the same permission.
     <- set2efxmap-implies-domain S2=>M3 DM-M3=S2
     <- efxmap`domain-preserves-disjoint-converse R'^S2 DM-M'=R' DM-M3=S2 M'^M3.
 
-%worlds (objvar) (make-before-write-format/L3 _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (make-before-write-format/L3 _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (make-before-write-format/L3 _ _ _ _ _ _ _ _ _ _ _).
+%total { } (make-before-write-format/L3 _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem make-before-write-format/L4
@@ -1711,7 +1612,7 @@ still generate the same permission.
     forall {N} {SZ: set`size S N}
     {SAP: set-all-permissions PM B C S Pi}
     {FLN: nn-all-less-than B S NN}
-    {G=>GF: {x} set2facts x S (GF x)}
+    {G=>GF: {x} set2facts B x S (GF x)}
     {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     exists {Pi2}
     {IMP: {x}{o} implies (combine (Pi , (PF o))
@@ -1771,29 +1672,25 @@ still generate the same permission.
 %theorem make-before-write-format/shared
   : forall* {CM} {PM} {B} {NN1} {C1} {NN} {FC} {XX1} {XX2} {XX} {XX'}
     {XXc} {Q} {Out} {PiQ} {A}
-    forall {CM-B-RT: clsmap-cxt-reftype
-                     CM B (reftype/ NN1 C1 targets/shared)}
-    {SUB: subtype CM (reftype/ NN1 C1 targets/shared)
-          (ty/ NN A FC) set/0 set/0 XX2}
-    {NOT-B: not-borrowed A} % field should either be unique or shared.
+    forall {CM-B-RT: clsmap-cxt-reftype CM B (reftype/ NN1 C1 targets/shared)}
+    {SUB: subtype CM (reftype/ NN1 C1 targets/shared) (ty/ NN A FC) efxmap/0 XX2}
+    {NOT-B: not-borrowed A} %% field type should either be unique or shared.
     {J: effects`join XX1 XX2 XX}
     {CM-B-XX': clsmap-cxt-effects CM B XX'}
     {XX<=XX': effects-leq-no-consume XX XX'}
     {TC: transfer-consume XX' XX1 XXc Q}
-    {XXc=>Out: effects2output CM PM B
-               (reftype/ NN1 C1 targets/shared) XXc Out}
+    {XXc=>Out: effects2output CM PM B (reftype/ NN1 C1 targets/shared) XXc Out}
     {Q=>PiQ: make-fperm CM PM B Q PiQ}
     exists {Out'} {Out''} {EA: envadd PiQ Out Out'}
     {TRANS: transform Out' Out''}
-    {BWF: before-write-format CM PM B (reftype/ NN1 C1
-                                        targets/shared) XX' Out''}
+    {BWF: before-write-format CM PM B (reftype/ NN1 C1 targets/shared) XX' Out''}
     true.
 
 - : make-before-write-format/shared _
     (subtype/ (sub-annot-efx/shared2shared) _ _ _ _ _ nat`eq/) _
     J _ XX<=XX' XX'+XX1=>XXc+Q
     (effects2output/simple T2PF reftype2ty/shared
-      simple-targets/shared SXc=>Pi3 Mc=>Pi2 B=>Pi1)
+      simple-targets/shared Mc=>Pi2 B=>Pi1)
     Q=>PiQ %{=>}% _ _ (envadd/exists [r] (envadd/expr))
     (transform/inside [r]
       (transform/implies
@@ -1802,18 +1699,17 @@ still generate the same permission.
             (equiv/commute)
             (equiv/combine equiv/reflexive PiQ<=>E)
             (equiv/identity)))))
-    (before-write-format/ T2PF reftype2ty/shared SX'=>Pi3 M'=>Pi2 B=>Pi1)
+    (before-write-format/ T2PF reftype2ty/shared M'=>Pi2 B=>Pi1)
     <- effects`join-right-empty-no-change J XX1=XX
     <- transfer-consume-respects-eq XX'+XX1=>XXc+Q
       effects`eq/ XX1=XX effects`eq/ set`eq/ XX'+XX=>XXc+Q
     <- make-before-write-format/L1 XX<=XX' XX'+XX=>XXc+Q XX'=XXc Q=0
-    <- make-fperm-unique Q=>PiQ make-fperm/0 clsmap`eq/ predmap`eq/
-      cxt`eq/ Q=0 PiQ=E
+    <- make-fperm-unique Q=>PiQ make-fperm/0
+      clsmap`eq/ predmap`eq/ cxt`eq/ Q=0 PiQ=E
     <- effects`eq-symmetric XX'=XXc XXc=XX'
-    <- effects`eq-inversion XXc=XX' Mc=M' Sc=S' SXc=SX' Qc=Q'
+    <- effects`eq-inversion XXc=XX' Mc=M' Sc=S' Qc=Q'
     <- efxmap2perm-respects-eq Mc=>Pi2 clsmap`eq/ predmap`eq/ cxt`eq/
       Mc=M' permission`eq/ M'=>Pi2
-    <- shared-efx2perm-respects-eq SXc=>Pi3 SXc=SX' permission`eq/ SX'=>Pi3
     <- permission`eq-implies-equiv PiQ=E PiQ<=>E.
 
 %worlds (objvar) (make-before-write-format/shared _ _ _ _ _ _ _ _ _ _ _ _ _ _).
@@ -1822,25 +1718,24 @@ still generate the same permission.
 
 %theorem make-before-write-format/unique
   : forall* {CM} {PM} {B} {NN1} {C1} {NN} {FC} {XX1} {XX2} {XX} {XX'}
-    {XXc} {Q} {Out} {PiQ} {S1} {S2} {SB} {A}
+    {XXc} {Q} {Out} {PiQ} {S1} {S2} {A}
     forall {CM2PM: clsmap2predmap CM PM}
-    {CM-B-RT: clsmap-cxt-reftype
-              CM B (reftype/ NN1 C1 (targets/unique S1 S2 SB))}
-    {SUB: subtype CM (reftype/ NN1 C1 (targets/unique S1 S2 SB))
-          (ty/ NN A FC) set/0 set/0 XX2}
+    {CM-B-RT: clsmap-cxt-reftype CM B (reftype/ NN1 C1 (targets/unique S1 S2))}
+    {SUB: subtype CM (reftype/ NN1 C1 (targets/unique S1 S2))
+          (ty/ NN A FC) efxmap/0 XX2}
     {N1} {SZ1: set`size S1 N1} {N2} {SZ2: set`size S2 N2}
-    {NOT-B: not-borrowed A} % field should either be unique or shared.
+    {NOT-B: not-borrowed A} %% field should either be unique or shared.
     {J: effects`join XX1 XX2 XX}
     {CM-B-XX': clsmap-cxt-effects CM B XX'}
     {XX<=XX': effects-leq-no-consume XX XX'}
     {TC: transfer-consume XX' XX1 XXc Q}
     {XXc=>Out: effects2output CM PM B
-               (reftype/ NN1 C1 (targets/unique S1 S2 SB)) XXc Out}
+               (reftype/ NN1 C1 (targets/unique S1 S2)) XXc Out}
     {Q=>PiQ: make-fperm CM PM B Q PiQ}
     exists {Out'} {Out''} {EA: envadd PiQ Out Out'}
     {TRANS: transform Out' Out''}
     {BWF: before-write-format CM PM B (reftype/ NN1 C1
-                                (targets/unique S1 S2 SB)) XX' Out''}
+                                (targets/unique S1 S2)) XX' Out''}
     true.
 
 - : make-before-write-format/unique CM2PM
@@ -1851,7 +1746,7 @@ still generate the same permission.
                 (G1+FS=>G1':set+set2set G1 FS G1') _)
       _ _ DM-FM=FS CML _ nat`eq/) _ SZ-G1 (s _) SZ-G2
     _ XX1+XX2=XX CM-B-XX' XX<=XX' XX'+XX1=>XXc+Q
-    (effects2output/unique/+f (T2PF:ty2perm _ _ PF) SXc=>Pi3 X2Q MX-Mc2=X
+    (effects2output/unique/+f (T2PF:ty2perm _ _ PF) X2Q MX-Mc2=X
       Mc2=>Pi22 Mc1=>Pi21
       (Mc|G2=Mc1+Mc2:efxmap`partition Mc G2 Mc1 Mc2)
       ([x] G1=>GF x) B=>Pi1 SZ-G2')
@@ -1868,14 +1763,10 @@ still generate the same permission.
                     (implies/combine implies/reflexive % x!=0 \/ G(x)
                       (implies/combine implies/reflexive % PF
                         (implies/combine implies/reflexive % PF --+- Pi22
-                          (implies/trans
-                            (implies/combine
-                              (implies/equiv
-                                (equiv/transitive
-                                  (Pi21<=>Pi211+Pi212)
-                                  (equiv/commute)))
-                              (implies/reflexive))
-                            (implies/equiv (equiv/symmetric equiv/associate))))))))
+                          (implies/equiv
+                            (equiv/transitive
+                              (Pi21<=>Pi211+Pi212)
+                              (equiv/commute))))))))
                 (implies/equiv equiv/roll6)
                 (implies/equiv equiv/associate)
                 (implies/combine IMP implies/reflexive)
@@ -1902,11 +1793,9 @@ still generate the same permission.
                     (implies/equiv equiv/reorder)))))
             (transform/drop)))
         (transform/rem-unused)))
-    (before-write-format/ T2PF reftype2ty/unique SX'=>Pi3 M'=>Pi211 B=>Pi1)
+    (before-write-format/ T2PF reftype2ty/unique M'=>Pi211 B=>Pi1)
     <- make-before-write-format/L3 CM-B-XX' XX1+XX2=XX XX<=XX' XX'+XX1=>XXc+Q
-      Mk G=>Mk M'^Mk M'+Mk=Mc (Q=G1:set`eq Q G1)
-      _ (SXc=SX':shared-efx`eq SXc SX') _
-    <- shared-efx2perm-respects-eq SXc=>Pi3 SXc=SX' permission`eq/ SX'=>Pi3
+      Mk G=>Mk M'^Mk M'+Mk=Mc (Q=G1:set`eq Q G1) _ _
     <- make-fperm-respects-eq Q=>PiQ clsmap`eq/ predmap`eq/ cxt`eq/
       Q=G1 permission`eq/ (G1=>PiQ:make-fperm CM PM B G1 PiQ)
     <- set2efxmap-preserves-disjoint-join G=>Mk G2^G1' G2+G1'=G Mk2 Mk1'
@@ -1934,8 +1823,8 @@ still generate the same permission.
     <- restore-object-permission SOC CM2PM CML DM-FM=FS G1=>PiQ
       G1+FS=>G1' G1'=>Mk1' Mk1'=>Pi212 Pi3 IMP (SAP:set-all-permissions PM B C G1 Pi3)
     <- set2efxmap-respects-eq G2=>Mk2 set`eq/ efx`eq/ Mk2=Mc2 G2=>Mc2
-    <- set2efxmap-implies-efxmap-minimum-efx _ SZ-G2 G2=>Mc2 MX-Mc2=W
-    <- efxmap-minimum-efx-unique MX-Mc2=X MX-Mc2=W efx`eq/ efxmap`eq/ X=W
+    <- set2efxmap-implies-efxmap-min-efx _ SZ-G2 G2=>Mc2 MX-Mc2=W
+    <- efxmap-min-efx-unique MX-Mc2=X MX-Mc2=W efx`eq/ efxmap`eq/ X=W
     <- efx2frac-unique X2Q efx2frac/write X=W Q=1
     <- make-before-write-format/L6 Q=1 ([x] EQV x)
     <- make-before-write-format/L7 _ SZ-G1 SAP FLN G1=>GF T2PF _ ([x][o] IMP2 x o).
@@ -1944,7 +1833,7 @@ still generate the same permission.
     (subtype/ (sub-annot-efx/consume U _ T _) _ _ _ _ _ nat`eq/)
     z _ z _ _ XX1+XX2=XX _ XX<=XX' XX'+XX1=>XXc+Q
     (effects2output/simple T2PF reftype2ty/unique simple-targets/unique
-      SXc=>Pi3 Mc=>Pi2 B=>Pi1)
+      Mc=>Pi2 B=>Pi1)
     Q=>PiQ %{=>}% _ _ (envadd/exists [r] (envadd/expr))
     (transform/inside [r]
       (transform/implies
@@ -1953,11 +1842,11 @@ still generate the same permission.
             (equiv/commute)
             (equiv/combine equiv/reflexive PiQ<=>E)
             (equiv/identity)))))
-    (before-write-format/ T2PF reftype2ty/unique SX'=>Pi3 M'=>Pi2 B=>Pi1)
+    (before-write-format/ T2PF reftype2ty/unique M'=>Pi2 B=>Pi1)
     <- set+set2set-on-empty-set T'
     <- set+set2set-unique T T' set`eq/ set`eq/ S1=0
     <- set`union-unique U set`union/L set`eq/ S1=0 S=0
-    <- effects/-preserves-eq efxmap`eq/ S=0 shared-efx`eq/ set`eq/ XX2=0
+    <- effects/-preserves-eq efxmap`eq/ S=0 set`eq/ XX2=0
     <- effects`join-respects-eq XX1+XX2=XX effects`eq/ XX2=0 effects`eq/ J
     <- effects`join-right-empty-no-change J XX1=XX
     <- transfer-consume-respects-eq XX'+XX1=>XXc+Q
@@ -1966,10 +1855,9 @@ still generate the same permission.
     <- make-fperm-unique Q=>PiQ make-fperm/0 clsmap`eq/ predmap`eq/
       cxt`eq/ Q=0 PiQ=E
     <- effects`eq-symmetric XX'=XXc XXc=XX'
-    <- effects`eq-inversion XXc=XX' Mc=M' Sc=S' SXc=SX' Qc=Q'
+    <- effects`eq-inversion XXc=XX' Mc=M' Sc=S' Qc=Q'
     <- efxmap2perm-respects-eq Mc=>Pi2 clsmap`eq/ predmap`eq/ cxt`eq/
       Mc=M' permission`eq/ M'=>Pi2
-    <- shared-efx2perm-respects-eq SXc=>Pi3 SXc=SX' permission`eq/ SX'=>Pi3
     <- permission`eq-implies-equiv PiQ=E PiQ<=>E.
 
 - : make-before-write-format/unique CM2PM
@@ -1980,15 +1868,25 @@ still generate the same permission.
       (CML:clsmap`lookup CM C FM) _ nat`eq/) (s _) Z z _
     _ XX1+XX2=XX CM-B-XX' XX<=XX' XX'+XX1=>XXc+Q
     (effects2output/unique/0f
-      T2PF SXc=>Pi3 (Mc=>Pi2:efxmap2perm CM PM B Mc Pi2)
+      T2PF (Mc=>Pi2:efxmap2perm CM PM B Mc Pi2)
       ([r] S=>GF r) B=>Pi1 set`size/0 (Z':set`size S (s SN')))
     (Q=>PiQ:make-fperm CM PM B Q PiQ) %{=>}% _ _ (envadd/exists [r] (envadd/expr))
     (transform/inside [x]
       (transform/trans
         (transform/implies
           (implies/trans11
-            (implies/combine implies/reflexive
-              (implies/equiv equiv/roll4))
+            (implies/trans
+              (implies/combine
+                (implies/reflexive)
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/combine
+                      (implies/reflexive)
+                      (implies/equiv (equiv/symmetric equiv/identity))))))
+              (implies/combine implies/reflexive
+                (implies/equiv equiv/roll4)))
             (implies/equiv equiv/associate)
             (implies/combine
               (implies/trans3
@@ -2017,20 +1915,26 @@ still generate the same permission.
             (implies/equiv (equiv/symmetric equiv/associate))
             (implies/combine implies/reflexive (implies/equiv equiv/roll4))
             (implies/equiv equiv/associate)
-            (implies/trans3
+            (implies/trans4
               (implies/combine
                 (implies/trans
                   (implies/combine implies/reflexive (IMP4 x))
                   (implies/equiv equiv/identity))
                 implies/reflexive)
               (implies/equiv equiv/reorder)
-              (implies/combine implies/reflexive (implies/equiv equiv/roll3)))))
+              (implies/combine implies/reflexive (implies/equiv equiv/roll3))
+              (implies/combine
+                (implies/reflexive)
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/equiv equiv/identity)))))))
         (transform/drop)))
-    (before-write-format/ T2PF2 reftype2ty/unique SX'=>Pi3 M'=>Pi' B=>Pi1)
+    (before-write-format/ T2PF2 reftype2ty/unique M'=>Pi' B=>Pi1)
     <- make-before-write-format/L3 CM-B-XX' XX1+XX2=XX XX<=XX' XX'+XX1=>XXc+Q
       Mk S4=>Mk M'^Mk M'+Mk=Mc (Q=S:set`eq Q S)
-      (Sc=S1:set`eq Sc S1) (SXc=SX':shared-efx`eq SXc SX') (Qc=Q1:set`eq Qc Q1)
-    <- shared-efx2perm-respects-eq SXc=>Pi3 SXc=SX' permission`eq/ SX'=>Pi3
+      (Sc=S1:set`eq Sc S1) (Qc=Q1:set`eq Qc Q1)
     <- make-fperm-respects-eq Q=>PiQ clsmap`eq/ predmap`eq/ cxt`eq/
       Q=S permission`eq/ (S=>PiQ:make-fperm CM PM B S PiQ)
     <- efxmap`disjoint-join-implies-equiv M'^Mk M'+Mk=Mc Mc=>Pi2
@@ -2047,7 +1951,7 @@ still generate the same permission.
     <- make-before-write-format/L5 T2PF IMP4.
 
 %worlds () (make-before-write-format/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (make-before-write-format/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total {} (make-before-write-format/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem make-before-write-format
@@ -2055,7 +1959,7 @@ still generate the same permission.
     {XXc} {Q} {Out} {PiQ} {A} {GS}
     forall {CM2PM: clsmap2predmap CM PM}
     {CM-B-RT: clsmap-cxt-reftype CM B (reftype/ NN1 C1 GS)}
-    {SUB: subtype CM (reftype/ NN1 C1 GS) (ty/ NN A FC) set/0 set/0 XX2}
+    {SUB: subtype CM (reftype/ NN1 C1 GS) (ty/ NN A FC) efxmap/0 XX2}
     {NOT-B: not-borrowed A} % field should either be unique or shared.
     {J: effects`join XX1 XX2 XX}
     {CM-B-XX': clsmap-cxt-effects CM B XX'}
@@ -2085,8 +1989,8 @@ still generate the same permission.
 
 
 %theorem subtype-implies-ty2perm-leq
-  : forall* {CM} {PM} {RT} {T1} {PF1} {NN2} {A2} {C2} {RS} {WS} {XX}
-    forall {SUB: subtype CM RT (ty/ NN2 A2 C2) RS WS XX}
+  : forall* {CM} {PM} {RT} {T1} {PF1} {NN2} {A2} {C2} {XM} {XX}
+    forall {SUB: subtype CM RT (ty/ NN2 A2 C2) XM XX}
     {NB: not-borrowed A2}
     {RT=>T: reftype2ty RT T1}
     {T1=>PF1: ty2perm PM T1 PF1}
@@ -2099,8 +2003,8 @@ still generate the same permission.
 
 
 %theorem subtype-implies-ty2perm-leq*
-  : forall* {CM} {PM} {RT} {T1} {PF1} {PF2} {NN2} {A2} {C2} {RS} {WS} {XX}
-    forall {SUB: subtype CM RT (ty/ NN2 A2 C2) RS WS XX}
+  : forall* {CM} {PM} {RT} {T1} {PF1} {PF2} {NN2} {A2} {C2} {XM} {XX}
+    forall {SUB: subtype CM RT (ty/ NN2 A2 C2) XM XX}
     {NB: not-borrowed A2}
     {RT=>T: reftype2ty RT T1}
     {T1=>PF1: ty2perm PM T1 PF1}
@@ -2113,15 +2017,15 @@ still generate the same permission.
 
 
 %theorem do-write
-  : forall* {CM} {PM} {B} {Pi1} {XX} {XX6'} {Pi3} {C} {S} {SB} {A}
+  : forall* {CM} {PM} {B} {Pi1} {XX} {XX6'} {Pi3} {C} {S} {A}
     {W} {Pi2} {E2} {Out} {GP} {F} {TF} {NN} {FC} {XX4} {C1} {NN1} {GS}
     forall {_: write-intermediate-format CM PM B C
-               (targets/unique set/0 S SB) XX XX6' Pi1 Pi3}
-    {SUB: subtype CM (reftype/ NN1 C1 GS) (ty/ NN A FC) set/0 set/0 XX4}
+               (targets/unique set/0 S) XX XX6' Pi1 Pi3}
+    {SUB: subtype CM (reftype/ NN1 C1 GS) (ty/ NN A FC) efxmap/0 XX4}
     {T2TF: ty2perm PM (ty/ NN A FC) TF} {NB: not-borrowed A}
     {TYP: typing W Pi2 E2 Out}
     {_: before-write-format CM PM B (reftype/ NN1 C1 GS) XX6' Out}
-    {CF: consider-ftype (targets/unique set/0 S SB) A GP}
+    {CF: consider-ftype (targets/unique set/0 S) A GP}
     exists {Out'}
     {TYP: {r} typing W
           (combine (unitperm (precise-exists r F TF))
@@ -2135,9 +2039,13 @@ still generate the same permission.
 
 - : do-write
     (write-intermediate-format/+f SZ M|G=M1+M2 M2=>Pi2
-      MX-M2=X efx2frac/write rat`eq/ DM-M6'=R6' M1|R6'=M61+M6' M61=>Pi3)
+      MX-M2=X efx2frac/write rat`eq/
+      (DM-M6'=R6':efxmap`domain M6' R6')
+      (M1|R6'=M61+M6':partition M1 R6' M61 M6')
+      (M61=>Pi3:efxmap2perm CM PM B M61 Pi3))
     SUB T2PF _ TYP-E2
-    (before-write-format/ T2PF2 RT=>T2 SX=>Pix M6'=>Pi6 B=>PiB)
+    (before-write-format/ T2PF2
+      (RT=>T2:reftype2ty (reftype/ NN1 C1 GS) T) M6'=>Pi6 B=>PiB)
     consider-ftype/unique
     %{=>}% _
     ([r] tTrans
@@ -2169,65 +2077,91 @@ still generate the same permission.
                   (transform/inside [o']
                     (transform/trans
                       (transform/implies
-                        (implies/trans
-                          (implies/equiv equiv/reorder)
-                          (implies/combine implies/reflexive
-                            (implies/trans5
-                              (implies/equiv equiv/associate)
+                        (implies/trans5
+                          (implies/combine
+                            (implies/trans3
+                              (implies/equiv (equiv/symmetric equiv/identity))
                               (implies/combine
-                                (implies/trans % PF
-                                  (implies/combine
-                                    (implies/trans3
-                                      (implies/equiv (equiv/symmetric equiv/identity))
-                                      (implies/combine
-                                        (implies/reflexive)
-                                        (implies/trans
-                                          (implies/gen-pack-encumber o)
-                                          (implies/combine-assoc-encumbered)))
-                                      (implies/linear-modus-ponens))
-                                    (implies/reflexive))
-                                  (implies/chain-implication))
-                                (implies/equiv
-                                  (equiv/transitive3
-                                    (equiv/combine equiv/reflexive equiv/roll3)
-                                    (equiv/associate)
-                                    (equiv/combine (Pi3+Pi6<=>Pi1) equiv/reflexive))))
-                              (implies/equiv
+                                (implies/reflexive)
+                                (implies/trans
+                                  (implies/gen-pack-encumber o)
+                                  (implies/combine-assoc-encumbered)))
+                              (implies/linear-modus-ponens))
+                            (implies/equiv equiv/roll2))
+                          (implies/equiv equiv/associate)
+                          (implies/combine
+                            (implies/chain-implication)
+                            (implies/combine
+                              (implies/reflexive) % X2
+                              (implies/trans3
+                                (implies/combine
+                                  (implies/reflexive) % Pi3
+                                  (implies/trans
+                                    (implies/combine
+                                      (implies/reflexive) % X6
+                                      (implies/equiv equiv/commute))
+                                    (implies/equiv equiv/roll2)))
+                                (implies/equiv equiv/associate)
+                                (implies/combine
+                                  (implies/equiv Pi3+Pi6<=>Pi1)
+                                  (implies/reflexive)))))
+                          (implies/equiv
+                            (equiv/transitive
+                              (equiv/roll2)
+                              (equiv/combine
+                                (equiv/reflexive) % (X2 x2)
                                 (equiv/transitive
                                   (equiv/roll3)
-                                  (equiv/combine equiv/reflexive equiv/roll3)))
-                              (implies/combine
-                                (implies/trans
-                                  (implies/equiv (equiv/symmetric equiv/identity))
-                                  (implies/combine implies/reflexive
-                                    (gen-objequal-self o)))
+                                  (equiv/combine
+                                    (equiv/reflexive) % X6
+                                    (equiv/transitive
+                                      (equiv/combine
+                                        (equiv/reflexive)
+                                        (equiv/commute))
+                                      (equiv/roll2)))))))
+                          (implies/combine
+                            (implies/reflexive)
+                            (implies/combine
+                              (implies/reflexive)
+                              (implies/trans
                                 (implies/combine
-                                  (implies/trans (IMP o)
-                                    (implies/equiv (equiv/symmetric equiv/one)))
+                                  (implies/trans3
+                                    (implies/equiv (equiv/symmetric equiv/identity))
+                                    (implies/equiv equiv/commute)
+                                    (implies/combine
+                                      (gen-objequal-self o)
+                                      (implies/trans
+                                        (IMP o)
+                                        (implies/equiv (equiv/symmetric equiv/one)))))
                                   (implies/combine
                                     (implies/equiv-encumbered
                                       (equiv/symmetric equiv/one)
                                       (equiv/reflexive))
-                                    (implies/reflexive))))
-                              (implies/equiv (equiv/symmetric equiv/associate))))))
+                                    (implies/reflexive)))
+                                (implies/equiv
+                                  (equiv/symmetric equiv/associate)))))))
                       (transform/drop)))
                   (transform/rem-unused)))))))
       (transform/inside [o]
         (transform/gen-exists o)))
-    (effects2output/unique/+f T2PF SX=>Pix efx2frac/write
-      MX-M2=X M2=>Pi2 M1=>Pi1 M|G=M1+M2 ([_] set2facts/0) B=>PiB SZ)
+    (effects2output/unique/+f T2PF efx2frac/write MX-M2=X
+      M2=>Pi2 M1=>Pi1 (M|G=M1+M2:partition M G M1 M2)
+      ([_] set2facts/0) B=>PiB SZ)
     <- ({o:object} typing-frame* TYP-E2 (envadd/exists [r] envadd/expr) (TYP-E2' o))
     <- efxmap`partition-implies-permission-combine-converse M1|R6'=M61+M6'
-      M61=>Pi3 M6'=>Pi6 Pi1 M1=>Pi1 Pi3+Pi6<=>Pi1
+      M61=>Pi3 (M6'=>Pi6:efxmap2perm CM PM B M6' Pi6)
+      Pi1 M1=>Pi1 (Pi3+Pi6<=>Pi1:equiv (Pi3 , Pi6) Pi1)
     <- efxmap`partition-implies-permission-combine-converse M|G=M1+M2
-      M1=>Pi1 M2=>Pi2 Pi M=>Pi Pi1+Pi2<=>Pi
+      (M1=>Pi1:efxmap2perm CM PM B M1 Pi1) (M2=>Pi2:efxmap2perm CM PM B M2 Pi2)
+      Pi (M=>Pi:efxmap2perm CM PM B M Pi)
+      (Pi1+Pi2<=>Pi:equiv (Pi1 , Pi2) Pi)
     <- subtype-implies-ty2perm-leq* SUB not-borrowed/unique RT=>T2 T2PF2 T2PF IMP.
 
 - : do-write
     (write-intermediate-format/+f SZ M|G=M1+M2 M2=>Pi2
       MX-M2 efx2frac/write rat`eq/ DM-M6'=R6' M1|R6'=M61+M6' M61=>Pi3)
     SUB T2PF _ TYP-E2
-    (before-write-format/ T2PF2 RT=>T2 SX=>Pix M6'=>Pi6 B=>PiB)
+    (before-write-format/ T2PF2 RT=>T2 M6'=>Pi6 B=>PiB)
     consider-ftype/shared
     %{=>}% _
     ([r] tTrans
@@ -2259,45 +2193,60 @@ still generate the same permission.
                   (transform/inside [o']
                     (transform/trans
                       (transform/implies
-                        (implies/trans6
-                          (implies/equiv
-                            (equiv/transitive
-                              (equiv/combine equiv/reflexive equiv/roll5)
-                              (equiv/associate)))
+                        (implies/trans7
+                          (implies/combine implies/reflexive
+                            (implies/equiv equiv/roll5))
+                          (implies/equiv equiv/associate)
                           (implies/combine
-                            (implies/trans4
-                              (implies/combine implies/reflexive
+                            (implies/trans3
+                              (implies/combine
+                                (implies/reflexive)
                                 (implies/trans (IMP o) (DUP o)))
                               (implies/equiv equiv/associate)
-                              (implies/equiv equiv/commute)
-                              (implies/combine implies/reflexive (implies/pack o)))
-                            (implies/equiv equiv/reorder))
+                              (implies/trans
+                                (implies/combine (implies/pack o) implies/reflexive)
+                                (implies/equiv equiv/commute)))
+                            (implies/reflexive))
                           (implies/equiv (equiv/symmetric equiv/associate))
                           (implies/combine implies/reflexive
-                            (implies/trans4
+                            (implies/trans3
+                              (implies/combine implies/reflexive
+                                (implies/equiv equiv/roll2))
                               (implies/equiv equiv/associate)
                               (implies/combine implies/linear-modus-ponens
-                                (implies/equiv
-                                  (equiv/transitive
-                                    (equiv/combine equiv/reflexive % CP
-                                      (equiv/transitive3
-                                        (equiv/combine equiv/reflexive equiv/reorder)
-                                        (equiv/associate)
-                                        (equiv/combine Pi3+Pi6<=>Pi1 equiv/reflexive)))
-                                    (equiv/reorder))))
+                                (implies/combine implies/reflexive
+                                  (implies/trans3
+                                    (implies/combine
+                                      implies/reflexive
+                                      (implies/equiv equiv/commute))
+                                    (implies/equiv equiv/associate)
+                                    (implies/combine
+                                      (implies/equiv Pi3+Pi6<=>Pi1)
+                                      (implies/reflexive)))))))
+                          (implies/combine implies/reflexive
+                            (implies/trans3
+                              (implies/combine implies/reflexive
+                                (implies/equiv equiv/roll2))
                               (implies/equiv equiv/associate)
                               (implies/combine
-                                (implies/equiv
-                                  (equiv/transitive equiv/commute Pi1+Pi2<=>Pi))
+                                (implies/trans
+                                  (implies/equiv equiv/commute)
+                                  (implies/equiv Pi1+Pi2<=>Pi))
                                 (implies/reflexive))))
-                          (implies/equiv equiv/roll3)
-                          (implies/combine implies/reflexive
-                            (implies/equiv equiv/roll3))))
+                          (implies/trans
+                            (implies/equiv equiv/roll3)
+                            (implies/combine
+                              (implies/reflexive)
+                              (implies/trans
+                                (implies/combine
+                                  (implies/reflexive)
+                                  (implies/equiv equiv/commute))
+                                (implies/equiv equiv/roll2))))))
                       (transform/drop)))
                   (transform/rem-unused)))))))
       (transform/reflexive))
     (effects2output/simple T2PF reftype2ty/shared simple-targets/shared
-      SX=>Pix M=>Pi B=>PiB)
+      M=>Pi B=>PiB)
     <- ({o:object} typing-frame* TYP-E2 (envadd/exists [r] envadd/expr) (TYP-E2' o))
     <- efxmap`partition-implies-permission-combine-converse M1|R6'=M61+M6'
       M61=>Pi3 M6'=>Pi6 Pi1 M1=>Pi1 Pi3+Pi6<=>Pi1
@@ -2314,7 +2263,6 @@ still generate the same permission.
       (M61=>Pi3:efxmap2perm CM PM B M61 Pi3))
     SUB T2PF not-borrowed/shared TYP-E2
     (before-write-format/ (T2PF2:ty2perm PM _ PF2) RT=>T2
-      (SX=>Pi3:shared-efx2perm SX Pix)
       (M6'=>Pi6:efxmap2perm CM PM B M6' Pi6)
       (B=>Pi1:cxt2perm CM PM B PiB))
     consider-ftype/shared %{=>}% _
@@ -2349,24 +2297,26 @@ still generate the same permission.
                       (transform/implies
                         (implies/trans
                           (implies/equiv
-                            (equiv/transitive3
+                            (equiv/transitive
                               (equiv/associate)
-                              (equiv/associate)
-                              (equiv/combine equiv/reflexive
-                                (equiv/transitive5
-                                  (equiv/combine equiv/reflexive equiv/roll3)
-                                  (equiv/associate)
-                                  (equiv/combine (Pi3+Pi6<=>Pi2) (equiv/reflexive))
-                                  (equiv/reorder)
-                                  (equiv/combine equiv/reflexive equiv/reorder)))))
-                          (implies/combine implies/reflexive
-                            (implies/combine implies/reflexive
-                              (implies/combine (IMP o) implies/reflexive)))))
+                              (equiv/associate)))
+                          (implies/combine
+                            (implies/reflexive)
+                            (implies/trans
+                              (implies/equiv
+                                (equiv/transitive
+                                  (equiv/roll2)
+                                  (equiv/combine equiv/reflexive equiv/roll2)))
+                              (implies/combine
+                                (implies/reflexive)
+                                (implies/combine
+                                  (IMP o)
+                                  (implies/equiv Pi3+Pi6<=>Pi2)))))))
                       (transform/drop)))
                   (transform/rem-unused)))))))
       (transform/reflexive))
     (effects2output/simple T2PF reftype2ty/shared simple-targets/shared
-      SX=>Pi3 M=>Pi2 B=>Pi1)
+      M=>Pi2 B=>Pi1)
     <- ({o:object} typing-frame* TYP-E2 (envadd/exists [r] envadd/expr) (TYP-E2' o))
     <- efxmap`partition-implies-permission-combine-converse M|R6=M61+M6'
       M61=>Pi3 M6'=>Pi6 Pi2 (M=>Pi2:efxmap2perm CM PM B M Pi2) Pi3+Pi6<=>Pi2
@@ -2380,7 +2330,6 @@ still generate the same permission.
       (M61=>Pi3:efxmap2perm CM PM B M61 Pi3))
     SUB T2PF not-borrowed/unique TYP-E2
     (before-write-format/ (T2PF2:ty2perm PM _ PF2) RT=>T2
-      (SX=>Pi3:shared-efx2perm SX Pix)
       (M6'=>Pi6:efxmap2perm CM PM B M6' Pi6)
       (B=>Pi1:cxt2perm CM PM B PiB))
     consider-ftype/unique %{=>}% _
@@ -2415,220 +2364,29 @@ still generate the same permission.
                       (transform/implies
                         (implies/trans
                           (implies/equiv
-                            (equiv/transitive3
+                            (equiv/transitive
                               (equiv/associate)
-                              (equiv/associate)
-                              (equiv/combine equiv/reflexive
-                                (equiv/transitive5
-                                  (equiv/combine equiv/reflexive equiv/roll3)
-                                  (equiv/associate)
-                                  (equiv/combine (Pi3+Pi6<=>Pi2) (equiv/reflexive))
-                                  (equiv/reorder)
-                                  (equiv/combine equiv/reflexive equiv/reorder)))))
-                          (implies/combine implies/reflexive
-                            (implies/combine implies/reflexive
-                              (implies/combine (IMP o) implies/reflexive)))))
+                              (equiv/associate)))
+                          (implies/combine
+                            (implies/reflexive)
+                            (implies/trans
+                              (implies/equiv
+                                (equiv/transitive
+                                  (equiv/roll2)
+                                  (equiv/combine equiv/reflexive equiv/roll2)))
+                              (implies/combine
+                                (implies/reflexive)
+                                (implies/combine
+                                  (IMP o)
+                                  (implies/equiv Pi3+Pi6<=>Pi2)))))))
                       (transform/drop)))
                   (transform/rem-unused)))))))
       (transform/reflexive))
     (effects2output/simple T2PF reftype2ty/unique simple-targets/unique
-      SX=>Pi3 M=>Pi2 B=>Pi1)
+      M=>Pi2 B=>Pi1)
     <- ({o:object} typing-frame* TYP-E2 (envadd/exists [r] envadd/expr) (TYP-E2' o))
     <- efxmap`partition-implies-permission-combine-converse M|R6=M61+M6'
       M61=>Pi3 M6'=>Pi6 Pi2 (M=>Pi2:efxmap2perm CM PM B M Pi2) Pi3+Pi6<=>Pi2
-    <- subtype-implies-ty2perm-leq* SUB not-borrowed/unique RT=>T2 T2PF2 T2PF IMP.
-
-- : do-write
-    (write-intermediate-format/+t M|G=M1+M2 (M2=>Pi2:efxmap2perm CM PM B M2 Pi2)
-      SX=>X2 MX-M2=X1 MX-X1X2=X efx2frac/write rat`eq/
-      (SX=>Pix:shared-efx2perm SX Pix)
-      DM-M6'=R6' M1|R6'=M61+M6' (M61=>Pi3:efxmap2perm CM PM B M61 Pi3))
-    SUB T2PF _ TYP-E2
-    (before-write-format/ (T2PF2:ty2perm _ _ PF2) RT=>T2 shared-efx2perm/none
-      (M6'=>Pi6:efxmap2perm CM PM B M6' Pi6) (B=>PiB:cxt2perm CM PM B PiB))
-    consider-ftype/shared
-    %{=>}% _
-    ([r] tTrans
-      (transform/implies
-        (implies/equiv (equiv/transitive (equiv/roll3) (equiv/commute))))
-      (letTyping/base null
-        (tWrite2 (TYP-E2' r)
-          (letTyping/exists [o]
-            (letTyping/base o
-              (tTrans
-                (transform/trans3
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/symmetric equiv/associate)
-                        (equiv/combine (equiv/symmetric equiv/one)
-                          (equiv/symmetric equiv/associate)))))
-                  (transform/skolem)
-                  (transform/inside [o']
-                    (transform/implies
-                      (implies/equiv
-                        (equiv/transitive
-                          (equiv/combine equiv/one equiv/reflexive)
-                          (equiv/symmetric equiv/associate))))))
-                (letTyping/exists [o']
-                  (letTyping/base null
-                    (tWrite: typing _ _ (write (lit r) F (lit o)) _)))
-                (transform/trans
-                  (transform/inside [o']
-                    (transform/trans
-                      (transform/implies
-                        (implies/trans6
-                          (implies/equiv
-                            (equiv/transitive
-                              (equiv/combine equiv/reflexive equiv/roll5)
-                              (equiv/associate)))
-                          (implies/combine
-                            (implies/trans4
-                              (implies/combine implies/reflexive
-                                (implies/trans (IMP o) (DUP o)))
-                              (implies/equiv equiv/associate)
-                              (implies/equiv equiv/commute)
-                              (implies/combine implies/reflexive (implies/pack o)))
-                            (implies/equiv equiv/reorder))
-                          (implies/equiv (equiv/symmetric equiv/associate))
-                          (implies/combine implies/reflexive
-                            (implies/trans8
-                              (implies/equiv equiv/associate)
-                              (implies/combine implies/linear-modus-ponens
-                                (implies/equiv
-                                  (equiv/transitive
-                                    (equiv/combine equiv/reflexive % CP
-                                      (equiv/transitive3
-                                        (equiv/combine equiv/reflexive equiv/reorder)
-                                        (equiv/associate)
-                                        (equiv/combine Pi3+Pi6<=>Pi1 equiv/reflexive)))
-                                    (equiv/reorder))))
-                              (implies/equiv (equiv/symmetric equiv/associate))
-                              (implies/combine implies/reflexive
-                                (implies/combine implies/reflexive
-                                  (implies/combine implies/reflexive
-                                    (implies/combine implies/reflexive
-                                      (implies/equiv equiv/identity)))))
-                              (implies/equiv
-                                (equiv/combine equiv/reflexive equiv/reorder))
-                              (implies/equiv equiv/associate)
-                              (implies/combine
-                                (implies/equiv
-                                  (equiv/transitive
-                                    (equiv/commute) Pi1+Pi2<=>Pi))
-                                (implies/reflexive))
-                              (implies/equiv
-                                (equiv/transitive
-                                  (equiv/roll3)
-                                  (equiv/combine equiv/reflexive
-                                    (equiv/transitive
-                                      (equiv/associate)
-                                      (equiv/commute)))))))
-                          (implies/equiv equiv/reorder)
-                          (implies/combine implies/reflexive
-                            (implies/equiv equiv/reorder))))
-                      (transform/drop)))
-                  (transform/rem-unused)))))))
-      (transform/reflexive))
-    (effects2output/simple T2PF reftype2ty/shared simple-targets/shared
-      SX=>Pix M=>Pi B=>PiB)
-    <- ({o:object} typing-frame* TYP-E2 (envadd/exists [r] envadd/expr) (TYP-E2' o))
-    <- efxmap`partition-implies-permission-combine-converse M1|R6'=M61+M6'
-      M61=>Pi3 M6'=>Pi6 Pi1 M1=>Pi1 Pi3+Pi6<=>Pi1
-    <- efxmap`partition-implies-permission-combine-converse M|G=M1+M2
-      M1=>Pi1 M2=>Pi2 Pi M=>Pi Pi1+Pi2<=>Pi
-    <- subtype-implies-ty2perm-leq* SUB not-borrowed/shared RT=>T2 T2PF2 T2PF IMP
-    <- sharedperm-can-be-duplicated* T2PF DUP.
-
-- : do-write
-    (write-intermediate-format/+t M|G=M1+M2 (M2=>Pi2:efxmap2perm CM PM B M2 Pi2)
-      MX-M2=X1 SX=>X2 MX-X1X2=X efx2frac/write rat`eq/
-      (SX=>Pix:shared-efx2perm SX Pix)
-      DM-M6'=R6' M1|R6'=M61+M6' (M61=>Pi3:efxmap2perm CM PM B M61 Pi3))
-    SUB T2PF _ TYP-E2
-    (before-write-format/ (T2PF2:ty2perm _ _ PF2) RT=>T2 shared-efx2perm/none
-      (M6'=>Pi6:efxmap2perm CM PM B M6' Pi6) (B=>PiB:cxt2perm CM PM B PiB))
-    consider-ftype/unique
-    %{=>}% _
-    ([r] tTrans
-      (transform/implies
-        (implies/equiv (equiv/transitive (equiv/roll3) (equiv/commute))))
-      (letTyping/base null
-        (tWrite2 (TYP-E2' r)
-          (letTyping/exists [o]
-            (letTyping/base o
-              (tTrans
-                (transform/trans3
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/symmetric equiv/associate)
-                        (equiv/combine (equiv/symmetric equiv/one)
-                          (equiv/symmetric equiv/associate)))))
-                  (transform/skolem)
-                  (transform/inside [o']
-                    (transform/implies
-                      (implies/equiv
-                        (equiv/transitive
-                          (equiv/combine equiv/one equiv/reflexive)
-                          (equiv/symmetric equiv/associate))))))
-                (letTyping/exists [o']
-                  (letTyping/base null
-                    (tWrite: typing _ _ (write (lit r) F (lit o)) _)))
-                (transform/trans
-                  (transform/inside [o']
-                    (transform/trans
-                      (transform/implies
-                        (implies/trans
-                          (implies/equiv equiv/reorder)
-                          (implies/combine implies/reflexive
-                            (implies/trans5
-                              (implies/equiv equiv/associate)
-                              (implies/combine
-                                (implies/trans % PF
-                                  (implies/combine
-                                    (implies/trans3
-                                      (implies/equiv (equiv/symmetric equiv/identity))
-                                      (implies/combine
-                                        (implies/reflexive)
-                                        (implies/trans
-                                          (implies/gen-pack-encumber o)
-                                          (implies/combine-assoc-encumbered)))
-                                      (implies/linear-modus-ponens))
-                                    (implies/reflexive))
-                                  (implies/chain-implication))
-                                (implies/equiv
-                                  (equiv/transitive3
-                                    (equiv/combine equiv/reflexive equiv/roll3)
-                                    (equiv/associate)
-                                    (equiv/combine (Pi3+Pi6<=>Pi1) equiv/reflexive))))
-                              (implies/equiv
-                                (equiv/transitive
-                                  (equiv/roll3)
-                                  (equiv/combine equiv/reflexive equiv/roll3)))
-                              (implies/combine
-                                (implies/trans
-                                  (implies/equiv (equiv/symmetric equiv/identity))
-                                  (implies/combine implies/reflexive
-                                    (gen-objequal-self o)))
-                                (implies/combine
-                                  (implies/trans (IMP o)
-                                    (implies/equiv (equiv/symmetric equiv/one)))
-                                  (implies/combine
-                                    (implies/equiv-encumbered
-                                      (equiv/symmetric equiv/one)
-                                      (equiv/reflexive))
-                                    (implies/equiv equiv/identity))))
-                              (implies/equiv (equiv/symmetric equiv/associate))))))
-                      (transform/drop)))
-                  (transform/rem-unused)))))))
-      (transform/inside [o]
-        (transform/gen-exists o)))
-    (effects2output/unique/t T2PF SX=>Pix efx2frac/write MX-X1X2=X
-      SX=>X2 MX-M2=X1 M2=>Pi2 M1=>Pi1 M|G=M1+M2 ([_] set2facts/0) B=>PiB)
-    <- ({o:object} typing-frame* TYP-E2 (envadd/exists [r] envadd/expr) (TYP-E2' o))
-    <- efxmap`partition-implies-permission-combine-converse M1|R6'=M61+M6'
-      M61=>Pi3 M6'=>Pi6 Pi1 M1=>Pi1 Pi3+Pi6<=>Pi1
     <- subtype-implies-ty2perm-leq* SUB not-borrowed/unique RT=>T2 T2PF2 T2PF IMP.
 
 %worlds () (do-write _ _ _ _ _ _ _ _ _ _).
