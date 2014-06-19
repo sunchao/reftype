@@ -36,8 +36,6 @@ wf-clsmap/U
     -> wf-clsmap CM.
 
 
-
-
 %% Well-formed context:
 %% 1, all type are not unique
 %% 2, at least contain an entry for shared
@@ -142,19 +140,16 @@ clsmap-cxt/U
 % consumed. But, we also need the encumbered permission:
 %  \forall f (P(a.f) encumbered-in P(a.all))
 
-collect-objs* : set -> set -> set -> type.
+collect-objs : set -> set -> type.
 
-collect-objs/0 : collect-objs* S set/0 S.
+collect-objs/0 : collect-objs set/0 set/0.
 
-collect-objs/U : collect-objs* S1 R' S2
+collect-objs/U : collect-objs S1' S2
                  -> set`add S2 N S3
                  -> nat2pair K (pair/ N _)
-                 -> set`not-member R' K
-                 -> set`add R' K R
-                 -> collect-objs* S1 R S3.
-
-%abbrev collect-objs = collect-objs* set/0.
-
+                 -> set`not-member S1' K
+                 -> set`add S1' K S1
+                 -> collect-objs S1 S3.
 
 % Whether all object ids in the set are of the same class C.
 
@@ -333,6 +328,20 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %abbrev least-nn-total = least-nn-total* _ _.
 
 
+%theorem least-nn-unique
+  : forall* {NN1} {NN2} {NN1'} {NN2'} {NN} {NN'}
+    forall {LN: least-nn NN1 NN2 NN}
+    {LN': least-nn NN1' NN2' NN'}
+    {E1: nonnull`eq NN1 NN1'} {E2: nonnull`eq NN2 NN2'}
+    exists {E: nonnull`eq NN NN'}
+    true.
+
+- : least-nn-unique LN LN nonnull`eq/ nonnull`eq/ nonnull`eq/.
+
+%worlds () (least-nn-unique _ _ _ _ _).
+%total { } (least-nn-unique _ _ _ _ _).
+
+
 %theorem least-nn-implies-leq
   : forall* {NN1} {NN2} {NN}
     forall {_: least-nn NN1 NN2 NN}
@@ -353,7 +362,47 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %total { } (least-nn-implies-leq _ _ _).
 
 
+%theorem least-nn-associative
+  : forall* {NN1} {NN2} {NN3} {NN4} {NN}
+    forall {LN1: least-nn NN1 NN2 NN3}
+    {LN2: least-nn NN3 NN4 NN}
+    exists {NN5} {LN3: least-nn NN1 NN4 NN5}
+    {LN4: least-nn NN5 NN2 NN}
+    true.
+
+- : least-nn-associative least-nn/= least-nn/= _ least-nn/= least-nn/=.
+
+- : least-nn-associative least-nn/= least-nn/< _ least-nn/< least-nn/=.
+
+- : least-nn-associative least-nn/= least-nn/> _ least-nn/> least-nn/<.
+
+- : least-nn-associative least-nn/< least-nn/= _ least-nn/= least-nn/<.
+
+- : least-nn-associative least-nn/< least-nn/< _ least-nn/< least-nn/<.
+
+- : least-nn-associative least-nn/> least-nn/= _ least-nn/> least-nn/=.
+
+- : least-nn-associative least-nn/> least-nn/< _ least-nn/= least-nn/>.
+
+%worlds () (least-nn-associative _ _ _ _ _).
+%total { } (least-nn-associative _ _ _ _ _).
+
+
 %%% find-least-nn
+
+%theorem find-least-nn-respects-eq*
+  : forall* {B} {S} {NN} {B'} {S'} {NN'} {NNin} {NNin'}
+    forall {_: find-least-nn* NNin B S NN}
+    {NNE: nonnull`eq NNin NNin'} {BE: cxt`eq B B'} {SE: set`eq S S'}
+    {NNE: nonnull`eq NN NN'}
+    exists {_: find-least-nn* NNin' B' S' NN'}
+    true.
+
+- : find-least-nn-respects-eq* FLN nonnull`eq/ cxt`eq/ set`eq/ nonnull`eq/ FLN.
+
+%worlds (objvar) (find-least-nn-respects-eq* _ _ _ _ _ _).
+%total { } (find-least-nn-respects-eq* _ _ _ _ _ _).
+
 
 %theorem find-least-nn-respects-eq
   : forall* {B} {S} {NN} {B'} {S'} {NN'}
@@ -369,6 +418,65 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %total { } (find-least-nn-respects-eq _ _ _ _ _).
 
 
+% NOT USED
+%theorem find-least-nn/U-inversion
+  : forall* {NNin} {B} {S} {NNout} {S'} {N}
+    forall {FLN: find-least-nn* NNin B S NNout}
+    {N!<S': set`not-member S' N} {S'+N=S: set`add S' N S}
+    exists {NNout'} {FLN': find-least-nn* NNin B S' NNout'}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    {LN: least-nn NNout' NN NNout}
+    true.
+
+%theorem find-least-nn/U-inversion/L
+  : forall* {S1} {N1} {S} {NNin} {NNout1} {NNout}
+    {B} {O1} {NN1} {A1} {C1} {S'} {N} {P}
+    forall {N1!<S1: set`not-member S1 N1}
+    {S1+N1=S: set`add S1 N1 S}
+    {FLN1: find-least-nn* NNin B S1 NNout1}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
+    {LN1: least-nn NNout1 NN1 NNout}
+    {N!<S': set`not-member S' N}
+    {S'+N=S: set`add S' N S}
+    {E?: nat`eq? N N1 P}
+    exists {NNout'} {FLN': find-least-nn* NNin B S' NNout'}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    {LN: least-nn NNout' NN NNout}
+    true.
+
+- : find-least-nn/U-inversion/L
+    F1 U1 FLN1 BL1 LN1 F2 U2 nat`eq?/yes _ FLN _ _ _ _ BL1 LN1
+    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ S1=S2
+    <- find-least-nn-respects-eq* FLN1 nonnull`eq/ cxt`eq/ S1=S2 nonnull`eq/ FLN.
+
+- : find-least-nn/U-inversion/L
+    (F1:set`not-member S1 N1)
+    (U1:set`add S1 N1 S)
+    (FLN1:find-least-nn* NNin B S1 NNout1)
+    (BL1:cxt`lookup B N1 (cxt-info/ O1 (ty/ NNn1 A1 C1)))
+    (LN1:least-nn NNout1 NNn1 NNout)
+    (F2:set`not-member S' N)
+    (U2:set`add S' N S)
+    (nat`eq?/no (N<>N1:nat`ne N N1)) _
+    (find-least-nn/U FLN F4 U4 BL1 LN2) _ _ _ _ BL3 LN4
+    <- set`add-commutes-converse U2 U1 N<>N1 SP U4 U3
+    <- set`add-preserves-not-member-converse F2 U4 F3
+    <- set`add-preserves-not-member-converse F1 U3 F4
+    <- find-least-nn/U-inversion FLN1 F3 U3 _ FLN _ _ _ _ BL3 LN3'
+    <- least-nn-associative LN3' LN1 _ LN2 LN4.
+
+- : find-least-nn/U-inversion
+    (find-least-nn/U FLN1 F1 U1 BL1 LN1) F2 U2 _ FLN _ _ _ _ BL LN
+    <- nat`eq?-total E?
+    <- find-least-nn/U-inversion/L F1 U1 FLN1 BL1 LN1 F2 U2 E? %{=>}%
+      _ FLN _ _ _ _ BL LN.
+
+%worlds (objvar) (find-least-nn/U-inversion _ _ _ _ _ _ _ _ _ _ _)
+(find-least-nn/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N N1) (find-least-nn/U-inversion N _ _ _ _ _ _ _ _ _ _)
+(find-least-nn/U-inversion/L _ _ N1 _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
 %theorem find-least-nn-unique
   : forall* {B} {S} {NN} {B'} {S'} {NN'}
     forall {_: find-least-nn B S NN}
@@ -377,8 +485,32 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     exists {NNE: nonnull`eq NN NN'}
     true.
 
-%worlds (objvar) (find-least-nn-unique _ _ _ _ _).
-%trustme %total { } (find-least-nn-unique _ _ _ _ _).
+%theorem find-least-nn-unique*
+  : forall* {B} {S} {NNin} {B'} {S'} {NNout} {NNout'}
+    forall {_: find-least-nn* NNin B S NNout}
+    {_: find-least-nn* NNin B' S' NNout'}
+    {BE: cxt`eq B B'} {SE: set`eq S S'}
+    exists {NNE: nonnull`eq NNout NNout'}
+    true.
+
+- : find-least-nn-unique* find-least-nn/0 find-least-nn/0
+    cxt`eq/ set`eq/ nonnull`eq/.
+
+- : find-least-nn-unique*
+    (find-least-nn/U NNin+B+R=NNout1 N!<R R+N=S BL=NN NNout1+NN=NNout)
+    NNin+B+S=NNout B=B' set`eq/ NNout=NNout'
+    <- find-least-nn/U-inversion NNin+B+S=NNout N!<R R+N=S %{=>}%
+      _ NNin+B+R=NNout1' _ _ _ _ BL=NN' NNout1'+NN'=NNout'
+    <- find-least-nn-unique* NNin+B+R=NNout1 NNin+B+R=NNout1' B=B' set`eq/
+      NNout1=NNout1'
+    <- cxt`lookup-unique BL=NN BL=NN' B=B' nat`eq/ CIE
+    <- cxt-info-eq-inversion CIE _ TE
+    <- ty-eq-inversion TE NNE AE CE
+    <- least-nn-unique NNout1+NN=NNout NNout1'+NN'=NNout'
+      NNout1=NNout1' NNE NNout=NNout'.
+
+%worlds (objvar) (find-least-nn-unique* _ _ _ _ _).
+%total (F) (find-least-nn-unique* F _ _ _ _).
 
 
 % nn-all-less-than
@@ -398,40 +530,174 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 
 %theorem nn-all-less-than/U-inversion
-  : forall* {B} {S} {NN} {S'} {N} {O}
+  : forall* {B} {S} {NN} {S'} {N}
     forall {B-S-NN: nn-all-less-than B S NN}
     {FS: set`not-member S' N} {AD: set`add S' N S}
-    exists {NN'} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' A C))}
+    exists {O} {NN'} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' A C))}
     {LE: nonnull`leq NN NN'} {B-S'-NN: nn-all-less-than B S' NN}
     true.
 
-%worlds (objvar) (nn-all-less-than/U-inversion _ _ _ _ _ _ _ _ _).
-%trustme %total { } (nn-all-less-than/U-inversion _ _ _ _ _ _ _ _ _).
-
-
-%theorem nn-all-less-than-unique
-  : forall* {B} {S} {NN} {B'} {S'} {NN'}
-    forall {_: nn-all-less-than B S NN}
-    {_: nn-all-less-than B' S' NN'}
-    {BE: cxt`eq B B'} {SE: set`eq S S'}
-    exists {NNE: nonnull`eq NN NN'}
+%theorem nn-all-less-than/U-inversion/L
+  : forall* {S1} {N1} {S} {NN} {O1} {NN1} {A1} {C1} {B} {S'} {N} {P}
+    forall {FS1: set`not-member S1 N1}
+    {AD1: set`add S1 N1 S}
+    {B-S-NN1: nn-all-less-than B S1 NN}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
+    {LE1: nonnull`leq NN NN1}
+    {FS: set`not-member S' N}
+    {AD: set`add S' N S}
+    {E?: nat`eq? N N1 P}
+    exists {O} {NN'} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' A C))}
+    {LE: nonnull`leq NN NN'} {B-S'-NN: nn-all-less-than B S' NN}
     true.
 
-%worlds (objvar) (nn-all-less-than-unique _ _ _ _ _).
-%trustme %total { } (nn-all-less-than-unique _ _ _ _ _).
+- : nn-all-less-than/U-inversion/L
+    F1 U1 B-S-NN1 BL1 LE1 F2 U2 nat`eq?/yes %{=>}% _ _ _ _ BL1 LE1 B-S-NN
+    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ S1=S2
+    <- nn-all-less-than-respects-eq B-S-NN1 cxt`eq/ S1=S2 nonnull`eq/ B-S-NN.
+
+- : nn-all-less-than/U-inversion/L
+    F1 U1 B-S-NN1 BL1 LE1 F2 U2 (nat`eq?/no N<>N1) %{=>}% _ _ _ _
+    BL3 LE3 (nn-all-less-than/U B-S-NN F4 U4 BL1 LE1)
+    <- set`add-commutes-converse U2 U1 N<>N1 SP U4 U3
+    <- set`add-preserves-not-member-converse F2 U4 F3
+    <- set`add-preserves-not-member-converse F1 U3 F4
+    <- nn-all-less-than/U-inversion B-S-NN1 F3 U3 _ _ _ _ BL3 LE3 B-S-NN.
+
+- : nn-all-less-than/U-inversion
+    (nn-all-less-than/U B-S-NN1 F1 U1 BL1 LE1) F2 U2 _ _ _ _ BL LE B-S-NN
+    <- nat`eq?-total E?
+    <- nn-all-less-than/U-inversion/L F1 U1 B-S-NN1 BL1 LE1 F2 U2 E?
+      _ _ _ _ BL LE B-S-NN.
+
+%worlds (objvar) (nn-all-less-than/U-inversion _ _ _ _ _ _ _ _ _ _)
+(nn-all-less-than/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N N1) (nn-all-less-than/U-inversion N _ _ _ _ _ _ _ _ _)
+(nn-all-less-than/U-inversion/L _ _ N1 _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %% clsmap, fldmap, methmap, etc.
 
+%theorem false-implies-wf-fldmap
+  : forall {F:void} {FM}
+    exists {WF-FM: wf-fldmap FM}
+    true.
+
+%worlds () (false-implies-wf-fldmap _ _ _).
+%total { } (false-implies-wf-fldmap _ _ _).
+
+
+%theorem wf-fldmap-respects-eq
+  : forall* {FM} {FM'}
+    forall {WF-FM: wf-fldmap FM}
+    {E: fldmap`eq FM FM'}
+    exists {WF-FM': wf-fldmap FM'}
+    true.
+
+- : wf-fldmap-respects-eq WF-FM fldmap`eq/ WF-FM.
+
+%worlds () (wf-fldmap-respects-eq _ _ _).
+%total { } (wf-fldmap-respects-eq _ _ _).
+
+
+%theorem false-implies-wf-clsmap
+  : forall {F:void} {CM}
+    exists {WF-CM: wf-clsmap CM}
+    true.
+
+%worlds () (false-implies-wf-clsmap _ _ _).
+%total { } (false-implies-wf-clsmap _ _ _).
+
+
+%theorem wf-clsmap-respects-eq
+  : forall* {CM} {CM'}
+    forall {WF-CM: wf-clsmap CM}
+    {E: clsmap`eq CM CM'}
+    exists {WF-CM': wf-clsmap CM'}
+    true.
+
+- : wf-clsmap-respects-eq WF-CM clsmap`eq/ WF-CM.
+
+%worlds () (wf-clsmap-respects-eq _ _ _).
+%total { } (wf-clsmap-respects-eq _ _ _).
+
+
+%theorem wf-clsmap-lookup-implies-wf-fldmap
+  : forall* {CM} {C} {FM}
+    forall {WF-CM: wf-clsmap CM}
+    {CML: clsmap`lookup CM C FM}
+    exists {WF-FM: wf-fldmap FM}
+    true.
+
+%theorem wf-clsmap-lookup-implies-wf-fldmap/L
+  : forall* {CM} {CM'} {FM} {FM'} {C} {C'} {B}
+    forall {WF-CM': wf-clsmap CM'}
+    {WF-FM': wf-fldmap FM'}
+    {FS: clsmap`fresh CM' C'}
+    {UD: clsmap`update CM' C' FM' CM}
+    {CML: clsmap`lookup CM C FM}
+    {E?: nat`eq? C C' B}
+    exists {WF-FM: wf-fldmap FM}
+    true.
+
+- : wf-clsmap-lookup-implies-wf-fldmap/L
+    WF-CM' WF-FM FS UD CML nat`eq?/yes WF-FM'
+    <- clsmap`update-implies-lookup UD CML'
+    <- clsmap`lookup-unique CML' CML clsmap`eq/ nat`eq/ FME
+    <- wf-fldmap-respects-eq WF-FM FME WF-FM'.
+
+- : wf-clsmap-lookup-implies-wf-fldmap/L
+    WF-CM' _ _ UD CML (nat`eq?/no C<>C') WF-FM
+    <- clsmap`update-preserves-lookup-converse CML UD C<>C' CML'
+    <- wf-clsmap-lookup-implies-wf-fldmap WF-CM' CML' WF-FM.
+
+- : wf-clsmap-lookup-implies-wf-fldmap
+    wf-clsmap/0 (clsmap`lookup/= nat`eq/) wf-fldmap/0.
+
+- : wf-clsmap-lookup-implies-wf-fldmap wf-clsmap/0 (clsmap`lookup/> CML _) WF-FM
+    <- clsmap`lookup-contradiction CML F
+    <- false-implies-wf-fldmap F _ WF-FM.
+
+- : wf-clsmap-lookup-implies-wf-fldmap
+    (wf-clsmap/U WF-CM' WF-FM' FS UD) CML WF-FM
+    <- nat`eq?-total E?
+    <- wf-clsmap-lookup-implies-wf-fldmap/L WF-CM' WF-FM' FS UD CML E? WF-FM.
+
+%worlds () (wf-clsmap-lookup-implies-wf-fldmap _ _ _)
+(wf-clsmap-lookup-implies-wf-fldmap/L _ _ _ _ _ _ _).
+%total (N N') (wf-clsmap-lookup-implies-wf-fldmap N _ _)
+(wf-clsmap-lookup-implies-wf-fldmap/L N' _ _ _ _ _ _).
+
+
+%theorem wf-fldmap-not-empty
+  : forall* {FM}
+    forall {WF-FM: wf-fldmap FM}
+    exists {N} {SZ: fldmap`size FM (s N)}
+    true.
+
+- : wf-fldmap-not-empty wf-fldmap/0 _ (fldmap`size/+ fldmap`size/0).
+
+- : wf-fldmap-not-empty (wf-fldmap/U WF-FM' _ FS UD) _ SZ'
+    <- wf-fldmap-not-empty WF-FM' _ SZ
+    <- fldmap`fresh-update-increases-size SZ FS UD SZ'.
+
+%worlds () (wf-fldmap-not-empty _ _ _).
+%total (W) (wf-fldmap-not-empty W _ _).
+
+
 %theorem wf-clsmap-lookup-not-empty
   : forall* {CM} {C} {FM}
     forall {WF: wf-clsmap CM}
-    {L: clsmap`lookup CM C FM}
+    {CML: clsmap`lookup CM C FM}
     exists {N} {Z: fldmap`size FM (s N)}
     true.
 
+- : wf-clsmap-lookup-not-empty WF-CM CML _ SZ
+    <- wf-clsmap-lookup-implies-wf-fldmap WF-CM CML WF-FM
+    <- wf-fldmap-not-empty WF-FM _ SZ.
+
 %worlds (objvar) (wf-clsmap-lookup-not-empty _ _ _ _).
-%trustme %total {} (wf-clsmap-lookup-not-empty _ _ _ _).
+%total {} (wf-clsmap-lookup-not-empty _ _ _ _).
 
 
 %theorem wf-clsmap-can-lookup-shared
@@ -632,7 +898,6 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 %%% Theorems about clsmap-cxt
 
-
 %theorem cxt-lookup-implies-clsmap-ty
   : forall* {CM} {B} {T} {O} {N}
     forall {WF-CM: wf-clsmap CM}
@@ -773,6 +1038,13 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 % a few theorems about collect-objs
 
+%theorem false-implies-collect-objs
+  : forall* {R} {S} forall {F:void} exists {CO: collect-objs R S} true.
+
+%worlds () (false-implies-collect-objs _ _).
+%total { } (false-implies-collect-objs _ _).
+
+
 %theorem collect-objs-total*
   : forall* {R} exists {S} {CO: collect-objs R S} true.
 
@@ -863,17 +1135,118 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 
 %theorem join-preserves-collect-objs
-  : forall* {S1} {S2} {S} {R1} {R2}
+  : forall* {S1} {S2} {S} {R1} {R2} {R}
     forall {U: set`union S1 S2 S}
+    {U: set`union R1 R2 R}
     {CO1: collect-objs S1 R1}
     {CO2: collect-objs S2 R2}
-    exists {R} {CO: collect-objs S R}
-    {U: set`union R1 R2 R}
+    exists {CO: collect-objs S R}
     true.
 
-%worlds (objvar) (join-preserves-collect-objs _ _ _ _ _ _).
-%trustme %total {} (join-preserves-collect-objs _ _ _ _ _ _).
+%theorem join-preserves-collect-objs/L
+  : forall* {R} {S} {S1} {S2} {R1} {R2}
+    forall {N} {SZ: set`size S N}
+    {U: set`union S1 S2 S}
+    {U: set`union R1 R2 R}
+    {CO1: collect-objs S1 R1}
+    {CO2: collect-objs S2 R2}
+    exists {CO: collect-objs S R}
+    true.
 
+- : join-preserves-collect-objs/L _ Z set`union/L _ collect-objs/0 CO CO.
+
+- : join-preserves-collect-objs/L _ Z set`union/R _ CO collect-objs/0 CO.
+
+%theorem join-preserves-collect-objs/LL
+  : forall* {R} {S} {S1} {S2} {R1} {R2} {S'} {K} {B1} {B2}
+    forall {N} {SZ: set`size S N}
+    {U: set`union S1 S2 S}
+    {U: set`union R1 R2 R}
+    {CO1: collect-objs S1 R1}
+    {CO2: collect-objs S2 R2}
+    {F: set`not-member S' K}
+    {U: set`add S' K S}
+    {D1?: set`domain? S1 K B1}
+    {D2?: set`domain? S2 K B2}
+    exists {CO: collect-objs S R}
+    true.
+
+- : join-preserves-collect-objs/LL (s N) Z SU RU CO1 CO2
+    F U (set`domain?/in L1) (set`domain?/in L2) %{=>}%
+    (collect-objs/U COP RA NP1 F U)
+    <- set`member-implies-not-member-add L1 _ F1 U1
+    <- set`member-implies-not-member-add L2 _ F2 U2
+    <- set`add-implies-member U L
+    <- set`not-member-update-preserves-union-converse*
+      F1 U1 F2 U2 SU F U unit`union/ SUP
+    <- collect-objs/U-inversion CO1 F1 U1 _ _ _ CO1P R1A NP1
+    <- collect-objs/U-inversion CO2 F2 U2 _ _ _ CO2P R2A NP2
+    <- nat2pair-deterministic NP1 NP2 nat`eq/ PE
+    <- pair-eq-implies-eq PE NE1 NE2
+    <- set`add-implies-unit-union R1A R1U
+    <- set`add-implies-unit-union R2A R2U
+    <- set`union-double-associative R1U R2U RU R' _ RUP NU RUP2
+    <- set`unit-union-same2 NU NE1 N12=N
+    <- set`union-respects-eq RUP2 set`eq/ N12=N set`eq/ RUN
+    <- set`unit-union-implies-add RUN RA
+    <- set`not-member-add-increases-size-converse Z F U ZP
+    <- join-preserves-collect-objs/L _ ZP SUP RUP CO1P CO2P COP.
+
+- : join-preserves-collect-objs/LL (s N) Z SU (RU:set`union R1 R2 R) CO1 CO2
+    F U (set`domain?/in _) (set`domain?/out F2) %{=>}%
+    (collect-objs/U COP RA P2N1 F U)
+    <- set`add-implies-member U L
+    <- set`not-member-union-right-preserves-member-converse L F2 SU L1
+    <- set`member-implies-not-member-add L1 _ F1 U1
+    <- collect-objs/U-inversion CO1 F1 U1 _ _ _ CO1P (R1A:set`add R1' _ R1) P2N1
+    <- set`not-member-update-left-preserves-union-converse* F1 U1 F2 SU F U SU1
+    <- set`not-member-add-increases-size-converse Z F U Z1
+    <- set`add-implies-unit-union R1A R1U'
+    <- set`union-commutative R1U' R1U
+    <- set`union-associative R1U RU _ R1UP RP'
+    <- set`union-commutative RP' RP
+    <- set`unit-union-implies-add RP RA
+    <- join-preserves-collect-objs/L _ Z1 SU1 R1UP CO1P CO2 COP.
+
+- : join-preserves-collect-objs/LL (s N) Z SU (RU:set`union R1 R2 R) CO1 CO2 F U
+    (set`domain?/out F1) (set`domain?/in _) %{=>}%
+    (collect-objs/U COP RA P2N2 F U)
+    <- set`add-implies-member U L
+    <- set`not-member-union-left-preserves-member-converse F1 L SU L2
+    <- set`member-implies-not-member-add L2 _ F2 U2
+    <- collect-objs/U-inversion CO2 F2 U2 _ _ _ CO2P R2A P2N2
+    <- set`add-implies-unit-union R2A R2U
+    <- set`union-associative-converse R2U RU _ R2UP RUP
+    <- set`unit-union-implies-add RUP RA
+    <- set`not-member-update-right-preserves-union-converse* F1 F2 U2 SU F U SU2
+    <- set`not-member-add-increases-size-converse Z F U Z1
+    <- join-preserves-collect-objs/L _ Z1 SU2 R2UP CO1 CO2P COP.
+
+- : join-preserves-collect-objs/LL _ _ SU _ _ _ _ U
+    (set`domain?/out F1) (set`domain?/out F2) %{=>}% CO
+    <- set`union-preserves-not-member* F1 F2 SU F
+    <- set`add-implies-member U L
+    <- set`not-member-member-not-equal F L N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- false-implies-collect-objs V CO.
+
+- : join-preserves-collect-objs/L (s N) Z SU RU CO1 CO2 CO
+    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) _ F U
+    <- set`domain?-total D1?
+    <- set`domain?-total D2?
+    <- join-preserves-collect-objs/LL (s N) Z SU RU CO1 CO2 F U D1? D2? CO.
+
+%worlds (objvar) (join-preserves-collect-objs/L _ _ _ _ _ _ _)
+  (join-preserves-collect-objs/LL _ _ _ _ _ _ _ _ _ _ _).
+%total (N1 N2) (join-preserves-collect-objs/LL N1 _ _ _ _ _ _ _ _ _ _)
+  (join-preserves-collect-objs/L N2 _ _ _ _ _ _).
+
+- : join-preserves-collect-objs SU RU CO1 CO2 CO
+    <- set`size-total Z
+    <- join-preserves-collect-objs/L _ Z SU RU CO1 CO2 CO.
+
+%worlds (objvar) (join-preserves-collect-objs _ _ _ _ _).
+%total { } (join-preserves-collect-objs _ _ _ _ _).
 
 %theorem collect-objs-respects-geq*
   : forall* {S} {S'} {Q} {Q'}
@@ -966,6 +1339,17 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 	(same-class/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _).
 
 
+
+%%% Theorems about clsmap-cxt-set
+
+%theorem false-implies-clsmap-cxt-set
+  : forall* {CM} {B} {S} forall {F:void} exists {CBS: clsmap-cxt-set CM B S}
+    true.
+
+%worlds (objvar) (false-implies-clsmap-cxt-set _ _).
+%total { } (false-implies-clsmap-cxt-set _ _).
+
+
 %theorem clsmap-cxt-set/U-inversion
   : forall* {CM} {B} {S} {S'} {K}
     forall {CM-B-S: clsmap-cxt-set CM B S}
@@ -1023,6 +1407,106 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 	(clsmap-cxt-set/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (C0 C1) (clsmap-cxt-set/U-inversion C0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 	(clsmap-cxt-set/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem join-preserves-clsmap-cxt-set
+  : forall* {CM} {B} {S1} {S2} {S}
+    forall {CM-B-S1: clsmap-cxt-set CM B S1}
+    {CM-B-S2: clsmap-cxt-set CM B S2}
+    {J: set`union S1 S2 S}
+    exists {CM-B-S: clsmap-cxt-set CM B S}
+    true.
+
+%theorem join-preserves-clsmap-cxt-set/L
+  : forall* {CM} {B} {S1} {S2} {S}
+    forall {N} {SZ: set`size S N}
+    {CM-B-S1: clsmap-cxt-set CM B S1}
+    {CM-B-S2: clsmap-cxt-set CM B S2}
+    {J: set`union S1 S2 S}
+    exists {CM-B-S: clsmap-cxt-set CM B S}
+    true.
+
+- : join-preserves-clsmap-cxt-set/L
+    _ set`size/0 clsmap-cxt-set/0 CBS set`union/L CBS.
+
+- : join-preserves-clsmap-cxt-set/L
+    _ set`size/0 CBS clsmap-cxt-set/0 set`union/R CBS.
+
+%theorem join-preserves-clsmap-cxt-set/LL
+  : forall* {CM} {B} {S1} {S2} {S} {SP} {K} {B1} {B2}
+    forall {N} {SZ: set`size S N}
+    {CM-B-S1: clsmap-cxt-set CM B S1}
+    {CM-B-S2: clsmap-cxt-set CM B S2}
+    {J: set`union S1 S2 S}
+    {F: set`not-member SP K}
+    {A: set`add SP K S}
+    {D1?: set`domain? S1 K B1}
+    {D2?: set`domain? S2 K B2}
+    exists {CM-B-S: clsmap-cxt-set CM B S}
+    true.
+
+- : join-preserves-clsmap-cxt-set/LL (s N) Z CBS1 CBS2 SU F U
+    (set`domain?/in (L1:set`lookup S1 K unit/)) (set`domain?/in L2)
+    (clsmap-cxt-set/U CBSP P2N2 BL2 CML2 FML2 F U)
+    <- set`member-implies-not-member-add L1 S1P F1 U1
+    <- set`member-implies-not-member-add L2 S2P F2 U2
+    <- set`add-implies-member U L
+    <- set`not-member-update-preserves-union-converse*
+      F1 U1 F2 U2 SU F U unit`union/ SUP
+    <- clsmap-cxt-set/U-inversion CBS1 F1 U1
+      CBS1P N1 FD1 P2N1 O1 NN1 A1 C1 BL1 FM1 CML1 T1 FML1
+    <- clsmap-cxt-set/U-inversion CBS2 F2 U2
+      CBS2P N2 FD2 P2N2 O2 NN2 A2 C2 BL2 FM2 CML2 T2 FML2
+    <- set`not-member-add-increases-size-converse Z F U ZP
+    <- join-preserves-clsmap-cxt-set/L _ ZP CBS1P CBS2P SUP CBSP.
+
+- : join-preserves-clsmap-cxt-set/LL (s N) Z CBS1 CBS2 SU F U
+    (set`domain?/in _) (set`domain?/out F2)
+    (clsmap-cxt-set/U CBSP P2N1 BL1 CML1 FML1 F U)
+    <- set`add-implies-member U L
+    <- set`not-member-union-right-preserves-member-converse L F2 SU L1
+    <- set`member-implies-not-member-add L1 _ F1 U1
+    <- clsmap-cxt-set/U-inversion CBS1 F1 U1 CBS1P _ _ P2N1 _ _ _ _ BL1 _ CML1 _ FML1
+    <- set`not-member-update-left-preserves-union-converse* F1 U1 F2 SU F U SU1
+    <- set`not-member-add-increases-size-converse Z F U Z1
+    <- join-preserves-clsmap-cxt-set/L _ Z1 CBS1P CBS2 SU1 CBSP.
+
+- : join-preserves-clsmap-cxt-set/LL (s N) Z CBS1 CBS2 SU F U
+    (set`domain?/out F1) (set`domain?/in _) %{=>}%
+    (clsmap-cxt-set/U CBSP P2N2 BL2 CML2 FML2 F U)
+    <- set`add-implies-member U L
+    <- set`not-member-union-left-preserves-member-converse F1 L SU L2
+    <- set`member-implies-not-member-add L2 _ F2 U2
+    <- clsmap-cxt-set/U-inversion CBS2 F2 U2 CBS2P _ _ P2N2 _ _ _ _ BL2 _ CML2 _ FML2
+    <- set`not-member-update-right-preserves-union-converse* F1 F2 U2 SU F U SU2
+    <- set`not-member-add-increases-size-converse Z F U Z1
+    <- join-preserves-clsmap-cxt-set/L _ Z1 CBS1 CBS2P SU2 CBSP.
+
+- : join-preserves-clsmap-cxt-set/LL _ _ _ _ SU _ U
+    (set`domain?/out F1) (set`domain?/out F2) %{=>}% CBS
+    <- set`union-preserves-not-member* F1 F2 SU F
+    <- set`add-implies-member U L
+    <- set`not-member-member-not-equal F L N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- false-implies-clsmap-cxt-set V CBS.
+
+- : join-preserves-clsmap-cxt-set/L (s N) Z CBS1 CBS2 SU CBS
+    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) _ F U
+    <- set`domain?-total D1?
+    <- set`domain?-total D2?
+    <- join-preserves-clsmap-cxt-set/LL (s N) Z CBS1 CBS2 SU F U D1? D2? CBS.
+
+%worlds (objvar) (join-preserves-clsmap-cxt-set/LL _ _ _ _ _ _ _ _ _ _)
+  (join-preserves-clsmap-cxt-set/L _ _ _ _ _ _).
+%total (N1 N2) (join-preserves-clsmap-cxt-set/LL N1 _ _ _ _ _ _ _ _ _)
+  (join-preserves-clsmap-cxt-set/L N2 _ _ _ _ _).
+
+- : join-preserves-clsmap-cxt-set CBS1 CBS2 U CBS
+    <- set`size-total Z
+    <- join-preserves-clsmap-cxt-set/L _ Z CBS1 CBS2 U CBS.
+
+%worlds (objvar) (join-preserves-clsmap-cxt-set _ _ _ _).
+%total {} (join-preserves-clsmap-cxt-set _ _ _ _).
 
 
 %theorem clsmap-cxt-set2/U-inversion
@@ -1167,21 +1651,6 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 	(clsmap-cxt-set2-respects-geq/U _ _ _ _ _ _ L2 _ _).
 
 
-%theorem join-preserves-clsmap-cxt-set
-  : forall* {CM} {B} {S1} {S2} {S}
-    forall {CM-B-S1: clsmap-cxt-set CM B S1}
-    {CM-B-S2: clsmap-cxt-set CM B S2}
-    {J: set`union S1 S2 S}
-    exists {CM-B-S: clsmap-cxt-set CM B S}
-    true.
-
-% this seems a little bit tricky, but it's basically
-% of the same pattern in map-all.elf.
-
-%worlds (objvar) (join-preserves-clsmap-cxt-set _ _ _ _).
-%trustme %total {} (join-preserves-clsmap-cxt-set _ _ _ _).
-
-
 %theorem nat+set2set-implies-clsmap-cxt-set
   : forall* {CM} {B} {N} {FS} {S} {NN} {A} {C} {FM} {FS0} {O}
     forall {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
@@ -1209,16 +1678,111 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 %total (T) (nat+set2set-implies-clsmap-cxt-set _ _ _ _ T _).
 
 
-%theorem join-preserves-clsmap-cxt-set2
-  : forall* {B} {CM} {S1} {S2} {S}
-    forall {B-S1: clsmap-cxt-set2 CM B S1}
-    {B-S2: clsmap-cxt-set2 CM B S2}
-    {U: set`union S1 S2 S}
-    exists {B-S: clsmap-cxt-set2 CM B S}
+%theorem false-implies-clsmap-cxt-set2
+  : forall* {CM} {B} {S}
+    forall {F:void} exists {CBS2: clsmap-cxt-set2 CM B S}
     true.
 
+%worlds (objvar) (false-implies-clsmap-cxt-set2 _ _).
+%total { } (false-implies-clsmap-cxt-set2 _ _).
+
+
+%theorem join-preserves-clsmap-cxt-set2
+  : forall* {CM} {B} {S1} {S2} {S}
+    forall {CM-B-S1: clsmap-cxt-set2 CM B S1}
+    {CM-B-S2: clsmap-cxt-set2 CM B S2}
+    {J: set`union S1 S2 S}
+    exists {CM-B-S: clsmap-cxt-set2 CM B S}
+    true.
+
+%theorem join-preserves-clsmap-cxt-set2/L
+  : forall* {CM} {B} {S1} {S2} {S}
+    forall {N} {SZ: set`size S N}
+    {CM-B-S1: clsmap-cxt-set2 CM B S1}
+    {CM-B-S2: clsmap-cxt-set2 CM B S2}
+    {J: set`union S1 S2 S}
+    exists {CM-B-S: clsmap-cxt-set2 CM B S}
+    true.
+
+- : join-preserves-clsmap-cxt-set2/L
+    _ set`size/0 clsmap-cxt-set2/0 CBS set`union/L CBS.
+
+- : join-preserves-clsmap-cxt-set2/L
+    _ set`size/0 CBS clsmap-cxt-set2/0 set`union/R CBS.
+
+%theorem join-preserves-clsmap-cxt-set2/LL
+  : forall* {CM} {B} {S1} {S2} {S} {SP} {K} {B1} {B2}
+    forall {N} {SZ: set`size S N}
+    {CM-B-S1: clsmap-cxt-set2 CM B S1}
+    {CM-B-S2: clsmap-cxt-set2 CM B S2}
+    {J: set`union S1 S2 S}
+    {F: set`not-member SP K}
+    {A: set`add SP K S}
+    {D1?: set`domain? S1 K B1}
+    {D2?: set`domain? S2 K B2}
+    exists {CM-B-S: clsmap-cxt-set2 CM B S}
+    true.
+
+- : join-preserves-clsmap-cxt-set2/LL (s N) Z CBS1 CBS2 SU F U
+    (set`domain?/in (L1:set`lookup S1 K unit/)) (set`domain?/in L2)
+    (clsmap-cxt-set2/U CBSP BL2 CML2 F U)
+    <- set`member-implies-not-member-add L1 S1P F1 U1
+    <- set`member-implies-not-member-add L2 S2P F2 U2
+    <- set`add-implies-member U L
+    <- set`not-member-update-preserves-union-converse*
+      F1 U1 F2 U2 SU F U unit`union/ SUP
+    <- clsmap-cxt-set2/U-inversion CBS1 F1 U1 CBS1P _ _ _ _ BL1 _ CML1
+    <- clsmap-cxt-set2/U-inversion CBS2 F2 U2 CBS2P _ _ _ _ BL2 _ CML2
+    <- set`not-member-add-increases-size-converse Z F U ZP
+    <- join-preserves-clsmap-cxt-set2/L _ ZP CBS1P CBS2P SUP CBSP.
+
+- : join-preserves-clsmap-cxt-set2/LL (s N) Z CBS1 CBS2 SU F U
+    (set`domain?/in _) (set`domain?/out F2)
+    (clsmap-cxt-set2/U CBSP BL1 CML1 F U)
+    <- set`add-implies-member U L
+    <- set`not-member-union-right-preserves-member-converse L F2 SU L1
+    <- set`member-implies-not-member-add L1 _ F1 U1
+    <- clsmap-cxt-set2/U-inversion CBS1 F1 U1 CBS1P _ _ _ _ BL1 _ CML1
+    <- set`not-member-update-left-preserves-union-converse* F1 U1 F2 SU F U SU1
+    <- set`not-member-add-increases-size-converse Z F U Z1
+    <- join-preserves-clsmap-cxt-set2/L _ Z1 CBS1P CBS2 SU1 CBSP.
+
+- : join-preserves-clsmap-cxt-set2/LL (s N) Z CBS1 CBS2 SU F U
+    (set`domain?/out F1) (set`domain?/in _) %{=>}%
+    (clsmap-cxt-set2/U CBSP BL2 CML2 F U)
+    <- set`add-implies-member U L
+    <- set`not-member-union-left-preserves-member-converse F1 L SU L2
+    <- set`member-implies-not-member-add L2 _ F2 U2
+    <- clsmap-cxt-set2/U-inversion CBS2 F2 U2 CBS2P _ _ _ _ BL2 _ CML2
+    <- set`not-member-update-right-preserves-union-converse* F1 F2 U2 SU F U SU2
+    <- set`not-member-add-increases-size-converse Z F U Z1
+    <- join-preserves-clsmap-cxt-set2/L _ Z1 CBS1 CBS2P SU2 CBSP.
+
+- : join-preserves-clsmap-cxt-set2/LL _ _ _ _ SU _ U
+    (set`domain?/out F1) (set`domain?/out F2) %{=>}% CBS
+    <- set`union-preserves-not-member* F1 F2 SU F
+    <- set`add-implies-member U L
+    <- set`not-member-member-not-equal F L N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- false-implies-clsmap-cxt-set2 V CBS.
+
+- : join-preserves-clsmap-cxt-set2/L (s N) Z CBS1 CBS2 SU CBS
+    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) _ F U
+    <- set`domain?-total D1?
+    <- set`domain?-total D2?
+    <- join-preserves-clsmap-cxt-set2/LL (s N) Z CBS1 CBS2 SU F U D1? D2? CBS.
+
+%worlds (objvar) (join-preserves-clsmap-cxt-set2/LL _ _ _ _ _ _ _ _ _ _)
+  (join-preserves-clsmap-cxt-set2/L _ _ _ _ _ _).
+%total (N1 N2) (join-preserves-clsmap-cxt-set2/LL N1 _ _ _ _ _ _ _ _ _)
+  (join-preserves-clsmap-cxt-set2/L N2 _ _ _ _ _).
+
+- : join-preserves-clsmap-cxt-set2 CBS1 CBS2 U CBS
+    <- set`size-total Z
+    <- join-preserves-clsmap-cxt-set2/L _ Z CBS1 CBS2 U CBS.
+
 %worlds (objvar) (join-preserves-clsmap-cxt-set2 _ _ _ _).
-%trustme %total {} (join-preserves-clsmap-cxt-set2 _ _ _ _).
+%total {} (join-preserves-clsmap-cxt-set2 _ _ _ _).
 
 
 %theorem collect-objs-implies-clsmap-cxt-set2
@@ -1273,6 +1837,62 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 	(collect-objs-implies-clsmap-cxt-set2/U _ C0 _ _ _ _ _ _ _).
 
 
+%theorem nat+set2set-implies-collect-objs
+  : forall* {N} {FS} {S}
+    forall {K} {Z: set`size FS (s K)}
+    {T: nat+set2set N FS S}
+    exists {CO: collect-objs S (set/1 N)}
+    true.
+
+- : nat+set2set-implies-collect-objs z (set`size/+ set`size/0)
+    (nat+set2set/U nat+set2set/0 P2N NM U UP)
+    (collect-objs/U collect-objs/0 set`update/0 P2N set`not-member/0 UP).
+
+- : nat+set2set-implies-collect-objs z (set`size/+ set`size/0)
+    (nat+set2set/U (nat+set2set/U NSS _ F1 U1 _) _ F2 U2 _) CO
+    <- set`size-total SZ
+    <- set`not-member-add-increases-size SZ F1 U1 SZ1
+    <- set`not-member-add-increases-size SZ1 F2 U2 SZ2
+    <- set`size-unique (set`size/+ set`size/0) SZ2 set`eq/ EQ'
+    <- nat`succ-cancels EQ' EQ
+    <- nat`eq-contradiction EQ V
+    <- false-implies-collect-objs V CO.
+
+- : nat+set2set-implies-collect-objs (s N) Z
+    (nat+set2set/U N+FS'=>S' N+F=>K F!<FS' FS'+F=FS S'+K=S)
+    (collect-objs/U S'=>SN SN+N=SN N+F=>K K!<S' S'+K=S)
+    <- set`not-member-add-increases-size-converse Z F!<FS' FS'+F=FS ZP
+    <- nat+set2set-implies-collect-objs N ZP N+FS'=>S' S'=>SN
+    <- nat+set2set-preserves-fresh N+FS'=>S' F!<FS' N+F=>K K!<S'
+    <- set`update-total SN+N=SN'
+    <- set`update-may-have-no-effect (set`lookup/= nat`eq/) SN+N=SN' SN'=SN
+    <- set`eq-symmetric SN'=SN SN=SN'
+    <- set`add-respects-eq SN+N=SN' set`eq/ nat`eq/ SN=SN' SN+N=SN.
+
+%worlds (objvar) (nat+set2set-implies-collect-objs _ _ _ _).
+%total (N) (nat+set2set-implies-collect-objs N _ _ _).
+
+%theorem set+set2set-implies-collect-objs
+  : forall* {S} {FS} {R}
+    forall {N} {NE: set`size FS (s N)} {S+F=>R: set+set2set S FS R}
+    exists {CO: collect-objs R S}
+    true.
+
+- : set+set2set-implies-collect-objs _ _ set+set2set/0 collect-objs/0.
+
+- : set+set2set-implies-collect-objs N Z
+    (set+set2set/U (SP+FS=>QP:set+set2set SP FS QP)
+      (N+FS=>R:nat+set2set Nx FS R)
+      F (A:set`add SP Nx S) (U:set`union QP R Q)) CO
+    <- set+set2set-implies-collect-objs N Z SP+FS=>QP COP
+    <- nat+set2set-implies-collect-objs N Z N+FS=>R COR
+    <- set`add-implies-unit-union A UU
+    <- join-preserves-collect-objs U UU COP COR CO.
+
+%worlds (objvar) (set+set2set-implies-collect-objs _ _ _ _).
+%total (N) (set+set2set-implies-collect-objs _ _ N _).
+
+
 %theorem set+nat2set-implies-collect-objs
   : forall* {S} {F} {G}
     forall {S+F=>G: set+nat2set S F G}
@@ -1289,58 +1909,6 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 
 %worlds (objvar) (set+nat2set-implies-collect-objs _ _).
 %total (T) (set+nat2set-implies-collect-objs T _).
-
-
-% FS needs to be non-empty here - otherwise the consume
-% set will not contain those entries in S, but the encumbered
-% set will, and thus the invariant is broken.
-
-%theorem set+set2set-implies-collect-objs
-  : forall* {S} {FS} {R}
-    forall {N} {NE: set`size FS (s N)} {S+F=>R: set+set2set S FS R}
-    exists {CO: collect-objs R S}
-    true.
-
-% - : set+set2set-implies-collect-objs z (set`size/+ set`size/0)
-%     (set+set2set/U S+E=>R' S+F=>Q F!<FS' FS'+F=FS R'+Q=R) R=>S
-%     <- set`not-member-add-increases-size-converse
-%       (set`size/+ set`size/0) F!<FS' FS'+F=FS Z'
-%     <- set`size-zero-implies-empty Z' EQ
-%     <- set+set2set-unique S+E=>R' set+set2set/0 set`eq/ EQ R'=E
-%     <- set+nat2set-implies-collect-objs S+F=>Q Q=>S
-%     <- set`union-unique R'+Q=R set`union/L R'=E set`eq/ R=Q
-%     <- set`eq-symmetric R=Q Q=R
-%     <- collect-objs-respects-eq Q=>S Q=R set`eq/ R=>S.
-
-% - : set+set2set-implies-collect-objs (s N) Z
-%     (set+set2set/U S+FS'=>R' S+F=>Q F!<FS' FS'+F=FS R'+Q=R) R=>S
-%     <- set`not-member-add-increases-size-converse Z F!<FS' FS'+F=FS Z'
-%     <- set+set2set-implies-collect-objs N Z' S+FS'=>R' R'=>S
-%     <- set+nat2set-implies-collect-objs S+F=>Q Q=>S
-%     <- join-preserves-collect-objs R'+Q=R R'=>S Q=>S _ R=>S' S+S=S'
-%     <- set`union-idempotent S+S=S
-%     <- set`union-unique S+S=S' S+S=S set`eq/ set`eq/ S'=S
-%     <- collect-objs-respects-eq R=>S' set`eq/ S'=S R=>S.
-
-%worlds (objvar) (set+set2set-implies-collect-objs _ _ _ _).
-%trustme %total (N) (set+set2set-implies-collect-objs N _ _ _).
-
-
-% %theorem shared-efx-relation-respects-geq
-%   : forall* {B} {SX1} {SX2}
-%     forall {B-SX1: shared-efx-relation B SX1}
-%     {SX1<=SX2: shared-efx`leq SX1 SX2}
-%     exists {B-SX2: shared-efx-relation B SX2}
-%     true.
-
-% - : shared-efx-relation-respects-geq shared-efx-relation/f _ shared-efx-relation/f.
-
-% - : shared-efx-relation-respects-geq
-%     (shared-efx-relation/t shared-efx-not-none/) (shared-efx`leq/= _)
-%     (shared-efx-relation/t shared-efx-not-none/).
-
-% %worlds (objvar) (shared-efx-relation-respects-geq _ _ _).
-% %total {} (shared-efx-relation-respects-geq _ _ _).
 
 
 %theorem effects`join-right-preserves-targets-effects
@@ -1553,24 +2121,20 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
     exists {CM-B-Q: clsmap-cxt-set CM B Q}
     true.
 
-% - : set+set2set-implies-clsmap-cxt-set _
-%     set+set2set/0 _ _ _ clsmap-cxt-set/0.
+- : set+set2set-implies-clsmap-cxt-set _
+    set+set2set/0 _ _ _ clsmap-cxt-set/0.
 
-% - : set+set2set-implies-clsmap-cxt-set SOC
-%     (set+set2set/U S+FSP=>QP S+F=>R F!<FSP FSP+F=FS QP+R=Q)
-%     CML DM-FM=FS1 FS<=FS1 CM-B-Q
-%     <- set`add-implies-leq FSP+F=FS FSP<=FS
-%     <- set`leq-transitive FSP<=FS FS<=FS1 FSP<=FS1
-%     <- set`add-implies-member FSP+F=FS F<-FS
-%     <- set`member-respects-leq F<-FS FS<=FS1 F<-FS1
-%     <- fldmap`domain-preserves-lookup-converse F<-FS1 DM-FM=FS1 _ FML
-%     <- set+nat2set-implies-clsmap-cxt-set CML FML SOC S+F=>R CM-B-R
-%     <- set+set2set-implies-clsmap-cxt-set SOC S+FSP=>QP CML DM-FM=FS1
-%       FSP<=FS1 CM-B-QP
-%     <- join-preserves-clsmap-cxt-set CM-B-QP CM-B-R QP+R=Q CM-B-Q.
+- : set+set2set-implies-clsmap-cxt-set SOC
+    (set+set2set/U S'+FS=>Q' N+FS=>R N!<S' S'+N=S Q'+R=Q)
+    CML DM-FM=FS1 FS<=FS1 CM-B-Q
+    <- same-class/U-inversion SOC N!<S' S'+N=S _ _ _ SOC' BL
+    <- set+set2set-implies-clsmap-cxt-set
+      SOC' S'+FS=>Q' CML DM-FM=FS1 FS<=FS1 CM-B-Q'
+    <- nat+set2set-implies-clsmap-cxt-set BL CML DM-FM=FS1 FS<=FS1 N+FS=>R CM-B-R
+    <- join-preserves-clsmap-cxt-set CM-B-Q' CM-B-R Q'+R=Q CM-B-Q.
 
 %worlds (objvar) (set+set2set-implies-clsmap-cxt-set _ _ _ _ _ _ ).
-%trustme %total (S) (set+set2set-implies-clsmap-cxt-set _ S _ _ _ _ ).
+%total (S) (set+set2set-implies-clsmap-cxt-set _ S _ _ _ _ ).
 
 
 %theorem make-targets-and-effects-consistent
