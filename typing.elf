@@ -1,5 +1,4 @@
 %%% Type judgments for conservative type system based on FP.
-%%% $Id$
 
 %%% Definitions
 
@@ -89,12 +88,6 @@ reftyping/lit
     <- cxt`lookup-obj B O N T
     <- ty2reftype N T RT.
 
-%{
-reftyping/null
-  : reftyping _ _ _ (lit null) (result/expr reftype/null no-effect).
-}%
-
-
 
 %%% Type Rules with Direct Effect
 
@@ -107,10 +100,6 @@ reftyping/read
     -> effects`join XX1 (effects/ M set/0 set/0) XX
     -> reftyping N CM MM B (read E F) (result/expr (reftype/ NN FC GP) XX).
 
-
-% make sure effects XX6 does not uses any permission from
-% those encumbered by targets from E1.
-
 reftyping/write
   : reftyping N CM MM B E1 (result/expr (reftype/ nn/yes C G) XX1)
     -> reftyping N CM MM B E2 (result/expr RT XX2)
@@ -122,26 +111,25 @@ reftyping/write
     -> effects`join XX1 (effects/ M3 set/0 set/0) XX5
     -> effects`join XX2 XX4 XX6
     -> effects`join XX5 XX6 XX7
-    -> compatible G' XX6
+    -> compatible CM B G' XX6
     -> reftyping N CM MM B (write E1 F E2) (result/expr (reftype/ NN FC GP) XX7).
 
-% Note: to handle reftype/null
-% reftyping/let
-%   : reftyping N CM MM B E (result/expr (reftype/ NN C GS) XX1)
-%     -> reftype2ty (reftype/ NN C GS) (ty/ NN A C)
-%     -> ({x} cxt`update B N (cxt-info/ x (ty/ NN A C)) (BF x))
-%     -> ({x} reftyping (s N) CM MM (BF x) (F x)
-%          (result/expr (reftype/ NN2 C2 GS2) XX2))
-%     -> compatible GS XX2
-%     -> subst-targets GS N GS2 GS3
-%     -> subst-effects GS N XX2 XX3
-%     -> effects`join XX1 XX3 XX
-%     -> reftyping N CM MM B (let E F) (result/expr (reftype/ NN2 C2 GS3) XX).
 
 %%% Type Rules with Indirect Effects
 
-% Note:
-% 06-16-13: needs reftyping/sub to check this
+%% should NOT use reftype2ty
+
+reftyping/let
+   : reftyping N CM MM B E (result/expr (reftype/ NN C GS) XX1)
+     -> reftype2ty (reftype/ NN C GS) (ty/ NN A C)
+     -> ({x} cxt`update B N (cxt-info/ x (ty/ NN A C)) (BF x))
+     -> ({x} reftyping (s N) CM MM (BF x) (F x)
+          (result/expr (reftype/ NN2 C2 GS2) XX2))
+     -> compatible CM B GS XX2
+     -> subst-targets GS N GS2 GS3
+     -> subst-effects CM B GS N XX2 XX3
+     -> effects`join XX1 XX3 XX
+     -> reftyping N CM MM B (let E F) (result/expr (reftype/ NN2 C2 GS3) XX).
 
 %{
 reftyping/if

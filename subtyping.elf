@@ -3,7 +3,14 @@
 
 %%% Definitions
 
-% 1, consider field annotation, and returns either the input unique
+%% We use a special natural number z to represent the special
+%% shared target: world.all. There's a one-to-one mapping between
+%% z and (pair/ z z).
+
+%abbrev shared-tgt : nat = nat`z.
+
+
+% Consider field annotation, and returns either the input unique
 % targets, or a shared targets. (no borrowed targets since field
 % cannot be borrowed).
 
@@ -14,35 +21,42 @@ consider-ftype/shared : consider-ftype _ annot/shared targets/shared.
 consider-ftype/unique : consider-ftype G annot/unique G.
 
 
-% 2, given input targets for field reference receiver,
-% field annotation, field ID, and effects, compute the result
-% targets and effects.
-
-% create-shared-efx : efx -> shared-efx -> type.
-
-% create-shared-efx/read : create-shared-efx efx/read shared-efx/read.
-
-% create-shared-efx/write : create-shared-efx efx/write shared-efx/write.
-
-
 make-targets-and-effects : targets -> nat -> efx -> targets -> effects -> type.
 
 make-targets-and-effects/shared
   : make-targets-and-effects
-      targets/shared  _ X (targets/unique set/0 (set/1 z))
+      targets/shared  _ X (targets/unique set/0 (set/1 shared-tgt))
       (effects/ (efxmap/+ z X efxmap/0) set/0 set/0).
 
 make-targets-and-effects/unique
-  : set+nat2set G1 F G1'
-    -> set`disjoint G2 G1'
-    -> set`union G2 G1' G
-    -> set2efxmap G X M
+  : set+nat2set OS F FS2
+    -> set`disjoint FS FS2
+    -> set`union FS FS2 FS3
+    -> set2efxmap FS3 X M
     -> make-targets-and-effects
-      (targets/unique G1 G2) F X (targets/unique set/0 G)
+      (targets/unique OS FS) F X (targets/unique set/0 FS3)
       (effects/ M set/0 set/0).
 
+%% Convert an object target set into a field target set, which
+%% includes ALL fields of all object target.
 
-%%% 5, converting between ty and reftype
+objset2fldset : clsmap -> cxt -> set -> set -> type.
+
+objset2fldset/0 : objset2fldset _ _ set/0 set/0.
+
+objset2fldset/U
+  : objset2fldset CM B OSP SP
+    -> cxt`lookup B N (cxt-info/ _ (ty/ _ _ C))
+    -> clsmap`lookup CM C FM
+    -> fldmap`domain FM FS
+    -> nat+set2set N FS R
+    -> set`union SP R S
+    -> set`not-member OSP N
+    -> set`add OSP N OS
+    -> objset2fldset CM B OS S.
+
+
+%%% Converting between ty and reftype
 
 ty2reftype : nat -> ty -> reftype -> type.
 
@@ -70,17 +84,10 @@ reftype2ty/unique
 % reftype2ty/null : reftype2ty reftype/null ty/null.
 
 
-% 6. compatible : whether (encumbered) targets are compatible
+% Compatible : whether (encumbered) targets are compatible
 % with the forthcoming effects.
 
-% compatible/B : bool -> shared-efx -> type.
-
-% compatible/B/true : compatible/B true shared-efx/none.
-
-% compatible/B/false : compatible/B false _.
-
-
-compatible : targets -> effects -> type.
+compatible : clsmap -> cxt -> targets -> effects -> type.
 
 %{ this is rather restrictive: it means once we "hold on"
 a unique field from a shared object, we cannot have any
@@ -92,16 +99,39 @@ to be *encumbered* BOTH in permission for a and permission for s
 for shared with a nesting fact, and then delay the encumber
 to later stage. However, at this time it turns out too much change
 is required, so we left it to be fixed later.
-TODO: fix compatible/shared.
+
+Update: we need to restrict the occurrences of OS in effects too.
+In case we have expression: let x = a in (a.f = 3; x.f = 4; x)
+we would first convert the output of "x = a" into a certain format
+where "x.f" is already carved from the permissions. Thus, when
+checking "a.f = 3", we don't have permission for "a.f" since it's
+already in the encumbered part.
+
+We can get the permission for "a.f" by first using linear modus-ponens
+to restore the permission for "a.f" and then get the permission for
+"x.f" again when starting to check "x.f". However, this cannot
+be implemented in the current system.
+
+In order to implement this, we might need to change the way input
+permission is generated. Instead of requiring the permissions for
+"x", it should require the permissions where "x" will come from.
+In this way, we only do carving whenever needed. This may be done
+by binding "x" with all the targets & effects it came from, but this
+requires a big surgery on the current context definition.
+
+FUTURE WORK: fix compatible/shared.
+FUTURE WORK: better/less restrictive compatible/unique
 }%
 
-compatible/shared : compatible targets/shared _.
+compatible/shared : set`not-member S shared-tgt
+                    -> compatible _ _ targets/shared (effects/ _ S Q).
 
 compatible/unique : efxmap`domain M R
-                    -> set`disjoint G R
-                    -> set`disjoint G S
-                    -> compatible (targets/unique _ G)
-                      (effects/ M S _).
+                    -> set`disjoint FS R
+                    -> set`disjoint FS S
+                    -> objset2fldset CM B Q FS2
+                    -> set`disjoint FS FS2
+                    -> compatible CM B (targets/unique OS FS) (effects/ M S Q).
 
 
 % sub-annotation rule with side effects.
@@ -113,11 +143,8 @@ compatible/unique : efxmap`domain M R
 sub-annot-efx : targets -> efxmap -> set -> annot -> effects -> type.
 
 sub-annot-efx/consume
-  : sub-annot-efx (targets/unique G1 G2) _ FS A (effects/ efxmap/0 G G1)
-    <- not-borrowed A
-    <- set+set2set G1 FS G1'
-    <- set`disjoint G2 G1'
-    <- set`union G2 G1' G.
+  : sub-annot-efx (targets/unique G1 G2) _ FS A (effects/ efxmap/0 G2 G1)
+    <- not-borrowed A.
 
 sub-annot-efx/unique2borrow
   : sub-annot-efx (targets/unique G1 G2) XMd
@@ -129,7 +156,7 @@ sub-annot-efx/unique2borrow
 
 sub-annot-efx/shared2borrow
  : sub-annot-efx targets/shared XMd _ annot/borrow
-   (effects/ (efxmap/+ z X efxmap/0) set/0 set/0)
+   (effects/ (efxmap/+ shared-tgt X efxmap/0) set/0 set/0)
    <- efxmap-max-efx XMd X.
 
 sub-annot-efx/shared2shared

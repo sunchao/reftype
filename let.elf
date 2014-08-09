@@ -1,29 +1,3 @@
-% TODO: here I need to define something that can combines the
-% output from e1 and output from e2.
-
-combine-outputs : object -> expr-output -> expr-output -> expr-output -> type.
-
-combine-outputs/base
-  : combine-outputs O (output/expr O1 Pi1) (output/expr O2 Pi2)
-    (output/expr O2 (unitperm (nonlinear (objequal O O1)) , (Pi1 , Pi2))).
-
-combine-outputs/exists1
-  : combine-outputs O (output/exists ([y] (Out1 y))) Out2
-    (output/exists [y] (Out y))
-    <- ({y} combine-outputs O (Out1 y) Out2 (Out y)).
-
-combine-outputs/exists2
-  : combine-outputs O (output/expr O1 Pi1)
-    (output/exists [y] (Out2 y)) (output/exists [y] (Out y))
-    <- ({y} combine-outputs O (output/expr O1 Pi1) (Out2 y) (Out y)).
-
-
-%{%
-  We need to prove that, taking the output Out1 from checking e1, and
-  the effects XX from checking e2,
-%}%
-
-
 % This theorem says if we have a let expression:
 
 %   let x = e1 in e2 end
@@ -32,61 +6,1454 @@ combine-outputs/exists2
 % with some form derived from Out1, and the result of substitution
 % Out2' is equivalent to the combination of Out1 and Out2.
 
-% TODO: think about commutativity
-% TODO: look at map-domain.elf for example.
+
+%%% Definitions
+
+%% For a let expression let x = e1 in e2, `targets` is from e1, `nat` is
+%% the object index for x, and `effects` is from e2.
+
+%abbrev unique-target : targets = targets/unique set/0 set/0.
+
+%% The following three theorems say that x can only occur in one of
+%% the three constructs inside effect, if the effect is well-formed
+%% with-respect-to clsmap and cxt.
+
+% a wrapper
+
+object-in-efxmap : effects -> nat -> type.
+
+object-in-efxmap/ : object-in-efxmap (effects/ M _ _) N
+                    <- efxmap-map-objects M OS
+                    <- set`member OS N.
 
 
-%{%
- Here we need to show that, given the output effects XX = XX1 + XX3,
- we can split XX into XX1' + XX3', such that with XX1', we can check
- e1, and get output Out1'. With permission from XX3', we can
- converting them into permissions from XX2.
+%%% Theorems
 
- Especially, we need to handle cases like this:
-   let x = a.f in x.g = 3 end
-
- In this case, the first expression generates "read a.f", while the
- second expression generates "write a.f".
-
-%}%
-
-%{%
- Format for let expression
-%}%
-
-let-format : targets -> effects -> permission -> permission -> type.
-
-%theorem subst-same-permission
-  : forall* {CM} {PM} {B} {BP} {NN} {C} {GS} {A} {XX1} {XX2} {Out1}
-    {NN2} {C2} {GS3} {XX3} {O} {N} {XX4} {Pi2}
-    forall {XX1=>Out1: effects2output CM PM B (reftype/ NN C GS) XX1 Out1}
-    {RT2T: reftype2ty (reftype/ NN C GS) (ty/ NN A C)}
-    {UD: cxt`update B N (cxt-info/ O (ty/ NN A C)) BP}
-    {XX2=>Pi2: effects2input CM PM BP XX2 Pi2}
-    {CB: compatible GS XX2}
-    {SUB2: subst-effects GS N XX2 XX3}
-    {XX1+XX2=XX3: effects`join XX1 XX3 XX4}
-    exists {Out3} {Out}
-    {EA: envadd Pi2 Out1 Out}
-    {XX3=>Out3: effects2output CM PM B (reftype/ NN2 C2 GS3) XX4 Out3}
-    {TRANS: transform Out3 Out}
+%theorem subst-effects-one-occurrence/1
+  : forall* {CM} {B} {M} {S} {Q} {OS} {SS} {N}
+    forall {CM-B-XX: clsmap-cxt-effects CM B (effects/ M S Q)}
+    {M=>OS: efxmap-map-objects M OS}
+    {S=>SS: set-map-objects S SS}
+    {MB: set`member OS N}
+    exists {OUT-S: set`not-member SS N}
+    {OUT-Q: set`not-member Q N}
     true.
 
-% case 1: targets are shared - after substitution, the effects are the same
-
-- : subst-same-permission
-    (effects2output/simple T2PF reftype2ty/shared
-      simple-targets/shared SX=>Pi3 M=>Pi2 B=>Pi1) reftype2ty/shared UD
-    (effects2input/ BP=>Pi1' MP-Pi2' S2M M'=>Pi3' M'=>Pi4' SX=>Pi5')
-    GS-XX2 subst-effects/shared XX1+XX3=XX4 %{=>}% _ _ EA XX4=>Out3 Out3=>Out.
+%worlds () (subst-effects-one-occurrence/1 _ _ _ _ _ _).
+%trustme %total { } (subst-effects-one-occurrence/1 _ _ _ _ _ _).
 
 
+%theorem subst-effects-one-occurrence/2
+  : forall* {CM} {B} {M} {S} {Q} {OS} {SS} {N}
+    forall {CM-B-XX: clsmap-cxt-effects CM B (effects/ M S Q)}
+    {M=>MS: efxmap-map-objects M OS}
+    {S=>SS: set-map-objects S SS}
+    {IN-SS: set`member SS N}
+    exists {OUT-OS: set`not-member OS N}
+    {OUT-Q: set`not-member Q N}
+    true.
+
+%worlds () (subst-effects-one-occurrence/2 _ _ _ _ _ _).
+%trustme %total () (subst-effects-one-occurrence/2 _ _ _ _ _ _).
 
 
+%theorem subst-effects-one-occurrence/3
+  : forall* {CM} {B} {M} {S} {Q} {OS} {SS} {N}
+    forall {CM-B-XX: clsmap-cxt-effects CM B (effects/ M S Q)}
+    {M=>MS: efxmap-map-objects M OS}
+    {S=>SS: set-map-objects S SS}
+    {IN-Q: set`member Q N}
+    exists {OUT-OS: set`not-member OS N}
+    {OUT-SS: set`not-member SS N}
+    true.
+
+%worlds () (subst-effects-one-occurrence/3 _ _ _ _ _ _).
+%trustme %total () (subst-effects-one-occurrence/3 _ _ _ _ _ _).
 
 
-% x == r1 \/ ... x == rn \/ x == o, Pio , Pio --|- Pi1 +
+%theorem let-helper/L1
+  : forall* {CM} {B} {M1} {S1} {M2} {S2} {Q1} {Q2} {Q} {M} {S}
+    forall {CM-B-XX: clsmap-cxt-effects CM B (effects/ M2 S2 Q2)}
+    {XJ: effects`join (effects/ M1 S1 Q1) (effects/ M2 S2 Q2) (effects/ M S Q)}
+    exists {M0} {TC: transfer-consume CM B (effects/ M S Q) (effects/ M1 S1 Q1)
+                     (effects/ M0 S1 Q1) Q2}
+    true.
 
-% y == r1' \/ ... \/ y == rm' \/ y == x \/ y == o', Pio', Pio' --|- Pi2
+- : let-helper/L1 (clsmap-cxt-effects/ _ _ Q2=>S3 _ _ _ _ _)
+    (effects`join/ DM-M1=R1 DM-M2=R2 S1^R1 S2^R2 S1^R2 S1^S2 R1/S2=R
+      M1|R=M1' M1'uM2=M S1uS2=S Q1^Q2 Q1uQ2=Q) %{=>}%
+    _ (transfer-consume/ S1<=S Q1<=Q S/S1=S2 Q/Q1=Q2 Q2=>S3
+        S2uS3=S4 S4=>M3 MuM3=MP)
+    <- set`union-implies-leq S1uS2=S S1<=S S2<=S
+    <- set`union-implies-leq Q1uQ2=Q Q1<=Q Q2<=Q
+    <- set`union-commutative S1uS2=S S2uS1=S
+    <- set`disjoint-symmetric S1^S2 S2^S1
+    <- set`union-commutative Q1uQ2=Q Q2uQ1=Q
+    <- set`disjoint-symmetric Q1^Q2 Q2^Q1
+    <- set`disjoint-union-implies-remove S2uS1=S S2^S1 S/S1=S2
+    <- set`disjoint-union-implies-remove Q2uQ1=Q Q2^Q1 Q/Q1=Q2
+    <- set`union-total S2uS3=S4
+    <- set2efxmap-total S4=>M3
+    <- efxmap`join-total MuM3=MP.
+
+%worlds () (let-helper/L1 _ _ _ _).
+%total { } (let-helper/L1 _ _ _ _).
 
 
+%theorem let-helper/L2
+  : forall* {M1} {S1} {Q1} {M2} {S2} {Q2}
+    {M} {S} {Q} {MP} {M0} {CM} {B}
+    forall {CM-B-XXP: clsmap-cxt-effects CM B (effects/ MP S Q)}
+    {XX1+XX2=XX: effects`join (effects/ M1 S1 Q1) (effects/ M2 S2 Q2)
+               (effects/ M S Q)}
+    {XX<c=XXP: effects-leq-no-consume (effects/ M S Q) (effects/ MP S Q)}
+    {XX'+XX1=>XXc+Q: transfer-consume CM B
+                     (effects/ MP S Q) (effects/ M1 S1 Q1) (effects/ M0 S1 Q1) Q2}
+    exists {S3} {FS3} {M3} {Q2=>FS3: objset2fldset CM B Q2 FS3}
+    {S2^FS3: set`disjoint S2 FS3}
+    {S2uFS3=S3: set`union S2 FS3 S3}
+    {S3=>M3: set2efxmap S3 efx/write M3}
+    {MP^Mk: efxmap`disjoint MP M3}
+    {MP+M3=M0: efxmap`join MP M3 M0}
+    true.
+
+- : let-helper/L2
+    (clsmap-cxt-effects/
+      (DM-MP=RP:efxmap`domain MP RP)
+      (RP^S:set`disjoint RP S)
+      (Q=>FS:objset2fldset CM B Q FS)
+      (RP^FS:set`disjoint RP FS)
+      (S^FS:set`disjoint S FS) _ _ _)
+    (effects`join/ _ _ _ _ _
+      (S1^S2:set`disjoint S1 S2) RM RS M1P+M2=M S1+S2=S Q1^Q2
+      (Q1+Q2=Q:set`union Q1 Q2 Q))
+    (effects-leq-no-consume/ M<=MP)
+    (transfer-consume/ S1<=S Q1<=Q
+      (S/S1=S2P:set`remove S S1 S2P)
+      (Q/Q1=Q2:set`remove Q Q1 Q2)
+      Q2=>FS3 S2PuFS3=S3 S3=>M3 MP+M3=Mc) %{=>}%
+    S3 FS3 M3 Q2=>FS3 S2^FS3 S2uFS3=S3 S3=>M3 MP^M3 MP+M3=Mc
+    <- set`union-commutative S1+S2=S S2+S1=S
+    <- set`disjoint-symmetric S1^S2 S2^S1
+    <- set`union-commutative Q1+Q2=Q Q2+Q1=Q
+    <- set`disjoint-symmetric Q1^Q2 Q2^Q1
+    <- set`disjoint-union-implies-remove S2+S1=S S2^S1 S/S1=S2
+    <- set`remove-unique S/S1=S2P S/S1=S2 set`eq/ set`eq/ S2P=S2
+    <- set`union-respects-eq S2PuFS3=S3 S2P=S2 set`eq/ set`eq/ S2uFS3=S3
+    <- set`union-implies-leq S1+S2=S _ S2<=S
+    <- set`remove-implies-leq Q/Q1=Q2 Q2<=Q
+    <- objset2fldset-preserves-leq* Q2<=Q Q2=>FS3 Q=>FS FS3<=FS
+    <- set`disjoint-respects-geq S^FS S2<=S FS3<=FS S2^FS3
+    <- set`leq-reflexive _ RP<=RP
+    <- set`disjoint-respects-geq RP^S RP<=RP S2<=S RP^S2
+    <- set`disjoint-respects-geq RP^FS RP<=RP FS3<=FS RP^FS3
+    <- set`union-right-preserves-disjoint* RP^S2 RP^FS3 S2uFS3=S3 RP^S3
+    <- set2efxmap-implies-domain S3=>M3 DM-M3=S3
+    <- efxmap`domain-preserves-disjoint-converse RP^S3 DM-MP=RP DM-M3=S3 MP^M3.
+
+%worlds (objvar) (let-helper/L2 _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (let-helper/L2 _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L3
+  : forall* {M1} {S1} {Q1} {M2} {S2} {Q2} {QP}
+    {M} {S} {Q} {MP} {M0} {CM} {B} {S0} {Q0}
+    forall {CM-B-XXV: clsmap-cxt-effects CM B (effects/ MP S Q)}
+    {XX1+XX2=XX: effects`join (effects/ M1 S1 Q1) (effects/ M2 S2 Q2) (effects/ M S Q)}
+    {XX<=XXV: efxmap`leq M MP}
+    {XX'+XX1=>XXc+Q: transfer-consume CM B (effects/ MP S Q) (effects/ M1 S1 Q1)
+                     (effects/ M0 S0 Q0) QP}
+    exists {S3} {FS3} {M3} {QP=>FS3: objset2fldset CM B QP FS3}
+    {S2^FS3: set`disjoint S2 FS3}
+    {S2uFS3=S3: set`union S2 FS3 S3}
+    {S3=>M3: set2efxmap S3 efx/write M3}
+    {MP^M3: efxmap`disjoint MP M3}
+    {MP+M3=M0: efxmap`join MP M3 M0}
+    {QE: set`eq QP Q2} {E: set`eq S0 S1} {E: set`eq Q0 Q1}
+    true.
+
+- : let-helper/L3
+    (clsmap-cxt-effects/
+      (DM-M'=R':efxmap`domain M' R')
+      (R'^S:set`disjoint R' S)
+      (Q=>FS:objset2fldset CM B Q FS)
+      (R'^FS:set`disjoint R' FS)
+      (S^FS:set`disjoint S FS) _ _ _)
+    (effects`join/ _ _ _ _ _
+      (S1^S2:set`disjoint S1 S2) RM RS M1'+M2=M S1+S2=S Q1^Q2
+      (Q1+Q2=Q:set`union Q1 Q2 Q))
+    M<=M'
+    (transfer-consume/ S1<=S Q1<=Q
+      S/S1=S2' Q/Q1=Q3 Q3=>FS3 S2'uFS3=S3 S3=>M3 M'+M3=Mc) %{=>}%
+    S3 FS3 M3 Q3=>FS3 S2^FS3 S2uFS3=S3 S3=>M3 M'^M3 M'+M3=Mc Q3=Q2 set`eq/ set`eq/
+    <- set`union-commutative S1+S2=S S2+S1=S
+    <- set`disjoint-symmetric S1^S2 S2^S1
+    <- set`union-commutative Q1+Q2=Q Q2+Q1=Q
+    <- set`disjoint-symmetric Q1^Q2 Q2^Q1
+    <- set`disjoint-union-implies-remove S2+S1=S S2^S1 S/S1=S2
+    <- set`disjoint-union-implies-remove Q2+Q1=Q Q2^Q1 Q/Q1=Q2
+    <- set`remove-unique S/S1=S2' S/S1=S2 set`eq/ set`eq/ S2'=S2
+    <- set`union-respects-eq S2'uFS3=S3 S2'=S2 set`eq/ set`eq/ S2uFS3=S3
+    <- set`union-implies-leq S1+S2=S _ S2<=S
+    <- set`remove-implies-leq Q/Q1=Q3 Q3<=Q
+    <- objset2fldset-preserves-leq* Q3<=Q Q3=>FS3 Q=>FS FS3<=FS
+    <- set`disjoint-respects-geq S^FS S2<=S FS3<=FS S2^FS3
+    <- set`remove-unique Q/Q1=Q3 Q/Q1=Q2 set`eq/ set`eq/ Q3=Q2
+    <- set`leq-reflexive _ R'<=R'
+    <- set`disjoint-respects-geq R'^S R'<=R' S2<=S R'^S2
+    <- set`disjoint-respects-geq R'^FS R'<=R' FS3<=FS R'^FS3
+    <- set`union-right-preserves-disjoint* R'^S2 R'^FS3 S2uFS3=S3 R'^S3
+    <- set2efxmap-implies-domain S3=>M3 DM-M3=S3
+    <- efxmap`domain-preserves-disjoint-converse R'^S3 DM-M'=R' DM-M3=S3 M'^M3.
+
+%worlds (objvar) (let-helper/L3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (let-helper/L3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L4
+  : forall* {M} {N} {Mout} {Min} {Rout}
+    forall {PT: efxmap-partition-on-index M N Mout Min}
+    {DM: efxmap`domain Mout Rout}
+    exists {Oout} {ESO: efxmap-same-object Min N}
+    {Rout=>Oout: set-map-objects Rout Oout}
+    {N!<Oout: set`not-member Oout N}
+    true.
+
+%worlds (objvar) (let-helper/L4 _ _ _ _ _ _).
+%trustme %total { } (let-helper/L4 _ _ _ _ _ _).
+
+
+%theorem let-helper/L51/L
+  : forall* {M} {N} {K} {X}
+    forall {SN} {SZ: efxmap`size M SN}
+    {MO: efxmap-map-objects M (set/1 N)}
+    {ML: efxmap`lookup M K X}
+    exists {F} {N+F=K: pair2nat (pair/ N F) K}
+    true.
+
+%theorem let-helper/L51/L1
+  : forall* {SP} {N} {NP}
+    forall {AD: set`add SP NP (set/1 N)}
+    exists {EQ: nat`eq NP N}
+    true.
+
+- : let-helper/L51/L1 set`update/0 nat`eq/.
+
+- : let-helper/L51/L1 (set`update/= E) E.
+
+%worlds () (let-helper/L51/L1 _ _).
+%total { } (let-helper/L51/L1 _ _).
+
+
+%theorem let-helper/L51/L2
+  : forall* {MP} {SP} {K} {X} {N} {NP}
+    forall {MP=>SP: efxmap-map-objects MP SP}
+    {ML: efxmap`lookup MP K X}
+    {SP+NP=S: set`add SP NP (set/1 N)}
+    exists {EQ: set`eq SP (set/1 N)}
+    true.
+
+- : let-helper/L51/L2 efxmap-map-objects/0 ML set`update/0 E
+    <- efxmap`lookup-contradiction ML V
+    <- set`false-implies-eq V E.
+
+- : let-helper/L51/L2 _ _ (set`update/= E) set`eq/.
+
+%worlds () (let-helper/L51/L2 _ _ _ _).
+%total { } (let-helper/L51/L2 _ _ _ _).
+
+%theorem let-helper/L51/LL
+  : forall* {M} {N} {K} {X} {KP} {B} {MP} {FP} {SP} {XP} {NP}
+    forall {SN} {SZ: efxmap`size MP SN} {MPO: efxmap-map-objects MP SP}
+    {N+F=K: pair2nat (pair/ NP FP) KP}
+    {FS: efxmap`fresh MP KP} {UD: efxmap`update MP KP XP M}
+    {A: set`add SP NP (set/1 N)}
+    {ML: efxmap`lookup M K X}
+    {EQ?: nat`eq? KP K B}
+    exists {F} {N+F=K: pair2nat (pair/ N F) K}
+    true.
+
+- : let-helper/L51/LL _ SZ MP=>SP NP+FP=KP KP!<MP (MP+KP=M:efxmap`update MP KP XP M)
+    SP+NP=S (M->K=X:efxmap`lookup M K X) (nat`eq?/no (KP<>K:nat`ne KP K)) _ N+F=K
+    <- nat`ne-symmetric KP<>K K<>KP
+    <- efxmap`update-preserves-lookup-converse M->K=X MP+KP=M K<>KP MP->K=X
+    <- let-helper/L51/L2 MP=>SP MP->K=X SP+NP=S SP=
+    <- efxmap-map-objects-respects-eq MP=>SP efxmap`eq/ SP= MP=>SP1
+    <- let-helper/L51/L _ SZ MP=>SP1 MP->K=X _ N+F=K.
+
+- : let-helper/L51/LL _ _ MP=>SP NP+F=K KP!<MP MP+KP=M
+    SP+NP=S M->K=X (nat`eq?/yes) _ N+F=K
+    <- let-helper/L51/L1 SP+NP=S NP=N
+    <- pair-preserves-eq NP=N nat`eq/ PE
+    <- pair2nat-respects-eq NP+F=K PE nat`eq/ N+F=K.
+
+- : let-helper/L51/L (s SN) SZ
+    (efxmap-map-objects/U M'=>S' N+F=K' K!<M' M'+K=M S'+N=S) ML _ N+F=K
+    <- nat`eq?-total E?
+    <- efxmap`fresh-update-increases-size-converse SZ K!<M' M'+K=M SZ'
+    <- let-helper/L51/LL SN SZ' M'=>S' N+F=K' K!<M' M'+K=M S'+N=S ML E? _ N+F=K.
+
+%worlds (objvar) (let-helper/L51/L _ _ _ _ _ _)
+  (let-helper/L51/LL _ _ _ _ _ _ _ _ _ _ _).
+%total (M0 M) (let-helper/L51/L M _ _ _ _ _)
+  (let-helper/L51/LL M0 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L51
+  : forall* {M} {N} {K} {X}
+    forall {MO: efxmap-map-objects M (set/1 N)}
+    {ML: efxmap`lookup M K X}
+    exists {F} {N+F=K: pair2nat (pair/ N F) K}
+    true.
+
+- : let-helper/L51 MO ML _ T
+    <- efxmap`size-total SZ
+    <- let-helper/L51/L _ SZ MO ML _ T.
+
+%worlds (objvar) (let-helper/L51 _ _ _ _).
+%total { } (let-helper/L51 _ _ _ _).
+
+
+%theorem let-helper/L5*/L
+  : forall* {CM} {B} {FM} {MF} {SF} {FS}
+    {N} {M} {NN} {A} {C} {S}
+    forall {SN} {SZ: efxmap`size M SN}
+    {DM-M: efxmap`domain M S}
+    {CM-B-S: {x} clsmap-cxt-fldset CM (B x) S}
+    {BL: {x} cxt`lookup (B x) N (cxt-info/ x (ty/ NN A C))}
+    {CML: clsmap`lookup CM C FM}
+    {ESO: efxmap-same-object M N}
+    {EMF: efxmap-map-fields M MF}
+    {DM-MF: efxmap`domain MF SF}
+    {DM-FM: fldmap`domain FM FS}
+    exists {SF<=FS: set`leq SF FS}
+    true.
+
+- : let-helper/L5*/L _ efxmap`size/0 efxmap`domain/0
+    ([_] clsmap-cxt-fldset/0)
+    BL CML ESO efxmap-map-fields/0 efxmap`domain/0 DM-FM set`leq/0.
+
+- : let-helper/L5*/L _ SZ DM-M=S CM-B-S BL CML ESO
+    (efxmap-map-fields/U
+      (M'=>MF':efxmap-map-fields M' MF')
+      (N+F=K0: pair2nat (pair/ N0 F0) K)
+      (K!<M': efxmap`fresh M' K)
+      (M'+K=M: efxmap`update M' K X M)
+      (MF'+F=MF: efxmap`update MF' F0 X MF))
+    DM-MF=SF DM-FM SF<=FS
+    <- efxmap`domain-total DM-MF'=SF'
+    <- efxmap`domain-total DM-M'=S'
+    <- efxmap`domain-preserves-fresh K!<M' DM-M'=S' K!<S'
+    <- efxmap`update-commute-domain M'+K=M DM-M'=S' DM-M=S S'+K=S
+    <- efxmap-same-object/U-inversion ESO K!<M' M'+K=M ESO'
+      (match-index?/yes (N+F=K2:pair2nat (pair/ N2 F2) K))
+    <- efxmap`update-commute-domain MF'+F=MF DM-MF'=SF' DM-MF=SF
+      (SF'+F=SF:set`add SF' F0 SF)
+    <- ({x} clsmap-cxt-fldset/U-inversion (CM-B-S x) K!<S'
+         S'+K=S (CM-B-S' x) _ _ N+F=K1 _ _ _ _ (BL' x) _ CML' _ FML')
+    <- nat2pair-unique N+F=K2 N+F=K1 nat`eq/ PE
+    <- nat2pair-unique N+F=K1 N+F=K0 nat`eq/ PE'
+    <- pair-eq-implies-eq PE' NE' FE'
+    <- pair-eq-implies-eq PE NE FE
+    <- ({x} cxt`lookup-unique (BL x) (BL' x) cxt`eq/ NE (CIE x))
+    <- ({x} cxt-info-eq-inversion (CIE x) (OE x) TE)
+    <- ty-eq-inversion TE NNE AE CE
+    <- clsmap`lookup-unique CML CML' clsmap`eq/ CE FME
+    <- fldmap`domain-respects-eq DM-FM FME set`eq/ DM-FM'
+    <- fldmap`domain-preserves-lookup FML' DM-FM' F<-S'
+    <- set`member-respects-eq F<-S' set`eq/ FE' F<-S
+    <- efxmap`fresh-update-increases-size-converse SZ K!<M' M'+K=M SZ'
+    <- let-helper/L5*/L _ SZ' DM-M'=S' CM-B-S' BL CML ESO' M'=>MF'
+      DM-MF'=SF' DM-FM SF'<=FS
+    <- set`add-member-preserves-leq SF'<=FS SF'+F=SF F<-S SF<=FS.
+
+%worlds (objvar) (let-helper/L5*/L _ _ _ _ _ _ _ _ _ _ _).
+%total (DM) (let-helper/L5*/L DM _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L5*
+  : forall* {CM} {B} {FM} {MF} {SF} {FS} {N} {M} {NN} {A} {C} {S}
+    forall {DM-M: efxmap`domain M S}
+    {CM-B-S: {x} clsmap-cxt-fldset CM (B x) S}
+    {BL: {x} cxt`lookup (B x) N (cxt-info/ x (ty/ NN A C))}
+    {CML: clsmap`lookup CM C FM}
+    {ESO: efxmap-same-object M N}
+    {EMF: efxmap-map-fields M MF}
+    {DM-MF: efxmap`domain MF SF}
+    {DM-FM: fldmap`domain FM FS}
+    exists {SF<=FS: set`leq SF FS}
+    true.
+
+- : let-helper/L5* DM-M CM-B-S BL CML M-N M=>MF DM-MF=SF DM-FM=FS SF<=FS
+    <- efxmap`size-total SZ
+    <- let-helper/L5*/L _ SZ DM-M CM-B-S BL CML M-N M=>MF DM-MF=SF DM-FM=FS SF<=FS.
+
+%worlds (objvar) (let-helper/L5* _ _ _ _ _ _ _ _ _).
+%total { } (let-helper/L5* _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L5
+  : forall* {CM} {FM} {B} {R} {MFin} {N} {Min} {NN} {A} {C}
+    forall {DM-M: efxmap`domain Min R}
+    {CM-B-R: {x} clsmap-cxt-fldset CM (B x) R}
+    {BL: {x} cxt`lookup (B x) N (cxt-info/ x (ty/ NN A C))}
+    {CML: clsmap`lookup CM C FM}
+    {ESO: efxmap-same-object Min N}
+    {EMF: efxmap-map-fields Min MFin}
+    exists {SFin} {FS}
+    {DM-MFin: efxmap`domain MFin SFin}
+    {DM-FM: fldmap`domain FM FS}
+    {SFin<=FS: set`leq SFin FS}
+    true.
+
+- : let-helper/L5 DM-M CM-B-R BL CML ESO EMF _ _ DM-MFin=SFin
+    DM-FM=FS SFin<=FS
+    <- fldmap`domain-total DM-FM=FS
+    <- efxmap`domain-total DM-MFin=SFin
+    <- let-helper/L5* DM-M CM-B-R BL CML ESO EMF DM-MFin=SFin
+      DM-FM=FS SFin<=FS.
+
+%worlds (objvar) (let-helper/L5 _ _ _ _ _ _ _ _ _ _ _).
+%total { } (let-helper/L5 _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L6
+  : forall* {M1} {M2} {M} {S1} {S2} {S} {Q1} {Q2} {Q}
+    forall {J: effects`join (effects/ M1 S1 Q1) (effects/ M2 S2 Q2)
+               (effects/ M S Q)}
+    exists {LE: efxmap`leq M2 M}
+    true.
+
+- : let-helper/L6 (effects`join/ _ _ _ _ _ _ _ _ M1P+M2=M _ _ _) M2<=M
+    <- efxmap`join-implies-leq M1P+M2=M _ M2<=M.
+
+%worlds () (let-helper/L6 _ _).
+%total { } (let-helper/L6 _ _).
+
+
+%theorem let-helper/L7
+  : forall* {CM} {PM} {FM} {CJ} {FS} {Pf}
+    forall {FM2G: fldmap2conj CM PM FM ([x] CJ x) PM}
+    {FM2P: {x} fldmap2perm PM x FM FS (Pf x)}
+    exists {IMP: {x} bimplies true (CJ x) (nested (Pf x) x all)}
+    true.
+
+%worlds () (let-helper/L7 _ _ _).
+%trustme %total { } (let-helper/L7 _ _ _).
+
+
+%{%
+  Given a set of fields, we really want to have
+the permissions for them carving out of the permission for
+the whole object.
+
+It SHOULD goes like this:
+
+  (x = null ? 0 : (Pf <- x.all , x.all->0, P))
+==>
+  (x = null ? 0 : (Pf , Pf --|- x.all , P))
+==>
+  ((x = null ? 0 : Pf) , (x = null ? 0 : (Pf --|- x.all , P)))
+==>
+  ..
+  (x = null ? (x = null) : (x != null , Pf --|- (x.all, P)))
+==>
+  (x = null ? 0 : (Pf --|- (x.all , P)))
+==>
+  .. ??
+==>
+  (x = null ? 0 : Pf) --|- (x = null ? 0 : (x.all , P))
+
+However, currently I couldn't find a way to prove this.
+The following let-helper/L8 will assume the above for now. Otherwise,
+the permission format would just become too complicated.
+
+%}%
+
+%theorem let-helper/L8
+  : forall* {CM} {PM} {FS} {NN} {C} {AF} {Pf} {FM} {PF} {CP}
+    forall {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {A2P: annot2perm annot/unique AF}
+    {NN2P: nn2perm NN AF PF}
+    {PML: predmap`lookup PM C CP}
+    {M2P: {x} fldmap2perm PM x FM FS (Pf x)}
+    exists {Pfn} {CN: consider-nn ([x] Pf x) NN ([x] Pfn x)}
+    {IMP: {x} implies (PF CP x) ((Pfn x) , (unitperm (encumbered (Pfn x) (PF CP x))))}
+    true.
+
+% - : let-helper/L8 CM2PM CML annot2perm/unique nn2perm/may PML
+%     ([x] FS=>Pf x) %{=>}% _ _ consider-nn/may consider-nn/may
+%     ([x] implies/trans
+%       (implies/cond-inner
+%         bimplies/reflexive
+%         bimplies/reflexive
+%         (implies/equiv (equiv/symmetric equiv/identity))
+%         (implies/trans6
+%           (implies/combine implies/reflexive
+%             (implies/trans
+%               (implies/nonlinear bimplies/conj-duplicate)
+%               (implies/conj2combine)))
+%           (implies/equiv equiv/associate)
+%           (implies/combine implies/reflexive
+%             (implies/trans
+%               (implies/equiv (EQV x))
+%               (implies/nonlinear
+%                 (bimplies/trans4
+%                   (bimplies/predcall/Y/inline)
+%                   (bimplies/predcall/+/inline x)
+%                   (bimplies/predcall/0/inline)
+%                   (BIMP x)))))
+%           (implies/equiv
+%             (equiv/transitive equiv/commute equiv/associate))
+%           (implies/combine implies/carve implies/reflexive)
+%           (implies/equiv (equiv/symmetric equiv/associate))))
+%       (implies/cond-distribute))
+%     <- clsmap2predmap-implies-clsmap-predmap CM2PM CM-PM
+%     <- clsmap-predmap-implies-lookup-format CM-PM PML _ PMLP ([x] PEQ x)
+%     <- ({x} permission`eq-implies-equiv (PEQ x) (EQV x))
+%     <- clsmap2predmap-implies-fldmap2conj CM2PM PMLP CML FM=>CJ
+%     <- let-helper/L7 FM=>CJ FS=>Pf ([x] BIMP x).
+
+% - : let-helper/L8 CM2PM CML annot2perm/unique nn2perm/yes PML
+%     ([x] FS=>Pf x) %{=>}% _ _ consider-nn/yes consider-nn/yes
+%     ([x] implies/trans
+%       (implies/combine
+%         (implies/trans
+%           (implies/nonlinear bimplies/tt)
+%           (implies/true2empty))
+%         (implies/trans3
+%           (implies/combine (implies/reflexive)
+%             (implies/trans3
+%               (implies/nonlinear bimplies/conj-duplicate)
+%               (implies/conj2combine)
+%               (implies/combine
+%                 (implies/trans
+%                   (implies/equiv (EQV x))
+%                   (implies/nonlinear
+%                     (bimplies/trans4
+%                       (bimplies/predcall/Y/inline)
+%                       (bimplies/predcall/+/inline x)
+%                       (bimplies/predcall/0/inline)
+%                       (BIMP x))))
+%                 (implies/reflexive))))
+%           (implies/equiv equiv/associate)
+%           (implies/combine
+%             (implies/trans
+%               (implies/equiv equiv/commute)
+%               (implies/carve))
+%             (implies/reflexive))))
+%       (implies/equiv
+%         (equiv/transitive3
+%           (equiv/commute)
+%           (equiv/identity)
+%           (equiv/symmetric equiv/associate))))
+%     <- clsmap2predmap-implies-clsmap-predmap CM2PM CM-PM
+%     <- clsmap-predmap-implies-lookup-format CM-PM PML _ PMLP ([x] PEQ x)
+%     <- ({x} permission`eq-implies-equiv (PEQ x) (EQV x))
+%     <- clsmap2predmap-implies-fldmap2conj CM2PM PMLP CML FM=>CJ
+%     <- let-helper/L7 FM=>CJ FS=>Pf ([x] BIMP x).
+
+%worlds () (let-helper/L8 _ _ _ _ _ _ _ _ _).
+%trustme %total { } (let-helper/L8 _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L9
+  : forall* {CM} {PM} {FM} {B} {N} {NN} {A} {C} {FS} {Pf} {Pfn} {S} {M}
+    forall {BL: {x} cxt`lookup (B x) N (cxt-info/ x (ty/ NN A C))}
+    {CML: clsmap`lookup CM C FM}
+    {FM2P: {x} fldmap2perm PM x FM FS (Pf x)}
+    {CN: consider-nn Pf NN ([x] Pfn x)}
+    {N+FS=>S: nat+set2set N FS S}
+    {S=>M: set2efxmap S efx/write M}
+    exists {Pf2} {M2P: {x} efxmap2perm CM PM (B x) M (Pf2 x)}
+    {IMP: {x} implies (Pfn x) (Pf2 x)}
+    {IMP: {x} implies (Pf2 x) (Pfn x)}
+    true.
+
+%theorem let-helper/L9/L
+  : forall* {PF1} {PF2} {F}
+    forall {EQ: {x}{x1} permission`eq (PF1 x x1) (PF2 x1)}
+    exists {EQV: {x} equiv (unitperm (precise-exists x F ([x1] PF1 x x1)))
+                 (unitperm (precise-exists x F ([x1] PF2 x1)))}
+    true.
+
+- : let-helper/L9/L ([_][_] permission`eq/) ([_] equiv/reflexive).
+
+%worlds (objvar) (let-helper/L9/L _ _).
+%total { } (let-helper/L9/L _ _).
+
+- : let-helper/L9 BL CML ([_] fldmap2perm/0) consider-nn/yes
+    N+FS=>S S=>M %{=>}% _ M2P ([_] implies/reflexive) ([_] implies/reflexive)
+    <- nat+set2set-unique N+FS=>S nat+set2set/0 nat`eq/ set`eq/ S=0
+    <- set2efxmap-unique S=>M set2efxmap/0 S=0 efx`eq/ M=0
+    <- efxmap`eq-symmetric M=0 E=M
+    <- ({x} efxmap2perm-respects-eq efxmap2perm/0 clsmap`eq/ predmap`eq/
+         cxt`eq/ E=M permission`eq/ (M2P x)).
+
+- : let-helper/L9 BL CML ([_] fldmap2perm/0) consider-nn/may
+    N+FS=>S S=>M %{=>}% _ M2P ([_] implies/cond-equal) ([_] implies/cond-equal-objequal)
+    <- nat+set2set-unique N+FS=>S nat+set2set/0 nat`eq/ set`eq/ S=0
+    <- set2efxmap-unique S=>M set2efxmap/0 S=0 efx`eq/ M=0
+    <- efxmap`eq-symmetric M=0 E=M
+    <- ({x} efxmap2perm-respects-eq efxmap2perm/0 clsmap`eq/ predmap`eq/
+         cxt`eq/ E=M permission`eq/ (M2P x)).
+
+- : let-helper/L9 ([x] BL x) CML
+    ([x] fldmap2perm/U (FSP=>PiP x) F!<FSP FSP+F=FS FML (T2PFF x))
+    consider-nn/yes N+FS=>S S=>M %{=>}% _
+    ([x] efxmap2perm/U (MP=>Pf2P x) N+F=K (BL x) CML FML T2PF
+      consider-nn/yes apply-efx/write K!<MP MP+K=M)
+    ([x] (implies/combine (implies/equiv (EQV x)) (IMPP x)))
+    ([x] (implies/combine (implies/equiv (equiv/symmetric (EQV x))) (IMPP2 x)))
+    <- ty2perm-no-var T2PFF _ ([r][o] EQF r o) T2PF
+    <- let-helper/L9/L EQF EQV
+    <- nat+set2set/U-inversion N+FS=>S F!<FSP FSP+F=FS SP N+FSP=>SP K N+F=K SP+K=S
+    <- nat+set2set-preserves-fresh N+FSP=>SP F!<FSP N+F=K K!<SP
+    <- set2efxmap/U-inversion S=>M K!<SP SP+K=S MP _ SP=>MP efx-id/ MP+K=M
+    <- let-helper/L9 BL CML FSP=>PiP consider-nn/yes N+FSP=>SP SP=>MP _ MP=>Pf2P IMPP IMPP2
+    <- set2efxmap-preserves-fresh K!<SP SP=>MP K!<MP.
+
+- : let-helper/L9 ([x] BL x) CML
+    ([x] fldmap2perm/U (FSP=>PiP x) F!<FSP FSP+F=FS FML (T2PFF x))
+    consider-nn/may N+FS=>S S=>M %{=>}% _
+    ([x] efxmap2perm/U (MP=>Pf2P x) N+F=K (BL x) CML FML T2PF
+      consider-nn/may apply-efx/write K!<MP MP+K=M)
+    ([x] implies/trans3
+      (implies/cond-inner
+        bimplies/reflexive
+        bimplies/reflexive
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/combine (implies/equiv (EQV x)) implies/reflexive))
+      (implies/cond-distribute)
+      (implies/combine implies/reflexive (IMPP x)))
+    ([x] implies/trans3
+      (implies/combine (implies/reflexive) (IMPP2 x))
+      (implies/cond-factor)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/equiv equiv/identity)
+        (implies/combine (implies/equiv (equiv/symmetric (EQV x))) implies/reflexive)))
+    <- ty2perm-no-var T2PFF _ ([r][o] EQF r o) T2PF
+    <- let-helper/L9/L EQF EQV
+    <- nat+set2set/U-inversion N+FS=>S F!<FSP FSP+F=FS SP N+FSP=>SP K N+F=K SP+K=S
+    <- nat+set2set-preserves-fresh N+FSP=>SP F!<FSP N+F=K K!<SP
+    <- set2efxmap/U-inversion S=>M K!<SP SP+K=S MP _ SP=>MP efx-id/ MP+K=M
+    <- let-helper/L9 BL CML FSP=>PiP consider-nn/may N+FSP=>SP SP=>MP _ MP=>Pf2P IMPP IMPP2
+    <- set2efxmap-preserves-fresh K!<SP SP=>MP K!<MP.
+
+%worlds (objvar) (let-helper/L9 _ _ _ _ _ _ _ _ _ _).
+%total (A) (let-helper/L9 _ _ A _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L9*
+  : forall* {CM} {PM} {FM} {B} {N} {NN} {A} {C} {FS} {Pf} {Pfn}
+    forall {BL: {x} cxt`lookup (B x) N (cxt-info/ x (ty/ NN A C))}
+    {CML: clsmap`lookup CM C FM}
+    {FM2P: {x} fldmap2perm PM x FM FS (Pf x)}
+    {CN: consider-nn Pf NN ([x] Pfn x)}
+    exists {Pf2} {S} {M}
+    {N+FS=>S: nat+set2set N FS S}
+    {S=>M: set2efxmap S efx/write M}
+    {M2P: {x} efxmap2perm CM PM (B x) M (Pf2 x)}
+    {IMP: {x} implies (Pfn x) (Pf2 x)}
+    {IMP: {x} implies (Pf2 x) (Pfn x)}
+    true.
+
+- : let-helper/L9* BL CML FS2P CN _ _ _ N+FS=>S S=>M M=>P IMP IMP2
+    <- nat+set2set-total N+FS=>S
+    <- set2efxmap-total S=>M
+    <- let-helper/L9 BL CML FS2P CN N+FS=>S S=>M _ M=>P IMP IMP2.
+
+%worlds (objvar) (let-helper/L9* _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (let-helper/L9* _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L10
+  : forall* {M} {N} {Mout} {Min}
+    forall {P: efxmap-partition-on-index M N Mout Min}
+    exists {Mout<=M: efxmap`leq Mout M} {Min<=M: efxmap`leq Min M}
+    {M2out^M2in: efxmap`disjoint Mout Min}
+    {M2outuM2in=M: efxmap`join Mout Min M}
+    true.
+
+- : let-helper/L10 (efxmap-partition-on-index/ _ _ P) L1 L2 D J
+    <- efxmap`partition-implies-leq P L1 L2
+    <- efxmap`partition-implies-disjoint-join P D J.
+
+%worlds (objvar) (let-helper/L10 _ _ _ _ _).
+%total { } (let-helper/L10 _ _ _ _ _).
+
+
+%theorem let-helper/L11
+  : forall* {M} {MF} {N} {SF}
+    forall {M-N: efxmap-same-object M N}
+    {M=>S: efxmap-map-fields M MF}
+    {DM-MF: efxmap`domain MF SF}
+    exists {S} {MP} {N+SF=>S: nat+set2set N SF S}
+    {S=>M: set2efxmap S efx/write MP}
+    {M<=MP: efxmap`leq M MP} % domain also same
+    true.
+
+%worlds (objvar) (let-helper/L11 _ _ _ _ _ _ _ _).
+%trustme %total { } (let-helper/L11 _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L11*
+  : forall* {M} {MF} {N} {SF} {S} {MP} {MS}
+    forall {M-N: efxmap-same-object M N}
+    {M=>S: efxmap-map-fields M MF}
+    {DM-MF: efxmap`domain MF SF}
+    {N+SF=>S: nat+set2set N SF S}
+    {S=>M: set2efxmap S efx/write MP}
+    {DM-M: efxmap`domain M MS}
+    exists {M<=MP: efxmap`leq M MP} % domain also same
+    {DM-MP=MS: efxmap`domain MP MS}
+    true.
+
+%worlds (objvar) (let-helper/L11* _ _ _ _ _ _ _ _).
+%trustme %total { } (let-helper/L11* _ _ _ _ _ _ _ _).
+
+
+% should go to efxmap-base.elf
+
+%theorem let-helper/L12
+  : forall* {M} {S} {M2}
+    forall {M2<=M: efxmap`leq M2 M}
+    {DM-M2=S: efxmap`domain M2 S}
+    exists {M1} {M2P} {MP: efxmap`partition M S M1 M2P}
+    {DM-M2P=S: efxmap`domain M2P S}
+    {M2<=M2P: efxmap`leq M2 M2P}
+    true.
+
+%worlds () (let-helper/L12 _ _ _ _ _ _ _).
+%trustme %total { } (let-helper/L12 _ _ _ _ _ _ _).
+
+
+%theorem let-helper/L13
+  : forall* {M1} {M2} {M} {M1P} {M2P} {MP}
+    forall {M1<=M1P: efxmap`leq M1 M1P}
+    {M2<=M2P: efxmap`leq M2 M2P}
+    {M1+M2=M: efxmap`join M1 M2 M}
+    {M1P+M2P=MP: efxmap`join M1P M2P MP}
+    exists {M<=MP: efxmap`leq M MP}
+    true.
+
+%worlds () (let-helper/L13 _ _ _ _ _).
+%trustme %total {} (let-helper/L13 _ _ _ _ _).
+
+
+%theorem let-helper/L14
+  : forall* {M} {N} {M1} {M2}
+    forall {P: efxmap-partition-on-index M N M1 M2}
+    exists {S} {P: efxmap`partition M S M1 M2}
+    true.
+
+- : let-helper/L14 (efxmap-partition-on-index/ _ _ P) _ P.
+
+%worlds () (let-helper/L14 _ _ _).
+%total { } (let-helper/L14 _ _ _).
+
+
+%theorem let-helper/L15
+  : forall* {PM} {NN} {C} {PF}
+    forall {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
+    exists {PF2} {T2PF: ty2perm PM (ty/ NN annot/borrow C) PF2}
+    {IMP: {x} implies (PF x) ((PF x) , (PF2 x))}
+    true.
+
+- : let-helper/L15
+    (ty2perm/ PML nn2perm/yes annot2perm/unique) _
+    (ty2perm/ PML nn2perm/yes annot2perm/borrow)
+    ([x] implies/trans5
+      (implies/combine implies/duplicate
+        (implies/trans
+          (implies/combine implies/reflexive implies/duplicate)
+          (implies/equiv equiv/associate)))
+      (implies/equiv (equiv/symmetric equiv/associate))
+      (implies/combine implies/reflexive
+        (implies/equiv equiv/associate))
+      (implies/equiv equiv/roll2)
+      (implies/combine implies/reflexive
+        (implies/combine implies/reflexive
+          (implies/equiv
+            (equiv/transitive
+              (equiv/symmetric equiv/identity)
+              (equiv/commute)))))).
+
+- : let-helper/L15
+    (ty2perm/ PML nn2perm/may annot2perm/unique) _
+    (ty2perm/ PML nn2perm/may annot2perm/borrow)
+    ([x] implies/trans
+      (implies/cond-inner
+        bimplies/reflexive
+        bimplies/reflexive
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/trans4
+          (implies/combine
+            (implies/equiv (equiv/symmetric equiv/identity))
+            (implies/duplicate))
+          (implies/equiv (equiv/symmetric equiv/associate))
+          (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+          (implies/equiv equiv/associate)))
+      (implies/cond-distribute)).
+
+%worlds (objvar) (let-helper/L15 _ _ _ _).
+%total { } (let-helper/L15 _ _ _ _).
+
+
+%theorem let-helper-before/simple/unique/L1
+  : forall* {CM} {B:object -> cxt} {M} {S} {Q}
+    forall {CM-B-XX: {x} clsmap-cxt-effects CM (B x) (effects/ M S Q)}
+    exists {R} {DM: efxmap`domain M R}
+    {CM-B-R: {x} clsmap-cxt-fldset CM (B x) R}
+    {CM-B-Q: {x} clsmap-cxt-objset CM (B x) Q}
+    true.
+
+- : let-helper-before/simple/unique/L1
+    ([x] clsmap-cxt-effects/ DM R^S (Q=>FS x)
+      (R^FS) S^FS (CM-B-R x) _ (CM-B-Q x))
+    _ DM CM-B-R CM-B-Q.
+
+%worlds (objvar) (let-helper-before/simple/unique/L1 _ _ _ _ _).
+%total { } (let-helper-before/simple/unique/L1 _ _ _ _ _).
+
+
+%theorem let-helper-before/simple/unique/L2
+  : forall* {CM} {B:object -> cxt} {M} {S} {Q} {OS} {SS} {N}
+    forall {CM-B-XX: {x} clsmap-cxt-effects CM (B x) (effects/ M S Q)}
+    {M=>OS: efxmap-map-objects M OS}
+    {S=>SS: set-map-objects S SS}
+    {MB: set`member OS N}
+    exists {OUT-S: set`not-member SS N}
+    {OUT-Q: set`not-member Q N}
+    true.
+
+%worlds () (let-helper-before/simple/unique/L2 _ _ _ _ _ _).
+%trustme %total { } (let-helper-before/simple/unique/L2 _ _ _ _ _ _).
+
+
+%theorem let-helper-before/simple/unique/L3
+  : forall* {CM} {S} {OS} {Q} {N} {S2} {S3} {M3} {PM} {B} {Pi} {BP} {T}
+    forall {S=>OS: set-map-objects S OS}
+    {N!<OS: set`not-member OS N}
+    {N!<Q: set`not-member Q N}
+    {Q=>S2: objset2fldset CM B Q S2}
+    {SuS2=S3: set`union S S2 S3}
+    {S3=>M3: set2efxmap S3 efx/write M3}
+    {M=>Pi: efxmap2perm CM PM B M3 Pi}
+    {BF: cxt`fresh B N}
+    {BU: {x} cxt`update B N (cxt-info/ x T) (BP x)}
+    exists {BP+Q=>S2: {x} objset2fldset CM (BP x) Q S2}
+    {M=>Pi: {x} efxmap2perm CM PM (BP x) M3 Pi}
+    true.
+
+%worlds () (let-helper-before/simple/unique/L3 _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total { } (let-helper-before/simple/unique/L3 _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper-before/simple/unique/L4
+  : forall* {CM} {B} {BP} {N} {S} {T}
+    forall {F: cxt`fresh B N}
+    {U: {x} cxt`update B N (cxt-info/ x T) (BP x)}
+    {CM-BP-XX: {x} clsmap-cxt-objset CM (BP x) S}
+    {N!<S: set`not-member S N}
+    exists {CM-B-XX: clsmap-cxt-objset CM B S}
+    true.
+
+%worlds () (let-helper-before/simple/unique/L4 _ _ _ _ _).
+%trustme %total { } (let-helper-before/simple/unique/L4 _ _ _ _ _).
+
+
+%theorem let-helper-before/simple/unique/L5
+  : forall* {CM} {PM} {BP} {B} {Q} {PiQ} {N} {T}
+    forall {Q=>PiQ: make-encumbered CM PM B Q PiQ}
+    {F: cxt`fresh B N}
+    {U: {x} cxt`update B N (cxt-info/ x T) (BP x)}
+    {N!<Q: set`not-member Q N}
+    exists {Q=>PiQ: {x} make-encumbered CM PM (BP x) Q PiQ}
+    true.
+
+%worlds () (let-helper-before/simple/unique/L5 _ _ _ _ _).
+%trustme %total { } (let-helper-before/simple/unique/L5 _ _ _ _ _).
+
+
+%theorem let-helper-before/simple/unique/L6
+  : forall* {Mout} {Rout} {Oout} {N} {T} {BP} {CM} {PM} {B} {Pi}
+    forall {DM: efxmap`domain Mout Rout}
+    {Rout=>Oout: set-map-objects Rout Oout}
+    {N!<Oout: set`not-member Oout N}
+    {F: cxt`fresh B N}
+    {U: {x} cxt`update B N (cxt-info/ x T) (BP x)}
+    {M=>P: efxmap2perm CM PM B Mout Pi}
+    exists {M=>P: {x} efxmap2perm CM PM (BP x) Mout Pi}
+    true.
+
+%worlds () (let-helper-before/simple/unique/L6 _ _ _ _ _ _ _).
+%trustme %total { } (let-helper-before/simple/unique/L6 _ _ _ _ _ _ _).
+
+%%% This is a very brave assumption. We need to modify "compatible"
+%%%  to get this proved.
+
+%theorem let-helper-before/simple/unique/L7
+  : forall* {CM} {B} {OS} {FS} {S} {Q} {M} {Mout} {Min} {MFin} {MFinP} {N}
+    forall {CB: compatible CM B (targets/unique OS FS) (effects/ M S Q)}
+    {SUB: efxmap-partition-on-index M N Mout Min}
+    {Min=>MFin: efxmap-map-fields Min MFin}
+    {OS+MFin=>MFinP: set+map2map OS MFin MFinP}
+    exists {MFinP^Mout: efxmap`disjoint MFinP Mout}
+    true.
+
+%worlds () (let-helper-before/simple/unique/L7 _ _ _ _ _).
+%trustme %total {} (let-helper-before/simple/unique/L7 _ _ _ _ _).
+
+
+%theorem let-helper-before/simple/unique/L8
+  : forall* {M} {MP} {M1} {M2} {S} {S1} {S2}
+    forall {DM: efxmap`domain M S}
+    {DMP: efxmap`domain MP S}
+    {M<=MP: efxmap`leq M MP}
+    {M1^M2: efxmap`disjoint M1 M2}
+    {M1+M2=M: efxmap`join M1 M2 M}
+    {DM-M1=S1: efxmap`domain M1 S1}
+    {DM-M2=S2: efxmap`domain M2 S2}
+    exists {M1P} {M2P}
+    {DM-M1P=S1: efxmap`domain M1P S1}
+    {DM-M2P=S2: efxmap`domain M2P S2}
+    {M1<=M1P: efxmap`leq M1 M1P}
+    {M2<=M2P: efxmap`leq M2 M2P}
+    {M1P^M2P: efxmap`disjoint M1P M2P}
+    {M1P+M2P=MP: efxmap`join M1P M2P MP}
+    true.
+
+%worlds () (let-helper-before/simple/unique/L8 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total {} (let-helper-before/simple/unique/L8 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%{%
+MP is some larger efxmap, which may not have the same efx for
+all objects in S, for a particular field F in MF.
+%}%
+
+%theorem let-helper-before/unique/L1
+  : forall* {CM} {PM} {B} {M} {S} {MF} {Pi} {GF} {NN} {A} {C} {BF} {N} {M2} {MP}
+    forall {MU=>MF: efxmap-map-fields M2 MF}
+    {MU-N: efxmap-same-object M2 N}
+    {S+MF=M: set+map2map S MF M}
+    {M=<=MP: efxmap-vleq M MP}
+    {M=>Pi: efxmap2perm CM PM B MP Pi}
+    {S=>G: {x} set2cond B x S (GF x)}
+    {N!<B: cxt`fresh B N}
+    {B+N=BF: {x} cxt`update B N (cxt-info/ x (ty/ NN A C)) (BF x)}
+    exists {Pf} {N+MF=M2: nat+map2map N MF M2}
+    {M=>Pf: {x} efxmap2perm CM PM (BF x) M2 (Pf x)}
+    {IMP: {x} implies (combine (GF x) Pi)
+          (combine (GF x)
+            (combine (Pf x) (unitperm (encumbered (Pf x) Pi))))}
+    true.
+
+%worlds () (let-helper-before/unique/L1 _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total { } (let-helper-before/unique/L1 _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%%% This lemma says if we know that
+
+%theorem let-helper-before/unique/L3
+  : forall* {CM} {B} {FS} {M} {OS} {S} {Q} {Mout} {Min} {MFin} {N} {Min2} {Min1} {X}
+    forall {CB: compatible CM B (targets/unique OS FS) (effects/ M S Q)}
+    {M|N=Mout+Min: efxmap-partition-on-index M N Mout Min}
+    {Min=>MFin: efxmap-map-fields Min MFin}
+    {S+MFin=Min2: set+map2map OS MFin Min2}
+    {FS+X=MF: set2efxmap FS X Min1}
+    exists {Min2^Mout: efxmap`disjoint Min2 Mout}
+    {Min1^Mout: efxmap`disjoint Min1 Mout}
+    true.
+
+%worlds () (let-helper-before/unique/L3 _ _ _ _ _ _ _).
+%trustme %total {} (let-helper-before/unique/L3 _ _ _ _ _ _ _).
+
+
+%{%
+
+This format records properties about three permissions:
+  1). the permission for "x"
+  2). the permission for where "x" come from
+  3). the rest of permission after taking the permissions for
+     checking e2.
+
+I think for 1), it should always be the same.
+mp
+%}%
+
+let-output-format : clsmap -> predmap -> cxt ->
+   nat -> reftype -> effects -> effects -> expr-output -> type.
+
+let-output-format/simple/unique
+  : ({x} cxt`update B N (cxt-info/ x (ty/ NN annot/borrow C)) (BP x))
+    -> ty2perm PM (ty/ NN annot/unique C) ([x] Pf x)
+    -> ({x} effects2input CM PM (BP x) (effects/ M2 S2 Q2) (Pi2 x))
+    -> efxmap`domain M2out S2out
+    -> efxmap`partition M2 S2out M2in M2out
+    -> efxmap`partition M S2out M1 M2out
+    -> ({x} efxmap2perm CM PM (BP x) M2in (Pxf x))
+    -> ({x} implies (Pxf x) (Pxf2 x))
+    -> efxmap2perm CM PM B M1 Pi3
+    -> let-output-format CM PM B N (reftype/ NN C unique-target)
+      (effects/ M _ _) (effects/ M2 S2 Q2)
+      (output/exists [x]
+        (output/expr x
+          (combine (Pi2 x)
+            (combine (unitperm (encumbered (Pxf2 x) (Pf x))) Pi3)))).
+
+let-output-format/unique/0f
+  : ({x} cxt`update B N (cxt-info/ x (ty/ NN annot/borrow C)) (BP x))
+    -> ({x} effects2input CM PM (BP x) (effects/ M2 S2 Q2) (Pi2 x))
+    -> ({x} set2cond B x OS (PiG x))
+    -> efxmap-partition-on-index M2 N M2out M2in
+    -> efxmap-split M M1 M2outk
+    -> efxmap-split M2outk Mk1 M2out
+    -> ({x} efxmap2perm CM PM (BP x) M2in (Pxf x))
+    -> efxmap2perm CM PM B Mk1 Pf
+    -> efxmap2perm CM PM B M1 Pi3
+    -> let-output-format CM PM B N (reftype/ NN C (targets/unique OS set/0))
+      (effects/ M _ _) (effects/ M2 S2 Q2)
+      (output/exists [x]
+        (output/expr x
+          (combine (PiG x)
+            (combine (Pi2 x)
+              (combine (unitperm (encumbered (Pxf x) Pf)) Pi3))))).
+
+let-output-format/unique/+f
+  : ({x} cxt`update B N (cxt-info/ x (ty/ NN annot/borrow C)) (BP x))
+    -> ty2perm PM (ty/ NN annot/unique C) ([x] PF x)
+    -> ({x} effects2input CM PM (BP x) (effects/ M2 S2 Q2) (Pi2 x))
+    -> efxmap-partition-on-index M2 N M2out M2in
+    -> efxmap-split M M1 M2outk
+    -> efxmap-split M2outk Mk3 M2out
+    -> efxmap-split Mk3 Mk1 Mk2
+    -> ({x} efxmap2perm CM PM (BP x) M2in (Pxf x))
+    -> efxmap2perm CM PM B Mk1 Pf1
+    -> efxmap2perm CM PM B Mk2 Pf2
+    -> efxmap2perm CM PM B M1 Pi3
+    -> let-output-format CM PM B N (reftype/ NN C (targets/unique OS FS))
+      (effects/ M _ _) (effects/ M2 S2 Q2)
+      (output/exists [x]
+        (output/exists [v]
+          (output/expr x
+            (combine (PiG x)
+              (combine (Pi2 x)
+                (combine
+                  (unitperm
+                    (encumbered (Pxf x)
+                      (combine Pf1 (PF v))))
+                  (combine (unitperm (encumbered (PF v) Pf2)) Pi3))))))).
+
+
+%%% now the main theorems
+
+%theorem let-helper-before/unique/F
+  : forall* {CM} {PM} {B} {Q} {Out0} {OS} {XX2} {N} {NN} {C} {XXV}
+    forall {F:void}
+    exists {PiQ} {Out1} {Out2} {XX2A}
+    {Q=>PiQ: make-encumbered CM PM B Q PiQ}
+    {EA: envadd PiQ Out0 Out1}
+    {XX2<c=XX2A: effects-leq-no-consume XX2 XX2A}
+    {FMT: let-output-format CM PM B N (reftype/ NN C (targets/unique OS set/0))
+          XXV XX2A Out2}
+    {TRANS: transform Out1 Out2}
+    true.
+
+%worlds () (let-helper-before/unique/F _ _ _ _ _ _ _ _ _ _).
+%total {} (let-helper-before/unique/F _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem let-helper-before/unique
+  : forall* {CM} {PM} {B} {XX1} {XX2} {XX} {XX0} {Q} {XX2P}
+    {NN} {C} {Out0} {N} {BP} {XXV} {FM} {OS} {Z}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {BF: cxt`fresh B N}
+    {BU: {x} cxt`update B N (cxt-info/ x (ty/ NN annot/borrow C)) (BP x)}
+    {CML: clsmap`lookup CM C FM} % not sure whether we need this!
+    {CM-B-XX2: {x} clsmap-cxt-effects CM (BP x) XX2}
+    {CM-B-XX2P: clsmap-cxt-effects CM B XX2P}
+    {CM-B-XXV: clsmap-cxt-effects CM B XXV}
+    {SUB: subst-effects CM B (targets/unique OS set/0) N XX2 XX2P}
+    {XX1+XX2P=XX: effects`join XX1 XX2P XX}
+    {XX<=XXV: effects-leq-no-consume XX XXV}
+    {TC: transfer-consume CM B XXV XX1 XX0 Q}
+    {SZ-OS: set`size OS (s Z)}
+    {XX0=>Piin: effects2output CM PM B
+                (reftype/ NN C (targets/unique OS set/0)) XX0 Out0}
+    exists {PiQ} {Out1} {Out2} {XX2A}
+    {Q=>PiQ: make-encumbered CM PM B Q PiQ}
+    {EA: envadd PiQ Out0 Out1}
+    {XX2<c=XX2A: effects-leq-no-consume XX2 XX2A}
+    {FMT: let-output-format CM PM B N (reftype/ NN C (targets/unique OS set/0))
+          XXV XX2A Out2}
+    {TRANS: transform Out1 Out2}
+    true.
+
+- : let-helper-before/unique CM-CM CM2PM N!<B ([x] B+N=BF x)
+    CML ([x] CM-BP-XX2 x) CM-B-XX2P CM-B-XXV
+    (subst-effects/unique/1 CB
+      (S2=>R2:set-map-objects S2 R2) N!<R2 N!<Q2 _)
+    XX1+XX2P=XX (effects-leq-no-consume/ (M<=MP: efxmap`leq M MP))
+    (XXV+XX1=>XX0+QP: transfer-consume CM B _ _ _ QP)
+    SZ (effects2output/simple _ _ simple-targets/unique _ _)
+    %{=>}% _ _ _ _ K1 K2 K3 K4 K5
+    <- set`size-unique set`size/0 SZ set`eq/ EQ
+    <- nat`eq-contradiction EQ F
+    <- let-helper-before/unique/F F _ _ _ _ K1 K2 K3 K4 K5.
+
+- : let-helper-before/unique CM-CM CM2PM N!<B ([x] B+N=BF x)
+    CML ([x] CM-BP-XX2 x) CM-B-XX2P CM-B-XXV
+    (subst-effects/unique/1 CB
+      (S2=>R2:set-map-objects S2 R2) N!<R2 N!<Q2 _)
+    XX1+XX2P=XX (effects-leq-no-consume/ (M<=MP: efxmap`leq M MP))
+    (XXV+XX1=>XX0+QP: transfer-consume CM B _ _ _ QP)
+    _ (effects2output/unique/+f T2PF _ _ _ _ _ _ _ SZ)
+    %{=>}% _ _ _ _ K1 K2 K3 K4 K5
+    <- set`size-unique set`size/0 SZ set`eq/ EQ
+    <- nat`eq-contradiction EQ F
+    <- let-helper-before/unique/F F _ _ _ _ K1 K2 K3 K4 K5.
+
+- : let-helper-before/unique CM-CM CM2PM N!<B ([x] B+N=BF x)
+    CML ([x] CM-BP-XX2 x) CM-B-XX2P CM-B-XXV
+    (subst-effects/unique/1 CB
+      (S2=>R2:set-map-objects S2 R2) N!<R2 N!<Q2
+      (subst-efxmap/ M2|N=M2out+M2in M2in=>MF2in
+        (S+MF2in=>Mk1:set+map2map OS MF2in Mk1) _
+         FS+X=>Mk2 (Mk1+Mk2=Mk3:efxmap`join Mk1 Mk2 Mk3) Mk3+M2out=M2outk))
+    XX1+XX2P=XX (effects-leq-no-consume/ (M<=MP: efxmap`leq M MP))
+    (XXV+XX1=>XX0+QP: transfer-consume CM B _ _ _ QP) _
+    (effects2output/unique/0f T2PF
+      (M0=>Pi0: efxmap2perm CM PM B M0 Pi0) OS=>PiG
+      (B=>PiB: cxt2perm CM PM B PiB) set`size/0 SZ-OS=SN)
+    %{=>}% _ _ _ _ QP=>PiQ2 (envadd/exists [x] envadd/expr)
+    (effects-leq-no-consume/ (M2<=M2P:efxmap`leq M2 M2P))
+    (let-output-format/unique/0f
+      ([x] B+N=BF x)
+      ([x] effects2input/
+        (cxt2perm/U B=>PiB N!<B (B+N=BF x) T2PF)
+        (BP+Q2=>PiQ2 x) (BP+Q2=>FS3 x) S2uFS3=S3 S3=>M3
+        (BP+M3=>Pi3 x) (M2P=>Pi2P x))
+      OS=>PiG
+      M2P|N=M2outP+M2in MP=>M1+M2outkP
+      (efxmap-split/ Mk1P^M2outP Mk1P+M2outP=M2outkP)
+      ([x] M2in=>Pif x) Mk1P=>Pik1P M1=>Pi1)
+    (transform/inside [x]
+      (transform/implies
+        (implies/trans6
+          (implies/combine implies/reflexive % PiQ2
+            (implies/combine implies/reflexive % PiB
+              (implies/combine implies/reflexive % PF
+                (implies/combine implies/reflexive % PiG
+                  (implies/trans3
+                    (implies/equiv (Pi0<=>PiP+Pi3))
+                    (implies/combine
+                      (implies/trans
+                        (implies/equiv (PiP<=>Pi1+Pi2outkP))
+                        (implies/combine
+                          (implies/reflexive)
+                          (implies/equiv (Pi2outkP<=>Pik1P+Pi2outP))))
+                      (implies/reflexive))
+                    (implies/equiv
+                      (equiv/transitive
+                        (equiv/symmetric equiv/associate)
+                        (equiv/combine
+                          (equiv/reflexive)
+                          (equiv/transitive
+                            (equiv/symmetric equiv/associate)
+                            (equiv/combine equiv/reflexive equiv/commute))))))))))
+          (implies/equiv
+            (equiv/transitive3
+              (equiv/roll2)
+              (equiv/combine
+                (equiv/reflexive) (equiv/roll2))
+              (equiv/associate)))
+          (implies/combine
+            (implies/reflexive)
+            (implies/trans
+              (implies/combine implies/reflexive
+                (implies/equiv equiv/roll4))
+              (implies/equiv equiv/associate)))
+          (implies/equiv equiv/associate)
+          (implies/combine
+            (implies/combine (implies/equiv equiv/commute)
+              (implies/reflexive))
+            (implies/trans6
+              (implies/combine implies/reflexive
+                (implies/equiv equiv/roll2))
+              (implies/equiv equiv/associate)
+              (implies/combine
+                (IMPP x)
+                (implies/reflexive))
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/commute)
+                  (equiv/symmetric equiv/associate)))
+              (implies/combine implies/reflexive
+                (implies/trans3
+                  (implies/combine implies/reflexive
+                    (implies/equiv equiv/roll2))
+                  (implies/equiv equiv/associate)
+                  (implies/combine
+                    (implies/equiv (Pi2outP+Pif<=>Pi2P x))
+                    (implies/reflexive))))
+              (implies/equiv equiv/roll2)))
+          (implies/equiv
+            (equiv/transitive4
+              (equiv/associate)
+              (equiv/combine equiv/reflexive
+                (equiv/roll2))
+              (equiv/roll2)
+              (equiv/combine equiv/reflexive
+                (equiv/combine equiv/reflexive
+                  (equiv/commute))))))))
+    <- let-helper/L3 CM-B-XXV XX1+XX2P=XX M<=MP XXV+XX1=>XX0+QP %{=>}%
+      S3 FS3 M3 QP=>FS3 S2P^FS3 S2uFS3=S3 S3=>M3
+      (MP^M3:efxmap`disjoint MP M3) (MP+M3=M0:efxmap`join MP M3 M0)
+      (QP=Q2P:set`eq QP Q2P) (S0=S1:set`eq S0 S1) (Q0=Q1:set`eq Q0 Q1)
+    <- efxmap`disjoint-join-implies-equiv MP^M3 MP+M3=M0 M0=>Pi0 PiP Pi3
+      MP=>PiP M3=>Pi3 Pi0<=>PiP+Pi3
+    <- objset2fldset-respects-eq QP=>FS3 clsmap`eq/ cxt`eq/ QP=Q2P set`eq/ Q2=>FS3
+    <- set2efxmap-unique FS+X=>Mk2 set2efxmap/0 set`eq/ efx`eq/ Mk2=0
+    <- efxmap`join-unique Mk1+Mk2=Mk3 efxmap`join/R efxmap`eq/ Mk2=0 Mk3=Mk1
+    <- let-helper/L6 XX1+XX2P=XX (M2outk<=M:efxmap`leq M2outk M)
+    <- let-helper-before/simple/unique/L3 S2=>R2 N!<R2 N!<Q2 Q2=>FS3 S2uFS3=S3
+      S3=>M3 M3=>Pi3 N!<B ([x] B+N=BF x) ([x] BP+Q2=>FS3 x) ([x] BP+M3=>Pi3 x)
+    <- efxmap`leq-transitive M2outk<=M M<=MP M2outk<=MP
+    <- efxmap`domain-total DM-M2outk=R2outk
+    <- let-helper/L12 M2outk<=MP DM-M2outk=R2outk _ _
+      (MP|R2outk=M1+M2outkP:efxmap`partition MP R2outk M1 M2outkP)
+      DM-M2outkP=R2outk M2outk<=M2outkP
+    <- let-helper-before/simple/unique/L1 ([x] CM-BP-XX2 x) _
+      DM-M2=R2 ([x] CM-BP-R2 x) ([x] CM-BP-Q2 x)
+    <- let-helper-before/simple/unique/L4 N!<B ([x] B+N=BF x) CM-BP-Q2 N!<Q2 CM-B-Q2
+    <- make-encumbered-total CM-CM CM2PM CM-B-Q2 _ Q2=>PiQ2
+    <- let-helper-before/simple/unique/L5 Q2=>PiQ2 N!<B ([x] B+N=BF x)
+      N!<Q2 ([x] BP+Q2=>PiQ2 x)
+    <- set`eq-symmetric QP=Q2P Q2=QP
+    <- make-encumbered-respects-eq Q2=>PiQ2 clsmap`eq/ predmap`eq/ cxt`eq/
+      Q2=QP permission`eq/ (QP=>PiQ2:make-encumbered CM PM B QP PiQ2)
+    <- let-helper/L10 M2|N=M2out+M2in M2out<=M2 M2in<=M2 M2out^M2in M2out+M2in=M2
+    <- efxmap`domain-total DM-M2in=R2in
+    <- efxmap`domain-preserves-leq* M2in<=M2 DM-M2in=R2in DM-M2=R2 R2in<=R2
+    <- ({x} clsmap-cxt-fldset-respects-geq (CM-BP-R2 x) R2in<=R2 (CM-BP-R2in x))
+    <- efxmap`domain-total (DM-M2out=R2out:efxmap`domain M2out R2out)
+    <- let-helper/L4 M2|N=M2out+M2in DM-M2out=R2out _  M2in-of-N R2out=>O2out N!<O2out
+    <- efxmap`partition-implies-disjoint-join MP|R2outk=M1+M2outkP
+      M1^M2outkP M1+M2outkP=MP
+    <- efxmap`disjoint-join-implies-equiv M1^M2outkP M1+M2outkP=MP
+      MP=>PiP Pi1 Pi2outkP M1=>Pi1 M2outkP=>Pi2outkP PiP<=>Pi1+Pi2outkP
+    <- efxmap`join-respects-eq Mk3+M2out=M2outk Mk3=Mk1 efxmap`eq/ efxmap`eq/
+      Mk1+M2out=M2outk
+    <- let-helper-before/unique/L3 CB M2|N=M2out+M2in M2in=>MF2in
+      S+MF2in=>Mk1 FS+X=>Mk2 Mk1^M2out Mk2^M2out
+    <- efxmap-disjoint-join-same-domain-leq-converse Mk1^M2out Mk1+M2out=M2outk
+      (efxmap-vleq/ DM-M2outk=R2outk DM-M2outkP=R2outk
+        M2outk<=M2outkP) Mk1P M2outP Mk1P^M2outP Mk1P+M2outP=M2outkP
+      Mk1=<=Mk1P M2out=<=M2outP
+    <- efxmap`disjoint-join-implies-equiv Mk1P^M2outP Mk1P+M2outP=M2outkP
+      M2outkP=>Pi2outkP Pik1P Pi2outP Mk1P=>Pik1P M2outP=>Pi2outP
+      Pi2outkP<=>Pik1P+Pi2outP
+    <- let-helper-before/unique/L1 M2in=>MF2in M2in-of-N
+      S+MF2in=>Mk1 Mk1=<=Mk1P Mk1P=>Pik1P
+      ([x] OS=>PiG x) N!<B ([x] B+N=BF x) _ N+MF2in=M2in
+      ([x] M2in=>Pif x) ([x] IMPP x)
+    <- efxmap-vleq-reflexive M2in=<=M2in
+    <- efxmap-partition-on-index-vleq-converse M2|N=M2out+M2in M2out=<=M2outP
+      M2in=<=M2in M2P M2P|N=M2outP+M2in M2=<=M2P
+    <- efxmap-vleq-implies-leq M2=<=M2P M2<=M2P
+    <- efxmap-vleq-implies-same-domain M2out=<=M2outP DM-M2out=M2outP
+    <- efxmap-same-domain-implies-domain-left
+      DM-M2out=M2outP DM-M2out=R2out DM-M2outP=R2out
+    <- let-helper-before/simple/unique/L6 DM-M2outP=R2out
+      R2out=>O2out N!<O2out N!<B ([x] B+N=BF x) M2outP=>Pi2outP
+      ([x] BP+M2outP=>Pi2outP x)
+    <- efxmap-vleq-preserves-disjoint-left M2out^M2in M2out=<=M2outP M2outP^M2in
+    <- let-helper/L10 M2P|N=M2outP+M2in _ _ _ M2outP+M2in=M2P % TODO: better not call this lemma.
+    <- ({x} efxmap`disjoint-join-implies-equiv-converse M2outP^M2in
+         M2outP+M2in=M2P (BP+M2outP=>Pi2outP x) (M2in=>Pif x)
+         _ (M2P=>Pi2P x) (Pi2outP+Pif<=>Pi2P x))
+    <- efxmap-partition-implies-split MP|R2outk=M1+M2outkP MP=>M1+M2outkP.
+
+%worlds () (let-helper-before/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (let-helper-before/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%%% Here Pxf is combined into permission Pi2. After using the latter,
+%%% we need to use Pxf to restore the permission for Px.
+
+%theorem let-helper-before/simple/unique
+  : forall* {CM} {PM} {B} {XX1} {XX2} {XX} {XX0} {Q} {XX2P}
+    {NN} {C} {Out0} {N} {BP} {XXV} {FM}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {BF: cxt`fresh B N}
+    {BU: {x} cxt`update B N (cxt-info/ x (ty/ NN annot/borrow C)) (BP x)}
+    {CML: clsmap`lookup CM C FM} % not sure whether we need this!
+    {CM-B-XX2: {x:object} clsmap-cxt-effects CM (BP x) XX2}
+    {CM-B-XX2P: clsmap-cxt-effects CM B XX2P}
+    {CM-B-XXV: clsmap-cxt-effects CM B XXV}
+    {SUB: subst-effects CM B unique-target N XX2 XX2P}
+    {XX1+XX2P=XX: effects`join XX1 XX2P XX}
+    {XX<=XXV: effects-leq-no-consume XX XXV}
+    {TC: transfer-consume CM B XXV XX1 XX0 Q}
+    {XX0=>Piin: effects2output CM PM B (reftype/ NN C unique-target) XX0 Out0}
+    exists {PiQ} {Out1} {Out2} {XX2A}
+    {Q=>PiQ: make-encumbered CM PM B Q PiQ}
+    {EA: envadd PiQ Out0 Out1}
+    {XX2<c=XX2A: effects-leq-no-consume XX2 XX2A}
+    {FMT: let-output-format CM PM B N (reftype/ NN C unique-target) XXV XX2A Out2}
+    {TRANS: transform Out1 Out2}
+    true.
+
+- : let-helper-before/simple/unique CM-CM CM2PM BF ([x] BU x) CML
+    ([x] CM-BP-XX2 x) CM-B-XX2P CM-B-XXV
+    (subst-effects/unique/1 CB S2=>OS2 N!<OS2 N!<Q2
+      (subst-efxmap/
+        (M2=>M2out+M2in:efxmap-partition-on-index M2 N M2out M2in)
+        (M2in=>M2Fin:efxmap-map-fields M2in M2Fin)
+        S+M2Fin=>MK1 _ S2+X=>MK2 MK1+MK2=MK
+        (MK+M2out=M2outK:efxmap`join MK M2out M2outK)))
+    XX1+XX2P=XX (effects-leq-no-consume/ (M<=MP:efxmap`leq M MP))
+    (XXV+XX1=>XX0+QP:transfer-consume CM B _ _ _ QP)
+    (effects2output/simple
+      (ty2perm/ PML NN2P A2P) RT2T simple-targets/unique
+      (M0=>Pi0:efxmap2perm CM PM B M0 Pi0) (B=>PiB:cxt2perm CM PM B PiB))
+  %{=>}% _ _ _ _ QP=>PiQ2 (envadd/exists [x] envadd/expr)
+    (effects-leq-no-consume/ M2<=M2P)
+    (let-output-format/simple/unique
+      BU (ty2perm/ PML NN2P A2P)
+      ([x] effects2input/
+        (cxt2perm/U B=>PiB BF (BU x) T2PF2)
+        (BP+Q2=>PiQ2 x) (BP+Q2=>FS3 x) S2uFS3=S3
+        S3=>M3 (BP+M3=>Pi3 x) (M2P=>Pi2P x))
+      (DM-M2outP=R2out:efxmap`domain M2outP R2out)
+      M2P|R2out=M2inP+M2outP MP|R2out=M1+M2outP
+      ([x] M2inP=>Pxf x) ([x] IMP2P x) M1=>Pi1)
+    (transform/inside [x]
+      (transform/implies
+        (implies/trans4
+          (implies/combine
+            (implies/reflexive) % X12
+            (implies/combine
+              (implies/reflexive) % PiB
+              (implies/trans
+                (implies/combine % PF
+                  (IMP3 x)
+                  (implies/equiv
+                    (equiv/transitive
+                      (Pi0<=>PiP+Pi3)
+                      (equiv/commute))))
+                (implies/equiv (equiv/symmetric equiv/associate)))))
+          (implies/trans
+            (implies/combine implies/reflexive
+              (implies/trans
+                (implies/combine implies/reflexive
+                  (implies/equiv equiv/roll2))
+                (implies/equiv equiv/associate)))
+            (implies/equiv equiv/roll2))
+          (implies/trans
+            (implies/combine (implies/equiv equiv/commute)
+              (implies/trans
+                (implies/combine implies/reflexive
+                  (implies/trans
+                    (implies/combine implies/reflexive
+                      (implies/combine implies/reflexive
+                        (implies/equiv PiP<=>Pi1+P2outP)))
+                    (implies/equiv equiv/roll2)))
+                (implies/equiv equiv/associate)))
+            (implies/equiv equiv/associate))
+          (implies/trans
+            (implies/combine implies/reflexive
+              (implies/trans3
+                (implies/combine
+                  (implies/trans (IMP1 x) (implies/equiv equiv/commute))
+                  (implies/reflexive))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/trans
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/trans
+                      (implies/equiv equiv/roll2)
+                      (implies/trans
+                        (implies/combine implies/reflexive
+                          (implies/trans3
+                            (implies/combine (IMP2 x) implies/reflexive)
+                            (implies/equiv equiv/commute)
+                            (implies/equiv (P2outP+Pxf<=>Pi2P x))))
+                        (implies/equiv equiv/commute))))
+                  (implies/equiv equiv/roll2))))
+            (implies/equiv equiv/associate)))))
+    <- let-helper/L3 CM-B-XXV XX1+XX2P=XX M<=MP XXV+XX1=>XX0+QP %{=>}%
+      S3 FS3 M3 QP=>FS3 S2P^FS3 S2uFS3=S3 S3=>M3
+      (MP^M3:efxmap`disjoint MP M3) (MP+M3=M0:efxmap`join MP M3 M0)
+      (QP=Q2P:set`eq QP Q2P) (S0=S1:set`eq S0 S1) (Q0=Q1:set`eq Q0 Q1)
+    <- efxmap`disjoint-join-implies-equiv MP^M3 MP+M3=M0 M0=>Pi0 PiP Pi3
+      MP=>PiP M3=>Pi3 Pi0<=>PiP+Pi3
+    <- objset2fldset-respects-eq QP=>FS3 clsmap`eq/ cxt`eq/ QP=Q2P set`eq/ Q2=>FS3
+    <- set+map2map-unique S+M2Fin=>MK1 set+map2map/0 set`eq/ efxmap`eq/ MK1=0
+    <- set2efxmap-unique S2+X=>MK2 set2efxmap/0 set`eq/ efx`eq/ MK2=0
+    <- efxmap`join-unique MK1+MK2=MK efxmap`join/L MK1=0 MK2=0 MK=0
+    <- efxmap`join-unique MK+M2out=M2outK efxmap`join/L MK=0 efxmap`eq/ M2outK=M2out
+    <- let-helper/L6 XX1+XX2P=XX M2outK<=M
+    <- let-helper-before/simple/unique/L3 S2=>OS2 N!<OS2 N!<Q2 Q2=>FS3 S2uFS3=S3
+      S3=>M3 M3=>Pi3 BF BU ([x] BP+Q2=>FS3 x) ([x] BP+M3=>Pi3 x)
+    <- efxmap`leq-respects-eq M2outK<=M M2outK=M2out efxmap`eq/ M2out<=M
+    <- efxmap`leq-transitive M2out<=M M<=MP M2out<=MP
+    <- efxmap`domain-total (DM-M2out=R2out:efxmap`domain M2out R2out)
+    <- let-helper/L12 M2out<=MP DM-M2out=R2out _ _
+      (MP|R2out=M1+M2outP:efxmap`partition MP R2out M1 M2outP)
+      DM-M2outP=R2out M2out<=M2outP
+    <- let-helper-before/simple/unique/L1 ([x] CM-BP-XX2 x) _
+      DM-M2=R2 ([x] CM-BP-R2 x) ([x] CM-BP-Q2 x)
+    <- let-helper-before/simple/unique/L4 BF BU CM-BP-Q2 N!<Q2 CM-B-Q2
+    <- make-encumbered-total CM-CM CM2PM CM-B-Q2 _ Q2=>PiQ2
+    <- let-helper-before/simple/unique/L5 Q2=>PiQ2 BF BU N!<Q2 BP+Q2=>PiQ2
+    <- set`eq-symmetric QP=Q2P Q2=QP
+    <- make-encumbered-respects-eq Q2=>PiQ2 clsmap`eq/ predmap`eq/ cxt`eq/
+      Q2=QP permission`eq/ QP=>PiQ2
+    <- let-helper/L10 M2=>M2out+M2in M2out<=M2 M2in<=M2 M2out^M2in M2out+M2in=M2
+    <- efxmap`domain-total DM-M2in=R2in
+    <- efxmap`domain-preserves-leq* M2in<=M2 DM-M2in=R2in DM-M2=R2 R2in<=R2
+    <- ({x} clsmap-cxt-fldset-respects-geq (CM-BP-R2 x) R2in<=R2 (CM-BP-R2in x))
+    <- let-helper/L4 M2=>M2out+M2in DM-M2out=R2out _  M2in-of-N R2out=>O2out N!<O2out
+    <- ({x} cxt`update-implies-lookup (BU x) (BL x))
+    <- let-helper/L5 DM-M2in=R2in ([x] CM-BP-R2in x) ([x] BL x) CML
+         M2in-of-N M2in=>M2Fin
+      _ _ (DM-M2Fin=S2Fin:efxmap`domain M2Fin S2Fin) DM-FM=FS S2Fin<=FS
+    <- ({x:object} fldmap2perm-total CM-CM CM2PM CML DM-FM=FS
+         S2Fin<=FS _ (S2Fin=>P2Fin x))
+    <- let-helper/L15 (ty2perm/ PML NN2P A2P) _ T2PF2 IMP3
+    <- let-helper/L8 CM2PM CML A2P (NN2P:nn2perm _ _ PF) (PML:predmap`lookup PM _ CP)
+      S2Fin=>P2Fin %{=>}% _ CN IMP1
+    <- let-helper/L9* ([x] BL x) CML ([x] S2Fin=>P2Fin x) CN %{=>}%
+      Pxf _ _ N+S2Fin=>S (S=>M2inP:set2efxmap _ efx/write M2inP)
+      M2inP=>Pxf IMP2 IMP2P
+    <- let-helper/L11* M2in-of-N M2in=>M2Fin DM-M2Fin=S2Fin N+S2Fin=>S
+      S=>M2inP DM-M2in=R2in M2in<=M2inP DM-M2inP=R2in
+    <- efxmap`join-total (M2outP+M2inP=M2P:efxmap`join M2outP M2inP M2P)
+    <- let-helper/L13 M2out<=M2outP M2in<=M2inP M2out+M2in=M2
+      M2outP+M2inP=M2P M2<=M2P
+    <- efxmap`partition-implies-permission-combine MP|R2out=M1+M2outP
+      MP=>PiP Pi1 Pi2outP M1=>Pi1 M2outP=>P2outP PiP<=>Pi1+P2outP
+    <- efxmap`domain-preserves-disjoint M2out^M2in DM-M2out=R2out
+      DM-M2in=R2in (R2out^R2in:set`disjoint R2out R2in)
+    <- efxmap`domain-preserves-disjoint-converse R2out^R2in DM-M2outP=R2out
+      DM-M2inP=R2in M2outP^M2inP
+    <- efxmap`disjoint-symmetric M2outP^M2inP M2inP^M2outP
+    <- efxmap`join-commutative M2outP+M2inP=M2P M2inP+M2outP=M2P
+    <- let-helper-before/simple/unique/L6 DM-M2outP=R2out R2out=>O2out
+      N!<O2out BF BU M2outP=>P2outP BP+M2outP=>P2outP
+    <- ({x} efxmap`disjoint-join-implies-equiv-converse M2outP^M2inP
+         M2outP+M2inP=M2P (BP+M2outP=>P2outP x) (M2inP=>Pxf x) _
+         (M2P=>Pi2P x) (P2outP+Pxf<=>Pi2P x))
+    <- efxmap`disjoint-join-right-domain-implies-partition
+      DM-M2outP=R2out M2inP^M2outP M2inP+M2outP=M2P M2P|R2out=M2inP+M2outP.
+
+%worlds () (let-helper-before/simple/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (let-helper-before/simple/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).

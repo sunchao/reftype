@@ -60,6 +60,30 @@ ffperm : fraction -> object ->
 
 
 
+% object
+
+%theorem object`eq-symmetric
+  : forall* {O1:object} {O2}
+    forall {OE: object`eq O1 O2}
+    exists {OE: object`eq O2 O1}
+    true.
+
+- : object`eq-symmetric object`eq/ object`eq/.
+
+%worlds (objvar) (object`eq-symmetric _ _).
+%total { } (object`eq-symmetric _ _).
+
+
+%theorem object`eq-transitive
+  : forall* {O1:object} {O2} {O3}
+    forall {O1=O2: object`eq O1 O2} {O2=O3: object`eq O2 O3}
+    exists {O1=O3: object`eq O1 O3}
+    true.
+
+%worlds () (object`eq-transitive _ _ _).
+%trustme %total {} (object`eq-transitive _ _ _).
+
+
 % extra theorems about set
 
 %theorem set`size-zero-implies-empty
@@ -72,6 +96,23 @@ ffperm : fraction -> object ->
 
 %worlds () (set`size-zero-implies-empty _ _).
 %total {} (set`size-zero-implies-empty _ _).
+
+
+%theorem set`not-member-add-emptyset-implies-eq
+  : forall* {S} {N}
+    forall {F: set`not-member S N}
+    {U: set`add S N (set/1 N)}
+    exists {EQ: set`eq S set/0}
+    true.
+
+- : set`not-member-add-emptyset-implies-eq set`not-member/0 set`update/0 set`eq/.
+
+- : set`not-member-add-emptyset-implies-eq NM (set`update/= NE) SE
+    <- set`member-not-member-contradiction (set`lookup/= NE) NM F
+    <- set`false-implies-eq F SE.
+
+%worlds () (set`not-member-add-emptyset-implies-eq _ _ _).
+%total { } (set`not-member-add-emptyset-implies-eq _ _ _).
 
 
 %theorem set`size-ne-implies-ne
@@ -121,8 +162,12 @@ ffperm : fraction -> object ->
     {A: nat`plus N1 N2 N}
     true.
 
+- : set`disjoint-union-implies-size-plus S1 S2 DSJ U _ S3 P
+    <- set`size-total S3
+    <- set`size-commute-disjoint-union* S1 S2 S3 DSJ U P.
+
 %worlds () (set`disjoint-union-implies-size-plus _ _ _ _ _ _ _).
-%trustme %total {} (set`disjoint-union-implies-size-plus _ _ _ _ _ _ _).
+%total {} (set`disjoint-union-implies-size-plus _ _ _ _ _ _ _).
 
 
 %theorem set`disjoint-union-implies-size-plus*
@@ -135,8 +180,11 @@ ffperm : fraction -> object ->
     exists {A: nat`plus N1 N2 N}
     true.
 
+- : set`disjoint-union-implies-size-plus* S1 S2 DSJ U S3 P
+    <- set`size-commute-disjoint-union* S1 S2 S3 DSJ U P.
+
 %worlds () (set`disjoint-union-implies-size-plus* _ _ _ _ _ _).
-%trustme %total {} (set`disjoint-union-implies-size-plus* _ _ _ _ _ _).
+%total {} (set`disjoint-union-implies-size-plus* _ _ _ _ _ _).
 
 
 %theorem set`remove-not-member-add-same-result
@@ -434,6 +482,15 @@ ffperm : fraction -> object ->
               (bimplies/conj-weaken/false)
               (bool`ne/FT))))).
 
+%abbrev gen-objequal-self-cond
+  : {o} implies empty (unitperm (conditional (objequal o o) empty
+                          (unitperm (nonlinear f))))
+    = ([o] implies/trans4
+        (implies/empty2true)
+        (implies/nonlinear bimplies/objequal-reflexive)
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/cond-intro)).
+
 %abbrev add-encumber
   : implies (combine (unitperm (encumbered Pi1 Pi2)) Pi3)
               (unitperm (encumbered Pi1 (Pi2 , Pi3)))
@@ -485,6 +542,28 @@ ffperm : fraction -> object ->
           (bool`ne/FT))
         (bimplies/rem-negneg)).
 
+%abbrev cond-to-objequal
+  : {o}{r} implies
+    (unitperm (conditional (objequal o r)
+                empty (unitperm (nonlinear f))))
+    (unitperm (nonlinear (objequal o r)))
+    = ([o][r] implies/trans5
+        (implies/cond-gen-inner)
+        (implies/cond-inner
+          (bimplies/reflexive)
+          (bimplies/reflexive)
+          (implies/reflexive)
+          (implies/trans
+            (implies/equiv equiv/commute)
+            (implies/combine
+              (implies/contradiction)
+              (implies/trans
+                (implies/nonlinear bimplies/tt)
+                (implies/true2empty)))))
+        (implies/cond-pull)
+        (implies/combine implies/reflexive implies/cond-equal)
+        (implies/equiv equiv/identity)).
+
 %abbrev objequal-to-disj
   : {o}{r} bimplies true (objequal o r) (disj (objequal o r) f)
     = [o][r] bimplies/trans
@@ -505,6 +584,31 @@ ffperm : fraction -> object ->
 
 %worlds (objvar) (object-preserves-eq _ _).
 %total { } (object-preserves-eq _ _).
+
+
+%theorem equiv-respects-object-eq
+  : forall* {O1} {O2}
+    forall {PF: object -> permission} {E: object`eq O1 O2}
+    exists {PFE: equiv (PF O1) (PF O2)}
+    true.
+
+- : equiv-respects-object-eq _ object`eq/ equiv/reflexive.
+
+%worlds (objvar) (equiv-respects-object-eq _ _ _).
+%total { } (equiv-respects-object-eq _ _ _).
+
+
+%theorem equiv-respects-object-nat-eq
+  : forall* {O1} {O2} {N1} {N2}
+    forall {PF: object -> nat -> permission}
+    {OE: object`eq O1 O2} {NE: nat`eq N1 N2}
+    exists {EQV: equiv (PF O1 N1) (PF O2 N2)}
+    true.
+
+- : equiv-respects-object-nat-eq _ object`eq/ nat`eq/ equiv/reflexive.
+
+%worlds (objvar) (equiv-respects-object-nat-eq _ _ _ _).
+%total { } (equiv-respects-object-nat-eq _ _ _ _).
 
 
 %theorem false-implies-transform
@@ -612,3 +716,18 @@ ffperm : fraction -> object ->
 
 %worlds (objvar) (permission`apply-object-preserves-eq _ _ _).
 %total {} (permission`apply-object-preserves-eq _ _ _).
+
+
+%theorem permission`apply-object-implies*
+  : forall* {PF:object -> permission} {PF'} {O'}
+    forall {O} {PFE: {o} implies (PF o) (PF' o)}
+    {OE: object`eq O O'}
+    exists {PE: implies (PF O) (PF' O')}
+    true.
+
+- : permission`apply-object-implies* O IMP object`eq/ (IMP O).
+
+%worlds (objvar) (permission`apply-object-implies* _ _ _ _).
+%total { } (permission`apply-object-implies* _ _ _ _).
+
+%abbrev permission`apply-object-implies = permission`apply-object-implies* _.

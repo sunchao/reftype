@@ -1,21 +1,115 @@
 %%% Explicit Substitution
 
+%abbrev shared-tgt = nat`z.
+
+
 %%% Definitions
 
-%abbrev empty-target = (targets/unique set/0 set/0).
+%%% First, some utility definitions
 
-% Union two targets together - this is simply
-% union of corresponding parts (set,bool) for the two targets.
+%%% Whether the given (obj,fld) pair has the object index.
 
-targets`union : targets -> targets -> targets -> type.
+match-index? : nat -> nat -> bool -> type.
 
-targets`union/
-  : set`union S1 R1 SR1
-    -> set`union S2 R2 SR2
-    -> bool`or SB RB SRB
-    -> targets`union (targets/unique S1 S2) (targets/unique R1 R2 RB)
-      (targets/unique SR1 SR2 SRB).
+match-index?/yes : nat2pair K (pair/ N _) -> match-index? K N true.
 
+match-index?/no
+  : nat2pair K (pair/ N' _)
+    -> nat`ne N N'
+    -> match-index? K N false.
+
+
+%% From the field target set, select those whose object
+%% index is the given nat.
+
+select-to-substitute : set -> nat -> set -> type.
+
+select-to-substitute/0 : select-to-substitute set/0 _ set/0.
+
+select-to-substitute/in
+  : select-to-substitute S' N R'
+    -> match-index? N K true
+    -> set`fresh S' K
+    -> set`add S' K S
+    -> set`add R' K R
+    -> select-to-substitute S N R.
+
+select-to-substitute/out
+  : select-to-substitute S' N R
+    -> match-index? N K false
+    -> set`fresh S' K
+    -> set`add S' K S
+    -> select-to-substitute S N R.
+
+
+
+%%% A property that ALL targets in the efxmap are coming from the
+%%%  same object
+
+efxmap-same-object : efxmap -> nat -> type.
+
+efxmap-same-object/0 : efxmap-same-object efxmap/0 _.
+
+efxmap-same-object/U
+  : efxmap-same-object MP N
+    -> match-index? K N true
+    -> efxmap`fresh MP K
+    -> efxmap`update MP K _ M
+    -> efxmap-same-object M N.
+
+
+%%% Given a set of (obj,fld) pairs, map it to a set of flds.
+
+set-map-fields : set -> set -> type.
+
+set-map-fields/0 : set-map-fields set/0 set/0.
+
+set-map-fields/U : set-map-fields Sin' Sout'
+                   -> nat2pair K (pair/ _ F)
+                   -> set`fresh Sin K
+                   -> set`add Sin' K Sin
+                   -> set`add Sout' F Sout
+                   -> set-map-fields Sin Sout.
+
+%% Same OP for efxmap
+
+efxmap-map-fields : efxmap -> efxmap -> type.
+
+efxmap-map-fields/0 : efxmap-map-fields efxmap/0 efxmap/0.
+
+efxmap-map-fields/U : efxmap-map-fields Min' Mout'
+                    -> nat2pair K (pair/ _ F)
+                    -> efxmap`fresh Min' K
+                    -> efxmap`update Min' K X Min
+                    -> efxmap`update Mout' F X Mout
+                    -> efxmap-map-fields Min Mout.
+
+
+set-map-objects : set -> set -> type.
+
+set-map-objects/0 : set-map-objects set/0 set/0.
+
+set-map-objects/U : set-map-objects Sin' Sout'
+                    -> nat2pair K (pair/ N _)
+                    -> set`fresh Sin K
+                    -> set`add Sin' K Sin
+                    -> set`add Sout' N Sout
+                    -> set-map-objects Sin Sout.
+
+
+efxmap-map-objects : efxmap -> set -> type.
+
+efxmap-map-objects/0 : efxmap-map-objects efxmap/0 set/0.
+
+efxmap-map-objects/U : efxmap-map-objects Min' Sout'
+                    -> nat2pair K (pair/ N _)
+                    -> efxmap`fresh Min' K
+                    -> efxmap`update Min' K _ Min
+                    -> set`add Sout' N Sout
+                    -> efxmap-map-objects Min Sout.
+
+
+%%% Substitution for Object Target Set
 
 % Given an object target set `gs`, replace the occurrence of
 % an object index `n` (if it exist) with given targets `gs1`.
@@ -28,56 +122,47 @@ targets`union/
 
 % Don't need recursion
 
-extend-set : targets -> nat -> set -> targets -> type.
+subst-object-set : targets -> nat -> set -> set -> set -> type.
 
-extend-set/0 : extend-set _ _ set/0 empty-target.
+subst-object-set/in
+  : set`not-member OS' N
+    -> set`add OS' N OS
+    -> set`union S OS' OSout
+    -> subst-object-set (targets/unique S FS) N OS OSout FS.
 
-extend-set/in
-  : set`not-member S' N
-    -> set`add S' N S
-    -> targets`union GS (targets/unique S' set/0 false) GS1
-    -> extend-set GS N S GS1.
+subst-object-set/out : set`not-member S N -> subst-object-set _ N S S set/0.
 
-extend-set/out
-  : set`not-member S N
-    -> extend-set _ N S (targets/unique S set/0 false).
 
+%%% Substitution for Field Target Set
 
 % Given an field target set `gs`, replace all occurences of
-% an object index `n` with given targets `gs1`.
-% Return substituted targets `gs'` where all occurences of the
-% index `n` has been replaced by `gs1`.
+% an object index `n` with given unique targets `gs1`.
+% Return substituted set `s'` where all occurences of the
+% index `n` has been replaced by targets in `gs1`.
 %  `targets`: the targets used for substitution
 %  `nat`: the index of object to substitute
 %  `set`: the set of field targets to substitute
-%  `targets`: the result targets
+%  `set`: the result set
 
-extend-set2 : targets -> nat -> set -> targets -> type.
+subst-field-set : targets -> nat -> set -> set -> type.
 
-extend-set2/0 : extend-set2 _ _ set/0 empty-target.
+subst-field-set/out
+  : subst-field-set _ N S S
+    <- select-to-substitute S N set/0. % no occurrence
 
-extend-set2/U/in
-  : extend-set2 (targets/unique S S2 SB) N R' GS2
-    -> nat2pair K (pair/ N' F)
-    -> nat`eq N N'
-    -> set+nat2set S F S'
-    -> set`union S' S2 S3
-    -> targets`union (targets/unique set/0 S3 SB) GS2 GS3
-    -> set`not-member R' K
-    -> set`add R' K R
-    -> extend-set2 (targets/unique S S2 SB) N R GS3.
-
-extend-set2/U/out
-  : extend-set2 GS1 N R' GS2
-    -> nat2pair K (pair/ N' F)
-    -> nat`ne N N'
-    -> targets`union GS1 (targets/unique set/0 (set/1 K) false) GS2
-    -> set`not-member R' K
-    -> set`add R' K R
-    -> extend-set2 GS1 N R GS3.
+subst-field-set/in
+  : select-to-substitute FG N FGin
+    -> set`size FGin (s _)
+    -> set`remove FG FGin FGout
+    -> set-map-fields FGin FSin
+    -> set+set2set S FSin FS2
+    -> set`union FS2 S2 FS3
+    -> set`union FS3 FGout R
+    -> subst-field-set (targets/unique S S2) N FG R.
 
 
-% substitution for targets
+% Substitution for Targets
+
 %  `targets`: the targets used for substitution.
 %  `nat`: the index of object we are looking to substitute
 %  `targets`: the targets to substitute
@@ -85,17 +170,19 @@ extend-set2/U/out
 
 subst-targets : targets -> nat -> targets -> targets -> type.
 
-% If the targets used for substitution is shared, we don't need
-% to do anything, since shared targets only represent some facts.
+subst-targets/shared : subst-targets _ N targets/shared targets/shared.
 
-subst-targets/shared : subst-targets targets/shared N GS GS.
+% if targets to substitute is unique, then if x occurs in object
+% targets, then we need to remove it and add a shared target in field
+% target set. If x occur in field target set, then we need to remove it
+% and add a shared target into the same set.
 
-% If the targets used for substitution is unique, while the targets
-% to substitute is shared, we don't need to anything either, since
-% the object we are looking for will not occur in shared targets.
-
-subst-targets/unique/shared
-  : subst-targets (targets/unique _ _ _) _ targets/shared targets/shared.
+subst-targets/shared/unique
+  : subst-object-set (targets/unique set/0 (set/1 shared-tgt)) N R OS FS1
+    -> subst-field-set (targets/unique set/0 (set/1 shared-tgt)) N R2 FS2
+    -> set`union FS1 FS2 FS
+    -> subst-targets targets/shared N
+      (targets/unique R R2) (targets/unique OS FS).
 
 % If both targets are unique, we need to do the explicit substitution:
 % we first replace all occurences of parameter `nat` in the object set
@@ -104,281 +191,255 @@ subst-targets/unique/shared
 % set the bool flag for shared.
 
 subst-targets/unique/unique
-  : extend-set (targets/unique S S2 SB) N R GS1
-    -> extend-set2 (targets/unique S S2 SB) N R2 GS2
-    -> targets`union GS1 GS2 GS3
-    -> targets`union GS3 (targets/unique set/0 set/0 RB) GS
-    -> subst-targets (targets/unique S S2 SB) N (targets/unique R R2 RB) GS.
+  : subst-object-set (targets/unique S S2) N R OS FS1 ->
+    subst-field-set (targets/unique S S2) N R2 FS2 ->
+    set`union FS1 FS2 FS ->
+    subst-targets (targets/unique S S2) N
+    (targets/unique R R2) (targets/unique OS FS).
 
 
-% subst-effects
+% Substitution for Effects
 
-% Replace all occurences of an object index `n` in the efxmap `xm`
-% with given targets `gs`. Return effects, since the targets `gs`
-% might contain shared, in which case the result will contain effects
-% on shared.
-%  `targets`: the targets used for substitution
-%  `nat`: the object index
-%  `efxmap`: the efxmap to substitute
-%  `effects`: the result effects
+efxmap-partition-on-index : efxmap -> nat -> efxmap -> efxmap -> type.
 
-extend-efxmap : targets -> nat -> efxmap -> effects -> type.
-
-extend-efxmap/0 : extend-efxmap _ _ efxmap/0 no-effect.
-
-% If `(n',f)` is in the keyset of the map, and input object index `n`
-% is equal to `n'`, then we need to do the hard work of substitution:
-%
-% first, we find the set of all object targets associated with `n`,
-% and "extend" the set with `f`, we then union this resulting set with
-% the set of all field targets associated with `n`, and converting the
-% resulting set to a efxmap, using the efx (value) `x` corresponds to
-% the key `(n',f)` in the original map.
-%
-% We also need to consider the case that the targets contain shared.
-% If so, we put a shared-efx in the resulting effects.
-
-% TODO: think to make it more modular
-extend-efxmap/U/in : extend-efxmap (targets/unique S S2 SB) N M' XX'
-                     -> efxmap`fresh M' K
-                     -> efxmap`update M' K X M
-                     -> nat2pair K (pair/ N' F)
-                     -> nat`eq N N'
-                     -> set+nat2set S F S'
-                     -> set`union S' S2 S3
-                     -> set2efxmap S3 X M3
-                     -> efxmap`join M' M3 MO
-                     -> create-shared-efx X SX'
-                     -> efx-on-shared SB SX' SX
-                     -> effects`join XX' (effects/ MO set/0 SX set/0) XX
-                     -> extend-efxmap (targets/unique S S2 SB) N M XX.
-
-% If `(n',f)` is in the keyset of the map, and input object index `n`
-% is NOT equal to `n'`, then things are easy: we produce intermediate
-% effects which only contain a singleton map consists of key `(n',f)`
-% and its associated efx, and union this effects with the rest of result.
-
-extend-efxmap/U/out : extend-efxmap GS N M' XX'
-                     -> efxmap`fresh M' K
-                     -> efxmap`update M' K X M
-                     -> nat2pair K (pair/ N' F)
-                     -> nat`ne N N'
-                     -> effects`join XX' (effects/ (efxmap/+ K X efxmap/0)
-                                           set/0 shared-efx/none set/0) XX
-                     -> extend-efxmap GS N M XX.
+efxmap-partition-on-index/
+  : efxmap`domain M S ->
+    select-to-substitute S N Sin ->
+    efxmap`partition M Sin Mout Min ->
+      efxmap-partition-on-index M N Mout Min.
 
 
-% extending the "whole consume object" set.
+subst-efxmap : targets -> nat -> efxmap -> efxmap -> type.
 
-efx-extend-set : targets -> nat -> set -> effects -> type.
+subst-efxmap/
+  : efxmap-partition-on-index M N Mout Min
+    -> efxmap-map-fields Min MFin
+    -> set+map2map S MFin M1
+    -> efxmap-max-efx Min X
+    -> set2efxmap S2 X M2
+    -> efxmap`join M1 M2 M3
+    -> efxmap`join M3 Mout M4
+    -> subst-efxmap (targets/unique S S2) N M M4.
 
-efx-extend-set/0 : efx-extend-set _ _ set/0 no-effect.
+% subst-efxmap/out
+%   : efxmap-map-objects M OS
+%     -> set`not-member OS N
+%     -> subst-efxmap (targets/unique S S2) N M M.
 
-efx-extend-set/U/in
-  : set`not-member R' N
-    -> set`add R' N R
-    -> set`union S R' SR
-    -> efx-extend-set (targets/unique S S2 false) N R
-      (effects/ efxmap/0 S2 shared-efx/none SR).
+subst-effects : clsmap -> cxt -> targets -> nat -> effects -> effects -> type.
 
-efx-extend-set/U/out
-  : set`not-member R N
-    -> efx-extend-set _ N R (effects/ efxmap/0 set/0 shared-efx/none R).
+% the case when N is in efxmap
 
+% subst-effects/unique
+%   : compatible CM B (targets/unique S S2) (effects/ M R Q)
+%     -> subst-efxmap (targets/unique S S2) N M M'
+%     -> subst-object-set (targets/unique S S2) N Q Q1 R1
+%     -> subst-field-set (targets/unique S S2) N R R2
+%     -> set`union R1 R2 R3
+%     -> subst-effects CM B
+%       (targets/unique S S2) N (effects/ M R Q) (effects/ M' R3 Q1).
 
-% Replace occurences of a given object index in a consumed
-% field target set with targets.
-
-efx-extend-set2 : targets -> nat -> set -> effects -> type.
-
-efx-extend-set2/0 : efx-extend-set2 _ _ set/0 no-effect.
-
-% it's possible here that we consume S2 multiple times, but it
-% should be OK, since we could consume a.f.h1 and a.f.h2 even
-% though they all maps to a.f. This offers us the ability to
-% consume more than one level of fields, with the let binding.
-
-efx-extend-set2/U/in
-  : efx-extend-set2 (targets/unique S S2 false) N R' XX'
-    -> nat2pair K (pair/ N' F)
-    -> nat`eq N N'
-    -> set+nat2set S F S'
-    -> set`union S' S2 S3
-    -> set`not-member R' K
-    -> set`add R' K R
-    -> effects`join XX' (effects/ efxmap/0 S3 shared-efx/none set/0) XX
-    -> efx-extend-set2 (targets/unique S S2 false) N R XX.
-
-efx-extend-set2/U/out
-  : efx-extend-set2 GS N R' XX'
-    -> nat2pair K (pair/ N' F)
-    -> nat`ne N N'
-    -> set`not-member R' K
-    -> set`add R' K R
-    -> effects`join XX'
-      (effects/ efxmap/0 (set/1 K) shared-efx/none set/0) XX
-    -> efx-extend-set2 GS N R XX.
+subst-effects/unique/1
+  : compatible CM B (targets/unique S S2) (effects/ M R Q)
+    -> set-map-objects R OS
+    -> set`not-member OS N
+    -> set`not-member Q N
+    -> subst-efxmap (targets/unique S S2) N M M'
+    -> subst-effects CM B (targets/unique S S2) N (effects/ M R Q) (effects/ M' R Q).
 
 
-subst-effects : targets -> nat -> effects -> effects -> type.
-
-subst-effects/shared : subst-effects targets/shared _ XX XX.
-
-% problem: in extend-set2 we might consume shared! However this
-% shouldn't happen given compatible relation in reftyping/let.
-
-subst-effects/unique
-  : compatible (targets/unique S S2 SB) (effects/ M R SX Q)
-    -> extend-efxmap (targets/unique S S2 SB) N M XX1
-    -> efx-extend-set2 (targets/unique S S2 SB) N R XX2 % ignore SB for now
-    -> efx-extend-set (targets/unique S S2 SB) N Q XX3
-    -> effects`join XX1 XX2 XX4
-    -> effects`join XX4 XX3 XX
-    -> subst-effects (targets/unique S S2 SB) N (effects/ M R SX Q) XX.
+subst-effects/shared1
+  : subst-efxmap (targets/unique set/0 (set/1 shared-tgt)) N M M'
+    -> subst-object-set (targets/unique set/0 (set/1 shared-tgt)) N Q Q1 R1
+    -> subst-field-set (targets/unique set/0 (set/1 shared-tgt)) N R R2
+    -> set`union R1 R2 R3
+    -> subst-effects CM B targets/shared N (effects/ M R Q)
+      (effects/ M' R3 Q1).
 
 
-%%% Theorems: properties about substitution
-%%% Question: what are the properties about subst-targets?
+%%% Theorems
 
+%% theorems about match-index?
 
-
-%{
-IDEA (for unique only):
-first, suppose the object associated with the nat N is x, then
-we need to show that, given permission:
-
-  x == r, r == a1 \/ r == a2 ... \/ r == an \/ r == o,
-  (o.all -> 0, P(o)) ,
-  (o.all -> 0, P(o)) --|- (Pi(b1.f1) , Pi(b2.f2) , ... , Pi(bn.fn))
-
-We need to prove that :
-  (r == r1 \/ r == r2 \/ G(r)) ==> (r == k \/ G(r) , k == r1 \/ k == r2)
-}%
-
-
-%theorem combine-disj/L1
-  : forall* {PF:object -> permission}
-    {Pi1} {Pi2}
-    exists {Pi3:object -> object -> object -> permission}
-    {IMP: {o}{v1}{v2} implies
-          (unitperm (nonlinear (disj (objequal o v1) (objequal o v2))) ,
-            (combine ((PF v1) , (unitperm (encumbered (PF v1) Pi1)))
-              ((PF v2) , (unitperm (encumbered (PF v2) Pi2)))))
-          (((PF o) , (unitperm (encumbered (PF o) (Pi1 , Pi2)))) ,
-            (Pi3 o v1 v2))}
+%theorem match-index?-respects-eq
+  : forall* {K} {K0} {N} {N0} {B} {B0}
+    forall {M: match-index? K N B}
+    {KE: nat`eq K K0} {NE: nat`eq N N0} {BE: bool`eq B B0}
+    exists {M0: match-index? K0 N0 B0}
     true.
 
-- : combine-disj/L1 _
-    ([o][v1][v2] implies/trans6
-      (implies/combine
-        (implies/disj2cond) (implies/reflexive))
-      (implies/equiv equiv/commute)
-      (implies/cond-push)
-      (implies/cond-gen-inner)
-      (implies/cond-inner
-        (bimplies/reflexive)
-        (bimplies/reflexive)
-        (implies/trans6
-          (implies/combine
-            (implies/nonlinear bimplies/objequal-symmetric)
-            (implies/equiv equiv/identity))
-          (implies/objequal
-            ([v1] (combine ((PF v1) , (unitperm (encumbered (PF v1) Pi1)))
-                    ((PF v2) , (unitperm (encumbered (PF v2) Pi2))))))
-          (implies/combine
-            (implies/reflexive) (implies/linear-modus-ponens))
-          (implies/equiv (equiv/symmetric equiv/associate))
-          (implies/combine
-            (implies/reflexive) (add-encumber))
-          (implies/equiv (equiv/symmetric equiv/identity)))
-        (implies/trans
-          (implies/combine
-            (implies/reflexive)
-            (implies/trans7
-              (implies/equiv equiv/commute)
-              (implies/combine
-                (implies/nonlinear bimplies/objequal-symmetric)
-                (implies/reflexive))
-              (implies/objequal
-                ([v2] (combine ((PF v1) , (unitperm (encumbered (PF v1) Pi1)))
-                    ((PF v2) , (unitperm (encumbered (PF v2) Pi2))))))
-              (implies/combine
-                (implies/linear-modus-ponens) (implies/reflexive))
-              (implies/equiv equiv/commute)
-              (implies/equiv (equiv/symmetric equiv/associate))
-              (implies/combine
-                (implies/reflexive)
-                (implies/trans
-                  (add-encumber)
-                  (implies/equiv-encumbered
-                    (equiv/reflexive)
-                    (equiv/commute))))))
-          (implies/equiv equiv/commute)))
-      (implies/cond-pull)).
+- : match-index?-respects-eq M nat`eq/ nat`eq/ bool`eq/ M.
 
-%worlds () (combine-disj/L1 _ _).
-%total { } (combine-disj/L1 _ _).
+%worlds (objvar) (match-index?-respects-eq _ _ _ _ _).
+%total { } (match-index?-respects-eq _ _ _ _ _).
 
 
-%theorem combine-disj
-  : forall* {GF1:object -> formula}
-    {PF} {GF2:object -> formula} {Pi1} {Pi2}
-    exists
-    {IMP: transform
-          (output/exists [x]
-            (output/exists [r1]
-              (output/exists [r2]
-                (output/expr x
-                  (combine
-                    (unitperm
-                      (nonlinear
-                        (disj (disj (GF1 x) (GF2 x))
-                          (disj (objequal x r1) (objequal x r2)))))
-                    (combine ((PF r1) , (unitperm (encumbered (PF r1) Pi1)))
-                      ((PF r2) , (unitperm (encumbered (PF r2) Pi2)))))))))
-          (output/exists [x]
-            (output/exists [r]
-              (output/expr x
-                (combine
-                  (unitperm
-                    (nonlinear
-                      (disj (disj (GF1 x) (GF2 x)) (objequal x r))))
-                  ((PF r) , (unitperm (encumbered (PF r) (Pi1 , Pi2))))))))}
+%% theorems about efxmap-same-object
+
+%theorem false-implies-efxmap-same-object :
+	forall*	{M} {X}
+	forall	{F: void}
+	exists	{A: efxmap-same-object M X}
+	true.
+
+%worlds (objvar) (false-implies-efxmap-same-object _ _).
+%total { } (false-implies-efxmap-same-object _ _).
+
+
+%theorem efxmap-same-object-respects-eq :
+	forall*	{M1} {X1} {M2} {X2}
+	forall	{A1: efxmap-same-object M1 X1}
+		{ME: efxmap`eq M1 M2}
+		{XE: nat`eq X1 X2}
+	exists	{A2: efxmap-same-object M2 X2}
+	true.
+
+- : efxmap-same-object-respects-eq A _ _ A.
+
+%worlds (objvar) (efxmap-same-object-respects-eq _ _ _ _).
+%total { } (efxmap-same-object-respects-eq _ _ _ _).
+
+
+%theorem efxmap-same-object/U-inversion :
+	forall*	{M1} {M2} {X} {N} {D}
+	forall	{A2: efxmap-same-object M2 X}
+		{F: efxmap`fresh M1 N}
+		{U: efxmap`update M1 N D M2}
+	exists	{A1: efxmap-same-object M1 X}
+		{R: match-index? N X true}
+	true.
+
+%theorem efxmap-same-object/U-inversion/L :
+	forall*	{N0} {D0} {M0} {X} {N} {D} {B} {M1} {M2}
+	forall	{A0: efxmap-same-object M0 X}
+		{R1: match-index? N0 X true}
+		{F0: efxmap`fresh M0 N0}
+		{U0: efxmap`update M0 N0 D0 M2}
+		{F1: efxmap`fresh M1 N}
+		{U1: efxmap`update M1 N D M2}
+		{EQ?: nat`eq? N N0 B}
+	exists	{A1: efxmap-same-object M1 X}
+		{R: match-index? N X true}
+	true.
+
+- : efxmap-same-object/U-inversion/L A0 R0 F0 U0 F1 U1 nat`eq?/yes A1 R0
+    <- efxmap`fresh-update-cancels F0 U0 F1 U1 nat`eq/ efxmap`eq/ D0=D1 M0=M1
+    <- efxmap-same-object-respects-eq A0 M0=M1 nat`eq/ A1.
+
+- : efxmap-same-object/U-inversion/L
+	A0 R0 F0 U0 F1 U1 (nat`eq?/no N<>N1) (efxmap-same-object/U A2 R0 F3 U3) R1
+    <- efxmap`update-commutes-converse U1 U0 N<>N1 _ U3 U2
+    <- efxmap`update-preserves-fresh-converse F1 U3 F2
+    <- efxmap-same-object/U-inversion A0 F2 U2 A2 R1
+    <- efxmap`update-preserves-fresh-converse F0 U2 F3.
+
+- : efxmap-same-object/U-inversion (efxmap-same-object/U A0 R0 F0 U0) F U A1 R
+    <- nat`eq?-total EQ?
+    <- efxmap-same-object/U-inversion/L A0 R0 F0 U0 F U EQ? A1 R.
+
+%worlds (objvar) (efxmap-same-object/U-inversion _ _ _ _ _)
+  (efxmap-same-object/U-inversion/L _ _ _ _ _ _ _ _ _).
+%total (A B) (efxmap-same-object/U-inversion A _ _ _ _)
+  (efxmap-same-object/U-inversion/L B _ _ _ _ _ _ _ _).
+
+
+%theorem efxmap-map-objects-total*
+  : forall {M}
+    exists {OS} {M-OS: efxmap-map-objects M OS}
     true.
 
-- : combine-disj
-    (transform/trans
-      (transform/inside [x]
-        (transform/inside [r1]
-          (transform/inside [r2]
-            (transform/trans3
-              (transform/implies
-                (implies/equiv
-                  (equiv/commute)))
-              (transform/new _)
-              (transform/inside [v]
-                (transform/trans
-                  (transform/implies
-                    (implies/trans4
-                      (implies/equiv
-                        (equiv/associate))
-                      (implies/combine
-                        (implies/trans3
-                          (implies/equiv equiv/commute)
-                          (IMP v r1 r2)
-                          (implies/equiv equiv/commute))
-                        (implies/reflexive))
-                      (implies/equiv (equiv/symmetric equiv/associate))
-                      (implies/combine
-                        (implies/reflexive)
-                        (implies/equiv equiv/commute))))
-                  (transform/drop)))))))
-      (transform/inside [x]
-        (transform/trans
-          (transform/inside [v1]
-            (transform/rem-unused))
-          (transform/rem-unused))))
-    <- combine-disj/L1 _ IMP.
+%worlds () (efxmap-map-objects-total* _ _ _).
+%trustme %total {} (efxmap-map-objects-total* _ _ _).
 
-%worlds () (combine-disj _).
-%total { } (combine-disj _).
+%abbrev efxmap-map-objects-total = efxmap-map-objects-total* _ _.
+
+
+%theorem efxmap-map-objects-unique
+  : forall* {M} {MP} {OS} {OSP}
+    forall {M->OS: efxmap-map-objects M OS}
+    {MP->OSP: efxmap-map-objects MP OSP}
+    {M=MP: efxmap`eq M MP}
+    exists {OS=OSP: set`eq OS OSP}
+    true.
+
+%worlds () (efxmap-map-objects-unique _ _ _ _).
+%trustme %total { } (efxmap-map-objects-unique _ _ _ _).
+
+
+%theorem efxmap-map-objects-respects-eq
+  : forall* {M} {MP} {S} {SP}
+    forall {MOS: efxmap-map-objects M S}
+    {ME: efxmap`eq M MP} {SE: set`eq S SP}
+    exists {MOS: efxmap-map-objects MP SP}
+    true.
+
+- : efxmap-map-objects-respects-eq MOS efxmap`eq/ set`eq/ MOS.
+
+%worlds () (efxmap-map-objects-respects-eq _ _ _ _).
+%total { } (efxmap-map-objects-respects-eq _ _ _ _).
+
+
+%theorem efxmap-map-objects-empty-implies-empty
+  : forall* {M}
+    forall {MOS: efxmap-map-objects M set/0}
+    exists {ME: efxmap`eq M efxmap/0}
+    true.
+
+- : efxmap-map-objects-empty-implies-empty efxmap-map-objects/0 efxmap`eq/.
+
+%worlds () (efxmap-map-objects-empty-implies-empty _ _).
+%total { } (efxmap-map-objects-empty-implies-empty _ _).
+
+
+%theorem set-map-objects-total*
+  : forall {S}
+    exists {OS} {S-OS: set-map-objects S OS}
+    true.
+
+%worlds () (set-map-objects-total* _ _ _).
+%trustme %total {} (set-map-objects-total* _ _ _).
+
+%abbrev set-map-objects-total = set-map-objects-total* _ _.
+
+
+%theorem subst-object-set-no-change
+  : forall* {OS} {GS} {N} {S} {FS}
+    forall {SUB: subst-object-set GS N S OS FS}
+    {NM: set`not-member S N}
+    exists {EQ: set`eq OS S} {EQ: set`eq FS set/0}
+    true.
+
+%worlds () (subst-object-set-no-change _ _ _ _).
+%trustme %total { } (subst-object-set-no-change _ _ _ _).
+
+
+%theorem subst-field-set-no-change
+  : forall* {S} {GS} {N} {FS} {SS}
+    forall {SUB: subst-field-set GS N S FS}
+    {S-SS: set-map-objects S SS}
+    {NM: set`not-member SS N}
+    exists {EQ: set`eq FS S}
+    true.
+
+%worlds () (subst-field-set-no-change _ _ _ _).
+%trustme %total { } (subst-field-set-no-change _ _ _ _).
+
+
+%theorem efxmap-map-fields-total*
+  : forall {M} exists {MF} {MP: efxmap-map-fields M MF} true.
+
+%abbrev efxmap-map-fields-total = efxmap-map-fields-total* _ _.
+
+%worlds () (efxmap-map-fields-total* _ _ _).
+%trustme %total { } (efxmap-map-fields-total* _ _ _).
+
+
+%theorem efxmap-map-fields-implies-nat+map2map
+  : forall* {M} {N} {MF}
+    forall {M=>MF: efxmap-map-fields M MF}
+    {M-N: efxmap-same-object M N}
+    exists {N+MF=M: nat+map2map N MF M}
+    true.
+
+%worlds () (efxmap-map-fields-implies-nat+map2map _ _ _).
+%trustme %total {} (efxmap-map-fields-implies-nat+map2map _ _ _).

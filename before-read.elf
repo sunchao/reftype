@@ -61,7 +61,7 @@
 
 %theorem combine-fldperm
   : forall* {S} {B} {C} {CM} {PM} {FM} {MS}
-    {NN} {A} {FC} {G} {F} {M} {Pi} {PF}
+    {NN} {A} {FC} {G} {F} {M} {Pi} {PF} {ONN}
     forall {K} {Z: set`size S (s K)}
     {SC: same-class B S C}
     {CM-CM: clsmap-clsmap CM CM}
@@ -69,21 +69,21 @@
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F (ty/ NN A FC)}
     {S2S: set+nat2set S F MS}
-    {S2G: {x} set2facts B x S (G x)}
+    {S2G: {x} set2cond B x S (G x)}
     {DM: efxmap`domain M MS}
     {M2P: efxmap2perm CM PM B M Pi}
     {T2PF: ty2perm PM (ty/ NN A FC) PF}
+    {LNN: least-nonnull B S ONN}
     exists {X} {MX-X: efxmap-min-efx M X}
     {Q:fraction} {X2Q: efx2frac X Q}
+    {OPF} {CNN: consider-nn ([x] (scale Q (unitperm (precise-exists x F PF)))) ONN OPF}
     {IMP: {x} implies
-          (combine (unitperm (nonlinear (G x))) Pi)
-          (combine (scale Q (unitperm (precise-exists x F ([v] PF v))))
-            (unitperm (encumbered
-                        (scale Q (unitperm (precise-exists x F PF))) Pi)))}
+          (combine (G x) Pi)
+          (combine (OPF x) (unitperm (encumbered (OPF x) Pi)))}
     true.
 
-%worlds (objvar) (combine-fldperm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%trustme %total (N) (combine-fldperm N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (combine-fldperm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (N) (combine-fldperm N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %{
@@ -123,7 +123,7 @@ M1P will be less than M1.
     {R2M: set2efxmap R X M2}
     {M2<=M: efxmap`leq M2 M}
     {DM: efxmap`domain M S}
-    {CM-B-M: clsmap-cxt-set CM B S}
+    {CM-B-M: clsmap-cxt-fldset CM B S}
     exists {M1'} {M2'}
     {SG: efxmap`partition M R M1' M2'}
     {M2'=>R: efxmap`domain M2' R}
@@ -140,16 +140,160 @@ M1P will be less than M1.
     <- efxmap`domain-total DM2'
     <- efxmap`domain-preserves-leq* M2'<=M DM2' DM S2'<=S
     <- efxmap`domain-preserves-leq* M1'<=M DM1' DM S1'<=S
-    <- clsmap-cxt-set-respects-geq CM-B-S S2'<=S CM-B-S2'
-    <- clsmap-cxt-set-respects-geq CM-B-S S1'<=S CM-B-S1'
+    <- clsmap-cxt-fldset-respects-geq CM-B-S S2'<=S CM-B-S2'
+    <- clsmap-cxt-fldset-respects-geq CM-B-S S1'<=S CM-B-S1'
     <- partition-leq-implies-leq M/R2=M1'+M2' R2=>M2 M2<=M M2<=M2'
-    <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM2' CM-B-S2' Pi2' M2'=>Pi2'
-    <- clsmap-cxt-set-implies-efxmap2perm CM-CM CM2PM DM1' CM-B-S1' Pi1' M1'=>Pi1'
+    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM2' CM-B-S2' Pi2' M2'=>Pi2'
+    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM1' CM-B-S1' Pi1' M1'=>Pi1'
     <- efxmap`domain-preserves-leq M2<=M M2=>R2 _ M=>R R2<=R
     <- efxmap`partition-implies-domain M/R2=M1'+M2' M=>R R2<=R M2'=>R2.
 
 %worlds () (before-read/unique/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total {} (before-read/unique/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem before-read/unique/L3
+  : forall* {PF} {PF2}
+    forall {CNN: consider-nn PF nn/yes PF2}
+    exists {EQV: {x} equiv (PF2 x) (empty , (PF x))}
+    true.
+
+- : before-read/unique/L3 consider-nn/yes
+    ([_] equiv/transitive (equiv/symmetric equiv/identity) equiv/commute).
+
+%worlds (objvar) (before-read/unique/L3 _ _).
+%total { } (before-read/unique/L3 _ _).
+
+
+%theorem before-read/unique/L2
+  : forall* {X1} {X2} {X} {G} {F} {PF} {CP} {Pi2} {Pi12} {Q1} {Q2} {Q} {OPF}
+    forall {X1=>Q1: efx2frac X1 Q1}
+    {X2=>Q2: efx2frac X2 Q2}
+    {X2Q: efx2frac X Q}
+    {MX: efx`min X1 X2 X}
+    {CNN: consider-nn ([x] (scale Q1 (unitperm (precise-exists x F PF))))
+          nn/yes OPF}
+    {IMP1: {x} implies (combine (G x) (Pi12))
+          (combine (OPF x) (unitperm (encumbered (OPF x) Pi12)))}
+    {IMP2: {x} implies (one-predcall CP x)
+           (unitperm (nonlinear (nested (unitperm (precise-exists x F PF)) x all)))}
+    exists {Pi}
+    {IMP: {o}{x} implies
+          (combine
+            (unitperm (conditional (objequal o x) empty (G o)))
+            (combine
+              (scale Q2 (nonnull-unique-perm x CP))
+              (combine
+                (unitperm
+                  (encumbered (scale Q2 (nonnull-unique-perm x CP)) Pi2))
+                Pi12)))
+          (combine
+            (combine
+              (scale Q (unitperm (precise-exists o F PF)))
+              (unitperm
+                (encumbered
+                  (scale Q (unitperm (precise-exists o F PF)))
+                  (combine Pi12 Pi2))))
+            (Pi o x))}
+    true.
+
+- : before-read/unique/L2 X1=>Q1 X2=>Q2 X=>Q MX CNN IMP1 IMP2 _
+    ([o][x]
+      (implies/trans5
+        (implies/combine
+          (implies/cond-gen-inner)
+          (implies/reflexive))
+        (implies/equiv equiv/commute)
+        (implies/cond-push)
+        (implies/cond-inner
+          (bimplies/reflexive)
+          (bimplies/reflexive)
+          (implies/trans10
+            (implies/combine
+              (implies/equiv equiv/associate)
+              (implies/equiv equiv/identity))
+            (implies/equiv equiv/commute)
+            (implies/equiv equiv/associate)
+            (implies/combine
+              (implies/trans
+                (implies/combine
+                  (implies/nonlinear bimplies/objequal-symmetric)
+                  (implies/reflexive))
+                (implies/objequal
+                  ([o] (scale Q2 (nonnull-unique-perm o CP)) ,
+                    (unitperm
+                      (encumbered (scale Q2 (nonnull-unique-perm o CP))
+                        (Pi2))))))
+              (implies/reflexive))
+            (implies/equiv (equiv/symmetric equiv/associate))
+            (implies/combine
+              (implies/reflexive)
+              (implies/trans
+                (add-encumber)
+                (implies/equiv-encumbered
+                  (equiv/reflexive)
+                  (equiv/commute))))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/symmetric equiv/identity)
+                (equiv/symmetric equiv/associate)))
+            (IMP2' o)
+            (implies/equiv equiv/associate)
+            (implies/combine
+              (EMP2 o)
+              (implies/reflexive)))
+          (implies/trans4
+            (implies/equiv
+              (equiv/transitive
+                (equiv/commute)
+                (equiv/symmetric equiv/associate)))
+            (implies/combine
+              (implies/reflexive)
+              (implies/trans5
+                (implies/combine % (G , (Pf, (Pf --|- P2 , P12)))
+                  (implies/reflexive)
+                  (implies/trans3
+                    (implies/equiv equiv/associate)
+                    (implies/combine
+                      (implies/linear-modus-ponens)
+                      (implies/reflexive))
+                    (implies/equiv equiv/commute)))
+                (implies/equiv equiv/associate)
+                (implies/combine
+                  (implies/trans4
+                    (IMP1 o)
+                    (implies/combine
+                      (implies/equiv
+                        (equiv/transitive
+                          (EQV o)
+                          (equiv/commute)))
+                      (implies/trans
+                        (implies/equiv-encumbered
+                          (EQV o)
+                          equiv/reflexive)
+                        (implies/combine-assoc-encumbered)))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine
+                      (implies/reflexive)
+                      (implies/linear-modus-ponens)))
+                  (implies/reflexive))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine
+                  (implies/reflexive)
+                  (add-encumber))))
+            (implies/equiv equiv/commute)
+            (implies/combine
+              (EMP1 o)
+              (implies/reflexive))))
+        (implies/cond-pull)))
+    <- before-read/unique/L3 CNN EQV
+    <- pullout-fldperm IMP2 IMP2'
+    <- efx`min-implies-geq MX X<=X1 X<=X2
+    <- efx2frac-leq-implies-implies* X1=>Q1 X<=X1 X=>Q EMP1
+    <- efx2frac-leq-implies-implies* X2=>Q2 X<=X2 X=>Q EMP2.
+
+%worlds () (before-read/unique/L2 _ _ _ _ _ _ _ _ _).
+%total {} (before-read/unique/L2 _ _ _ _ _ _ _ _ _).
 
 
 %theorem before-read/unique/0
@@ -241,7 +385,7 @@ M1P will be less than M1.
   : forall* {B} {CM} {PM} {FM} {C} {M2} {M}
     {F} {NN} {A} {FC} {S} {G2} {Out} {K} {CS} {R} {Q} {X}
     forall {DM: efxmap`domain M R}
-    {CM-B-R: clsmap-cxt-set CM B R}
+    {CM-B-R: clsmap-cxt-fldset CM B R}
     {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CM-L: clsmap`lookup CM C FM}
@@ -253,6 +397,7 @@ M1P will be less than M1.
               (reftype/ nn/yes C (targets/unique S set/0))
               (effects/ M CS Q) Out}
     {SC: same-class B S C}
+    {ANN: least-nonnull B S nn/yes}
     {SZ: set`size S (s K)}
     exists {TF} {T2TF: ty2perm PM (ty/ NN A FC) TF}
     {Pi4} {B=>Pi4: cxt2perm CM PM B Pi4}
@@ -276,7 +421,7 @@ M1P will be less than M1.
     DM CM-B-R CM-CM CM2PM CM-L FM-L S+F=>G2 G2=>M2 M2<=M
     (effects2output/unique/0f _ M=>Pi S=>GF B=>Pi4
       set`size/0 SZ-SP)
-    B-S-C SZ-S %{=>}% _ T2PF _ B=>Pi4
+    B-S-C LNN SZ-S %{=>}% _ T2PF _ B=>Pi4
     _ _ M/G2=M1P+M2P _ M1P=>Pi1P _ M2P=>Pi2P _ MX-M2P Q X2Q
     (transform/inside [r]
       (transform/trans3
@@ -296,7 +441,22 @@ M1P will be less than M1.
                       (equiv/commute))))
                 (implies/equiv equiv/associate)
                 (implies/combine
-                  (IMP r)
+                  (implies/trans4
+                    (IMP r)
+                    (implies/combine
+                      (implies/equiv
+                        (equiv/transitive
+                          (EQV2 r)
+                          (equiv/commute)))
+                      (implies/trans
+                        (implies/equiv-encumbered
+                          (EQV2 r)
+                          equiv/reflexive)
+                        (implies/combine-assoc-encumbered)))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine
+                      (implies/reflexive)
+                      (implies/linear-modus-ponens)))
                   (implies/reflexive))
                 (implies/equiv (equiv/symmetric equiv/associate))))
             implies/reflexive))))
@@ -307,135 +467,13 @@ M1P will be less than M1.
     <- lookup-implies-clsmap-ty CM-FM FM-L CM-T
     <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
     <- combine-fldperm _ SZ-S B-S-C CM-CM CM2PM CM-L FM-L S+F=>G2
-      S=>GF M2P=>G2 M2P=>Pi2P T2PF _ MX-M2P _ X2Q IMP
+      S=>GF M2P=>G2 M2P=>Pi2P T2PF LNN  _ MX-M2P _ X2Q _ CNN IMP
     <- efxmap`partition-implies-permission-combine*
-      M/G2=M1P+M2P M=>Pi M1P=>Pi1P M2P=>Pi2P Pi<=>Pi1P+Pi2P.
+      M/G2=M1P+M2P M=>Pi M1P=>Pi1P M2P=>Pi2P Pi<=>Pi1P+Pi2P
+    <- before-read/unique/L3 CNN EQV2.
 
-%worlds ()
-(before-read/unique/0f _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total {}
-(before-read/unique/0f _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem before-read/unique/L2
-  : forall* {X1} {X2} {X} {G} {F} {PF} {CP} {Pi2} {Pi12} {Q1} {Q2} {Q}
-    forall {X1=>Q1: efx2frac X1 Q1}
-    {X2=>Q2: efx2frac X2 Q2}
-    {X2Q: efx2frac X Q}
-    {MX: efx`min X1 X2 X}
-    {IMP1: {x} implies
-          (combine (unitperm (nonlinear (G x))) (Pi12))
-          (combine (scale Q1 (unitperm (precise-exists x F ([v] PF v))))
-            (unitperm
-              (encumbered
-                (scale Q1 (unitperm (precise-exists x F PF))) Pi12)))}
-    {IMP2: {x} implies (one-predcall CP x)
-           (unitperm
-             (nonlinear
-               (nested (unitperm (precise-exists x F PF)) x all)))}
-    exists {Pi}
-    {IMP: {o}{x} implies
-          (combine
-            (unitperm (nonlinear (disj (objequal o x) (G o))))
-            (combine
-              (scale Q2 (nonnull-unique-perm x CP))
-              (combine
-                (unitperm
-                  (encumbered (scale Q2 (nonnull-unique-perm x CP)) Pi2))
-                Pi12)))
-          (combine
-            (combine
-              (scale Q (unitperm (precise-exists o F PF)))
-              (unitperm
-                (encumbered
-                  (scale Q (unitperm (precise-exists o F PF)))
-                  (combine Pi12 Pi2))))
-            (Pi o x))}
-    true.
-
-- : before-read/unique/L2 X1=>Q1 X2=>Q2 X=>Q MX IMP1 IMP2 _
-    ([o][x]
-      (implies/trans5
-        (implies/combine
-          (implies/trans
-            (implies/disj2cond)
-            (implies/cond-gen-inner))
-          (implies/reflexive))
-        (implies/equiv equiv/commute)
-        (implies/cond-push)
-        (implies/cond-inner
-          (bimplies/reflexive)
-          (bimplies/reflexive)
-          (implies/trans10
-            (implies/combine
-              (implies/equiv equiv/associate)
-              (implies/equiv equiv/identity))
-            (implies/equiv equiv/commute)
-            (implies/equiv equiv/associate)
-            (implies/combine
-              (implies/trans
-                (implies/combine
-                  (implies/nonlinear bimplies/objequal-symmetric)
-                  (implies/reflexive))
-                (implies/objequal
-                  ([o] (scale Q2 (nonnull-unique-perm o CP)) ,
-                    (unitperm
-                      (encumbered (scale Q2 (nonnull-unique-perm o CP))
-                        (Pi2))))))
-              (implies/reflexive))
-            (implies/equiv (equiv/symmetric equiv/associate))
-            (implies/combine
-              (implies/reflexive)
-              (implies/trans
-                (add-encumber)
-                (implies/equiv-encumbered
-                  (equiv/reflexive)
-                  (equiv/commute))))
-            (implies/equiv
-              (equiv/transitive
-                (equiv/symmetric equiv/identity)
-                (equiv/symmetric equiv/associate)))
-            (IMP2' o)
-            (implies/equiv equiv/associate)
-            (implies/combine
-              (EMP2 o)
-              (implies/reflexive)))
-          (implies/trans4
-            (implies/equiv
-              (equiv/transitive
-                (equiv/commute)
-                (equiv/symmetric equiv/associate)))
-            (implies/combine
-              (implies/reflexive)
-              (implies/trans5
-                (implies/combine % (G , (Pf, (Pf --|- P2 , P12)))
-                  (implies/reflexive)
-                  (implies/trans3
-                    (implies/equiv equiv/associate)
-                    (implies/combine
-                      (implies/linear-modus-ponens)
-                      (implies/reflexive))
-                    (implies/equiv equiv/commute)))
-                (implies/equiv equiv/associate)
-                (implies/combine
-                  (IMP1 o)
-                  (implies/reflexive))
-                (implies/equiv (equiv/symmetric equiv/associate))
-                (implies/combine
-                  (implies/reflexive)
-                  (add-encumber))))
-            (implies/equiv equiv/commute)
-            (implies/combine
-              (EMP1 o)
-              (implies/reflexive))))
-        (implies/cond-pull)))
-    <- pullout-fldperm IMP2 IMP2'
-    <- efx`min-implies-geq MX X<=X1 X<=X2
-    <- efx2frac-leq-implies-implies* X1=>Q1 X<=X1 X=>Q EMP1
-    <- efx2frac-leq-implies-implies* X2=>Q2 X<=X2 X=>Q EMP2.
-
-%worlds () (before-read/unique/L2 _ _ _ _ _ _ _ _).
-%total {} (before-read/unique/L2 _ _ _ _ _ _ _ _).
+%worlds () (before-read/unique/0f _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total {} (before-read/unique/0f _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem efxmap`partition-disjoint-leq-implies-leq
@@ -454,7 +492,7 @@ M1P will be less than M1.
   : forall* {B} {CM} {PM} {FM} {C} {M2} {M} {N1}
     {F} {NN} {A} {FC} {G1} {G2} {Out} {G} {R} {CS} {CQ} {X}
     forall {S} {SZ: set`size G1 (s N1)}
-    {CM-B-M: clsmap-cxt-set CM B R}
+    {CM-B-M: clsmap-cxt-fldset CM B R}
     {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CL: clsmap`lookup CM C FM}
@@ -470,6 +508,7 @@ M1P will be less than M1.
               (reftype/ nn/yes C (targets/unique S G1))
               (effects/ M CS CQ) Out}
     {SOC: same-class B S C}
+    {LNN: least-nonnull B S nn/yes}
     exists {TF} {T2TF: ty2perm PM (ty/ NN A FC) TF}
     {Pi4} {B=>Pi4: cxt2perm CM PM B Pi4}
     {M1P} {M2P} {M+G=>M1P+M2P: efxmap`partition M G M1P M2P}
@@ -499,7 +538,7 @@ M1P will be less than M1.
       (EX2=>Q2:efx2frac EX2 Q2) MX-M4=EX2
       (M4=>Pi2:efxmap2perm _ _ _ M4 Pi2)
       (M3=>Pi1:efxmap2perm _ _ _ M3 Pi1) M+G1=>M3+M4 S=>GF B=>Pj1 _)
-    SOC _ (ty2perm/ PML2 NN2PF2 A2AF2) _ B=>Pj1
+    SOC LNN _ (ty2perm/ PML2 NN2PF2 A2AF2) _ B=>Pj1
     M5 M7 M+G=>M5+M7 Pi11 M5=>Pi11 Pi12+Pi2 M7=>Pi12+Pi2 _ MX-M7=EX _ EX=>Q
     (transform/inside [o]
       (transform/trans
@@ -572,13 +611,13 @@ M1P will be less than M1.
     <- efxmap`partition-implies-domain M3+G2=>M5+M6 DM-M1=MS1 G2<=MS1 M6=>G2
     <- set`size-total S-SZ
     <- combine-fldperm _ S-SZ SOC CM-CM CM2PM CML FML S=>G2 S=>GF
-      M6=>G2 M6=>Pi12 (ty2perm/ PML2 NN2PF2 A2AF2) EX1
-      MX-M6=EX1 Q1 EX1=>Q1 IMP3
+      M6=>G2 M6=>Pi12 (ty2perm/ PML2 NN2PF2 A2AF2) LNN EX1
+      MX-M6=EX1 Q1 EX1=>Q1 _ CNN IMP3
     <- efxmap`join-joins-min-efx M6+M4=M7 MX-M6=EX1
       MX-M4=EX2 _ MX MX-M7=EX
     <- efx2frac-total EX=>Q
     <- before-read/unique/L2 EX1=>Q1 EX2=>Q2
-      EX=>Q MX IMP3 IMP _ IMP4.
+      EX=>Q MX CNN IMP3 IMP _ IMP4.
 
 %theorem before-read/unique/+f/F
   : forall* {CM} {PM} {B} {NN} {A} {FC} {M} {G} {Out} {F}
@@ -604,9 +643,10 @@ M1P will be less than M1.
 %worlds () (before-read/unique/+f/F _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total {} (before-read/unique/+f/F _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
+
 - : before-read/unique/+f _ _ _ _ _ _ _ _ _
     (S=>G2:set+nat2set set/0 _ (set/+ _ _))
-    _ _ _ _ _ _ _ K1 K2 K3 K4 K5 K6 K9 K10 K11 K12 K13 K14 K15 K16 K17
+    _ _ _ _ _ _ _ _ K1 K2 K3 K4 K5 K6 K9 K10 K11 K12 K13 K14 K15 K16 K17
     <- set`size-total MZ
     <- set+nat2set-preserves-size-converse S=>G2 MZ SZ
     <- set`size-unique set`size/0 SZ set`eq/ E
@@ -623,8 +663,8 @@ M1P will be less than M1.
       (M4=>Pi2:efxmap2perm _ _ _ M4 Pi2)
       (M3=>Pi1:efxmap2perm _ _ _ M3 Pi1)
       (M+G1=>M3+M4:efxmap`partition M G1 M3 M4)
-      ([_] set2facts/0) B=>Pj1 _)
-    _ _ %{=>}% (ty2perm/ PML2 NN2PF2 A2AF2) _ B=>Pj1
+      ([_] set2cond/0) B=>Pj1 _)
+    _ _ _ %{=>}% (ty2perm/ PML2 NN2PF2 A2AF2) _ B=>Pj1
     _ _ M+G1=>M3+M4 _ M3=>Pi1 _ M4=>Pi2 _ MX-M2=X _ X2Q
     (transform/inside [o]
       (transform/trans
@@ -634,18 +674,23 @@ M1P will be less than M1.
               (implies/reflexive)
               (implies/trans3
                 (implies/combine
-                  (implies/nonlinear
-                    (bimplies/trans
-                      (bimplies/neg
-                        (bimplies/trans
-                          (bimplies/conj/XX
-                            (bimplies/reflexive)
-                            (bimplies/rem-negneg))
-                          (bimplies/conj-true))
-                        (bool`ne/FT))
-                      (bimplies/trans
-                        (bimplies/rem-negneg)
-                        (bimplies/objequal-symmetric))))
+                  (implies/trans6
+                    (implies/cond-gen-inner)
+                    (implies/cond-inner
+                      (bimplies/reflexive)
+                      (bimplies/reflexive)
+                      (implies/reflexive)
+                      (implies/trans
+                        (implies/equiv equiv/commute)
+                        (implies/combine
+                          (implies/contradiction)
+                          (implies/trans
+                            (implies/nonlinear bimplies/tt)
+                            (implies/true2empty)))))
+                    (implies/cond-pull)
+                    (implies/combine implies/reflexive implies/cond-equal)
+                    (implies/equiv equiv/identity)
+                    (implies/nonlinear bimplies/objequal-symmetric))
                   (implies/reflexive))
                 (implies/objequal
                   ([x] (combine (scale Q (nonnull-unique-perm x CP))
@@ -662,10 +707,10 @@ M1P will be less than M1.
 
 %worlds ()
 (before-read/unique/+f
-  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total {}
 (before-read/unique/+f
-  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 % a format ready for reading a field
@@ -716,7 +761,7 @@ effects-leq-without-consume/
 
 %theorem before-read/unique/L
   : forall* {CM} {PM} {B} {FM} {C} {NN} {A} {FC} {F} {Rslt}
-    {XX} {XX'} {S2} {S1} {G} {X} {NN1}
+    {XX} {XX'} {S2} {S1} {G} {X}
     forall {N1} {SZ1: set`size S1 N1}
     {N2} {SZ1: set`size S2 N2}
     {CM-CM: clsmap-clsmap CM CM}
@@ -727,7 +772,7 @@ effects-leq-without-consume/
                (reftype/ nn/yes C (targets/unique S1 S2)) XX' Rslt}
     {MG: make-targets-and-effects (targets/unique S1 S2) F X G XX}
     {LE: effects-leq-without-consume XX XX'}
-    {CM-B-G: clsmap-cxt-reftype CM B (reftype/ NN1 C (targets/unique S1 S2))}
+    {CM-B-G: clsmap-cxt-reftype CM B (reftype/ nn/yes C (targets/unique S1 S2))}
     {CM-B-XX: clsmap-cxt-effects CM B XX'}
     {G-XX: targets-effects (targets/unique S1 S2) XX'}
     exists {Pi1} {Pi2} {Pi3} {Q} {TF}
@@ -747,17 +792,17 @@ effects-leq-without-consume/
     CM-CM CM2PM CML FML XX=>Rslt
     (make-targets-and-effects/unique S+F=>G D U S=>M)
     (effects-leq-without-consume/ M<=M')
-    (clsmap-cxt-reftype/unique SOC _ _ _)
-    (clsmap-cxt-effects/ DM-M=R' _ _ _ CM-B-R' _)
+    (clsmap-cxt-reftype/unique SOC LNN _ _)
+    (clsmap-cxt-effects/ DM-M=R' _ _ _ _ CM-B-R' _ _)
     (targets-effects/unique DM-M=R S2<=R)
     _ _ _ _ _ T2TF B=>Pi1
     (read-format/unique/+f
       SZ-G M|G=>M1+M2 M1=>Pi1 M2=>Pi2 M2=>X X2Q) TRANS
     <- efxmap`domain-unique DM-M=R' DM-M=R efxmap`eq/ R'=R
-    <- clsmap-cxt-set-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
+    <- clsmap-cxt-fldset-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
     <- set+nat2set-preserves-size S+F=>G SZ-S SZ-G
     <- before-read/unique/0f DM-M=R CM-B-R CM-CM
-      CM2PM CML FML S+F=>G S=>M M<=M' XX=>Rslt SOC SZ-S _ T2TF
+      CM2PM CML FML S+F=>G S=>M M<=M' XX=>Rslt SOC LNN SZ-S _ T2TF
       _ B=>Pi1 _ _ M|G=>M1+M2 _ M1=>Pi1 _ M2=>Pi2 _ M2=>X _ X2Q TRANS.
 
 - : before-read/unique/L z _ z _
@@ -765,7 +810,7 @@ effects-leq-without-consume/
     (make-targets-and-effects/unique set+nat2set/0 D U S=>M)
     (effects-leq-without-consume/ M<=M')
     (clsmap-cxt-reftype/unique SOC _ _ _)
-    (clsmap-cxt-effects/ DM-M=R' _ _ _ CM-B-R' _)
+    (clsmap-cxt-effects/ DM-M=R' _ _ _ _ CM-B-R' _ _)
     (targets-effects/unique DM-M=R S2<=R) _ _ _ _ _ T2TF B=>Pi1
     (read-format/unique/0 PML M=>Pi3)
     (transform/trans TRANS
@@ -781,7 +826,7 @@ effects-leq-without-consume/
                   (equiv/reflexive))
                 (implies/reflexive)))))))
     <- efxmap`domain-unique DM-M=R' DM-M=R efxmap`eq/ R'=R
-    <- clsmap-cxt-set-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
+    <- clsmap-cxt-fldset-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
     <- before-read/unique/0 CM-CM CM2PM CML FML
       XX=>Rslt _ T2TF _ B=>Pi1 _ PML _ M=>Pi3 TRANS.
 
@@ -789,14 +834,14 @@ effects-leq-without-consume/
     CM-CM CM2PM CML FML XX=>Rslt
     (make-targets-and-effects/unique S+F=>G D U S=>M)
     (effects-leq-without-consume/ M<=M')
-    (clsmap-cxt-reftype/unique SOC _ _ _)
-    (clsmap-cxt-effects/ DM-M=R' _ _ _ CM-B-R' _)
+    (clsmap-cxt-reftype/unique SOC LNN _ _)
+    (clsmap-cxt-effects/ DM-M=R' _ _ _ _ CM-B-R' _ _)
     (targets-effects/unique DM-M=R S2<=R)
     _ _ _ _ _ T2TF B=>Pi1
     (read-format/unique/+f
       SZ-S' M|G=>M1+M2 M1=>Pi1 M2=>Pi2 M2=>X X2Q) TRANS
     <- efxmap`domain-unique DM-M=R' DM-M=R efxmap`eq/ R'=R
-    <- clsmap-cxt-set-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
+    <- clsmap-cxt-fldset-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
     <- set`union-implies-leq U S2<=S _
     <- set`size-total SZ-S
     <- set`leq-implies-size-le S2<=S SZ-S2 SZ-S SZ-LE
@@ -804,23 +849,23 @@ effects-leq-without-consume/
     <- set`size-respects-eq SZ-S set`eq/ EQ SZ-S'
     <- before-read/unique/+f _ SZ-S2
       CM-B-R CM-CM CM2PM CML FML DM-M=R S2<=R S+F=>G D U S=>M M<=M'
-      XX=>Rslt SOC _ T2TF _ B=>Pi1 _ _ M|G=>M1+M2
+      XX=>Rslt SOC LNN _ T2TF _ B=>Pi1 _ _ M|G=>M1+M2
       _ M1=>Pi1 _ M2=>Pi2 _ M2=>X _ X2Q TRANS.
 
 - : before-read/unique/L (s N) SZ-S z _
     CM-CM CM2PM CML FML XX=>Rslt
     (make-targets-and-effects/unique S+F=>G D U S=>M)
     (effects-leq-without-consume/ M<=M')
-    (clsmap-cxt-reftype/unique SOC _ _ _)
-    (clsmap-cxt-effects/ DM-M=R' _ _ _ CM-B-R' _)
+    (clsmap-cxt-reftype/unique SOC LNN _ _)
+    (clsmap-cxt-effects/ DM-M=R' _ _ _ _ CM-B-R' _ _)
     (targets-effects/unique DM-M=R S2<=R) _ _ _ _ _ T2TF B=>Pi1
     (read-format/unique/+f
       SZ-G M|G=>M1+M2 M1=>Pi1 M2=>Pi2 M2=>X X2Q) TRANS
     <- efxmap`domain-unique DM-M=R' DM-M=R efxmap`eq/ R'=R
-    <- clsmap-cxt-set-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
+    <- clsmap-cxt-fldset-respects-eq CM-B-R' clsmap`eq/ cxt`eq/ R'=R CM-B-R
     <- set+nat2set-preserves-size S+F=>G SZ-S SZ-G
     <- before-read/unique/0f DM-M=R CM-B-R CM-CM
-      CM2PM CML FML S+F=>G S=>M M<=M' XX=>Rslt SOC SZ-S _ T2TF
+      CM2PM CML FML S+F=>G S=>M M<=M' XX=>Rslt SOC LNN SZ-S _ T2TF
       _ B=>Pi1 _ _ M|G=>M1+M2 _ M1=>Pi1 _ M2=>Pi2
       _ M2=>X _ X2Q TRANS.
 
@@ -830,7 +875,7 @@ effects-leq-without-consume/
 
 %theorem before-read/unique
   : forall* {CM} {PM} {B} {FM} {C} {NN} {A} {FC} {F} {Rslt}
-    {S1} {S2} {G} {X} {XX} {XX'} {NN1}
+    {S1} {S2} {G} {X} {XX} {XX'}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CML: clsmap`lookup CM C FM}
@@ -839,7 +884,7 @@ effects-leq-without-consume/
                (reftype/ nn/yes C (targets/unique S1 S2)) XX' Rslt}
     {MG: make-targets-and-effects (targets/unique S1 S2) F X G XX}
     {LE: effects-leq-without-consume XX XX'}
-    {CM-B-G: clsmap-cxt-reftype CM B (reftype/ NN1 C (targets/unique S1 S2))}
+    {CM-B-G: clsmap-cxt-reftype CM B (reftype/ nn/yes C (targets/unique S1 S2))}
     {CM-B-XX: clsmap-cxt-effects CM B XX'}
     {G-XX: targets-effects (targets/unique S1 S2) XX'}
     exists {Pi1} {Pi2} {Pi3} {Q} {TF}
