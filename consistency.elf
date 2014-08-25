@@ -170,6 +170,19 @@ same-class/U : same-class B S' C
                -> same-class B S C.
 
 
+least-nonnull : cxt -> set -> nn -> type.
+
+least-nonnull/0 : least-nonnull _ set/0 _.
+
+least-nonnull/U
+  : least-nonnull B S' NN
+    -> set`not-member S' N
+    -> set`add S' N S
+    -> cxt`lookup B N (cxt-info/ O (ty/ NN' _ _))
+    -> nonnull`leq NN NN'
+    -> least-nonnull B S NN.
+
+
 % This relation says all "pairs" (obj,fld) in the set are valid:
 % i.e., you can find obj in the context B with class id C, find C
 % in the clsmap CM with FM, and find fld in FM with type T.
@@ -188,7 +201,6 @@ clsmap-cxt-fldset/U
     -> set`add S' K S
     -> clsmap-cxt-fldset CM B S.
 
-
 % This relation likes the one above, except all elements in the
 % set are objs. So, we just need them to be in the context B.
 % This is very similar to same-class, but weaker.
@@ -205,28 +217,18 @@ clsmap-cxt-objset/U
     -> set`add S' N S
     -> clsmap-cxt-objset CM B S.
 
+clsmap-cxt-unique-objset : clsmap -> cxt -> nonnull -> nat -> set -> type.
 
-least-nonnull : cxt -> set -> nn -> type.
+clsmap-cxt-unique-objset/0
+  : clsmap-cxt-unique-objset _ _ _ _ set/0.
 
-least-nonnull/0 : least-nonnull _ set/0 _.
-
-least-nonnull/U
-  : least-nonnull B S' NN
+clsmap-cxt-unique-objset/U
+  : clsmap-cxt-unique-objset CM B NN C S'
+    -> cxt`lookup B N (cxt-info/ _ (ty/ NN' annot/borrow C))
+    -> nonnull`leq NN NN'
     -> set`not-member S' N
     -> set`add S' N S
-    -> cxt`lookup B N (cxt-info/ O (ty/ NN' _ _))
-    -> nonnull`leq NN NN'
-    -> least-nonnull B S NN.
-
-clsmap-cxt-targets : clsmap -> cxt -> nat -> targets -> type.
-
-clsmap-cxt-targets/shared : clsmap-cxt-targets _ _ _ targets/shared.
-
-clsmap-cxt-targets/unique
-  : same-class B OS C
-    -> clsmap-cxt-objset CM B OS
-    -> clsmap-cxt-fldset CM B FS
-    -> clsmap-cxt-targets CM B C (targets/unique OS FS).
+    -> clsmap-cxt-unique-objset CM B NN C S.
 
 
 clsmap-cxt-reftype : clsmap -> cxt -> reftype -> type.
@@ -234,9 +236,8 @@ clsmap-cxt-reftype : clsmap -> cxt -> reftype -> type.
 clsmap-cxt-reftype/shared : clsmap-cxt-reftype _ _ (reftype/ _ _ targets/shared).
 
 clsmap-cxt-reftype/unique
-  : same-class B S C
-    -> least-nonnull B S NN
-    -> clsmap-cxt-objset CM B OS
+  : clsmap`lookup CM C _
+    -> clsmap-cxt-unique-objset CM B NN C OS
     -> clsmap-cxt-fldset CM B FS
     -> clsmap-cxt-reftype CM B (reftype/ NN C (targets/unique OS FS)).
 
@@ -258,20 +259,6 @@ clsmap-cxt-effects/
 	(clsmap-cxt-effects/ efxmap`domain/0
     set`disjoint/R objset2fldset/0 set`disjoint/L set`disjoint/L
     clsmap-cxt-fldset/0 clsmap-cxt-fldset/0 clsmap-cxt-objset/0).
-
-
-clsmap-cxt-reftype : clsmap -> cxt -> reftype -> type.
-
-clsmap-cxt-reftype/shared : clsmap-cxt-reftype _ _ (reftype/ _ _ targets/shared).
-
-%%% TODO: use clsmap-cxt-targets here?
-
-clsmap-cxt-reftype/unique
-  : same-class B OS C
-    -> least-nonnull B OS NN
-    -> clsmap-cxt-objset CM B OS
-    -> clsmap-cxt-fldset CM B FS
-    -> clsmap-cxt-reftype CM B (reftype/ NN C (targets/unique OS FS)).
 
 
 % Targets and effects has to be consistent with each other.
@@ -300,8 +287,6 @@ good-result/args/0 : good-result CM B (result/args/0 XX)
 
 good-result/args/+ : good-result CM B (result/args/+ RT AR)
                      <- good-result CM B AR.
-
-
 
 %%% Theorems
 
@@ -1291,6 +1276,95 @@ good-result/args/+ : good-result CM B (result/args/+ RT AR)
 	(clsmap-cxt-objset/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (C0 C1) (clsmap-cxt-objset/U-inversion C0 _ _ _ _ _ _ _ _ _ _)
 	(clsmap-cxt-objset/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem clsmap-cxt-unique-objset-respects-eq
+  : forall* {B1} {B2} {CM1} {CM2} {S1} {S2} {NN1} {C1} {NN2} {C2}
+    forall {CM1-B1-S1: clsmap-cxt-unique-objset CM1 B1 NN1 C1 S1}
+    {EQ: clsmap`eq CM1 CM2}
+    {EQ: cxt`eq B1 B2} {EQ: set`eq S1 S2}
+    {EQ: nonnull`eq NN1 NN2} {EQ: nat`eq C1 C2}
+    exists {CM2-B2-S2: clsmap-cxt-unique-objset CM2 B2 NN2 C2 S2}
+    true.
+
+- : clsmap-cxt-unique-objset-respects-eq
+    A clsmap`eq/ cxt`eq/ set`eq/ nonnull`eq/ nat`eq/ A.
+
+%worlds (objvar) (clsmap-cxt-unique-objset-respects-eq _ _ _ _ _ _ _).
+%total {} (clsmap-cxt-unique-objset-respects-eq _ _ _ _ _ _ _).
+
+
+%theorem clsmap-cxt-unique-objset/U-inversion
+  : forall* {CM} {B} {S} {S'} {N} {NN} {C}
+    forall {CM-B-S: clsmap-cxt-unique-objset CM B NN C S}
+    {NM: set`not-member S' N}
+    {AD: set`add S' N S}
+    exists {CM-B-S': clsmap-cxt-unique-objset CM B NN C S'}
+    {O} {NN'} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' annot/borrow C))}
+    {NN<=NN': nonnull`leq NN NN'}
+    true.
+
+%theorem clsmap-cxt-unique-objset/U-inversion/L
+  : forall* {CM} {B} {S} {S'} {S1'} {N} {N1} {P} {O1} {NN1} {C1} {C} {NN}
+    forall {CM-B-S: clsmap-cxt-unique-objset CM B NN C S1'}
+    {NM1: set`not-member S1' N1}
+    {AD1: set`add S1' N1 S}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 annot/borrow C1))}
+    {NN<=NN1: nonnull`leq NN NN1}
+    {NM: set`not-member S' N}
+    {AD: set`add S' N S}
+    {EQ?: nat`eq? N N1 P}
+    exists {CM-B-S': clsmap-cxt-unique-objset CM B NN C S'}
+    {O} {NN'} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' annot/borrow C))}
+    {NN<=NN': nonnull`leq NN NN'}
+    true.
+
+% - : clsmap-cxt-unique-objset/U-inversion/L CM-B-S F1 U1 BL1 LE F U
+%     nat`eq?/yes CM-B-S' _ _ _ BL1 LE
+%     <- set`not-member-add-cancels F1 U1 F U nat`eq/ set`eq/ S1=S
+%     <- clsmap-cxt-unique-objset-respects-eq
+%       CM-B-S clsmap`eq/ cxt`eq/ S1=S nonnull`eq/ nat`eq/ CM-B-S'.
+
+% - : clsmap-cxt-unique-objset/U-inversion/L CM-B-S F1 U1 BL LE
+%     F U (nat`eq?/no N<>N1) (clsmap-cxt-unique-objset/U CM-B-S2 BL LE F3 U3)
+%     _ _ _ BL2' LE2'
+%     <- set`add-commutes-converse U U1 N<>N1 _ U3 U2
+%     <- set`add-preserves-fresh-converse F U3 F2
+%     <- set`add-preserves-fresh-converse F1 U2 F3
+%     <- clsmap-cxt-unique-objset/U-inversion CM-B-S F2 U2 CM-B-S2 _ _ _ BL2 LE2.
+
+% - : clsmap-cxt-unique-objset/U-inversion
+%     (clsmap-cxt-unique-objset/U CM-B-S0 BL0 LE F0 U0)
+%     F1 U1 CM-B-S1 _ _ _ BL1 LE1
+%     <- nat`eq?-total E?
+%     <- clsmap-cxt-unique-objset/U-inversion/L CM-B-S0 F0 U0 BL0 LE
+%       F1 U1 E? CM-B-S1 _ _ _ BL1 LE1.
+
+%worlds (objvar) (clsmap-cxt-unique-objset/U-inversion _ _ _ _ _ _ _ _)
+	(clsmap-cxt-unique-objset/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (C0 C1) (clsmap-cxt-unique-objset/U-inversion C0 _ _ _ _ _ _ _)
+	(clsmap-cxt-unique-objset/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+% backward-compatibility ...
+%theorem clsmap-cxt-unique-objset-implies-same-class
+  : forall* {CM} {B} {NN} {C} {S}
+    forall {CM-B-S: clsmap-cxt-unique-objset CM B NN C S}
+    exists {S-C: same-class B S C}
+    true.
+
+%worlds (objvar) (clsmap-cxt-unique-objset-implies-same-class _ _).
+%trustme %total {} (clsmap-cxt-unique-objset-implies-same-class _ _).
+
+
+%theorem clsmap-cxt-unique-objset-implies-least-nonnull
+  : forall* {CM} {B} {NN} {C} {S}
+    forall {CM-B-S: clsmap-cxt-unique-objset CM B NN C S}
+    exists {S-NN: least-nonnull B S NN}
+    true.
+
+%worlds (objvar) (clsmap-cxt-unique-objset-implies-least-nonnull _ _).
+%trustme %total {} (clsmap-cxt-unique-objset-implies-least-nonnull _ _).
 
 
 %theorem clsmap-cxt-fldset-respects-geq

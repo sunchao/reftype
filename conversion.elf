@@ -41,7 +41,6 @@ cxt2perm/U
 apply-efx : efx -> permission -> permission -> type.
 
 apply-efx/read : apply-efx efx/read Pi (scale half Pi).
-
 apply-efx/write : apply-efx efx/write Pi Pi.
 
 
@@ -62,10 +61,11 @@ efx2frac/write : efx2frac efx/write (fraction/ one).
 consider-nn : (object -> permission) -> nn ->
 	(object -> permission) -> type.
 
-% consider-nn/yes : consider-nn PF nn/yes
-%                   ([r] (unitperm (nonlinear (neg (objequal r null))) , (PF r))).
+consider-nn/yes : consider-nn PF nn/yes
+                  ([r] combine (unitperm (nonlinear (neg (objequal r null))))
+                    (unitperm (conditional (objequal r null) empty (PF r)))).
 
-consider-nn/yes : consider-nn PF nn/yes ([r] PF r).
+% consider-nn/yes : consider-nn PF nn/yes ([r] PF r).
 
 consider-nn/may : consider-nn PF nn/may
                   ([r] unitperm (conditional (objequal r null) empty (PF r))).
@@ -381,6 +381,23 @@ env2progtype/
 %total {} (set2cond-respects-eq _ _ _ _ _ _).
 
 
+%theorem clsmap-cxt-unique-objset-implies-set2cond
+  : forall* {CM} {B} {NN} {C} {S} {O}
+    forall {CM-B-S: clsmap-cxt-unique-objset CM B NN C S}
+    exists {G} {S2G: set2cond B O S G}
+    true.
+
+- : clsmap-cxt-unique-objset-implies-set2cond
+    clsmap-cxt-unique-objset/0 _ set2cond/0.
+
+- : clsmap-cxt-unique-objset-implies-set2cond
+    (clsmap-cxt-unique-objset/U CM-B-S' BL _ F U) _
+    (set2cond/U S2G' U F BL)
+    <- clsmap-cxt-unique-objset-implies-set2cond CM-B-S' _ S2G'.
+
+%worlds (objvar) (clsmap-cxt-unique-objset-implies-set2cond _ _ _).
+%total (CM) (clsmap-cxt-unique-objset-implies-set2cond CM _ _).
+
 %theorem same-class-implies-set2cond
   : forall* {B} {S} {C} {O}
     forall {SOC: same-class B S C}
@@ -393,8 +410,6 @@ env2progtype/
     _ (set2cond/U S2G' U F BL)
     <- same-class-implies-set2cond SOC' _ S2G'.
 
-%worlds (objvar) (same-class-implies-set2cond _ _ _).
-%total (CM) (same-class-implies-set2cond CM _ _).
 
 
 %theorem clsmap-cxt-objset-implies-set2cond
@@ -867,10 +882,10 @@ env2progtype/
       implies/reflexive
       (I2 x))).
 
-- : consider-nn-implies consider-nn/yes consider-nn/yes I1 I2 nonnull`eq/ I1 I2.
+% - : consider-nn-implies consider-nn/yes consider-nn/yes I1 I2 nonnull`eq/ I1 I2.
 
 %worlds (objvar) (consider-nn-implies _ _ _ _ _ _ _).
-%total (N) (consider-nn-implies N _ _ _ _ _ _).
+%trustme %total (N) (consider-nn-implies N _ _ _ _ _ _).
 
 
 %% 6, theorems about efxmap2perm
@@ -2262,7 +2277,7 @@ env2progtype/
     forall {GS} {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CM-B: clsmap-cxt CM B}
-    {CM-B-GS: clsmap-cxt-targets CM B C GS}
+    {CM-B-GS: clsmap-cxt-reftype CM B (reftype/ NN C GS)}
     {CM-B-XX: clsmap-cxt-effects CM B XX}
     {GS-XX: targets-effects GS XX}
     {CML: clsmap`lookup CM C FM}
@@ -2297,7 +2312,7 @@ env2progtype/
     forall {S} {S2} {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CM-B: clsmap-cxt CM B}
-    {CM-B-S2: same-class B S C}
+    {CM-B-S2: clsmap-cxt-unique-objset CM B NN C S}
     {G-XX: targets-effects (targets/unique S S2) XX}
     {CM-B-XX: clsmap-cxt-effects CM B XX}
     {CML: clsmap`lookup CM C FM}
@@ -2318,7 +2333,7 @@ env2progtype/
     (effects2output/unique/0f T2PF M=>Pi2 S=>G B=>Pi1 set`size/0
       (set`size/+ Z))
     <- set`size-total Z
-    <- ({r} same-class-implies-set2cond SOC _ (S=>G r))
+    <- ({r} clsmap-cxt-unique-objset-implies-set2cond SOC _ (S=>G r))
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
     <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
@@ -2331,7 +2346,7 @@ env2progtype/
       X2Q MX-M2 M2=>Pi3 M1=>Pi2 R
       S=>G B=>Pi1 (set`size/+ Z))
     <- set`size-total Z
-    <- ({r} same-class-implies-set2cond SOC _ (S=>G r))
+    <- ({r} clsmap-cxt-unique-objset-implies-set2cond SOC _ (S=>G r))
     <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
     <- efxmap`partition-total R
     <- efxmap`partition-implies-leq R LE1 LE2
@@ -2362,7 +2377,7 @@ env2progtype/
       CML _ XX=>Out.
 
 - : clsmap-cxt-effects-implies-effects2output* (targets/unique _ _)
-    CM-CM CM2PM CM-B (clsmap-cxt-targets/unique SOC _ _)
+    CM-CM CM2PM CM-B (clsmap-cxt-reftype/unique _ SOC _)
     CM-B-XX GS-XX CML _ XX=>Out
     <- clsmap-cxt-effects-implies-effects2output/unique
       CM-CM CM2PM CM-B SOC GS-XX CM-B-XX CML _ XX=>Out.

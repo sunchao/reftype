@@ -1,0 +1,269 @@
+transfer-consume : clsmap -> cxt -> effects -> effects -> effects -> set -> type.
+
+transfer-consume/ : set`leq S1 S
+                    -> set`leq Q1 Q
+                    -> set`remove S S1 S2
+                    -> set`remove Q Q1 Q2
+                    -> objset2fldset CM B Q2 S3
+                    -> set`union S2 S3 S4
+                    -> set2efxmap S4 efx/write M3
+                    -> efxmap`join M M3 M2
+                    -> transfer-consume CM B (effects/ M S Q)
+                      (effects/ M1 S1 Q1) (effects/ M2 S1 Q1) Q2.
+
+
+% 1. theorems about transfer-consume
+
+%theorem transfer-consume-respects-eq
+  : forall* {CM1} {B1} {CM2} {B2} {XX1} {XX2} {XX3} {Q} {XX1'} {XX2'} {XX3'} {Q'}
+    forall {TC: transfer-consume CM1 B1 XX1 XX2 XX3 Q}
+    {CME: clsmap`eq CM1 CM2}
+    {BE: cxt`eq B1 B2}
+    {E1: effects`eq XX1 XX1'}
+    {E2: effects`eq XX2 XX2'}
+    {E3: effects`eq XX3 XX3'}
+    {E4: set`eq Q Q'}
+    exists {TC: transfer-consume CM2 B2 XX1' XX2' XX3' Q'}
+    true.
+
+- : transfer-consume-respects-eq TC clsmap`eq/ cxt`eq/
+    effects`eq/ effects`eq/ effects`eq/ set`eq/ TC.
+
+%worlds (objvar) (transfer-consume-respects-eq _ _ _ _ _ _ _ _).
+%total {} (transfer-consume-respects-eq _ _ _ _ _ _ _ _).
+
+
+% not total
+
+%theorem leq-implies-transfer-consume
+  : forall* {XX1} {XX2} {CM} {B}
+    forall {XX<=XX': effects`leq XX1 XX2}
+    {CM-B-XX: clsmap-cxt-effects CM B XX2}
+    exists {XX} {Q} {TC: transfer-consume CM B XX2 XX1 XX Q}
+    true.
+
+- : leq-implies-transfer-consume
+    (effects`leq/ _ _ _ _ _ S1<=S Q1<=Q)
+    (clsmap-cxt-effects/ _ _ _ _ _ _ _ CM-B-Q) _ _
+    (transfer-consume/ S1<=S Q1<=Q S/S1=S2 Q/Q1=Q2 CV U S2=>M1 M+M1=M2)
+    <- set`remove-total S/S1=S2
+    <- set`remove-total Q/Q1=Q2
+    <- set`remove-implies-leq Q/Q1=Q2 Q2<=Q
+    <- clsmap-cxt-objset-respects-geq CM-B-Q Q2<=Q CM-B-Q2
+    <- clsmap-cxt-objset-implies-objset2fldset CM-B-Q2 _ CV
+    <- set`union-total U
+    <- set2efxmap-total S2=>M1
+    <- efxmap`join-total M+M1=M2.
+
+%worlds () (leq-implies-transfer-consume _ _ _ _ _).
+%total {} (leq-implies-transfer-consume _ _ _ _ _).
+
+
+%theorem leq-transfer-consume-implies-leq-no-consume
+  : forall* {CM} {B} {XX1} {XX2} {XX} {Q}
+    forall {CM-B-XX1: clsmap-cxt-effects CM B XX1}
+    {XX1<=XX2: effects`leq XX1 XX2}
+    {TC: transfer-consume CM B XX2 XX1 XX Q}
+    exists {LE: effects-leq-no-consume XX1 XX}
+    true.
+
+%theorem leq-transfer-consume-implies-leq-no-consume/L
+  : forall* {CM} {B} {M1} {R1} {S1} {Q1} {M} {S} {Q} {M2} {Q2}
+    forall {DM-M1=R1: efxmap`domain M1 R1}
+    {R1^S1: set`disjoint R1 S1}
+    {XX1<=XX2: effects`leq (effects/ M1 S1 Q1) (effects/ M S Q)}
+    {TC: transfer-consume CM B (effects/ M S Q) (effects/ M1 S1 Q1)
+         (effects/ M2 S1 Q1) Q2}
+    {B} {M1<=M2?: efxmap`leq? M1 M2 B}
+    exists {M1<=M2: efxmap`leq M1 M2}
+    true.
+
+- : leq-transfer-consume-implies-leq-no-consume/L
+    _ _ _ _ true (efxmap`leq?/yes M1<=M2) M1<=M2.
+
+%theorem leq-transfer-consume-implies-leq-no-consume/LL
+  : forall* {M} {M3} {M2} {S2} {N} {B1} {B2}
+    forall {J: efxmap`join M M3 M2}
+    {S2=>M3: set2efxmap S2 efx/write M3}
+    {M2->N=R: efxmap`lookup M2 N efx/read}
+    {N<-M?: efxmap`domain? M N B1} {N<-M3?: efxmap`domain? M3 N B2}
+    exists {M->N=R: efxmap`lookup M N efx/read}
+    {N!<M3: efxmap`fresh M3 N}
+    true.
+
+- : leq-transfer-consume-implies-leq-no-consume/LL M+M3=M2 S2=>M3 M2->N=R
+    _ (efxmap`domain?/in M3->N=D) M->N=R N!<M3
+    <- set2efxmap-lookup-implies-efx-id-lookup-converse S2=>M3 M3->N=D
+      D ID N<-S2
+    <- efx-id-eq ID XE
+    <- efx`eq-symmetric XE XEx
+    <- efxmap`lookup-respects-eq M3->N=D efxmap`eq/ nat`eq/ XEx M3->N=W
+    <- efxmap`join-implies-leq M+M3=M2 _ M3<=M2
+    <- efxmap`lookup-respects-leq* M3->N=W M3<=M2 M2->N=R W<=R
+    <- efx`leq-nle-contradiction W<=R (efx`grt/wr) F
+    <- efxmap`false-implies-lookup F M->N=R
+    <- efxmap`false-implies-fresh F N!<M3.
+
+- : leq-transfer-consume-implies-leq-no-consume/LL M+M3=M2 S2=>M3 M2->N=R
+    (efxmap`domain?/in _) (efxmap`domain?/out N!<M3) M->N=R N!<M3
+    <- efxmap`fresh-join-right-preserves-lookup-converse M2->N=R N!<M3 M+M3=M2 M->N=R.
+
+- : leq-transfer-consume-implies-leq-no-consume/LL M+M3=M2 S2=>M3 M2->N=R
+    (efxmap`domain?/out N!<M) (efxmap`domain?/out N!<M3) M->N=R N!<M3
+    <- efxmap`join-preserves-fresh* N!<M N!<M3 M+M3=M2 N!<M2
+    <- efxmap`fresh-lookup-not-equal N!<M2 M2->N=R N<>N
+    <- nat`ne-anti-reflexive N<>N F
+    <- efxmap`false-implies-lookup F M->N=R.
+
+- : leq-transfer-consume-implies-leq-no-consume/L DM-M1=R1' R1'^S1
+    (effects`leq/ (DM-M1=R1:efxmap`domain M1 R1)
+      DM-M=R R1/S=S3 M1|S3=M1' M1'<=M S1<=S Q1<=Q)
+    (transfer-consume/ S1<=S' Q1<=Q' S/S1=S2 Q/Q1=Q2
+      (CV:objset2fldset CM B Q OS)
+      (SU:set`union S2 OS S3) S3=>M3
+      (M+M3=M2:efxmap`join M M3 M2)) % N must be in M
+    false (efxmap`leq?/no (efxmap`nle/= M1->N=W M2->N=R efx`grt/wr)) M1<=M2
+    <- efxmap`domain?-total N<-M?
+    <- efxmap`domain?-total N<-M3?
+    <- leq-transfer-consume-implies-leq-no-consume/LL M+M3=M2 S3=>M3 M2->N=R
+      N<-M? N<-M3? M->N=R N!<M3
+    <- set2efxmap-implies-domain S3=>M3 DM-M3=S2
+    <- efxmap`domain-preserves-fresh N!<M3 DM-M3=S2 N!<S3
+    <- set`union-implies-leq SU S2<=S3 _
+    <- set`fresh-respects-geq N!<S3 S2<=S3 N!<S2
+    <- efxmap`domain-preserves-lookup M1->N=W DM-M1=R1 (N<-R1:set`member R1 N)
+    <- efxmap`domain-unique DM-M1=R1' DM-M1=R1 efxmap`eq/ R1'=R1
+    <- set`disjoint-respects-eq R1'^S1 R1'=R1 set`eq/ R1^S1
+    <- set`disjoint-member-implies-not-member N<-R1 R1^S1 N!<S1
+    <- set`union-total (S1+S2=U:set`union S1 S2 U)
+    <- set`remove-implies-leq-union S/S1=S2 S1+S2=U S<=U
+    <- set`union-preserves-not-member* N!<S1 N!<S2 S1+S2=U N!<U
+    <- set`not-member-respects-geq N!<U S<=U N!<S
+    <- set`remove-preserves-member N<-R1 R1/S=S3 N!<S N<-S3
+    <- efxmap`restrict-preserves-lookup M1->N=W M1|S3=M1' N<-S3 M1'->N=W
+    <- efxmap`lookup-respects-leq* M1'->N=W M1'<=M M->N=R W<=R
+    <- efx`leq-nle-contradiction W<=R (efx`grt/wr) F
+    <- efxmap`false-implies-leq F M1<=M2.
+
+- : leq-transfer-consume-implies-leq-no-consume/L DM-M1=R1' R1'^S1
+    (effects`leq/ (DM-M1=R1:efxmap`domain M1 R1)
+      DM-M=R R1/S=S3 M1|S3=M1' M1'<=M S1<=S Q1<=Q)
+    (transfer-consume/ S1<=S' Q1<=Q' S/S1=S2 Q/Q1=Q2
+      (CV:objset2fldset CM B Q OS)
+      (SU:set`union S2 OS S3) S3=>M3
+      (M+M3=M2:efxmap`join M M3 M2))
+    false (efxmap`leq?/no (efxmap`nle/< M1->N N!<M2)) M1<=M2
+    <- efxmap`join-preserves-fresh-converse* N!<M2 M+M3=M2 N!<M N!<M3
+    <- set2efxmap-implies-domain S3=>M3 DM-M3=S2
+    <- efxmap`domain-preserves-fresh N!<M3 DM-M3=S2 N!<S3
+    <- set`union-implies-leq SU S2<=S3 _
+    <- set`fresh-respects-geq N!<S3 S2<=S3 N!<S2
+    <- efxmap`domain-preserves-lookup M1->N DM-M1=R1 (N<-R1:set`member R1 N)
+    <- efxmap`domain-unique DM-M1=R1' DM-M1=R1 efxmap`eq/ R1'=R1
+    <- set`disjoint-respects-eq R1'^S1 R1'=R1 set`eq/ R1^S1
+    <- set`disjoint-member-implies-not-member N<-R1 R1^S1 N!<S1
+    <- set`union-total S1+S2=U
+    <- set`remove-implies-leq-union S/S1=S2 S1+S2=U S<=U
+    <- set`union-preserves-not-member* N!<S1 N!<S2 S1+S2=U N!<U
+    <- set`not-member-respects-geq N!<U S<=U N!<S
+    <- set`remove-preserves-member N<-R1 R1/S=S3 N!<S N<-S3
+    <- efxmap`restrict-preserves-lookup M1->N M1|S3=M1' N<-S3 M1'->N
+    <- efxmap`lookup-respects-leq M1'->N M1'<=M _ M->N _
+    <- efxmap`fresh-lookup-not-equal N!<M M->N N<>N
+    <- nat`ne-anti-reflexive N<>N F
+    <- efxmap`false-implies-leq F M1<=M2.
+
+%worlds () (leq-transfer-consume-implies-leq-no-consume/LL _ _ _ _ _ _ _).
+%total {} (leq-transfer-consume-implies-leq-no-consume/LL _ _ _ _ _ _ _).
+
+%worlds () (leq-transfer-consume-implies-leq-no-consume/L _ _ _ _ _ _ _).
+%total {} (leq-transfer-consume-implies-leq-no-consume/L _ _ _ _ _ _ _).
+
+- : leq-transfer-consume-implies-leq-no-consume (clsmap-cxt-effects/ DM DJ _ _ _ _ _ _)
+    LE TC (effects-leq-no-consume/ MLE)
+    <- efxmap`leq?-total LE?
+    <- effects`leq-inversion LE _ _ _ _ _ _ _ _ _
+    <- leq-transfer-consume-implies-leq-no-consume/L DM DJ LE TC _ LE? MLE.
+
+%worlds () (leq-transfer-consume-implies-leq-no-consume _ _ _ _).
+%total {} (leq-transfer-consume-implies-leq-no-consume _ _ _ _).
+
+
+%theorem transfer-consume-preserves-clsmap-cxt-effects
+  : forall* {CM} {B} {XX} {XX'} {Q} {XX1}
+    forall {CM-B-XX1: clsmap-cxt-effects CM B XX1}
+    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    {TC: transfer-consume CM B XX XX1 XX' Q}
+    exists {CM-B-XX': clsmap-cxt-effects CM B XX'}
+    true.
+
+- : transfer-consume-preserves-clsmap-cxt-effects
+    (clsmap-cxt-effects/ _ _ Q1=>FS1 R1^FS1 S1^FS1
+      (CM-B-R1:clsmap-cxt-fldset CM B R1) CM-B-S1 CM-B-Q1)
+    (clsmap-cxt-effects/ DM-M=R R^S Q=>FS R^FS S^FS CM-B-R CM-B-S CM-B-Q)
+    (transfer-consume/ S1<=S Q1<=Q (S/S1=S2:set`remove S S1 S2)
+      (Q/Q1=Q2:set`remove Q Q1 Q2) Q2=>FS2 S2uFS2=S3 S3=>M1 M+M1=M2)
+    (clsmap-cxt-effects/ DM-M2=R2 (R2^S1:set`disjoint R2 S1)
+      Q1=>FS1
+      R2^FS1 (S1^FS1:set`disjoint S1 FS1)
+      (CM-B-R2:clsmap-cxt-fldset CM B R2)
+      (CM-B-S1:clsmap-cxt-fldset CM B S1)
+      (CM-B-Q1:clsmap-cxt-objset CM B Q1))
+    <- set2efxmap-implies-domain S3=>M1 DM-M1=S3
+    <- efxmap`domain-total (DM-M2=R2:efxmap`domain M2 R2)
+    <- efxmap`join-commute-domain M+M1=M2 DM-M=R DM-M1=S3 DM-M2=R2 R+S3=R2
+    <- set`remove-implies-leq S/S1=S2 S2<=S
+    <- clsmap-cxt-fldset-respects-geq CM-B-S S2<=S CM-B-S2
+    <- set`remove-implies-leq Q/Q1=Q2 Q2<=Q
+    <- set`remove-implies-disjoint Q/Q1=Q2 Q1^Q2
+    <- clsmap-cxt-objset-respects-geq CM-B-Q Q2<=Q CM-B-Q2
+    <- objset2fldset-preserves-clsmap-cxt-fldset CM-B-Q2 Q2=>FS2 CM-B-FS2
+    <- join-preserves-clsmap-cxt-fldset CM-B-S2 CM-B-FS2 S2uFS2=S3 CM-B-S3
+    <- join-preserves-clsmap-cxt-fldset CM-B-R CM-B-S3 R+S3=R2 CM-B-R2
+    <- set`remove-implies-disjoint S/S1=S2 S1^S2
+    <- set`union-implies-leq S2uFS2=S3 S2<=S3 _
+    <- set`disjoint-symmetric S1^S2 S2^S1
+    <- set`leq-reflexive _ R<=R
+    <- set`disjoint-respects-geq R^S R<=R S1<=S R^S1
+    <- objset2fldset-preserves-leq* Q2<=Q Q2=>FS2 Q=>FS FS2<=FS
+    <- objset2fldset-preserves-leq* Q1<=Q Q1=>FS1 Q=>FS FS1<=FS
+    <- set`disjoint-respects-geq S^FS S1<=S FS2<=FS S1^FS2
+    <- set`disjoint-respects-geq S^FS S2<=S FS1<=FS S2^FS1
+    <- set`disjoint-symmetric S1^FS2 (FS2^S1:set`disjoint FS2 S1)
+    <- set`union-preserves-disjoint* S2^S1 FS2^S1 (S2uFS2=S3:set`union S2 FS2 S3) S3^S1
+    <- set`union-preserves-disjoint* R^S1 S3^S1 R+S3=R2 R2^S1
+    <- set`disjoint-respects-geq R^FS R<=R FS1<=FS R^FS1
+    <- objset2fldset-preserves-disjoint Q1=>FS1 Q2=>FS2 Q1^Q2 FS1^FS2
+    <- set`disjoint-symmetric FS1^FS2 FS2^FS1
+    <- set`union-preserves-disjoint* S2^FS1 FS2^FS1 S2uFS2=S3 S3^FS1
+    <- set`union-preserves-disjoint* R^FS1 S3^FS1 R+S3=R2 R2^FS1.
+
+%worlds () (transfer-consume-preserves-clsmap-cxt-effects _ _ _ _).
+%total {} (transfer-consume-preserves-clsmap-cxt-effects _ _ _ _).
+
+
+%theorem effects-leq-implies-transfer-consume
+  : forall* {CM} {B} {XX1} {XX2}
+    forall {CM-B-XX1: clsmap-cxt-effects CM B XX1}
+    {CM-B-XX2: clsmap-cxt-effects CM B XX2}
+    {XX1<=XX2: effects`leq XX1 XX2}
+    exists {XX} {Q}
+    {TC: transfer-consume CM B XX2 XX1 XX Q}
+    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    {XX1<=XX: effects-leq-no-consume XX1 XX}
+    true.
+
+- : effects-leq-implies-transfer-consume
+    CM-B-XX1 CM-B-XX2 XX1<=XX2 _ _  XX2=>XX CM-B-XX XX1<=XX
+    <- effects`leq-inversion XX1<=XX2 _ _ _ _ _ _ _ _ _
+    <- leq-implies-transfer-consume XX1<=XX2 CM-B-XX2 XX _ XX2=>XX
+    <- leq-transfer-consume-implies-leq-no-consume
+      CM-B-XX1 XX1<=XX2 XX2=>XX XX1<=XX
+    <- transfer-consume-preserves-clsmap-cxt-effects
+      CM-B-XX1 CM-B-XX2 XX2=>XX CM-B-XX.
+
+%worlds () (effects-leq-implies-transfer-consume _ _ _ _ _ _ _ _).
+%total {} (effects-leq-implies-transfer-consume _ _ _ _ _ _ _ _).
+
+
+
