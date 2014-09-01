@@ -6,8 +6,9 @@
 % with some form derived from Out1, and the result of substitution
 % Out2' is equivalent to the combination of Out1 and Out2.
 
-
-%%% Definitions
+%% ----------------------------------------------------------
+%% Definitions
+%% ----------------------------------------------------------
 
 %% For a let expression let x = e1 in e2, `targets` is from e1, `nat` is
 %% the object index for x, and `effects` is from e2.
@@ -27,7 +28,9 @@ object-in-efxmap/ : object-in-efxmap (effects/ M _ _) N
                     <- set`member OS N.
 
 
-%%% Theorems
+%% -----------------------------------------------------------
+%% Lemmas
+%% -----------------------------------------------------------
 
 %theorem subst-effects-one-occurrence/1
   : forall* {CM} {B} {M} {S} {Q} {OS} {SS} {N}
@@ -181,8 +184,7 @@ object-in-efxmap/ : object-in-efxmap (effects/ M _ _) N
       (S^FS:set`disjoint S FS) _ _ _)
     (effects`join/ _ _ _ _ _
       (S1^S2:set`disjoint S1 S2) RM RS M1'+M2=M S1+S2=S Q1^Q2
-      (Q1+Q2=Q:set`union Q1 Q2 Q))
-    M<=M'
+      (Q1+Q2=Q:set`union Q1 Q2 Q)) M<=M'
     (transfer-consume/ S1<=S Q1<=Q
       S/S1=S2' Q/Q1=Q3 Q3=>FS3 S2'uFS3=S3 S3=>M3 M'+M3=Mc) %{=>}%
     S3 FS3 M3 Q3=>FS3 S2^FS3 S2uFS3=S3 S3=>M3 M'^M3 M'+M3=Mc Q3=Q2 set`eq/ set`eq/
@@ -299,19 +301,19 @@ object-in-efxmap/ : object-in-efxmap (effects/ M _ _) N
   (let-helper/L51/LL M0 _ _ _ _ _ _ _ _ _ _).
 
 
-%theorem let-helper/L51
-  : forall* {M} {N} {K} {X}
-    forall {MO: efxmap-map-objects M (set/1 N)}
-    {ML: efxmap`lookup M K X}
-    exists {F} {N+F=K: pair2nat (pair/ N F) K}
-    true.
+% %theorem let-helper/L51
+%   : forall* {M} {N} {K} {X}
+%     forall {MO: efxmap-map-objects M (set/1 N)}
+%     {ML: efxmap`lookup M K X}
+%     exists {F} {N+F=K: pair2nat (pair/ N F) K}
+%     true.
 
-- : let-helper/L51 MO ML _ T
-    <- efxmap`size-total SZ
-    <- let-helper/L51/L _ SZ MO ML _ T.
+% - : let-helper/L51 MO ML _ T
+%     <- efxmap`size-total SZ
+%     <- let-helper/L51/L _ SZ MO ML _ T.
 
-%worlds (objvar) (let-helper/L51 _ _ _ _).
-%total { } (let-helper/L51 _ _ _ _).
+% %worlds (objvar) (let-helper/L51 _ _ _ _).
+% %total { } (let-helper/L51 _ _ _ _).
 
 
 %theorem let-helper/L5*/L
@@ -443,30 +445,36 @@ object-in-efxmap/ : object-in-efxmap (effects/ M _ _) N
 
 
 %{%
-  Given a set of fields, we really want to have
+  Given a subset of fields for a class, we really want to have
 the permissions for them carving out of the permission for
-the whole object.
+the whole class.
 
 It SHOULD goes like this:
 
-  (x = null ? 0 : (Pf <- x.all , x.all->0, P))
+  (x = null ? 0 : (Pif <- x.all , x.all->0, P(x)))
 ==>
-  (x = null ? 0 : (Pf , Pf --|- x.all , P))
+  (x = null ? x = null : (x != null , Pif , Pif --|- x.all , P(x)))
 ==>
-  ((x = null ? 0 : Pf) , (x = null ? 0 : (Pf --|- x.all , P)))
-==>
-  ..
-  (x = null ? (x = null) : (x != null , Pf --|- (x.all, P)))
-==>
-  (x = null ? 0 : (Pf --|- (x.all , P)))
+  ((x = null ? 0 : Pif) , (x = null ? 0 : (Pif --|- (x.all , P(x)))))
 ==>
   .. ??
 ==>
-  (x = null ? 0 : Pf) --|- (x = null ? 0 : (x.all , P))
+  ((x = null ? 0 : Pif) , (x = null ? 0 : Pif) --|- (x = null ? 0 : (x.all , P(x))))
 
 However, currently I couldn't find a way to prove this.
 The following let-helper/L8 will assume the above for now. Otherwise,
 the permission format would just become too complicated.
+
+Update: chatted with Dr. Boyland, and he confirmed that this is not provable.
+I need to find a workaround for this.
+
+Maybe something like this:
+
+  (x = null ? 0 : (Pif <- x.all , x.all -> 0 , P(x)))
+==>
+  (x = null ? 0 : (Pif , Pif --|- (x.all , P(x))))
+==>
+  (x = null ? 0 : Pif) , (x = null ? 0 : Pif --|- (x.all , P(x)))
 
 %}%
 
@@ -478,42 +486,45 @@ the permission format would just become too complicated.
     {NN2P: nn2perm NN AF PF}
     {PML: predmap`lookup PM C CP}
     {M2P: {x} fldmap2perm PM x FM FS (Pf x)}
-    exists {Pfn} {CN: consider-nn ([x] Pf x) NN ([x] Pfn x)}
-    {IMP: {x} implies (PF CP x) ((Pfn x) , (unitperm (encumbered (Pfn x) (PF CP x))))}
+    exists {Pfn1} {Pfn2}
+    {IMP1: {x} implies (Pfn1 x) (Pfn2 x)}
+    {IMP2: {x} implies (Pfn2 x) (Pfn1 x)}
+    {CN: consider-nn ([x] Pf x) NN ([x] Pfn2 x)}
+    {IMP: {x} implies (PF CP x) ((Pfn1 x) , (unitperm (encumbered (Pfn1 x) (PF CP x))))}
     true.
 
-% - : let-helper/L8 CM2PM CML annot2perm/unique nn2perm/may PML
-%     ([x] FS=>Pf x) _ _ consider-nn/may consider-nn/may
-%     ([x] implies/trans
-%       (implies/cond-inner
-%         bimplies/reflexive
-%         bimplies/reflexive
-%         (implies/equiv (equiv/symmetric equiv/identity))
-%         (implies/trans6
-%           (implies/combine implies/reflexive
-%             (implies/trans
-%               (implies/nonlinear bimplies/conj-duplicate)
-%               (implies/conj2combine)))
-%           (implies/equiv equiv/associate)
-%           (implies/combine implies/reflexive
-%             (implies/trans
-%               (implies/equiv (EQV x))
-%               (implies/nonlinear
-%                 (bimplies/trans4
-%                   (bimplies/predcall/Y/inline)
-%                   (bimplies/predcall/+/inline x)
-%                   (bimplies/predcall/0/inline)
-%                   (BIMP x)))))
-%           (implies/equiv
-%             (equiv/transitive equiv/commute equiv/associate))
-%           (implies/combine implies/carve implies/reflexive)
-%           (implies/equiv (equiv/symmetric equiv/associate))))
-%       (implies/cond-distribute))
-%     <- clsmap2predmap-implies-clsmap-predmap CM2PM CM-PM
-%     <- clsmap-predmap-implies-lookup-format CM-PM PML _ PMLP ([x] PEQ x)
-%     <- ({x} permission`eq-implies-equiv (PEQ x) (EQV x))
-%     <- clsmap2predmap-implies-fldmap2conj CM2PM PMLP CML FM=>CJ
-%     <- let-helper/L7 FM=>CJ FS=>Pf ([x] BIMP x).
+- : let-helper/L8 CM2PM CML annot2perm/unique nn2perm/may PML
+    ([x] FS=>Pf x) _ _ IMP1 IMP2 consider-nn/may
+    ([x] implies/trans
+      (implies/cond-inner
+        bimplies/reflexive
+        bimplies/reflexive
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/trans6
+          (implies/combine implies/reflexive
+            (implies/trans
+              (implies/nonlinear bimplies/conj-duplicate)
+              (implies/conj2combine)))
+          (implies/equiv equiv/associate)
+          (implies/combine implies/reflexive
+            (implies/trans
+              (implies/equiv (EQV x))
+              (implies/nonlinear
+                (bimplies/trans4
+                  (bimplies/predcall/Y/inline)
+                  (bimplies/predcall/+/inline x)
+                  (bimplies/predcall/0/inline)
+                  (BIMP x)))))
+          (implies/equiv
+            (equiv/transitive equiv/commute equiv/associate))
+          (implies/combine implies/carve implies/reflexive)
+          (implies/equiv (equiv/symmetric equiv/associate))))
+      (implies/cond-distribute))
+    <- clsmap2predmap-implies-clsmap-predmap CM2PM CM-PM
+    <- clsmap-predmap-implies-lookup-format CM-PM PML _ PMLP ([x] PEQ x)
+    <- ({x} permission`eq-implies-equiv (PEQ x) (EQV x))
+    <- clsmap2predmap-implies-fldmap2conj CM2PM PMLP CML FM=>CJ
+    <- let-helper/L7 FM=>CJ FS=>Pf ([x] BIMP x).
 
 % - : let-helper/L8 CM2PM CML annot2perm/unique nn2perm/yes PML
 %     ([x] FS=>Pf x) _ _ consider-nn/yes consider-nn/yes
@@ -687,7 +698,6 @@ the permission format would just become too complicated.
       E=MP permission`eq/ (MP=>E x))
     <- ({x} fldmap2perm-equiv (FSP=>PiP x) fldmap2perm/0 predmap`eq/ object`eq/
       fldmap`eq/ FSP=E (EQV2 x)).
-
 
 - : {BL:{x} cxt`lookup (B x) N (cxt-info/ x (ty/ nn/yes A C))}
     let-helper/L9 (s SN) SZ ([x] BL x) CML
@@ -1549,7 +1559,7 @@ This format records properties about three permissions:
      checking e2.
 
 I think for 1), it should always be the same.
-mp
+
 %}%
 
 let-output-format : clsmap -> predmap -> cxt ->
@@ -1617,7 +1627,9 @@ let-output-format/unique/+f
                   (combine (unitperm (encumbered (PF v) Pf2)) Pi3))))))).
 
 
-%%% now the main theorems
+%% ----------------------------------------------------
+%% Main Theorems
+%% ----------------------------------------------------
 
 %theorem let-helper-before/unique/F
   : forall* {CM} {PM} {B} {Q} {Out0} {OS} {XX2} {N} {NN} {C} {XXV}
@@ -1913,7 +1925,7 @@ let-output-format/unique/+f
         S3=>M3 (BP+M3=>Pi3 x) (M2P=>Pi2P x))
       (DM-M2outP=R2out:efxmap`domain M2outP R2out)
       M2P|R2out=M2inP+M2outP MP|R2out=M1+M2outP
-      ([x] M2inP=>Pxf x) ([x] IMP2P x) M1=>Pi1)
+       ([x] M2inP=>Pxf x) ([x] IMP2P x) M1=>Pi1)
     (transform/inside [x]
       (transform/implies
         (implies/trans4
