@@ -790,6 +790,139 @@ appear. Same as above, we can use induction hypothesis to get a set of
 input permissions *Pi2*, and output *Out2*. We can check *e2* under
 FP with *Pi2* and *Out2*.
 
-The question is: how to check the whole expression?
+After substitution, we get a new effect *X3*. With this new effect we
+can get a new input permission *Pi3*, and new output *Out4*
+
+We need to show that permission *Pi3* can be split into two parts:
+*Pi1* and *Pi4*, so that with the frame rule we can check *e1* with
+induction hypothesis, and then use *envadd* to add *Pi4* to
+output *Out1*, and get a new output *Out3*
+
+Then, we need to show that *Out3* can be transformed into a certain
+format, which can be used to check *e2* (Again, we need to use frame
+rule to do this).
+
+Lastly, we need to show that the output after checking *e2* can be
+transformed into *Out4*, so that the whole expression can be checked.
+
+<2014-06-30 Mon>
+
+Here I try to summarize the thought about how to prove *let*
+expression. In twelf, it is:
+
+reftyping/let
+   : reftyping N CM MM B E (result/expr (reftype/ NN C GS) XX1)
+     -> reftype2ty (reftype/ NN C GS) (ty/ NN A C)
+     -> ({x} cxt`update B N (cxt-info/ x (ty/ NN A C)) (BF x))
+     -> ({x} reftyping (s N) CM MM (BF x) (F x)
+          (result/expr (reftype/ NN2 C2 GS2) XX2))
+     -> compatible GS XX2
+     -> subst-targets GS N GS2 GS3
+     -> subst-effects GS N XX2 XX3
+     -> effects`join XX1 XX3 XX
+     -> reftyping N CM MM B (let E F) (result/expr (reftype/ NN2 C2 GS3) XX).
+
+Suppose the expression is:
+
+  let x = e1 in e2
+
+For this expression to be type checked, e1 should type check
+with output target *GS* and effect *XX1*. By adding to context
+with the binding for *x*, e2 should also type check with output
+target *GS2* and effect *XX2*. Moreover, *XX2* has to be *compatible*
+with *GS*, which generally means (under fractional permissions)
+*XX2* should NOT contain effects on targets that are *encumbered* in
+the output for checking e1.
+
+After performing explicit substitution on *GS2* and *XX2*, we
+get *GS3* and *XX3* respectively. The whole expression can then type
+check with output effect *XX*, which is the joined effects of *XX1* and *XX3*.
+
+Now thinking about proving. First, with induction hypothesis, we can
+check e1 and e2 (with augmented context). Suppose that by checking e1
+and e2, we get *XX1* and *XX2*
+as output effects, respectively.
+
+Also, by induction hypothesis, we know that we can convert *XX1* and *XX2*
+to input permission and output, with which we can check the same
+expressions under fractional permissions. Suppose that *XX1* converted
+to *Pi1* (input permission) and *Out1* (permission output),  and *XX2*
+converted to *Pi2* and *Out2*.
+
+To show the whole expression can type check under fractional
+permission, we need to show 1) there exists an input permission *Pi* and
+output *Out*, which are converted from *XX*, which is the joined
+effects of *XX1* and *XX3*, and 2) the whole expression can be
+checked with *Pi* and *Out*.
+
+There are several things/steps we need to prove here. First, Given the
+permission *Pi*, we need to show that it can be splitted into
+permission *Pi1* and another permission *Pi3*, so that *Pi1* can be
+checked (with frame rule). Second, we need to show that after
+adding *Pi3* into the output *Out1*, we can somehow transform the
+output into a proper format, which should contain *Pi2* and some
+encumbered permission *Pi4* for x. Finally, we show that e2 can be checked
+with *Pi2*, and that the output: *Out2*, combined with *Pi4*, can be
+transformed into the output *Out*.
+
+Let's use a simple example:
+
+  let x = { a, b, c.g } in (x.f = 3; x)
+
+Here we use a shortcut "{a,b,c.f}" to represents some branching
+expression that will be either a, or b, or c.f. This is e1, and e2 is
+x.f = 3.
+
+The effect *XX1* for e1 is { read c.k }, and
+the effect *XX2* for e2 is { write x.f }, and after substitution
+effect *XX3* is { write a.f, write b.f, write c.g }.
+The joined effect *XX* is same as *XX3* in this case, since write
+includes read.
+
+Then, *XX1* get converted to 1/2*Pi_c.k (Pi1), *XX2* converted to
+Pi_x.f (Pi2), and *XX* converted to Pi_a.f + Pi_b.f + Pi_c.g (Pi).
+Here Pi_c.k is a shortcut for
+\exists rk. (rc.k->rk, rk == 0 ? empty : (P(rk) + rk.all->0))
+(suppose field k is maybe-null and unique).
+
+Clearly given Pi we can obtain *Pi1* and another permission *Pi3*:
+
+  Pi1: Pi_c.k, Pi3: Pi_a.f + Pi_b.f
+
+We can check e1 with *Pi1*. The
+output *Out1* is in the following format:
+
+\exists x. (x == a \/ x == b \/ x == o \/ Pi_o, Pi_o --|- Pi_c.k)
+
+By adding *Pi3* to this output, we have:
+
+\exists x. (x == a \/ x == b \/ x == o \/ Pi_o + Pi_o --|- Pi_c.k +
+Pi_a.f + Pi_b.f)
+
+which can be transformed to:
+
+\exists x. (Pi_x.f + Pi_x.f --|- Pi_x + Pi_x --|- (Pi_a.f + Pi_b.f + Pi_c.k))
+
+Here, Pi_x.f --|- Pi_x + Pi_x --|- (Pi_c.k + Pi_a.f + Pi_b.f) is the encumbered
+permission *Pi4* in above, and Pi_x.f is *Pi2*. We can then check e2
+with the latter, and then add *Pi4* to *Out2*. As last step, we need
+to show after adding *Pi4* to *Out2*, it can be transformed to *Out*.
+
+The *Out2* will look like this:
+
+\exists r. (r == x
+
+
+
+Let's put more details! Notice that every effect *XX* is represented
+as a triple (*M*,*S*,*Q*), where *M* represents all read/write
+effects on field targets, *S* represents consume effects on field
+targets, and *Q* represents consume effects on object targets. (a
+field target is a (objectID,fieldID) pair, while a object target is
+just an objectID.).
+
+Now following the above, let's say *XX1* consists of
+(M1,S1,Q1), *XX2* consists of (M2,S2,Q2), *XX3* consists of
+(M3,S3,Q3), and *XX* consists of (M,S,Q).
 
 
