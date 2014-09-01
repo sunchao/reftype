@@ -55,22 +55,6 @@ efx2frac/read : efx2frac efx/read half.
 efx2frac/write : efx2frac efx/write (fraction/ one).
 
 
-% Consider nonnull type and produce a conditional if
-% the object could be null.
-
-consider-nn : (object -> permission) -> nn ->
-	(object -> permission) -> type.
-
-consider-nn/yes : consider-nn PF nn/yes
-                  ([r] combine (unitperm (nonlinear (neg (objequal r null))))
-                    (unitperm (conditional (objequal r null) empty (PF r)))).
-
-% consider-nn/yes : consider-nn PF nn/yes ([r] PF r).
-
-consider-nn/may : consider-nn PF nn/may
-                  ([r] unitperm (conditional (objequal r null) empty (PF r))).
-
-
 % Convert a efxmap to permissions. Each entry ((O, F), X) in
 % the efxmap will be converted to a packed field permission with
 % the effect X been applied to it.
@@ -82,12 +66,11 @@ efxmap2perm/0 : efxmap2perm _ _ _ efxmap/0 empty.
 efxmap2perm/U
   : efxmap2perm CM PM B M' Pi2
     -> nat2pair K (pair/ N F)
-    -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
+    -> cxt`lookup B N (cxt-info/ O (ty/ _ _ C))
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F T
     -> ty2perm PM T PF
-    -> consider-nn ([x] unitperm (precise-exists x F PF)) NN Pi1F
-    -> apply-efx X (Pi1F O) Pi1
+    -> apply-efx X (PF O) Pi1
     -> efxmap`fresh M' K
     -> efxmap`update M' K X M
     -> efxmap2perm CM PM B M (Pi1 , Pi2).
@@ -125,14 +108,12 @@ make-encumbered/U : make-encumbered CM PM B SP Pi
                -> predmap`lookup PM C CP
                -> clsmap`lookup CM C FM
                -> fldmap`domain FM FS
-               -> ({x} fldmap2perm PM x FM FS (Pi2 x))
-               -> consider-nn
-                 ([x] (combine (one-predcall CP x)
-                        (combine (obj-ne-null x)
-                          (unitperm (encumbered (Pi2 x) (allperm x)))))) NN PiF
+               -> ({x} fldmap2perm PM x FM FS (PF x))
                -> set`not-member SP N
                -> set`add SP N S
-               -> make-encumbered CM PM B S ((PiF O), Pi).
+               -> make-encumbered CM PM B S
+                 ((combine (one-predcall CP O)
+                   (unitperm (encumbered (PF O) (allperm O)))) , Pi).
 
 
 % Convert effects to input permissions. This is simply a wrapper on
@@ -813,81 +794,6 @@ env2progtype/
 
 
 
-%% 5, theorems about consider-nn
-
-%theorem consider-nn-respects-eq
-  : forall* {NN1} {NN2} {PF1} {PF2} {PK1} {PK2}
-    forall {CNN: consider-nn PF1 NN1 PK1}
-    {PFE: {x} permission`eq (PF1 x) (PF2 x)}
-    {NNE: nonnull`eq NN1 NN2}
-    {PKE: {x} permission`eq (PK1 x) (PK2 x)}
-    exists {CNN: consider-nn PF2 NN2 PK2}
-    true.
-
-- : consider-nn-respects-eq CNN ([_] permission`eq/) nonnull`eq/
-    ([_] permission`eq/) CNN.
-
-%worlds (objvar) (consider-nn-respects-eq _ _ _ _ _ ).
-%total { } (consider-nn-respects-eq _ _ _ _ _ ).
-
-
-%theorem consider-nn-total*
-  : forall* {GF} forall {NN} exists {GF2} {GF+NN=>GF2: consider-nn GF NN GF2} true.
-
-- : consider-nn-total* nn/yes _ consider-nn/yes.
-
-- : consider-nn-total* nn/may _ consider-nn/may.
-
-%worlds (objvar) (consider-nn-total* _ _ _).
-%total { } (consider-nn-total* _ _ _).
-
-%abbrev consider-nn-total = consider-nn-total* _ _.
-
-
-%theorem consider-nn-unique
-  : forall* {PF1} {PF2} {NN1} {NN2} {PK1} {PK2}
-    forall {CNN: consider-nn PF1 NN1 PK1}
-    {CNN: consider-nn PF2 NN2 PK2}
-    {PFE: {x} permission`eq (PF1 x) (PF2 x)}
-    {NNE: nonnull`eq NN1 NN2}
-    exists {PKE: {x} permission`eq (PK1 x) (PK2 x)}
-    true.
-
-- : consider-nn-unique _ _ ([_] permission`eq/) nonnull`eq/ ([_] permission`eq/).
-
-%worlds (objvar) (consider-nn-unique _ _ _ _ _).
-%total { } (consider-nn-unique _ _ _ _ _).
-
-
-%% we cannot derive equivalence because of the conditional in "may" case.
-
-%theorem consider-nn-implies
-  : forall* {PF1} {PF2} {NN1} {NN2} {PK1} {PK2}
-    forall {CNN: consider-nn PF1 NN1 PK1}
-    {CNN: consider-nn PF2 NN2 PK2}
-    {I1: {x} implies (PF1 x) (PF2 x)}
-    {I2: {x} implies (PF2 x) (PF1 x)}
-    {NNE: nonnull`eq NN1 NN2}
-    exists {IMP1: {x} implies (PK1 x) (PK2 x)}
-    {IMP2: {x} implies (PK2 x) (PK1 x)}
-    true.
-
-- : consider-nn-implies consider-nn/may consider-nn/may I1 I2 nonnull`eq/
-    ([x] (implies/cond-inner bimplies/reflexive
-      bimplies/reflexive
-      implies/reflexive
-      (I1 x)))
-    ([x] (implies/cond-inner bimplies/reflexive
-      bimplies/reflexive
-      implies/reflexive
-      (I2 x))).
-
-% - : consider-nn-implies consider-nn/yes consider-nn/yes I1 I2 nonnull`eq/ I1 I2.
-
-%worlds (objvar) (consider-nn-implies _ _ _ _ _ _ _).
-%trustme %total (N) (consider-nn-implies N _ _ _ _ _ _).
-
-
 %% 6, theorems about efxmap2perm
 
 %theorem false-implies-efxmap2perm
@@ -930,7 +836,7 @@ env2progtype/
 
 - : clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM-M=S
     (clsmap-cxt-fldset/U CM-B-S' N+F=>K BL CML FML K!<S' S'+K=S)
-    _ (efxmap2perm/U M'=>Pi' N+F=>K BL CML FML T2PF CNN AP K!<M' M'+K+X=M)
+    _ (efxmap2perm/U M'=>Pi' N+F=>K BL CML FML T2PF AP K!<M' M'+K+X=M)
     <- set`add-implies-member S'+K=S K<-S
     <- efxmap`domain-preserves-lookup-converse K<-S DM-M=S X M->K=X
     <- efxmap`lookup-implies-fresh-update M->K=X M' K!<M' M'+K+X=M
@@ -941,7 +847,6 @@ env2progtype/
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML CM-T
     <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
-    <- consider-nn-total CNN
     <- apply-efx-total AP.
 
 %worlds (objvar) (clsmap-cxt-fldset-implies-efxmap2perm _ _ _ _ _ _).
@@ -974,15 +879,14 @@ env2progtype/
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     {PF} {T2PF: ty2perm PM T PF}
-    {PiF} {CNN: consider-nn ([x] unitperm (precise-exists x F PF)) NN PiF}
-    {Pi1} {AP: apply-efx X (PiF O) Pi1}
+    {Pi1} {AP: apply-efx X (PF O) Pi1}
     {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
     {EQV: equiv (Pi1 , Pi2) Pi}
     true.
 
 %theorem efxmap2perm/U-inversion/L
   : forall* {BP} {M} {B} {CM} {PM} {K} {K1} {X1} {X} {T1} {PF1}
-    {MP1} {MP} {Pi11} {Pi21} {NN1} {A1} {C1} {FM1} {N1} {F1} {PiF1} {O1}
+    {MP1} {MP} {Pi11} {Pi21} {NN1} {A1} {C1} {FM1} {N1} {F1} {O1}
     forall {FS1: efxmap`fresh MP1 K1}
     {U1: efxmap`update MP1 K1 X1 M}
     {K=>N+F: nat2pair K1 (pair/ N1 F1)}
@@ -990,8 +894,7 @@ env2progtype/
     {CML1: clsmap`lookup CM C1 FM1}
     {FML1: fldmap`lookup FM1 F1 T1}
     {T2PF1: ty2perm PM T1 PF1}
-    {CNN1: consider-nn ([x] unitperm (precise-exists x F1 PF1)) NN1 PiF1}
-    {AP1: apply-efx X1 (PiF1 O1) Pi11}
+    {AP1: apply-efx X1 (PF1 O1) Pi11}
     {M2P: efxmap2perm CM PM B MP1 Pi21}
     {FS2: efxmap`fresh MP K}
     {U2: efxmap`update MP K X M}
@@ -1001,14 +904,13 @@ env2progtype/
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     {PF} {T2PF: ty2perm PM T PF}
-    {PiF} {CNN: consider-nn ([x] unitperm (precise-exists x F PF)) NN PiF}
-    {Pi1} {AP: apply-efx X (PiF O) Pi1}
+    {Pi1} {AP: apply-efx X (PF O) Pi1}
     {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
     {EQV: equiv (Pi1 , Pi2) (Pi11 , Pi21)}
     true.
 
-- : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 M2P1 F2 U2
-    nat`eq?/yes _ _ N2P1 _ _ _ _ BL1 _ CML1 _ FML1 _ T2PF1 _ CNN1 _ AP2 _ M2P
+- : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CML1 FML1 T2PF1 AP1 M2P1 F2 U2
+    nat`eq?/yes _ _ N2P1 _ _ _ _ BL1 _ CML1 _ FML1 _ T2PF1 _ AP2 _ M2P
     equiv/reflexive
     <- efxmap`fresh-update-cancels F1 U1 F2 U2 nat`eq/ efxmap`eq/ X1=X2 M1=M2
     <- apply-efx-respects-eq AP1 X1=X2 permission`eq/
@@ -1016,32 +918,32 @@ env2progtype/
     <- efxmap2perm-respects-eq M2P1 clsmap`eq/ predmap`eq/ cxt`eq/
       M1=M2 permission`eq/ M2P.
 
-- : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 M2P1 F2 U2
-    (nat`eq?/no K<>K1) _ _ N2P2 _ _ _ _ BL2 _ CML2 _ FML2 _ T2PF2 _ CNN2 _ AP2 _
-    (efxmap2perm/U M2P2 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 F4 U4)
+- : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CML1 FML1 T2PF1 AP1 M2P1 F2 U2
+    (nat`eq?/no K<>K1) _ _ N2P2 _ _ _ _ BL2 _ CML2 _ FML2 _ T2PF2 _ AP2 _
+    (efxmap2perm/U M2P2 N2P1 BL1 CML1 FML1 T2PF1 AP1 F4 U4)
     (equiv/transitive equiv/roll2 (equiv/combine equiv/reflexive EQV2))
     <- efxmap`update-commutes-converse U2 U1 K<>K1 _ U4 U3
     <- efxmap`update-preserves-fresh-converse F2 U4 F3
     <- efxmap`update-preserves-fresh-converse F1 U3 F4
     <- efxmap2perm/U-inversion M2P1 F3 U3 _ _ N2P2 _ _ _ _ BL2 _ CML2 _
-      FML2 _ T2PF2 _ CNN2 _ AP2 _ M2P2 EQV2.
+      FML2 _ T2PF2 _ AP2 _ M2P2 EQV2.
 
 - : efxmap2perm/U-inversion
-    (efxmap2perm/U M2P1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 F1 U1)
-    F2 U2 _ _ N2P _ _ _ _ BL _ CML _ FML _ T2PF _ CNN _ AP _ M2P EQV
+    (efxmap2perm/U M2P1 N2P1 BL1 CML1 FML1 T2PF1 AP1 F1 U1)
+    F2 U2 _ _ N2P _ _ _ _ BL _ CML _ FML _ T2PF _ AP _ M2P EQV
     <- nat`eq?-total E?
     <- efxmap2perm/U-inversion/L
-      F1 U1 N2P1 BL1 CML1 FML1 T2PF1 CNN1 AP1 M2P1 F2 U2 E? _ _ N2P
-      _ _ _ _ BL _ CML _ FML _ T2PF _ CNN _ AP _ M2P EQV.
+      F1 U1 N2P1 BL1 CML1 FML1 T2PF1 AP1 M2P1 F2 U2 E? _ _ N2P
+      _ _ _ _ BL _ CML _ FML _ T2PF _ AP _ M2P EQV.
 
 %worlds (objvar)
-	(efxmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(efxmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 	(efxmap2perm/U-inversion/L
-    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A B)
-	(efxmap2perm/U-inversion A _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(efxmap2perm/U-inversion A _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 	(efxmap2perm/U-inversion/L
-    _ _ _ _ _ _ _ _ _ B _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+    _ _ _ _ _ _ _ _ B _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem efxmap2perm-equiv
@@ -1054,25 +956,15 @@ env2progtype/
     exists {EQV: equiv Pi1 Pi2}
     true.
 
-%theorem efxmap2perm-equiv/L
-  : forall* {F0} {F1} {PF0:object -> permission} {PF1}
-    forall {PFE: {x} permission`eq (PF0 x) (PF1 x)}
-    {FE: nat`eq F0 F1}
-    exists {PE: {x} permission`eq (unitperm (precise-exists x F0 PF0))
-                (unitperm (precise-exists x F1 PF1))}
-    true.
-
-- : efxmap2perm-equiv/L ([_] permission`eq/) nat`eq/ ([_] permission`eq/).
-
 - : efxmap2perm-equiv efxmap2perm/0 efxmap2perm/0 _ _ _ _ equiv/reflexive.
 
-- : efxmap2perm-equiv (efxmap2perm/U M2P0 P2K0 L0 CML0 FML0 R0 CNN0 AP0 F0 U0)
+- : efxmap2perm-equiv (efxmap2perm/U M2P0 P2K0 L0 CML0 FML0 R0 AP0 F0 U0)
     M2P CME PME BE ME
     (equiv/transitive
       (equiv/combine PXEQV EQV2)
       (EQV1))
     <- efxmap2perm/U-inversion M2P F0 U0 _ _ P2K1 _ _ _ _ L1 _ CML1 _ FML1
-      _ R1 _ CNN1 _ AP1 _ M2P1 EQV1
+      _ R1 _ AP1 _ M2P1 EQV1
     <- efxmap2perm-equiv M2P0 M2P1 CME PME BE efxmap`eq/ EQV2
     <- nat2pair-unique P2K0 P2K1 nat`eq/ PE
     <- pair-eq-implies-eq PE (NE:nat`eq Nx0 Nx1) (FE:nat`eq Fx0 Fx1)
@@ -1082,14 +974,9 @@ env2progtype/
     <- clsmap`lookup-unique CML0 CML1 CME CE FME
     <- fldmap`lookup-unique FML0 FML1 FME FE TE2
     <- ty2perm-deterministic R0 R1 PME TE2 PFE
-    <- efxmap2perm-equiv/L PFE FE PFE'
-    <- consider-nn-unique CNN0 CNN1 PFE' NNE PKE
-    <- permission`apply-object-preserves-eq PKE OE PKE'
-    <- apply-efx-unique AP0 AP1 efx`eq/ PKE' PXE
+    <- permission`apply-object-preserves-eq PFE OE PFE'
+    <- apply-efx-unique AP0 AP1 efx`eq/ PFE' PXE
     <- permission`eq-implies-equiv PXE PXEQV.
-
-%worlds (objvar) (efxmap2perm-equiv/L _ _ _).
-%total { } (efxmap2perm-equiv/L _ _ _).
 
 %worlds (objvar) (efxmap2perm-equiv _ _ _ _ _ _ _).
 %total (R) (efxmap2perm-equiv R _ _ _ _ _ _).
@@ -1105,7 +992,7 @@ env2progtype/
 
 %theorem efxmap2perm-respects-geq/L
   : forall* {M1} {M2} {CM} {PM} {B} {Pi21} {Pi22}
-    {M2'} {K} {N} {F} {X} {NN} {A} {C} {FM} {T} {PF} {PiF} {O}
+    {M2'} {K} {N} {F} {X} {NN} {A} {C} {FM} {T} {PF} {O}
     forall {FS: efxmap`fresh M2' K}
     {UD: efxmap`update M2' K X M2}
     {K=>NF: nat2pair K (pair/ N F)}
@@ -1113,8 +1000,7 @@ env2progtype/
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F T}
     {T2PF: ty2perm PM T PF}
-    {CNN: consider-nn ([x] unitperm (precise-exists x F PF)) NN PiF}
-    {AE: apply-efx X (PiF O) Pi21}
+    {AE: apply-efx X (PF O) Pi21}
     {M2'=>Pi22: efxmap2perm CM PM B M2' Pi22}
     {M1<=M2: efxmap`leq M1 M2}
     {BP} {DM?: efxmap`domain? M1 K BP}
@@ -1123,7 +1009,7 @@ env2progtype/
     true.
 
 - : efxmap2perm-respects-geq/L K!<M2' M2'+K+X=M2
-    K2NF BL CML FML T2PF CNN AE M2'=>Pi22 M1<=M2 _ (efxmap`domain?/out K!<M1)
+    K2NF BL CML FML T2PF AE M2'=>Pi22 M1<=M2 _ (efxmap`domain?/out K!<M1)
     _ _ M1=>Pi1
     (equiv/transitive
       (equiv/combine equiv/reflexive (Pi22<=>Pi1+Pi3))
@@ -1134,8 +1020,8 @@ env2progtype/
       M2'=>Pi22 M1<=M2' _ _ M1=>Pi1 Pi22<=>Pi1+Pi3.
 
 - : efxmap2perm-respects-geq/L K!<M2' M2'+K+X=M2
-    K2NF BL CML FML T2PF CNN AE M2'=>Pi22 M1<=M2 _ (efxmap`domain?/in M1->K=X1)
-    _ _ (efxmap2perm/U M1'=>Pi11 K2NF BL CML FML T2PF CNN AE1 K!<M1' M1'+K+X1=M1)
+    K2NF BL CML FML T2PF AE M2'=>Pi22 M1<=M2 _ (efxmap`domain?/in M1->K=X1)
+    _ _ (efxmap2perm/U M1'=>Pi11 K2NF BL CML FML T2PF AE1 K!<M1' M1'+K+X1=M1)
     (equiv/transitive4
       (equiv/combine (EQV1) (Pi22<=>Pi11+Pi3))
       (equiv/symmetric equiv/associate)
@@ -1153,17 +1039,17 @@ env2progtype/
     (equiv/symmetric equiv/identity).
 
 - : efxmap2perm-respects-geq
-    (efxmap2perm/U T' P BL CML FML T2PF CNN AE F U) M1<=M2 _ _ M1=>Pi1 EQV
+    (efxmap2perm/U T' P BL CML FML T2PF AE F U) M1<=M2 _ _ M1=>Pi1 EQV
     <- efxmap`domain?-total DM?
-    <- efxmap2perm-respects-geq/L F U P BL CML FML T2PF CNN AE
+    <- efxmap2perm-respects-geq/L F U P BL CML FML T2PF AE
       T' M1<=M2 _ DM? _ _ M1=>Pi1 EQV.
 
 %worlds (objvar)
 	(efxmap2perm-respects-geq _ _ _ _ _ _)
-	(efxmap2perm-respects-geq/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+	(efxmap2perm-respects-geq/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A1 A2)
 	(efxmap2perm-respects-geq A1 _ _ _ _ _)
-	(efxmap2perm-respects-geq/L _ _ _ _ _ _ _ _ _ A2 _ _ _ _ _ _ _).
+	(efxmap2perm-respects-geq/L _ _ _ _ _ _ _ _ A2 _ _ _ _ _ _ _).
 
 
 %theorem efxmap2perm-respects-geq*
@@ -1214,7 +1100,7 @@ env2progtype/
     true.
 
 %theorem efxmap`disjoint-join-implies-equiv/L
-  : forall* {M1} {M2} {M} {MP} {F} {X} {T} {PF} {B} {PF1F}
+  : forall* {M1} {M2} {M} {MP} {F} {X} {T} {PF} {B}
     {O} {FM} {PM} {Pix} {Piy} {K} {N} {NN} {A} {CM} {C} {B1} {B2}
     forall {DJ: efxmap`disjoint M1 M2}
     {J: efxmap`join M1 M2 M}
@@ -1225,8 +1111,7 @@ env2progtype/
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F T}
     {T=>PF: ty2perm PM T PF}
-    {CNN: consider-nn ([x] unitperm (precise-exists x F PF)) NN PF1F}
-    {AP: apply-efx X (PF1F O) Pix}
+    {AP: apply-efx X (PF O) Pix}
     {M=>Pi: efxmap2perm CM PM B MP Piy}
     {IN1?: efxmap`domain? M1 K B1}
     {IN2?: efxmap`domain? M2 K B2}
@@ -1237,12 +1122,12 @@ env2progtype/
     true.
 
 - : efxmap`disjoint-join-implies-equiv/L DJ J
-    F U N2P BL CML FML R CNN AP M2P
+    F U N2P BL CML FML R AP M2P
     (efxmap`domain?/in L1) (efxmap`domain?/in L2) _ _ M2P1 M2P2 EQV
     <- efxmap`disjoint-lookup-contradiction DJ L1 L2 V
     <- efxmap`disjoint-join-implies-equiv/F V _ _ M2P1 M2P2 EQV.
 
-- : efxmap`disjoint-join-implies-equiv/L DJ J _ U _ _ _ _ _ _ _ _
+- : efxmap`disjoint-join-implies-equiv/L DJ J _ U _ _ _ _ _ _ _
     (efxmap`domain?/out F1) (efxmap`domain?/out F2) _ _ M2P1 M2P2 EQV
     <- efxmap`join-preserves-fresh* F1 F2 J F
     <- efxmap`update-implies-lookup U L
@@ -1251,10 +1136,10 @@ env2progtype/
     <- efxmap`disjoint-join-implies-equiv/F V _ _ M2P1 M2P2 EQV.
 
 - : efxmap`disjoint-join-implies-equiv/L DJ (J:efxmap`join M1 M2 M)
-    F (U:efxmap`update MP K Xx M) N2P BL CML FML R CNN AP M2P
+    F (U:efxmap`update MP K Xx M) N2P BL CML FML R AP M2P
     (efxmap`domain?/in (L1:efxmap`lookup M1 K Xy))
     (efxmap`domain?/out F2) _ _
-    (efxmap2perm/U M2P1P N2P BL CML FML R CNN AP F1 U1K) M2P2
+    (efxmap2perm/U M2P1P N2P BL CML FML R AP F1 U1K) M2P2
     (equiv/transitive (equiv/combine equiv/reflexive EQVP)
       (equiv/associate))
     <- efxmap`lookup-implies-fresh-update L1 _ F1 U1
@@ -1274,9 +1159,9 @@ env2progtype/
     <- efxmap`update-respects-eq U1 efxmap`eq/ nat`eq/ DE efxmap`eq/ U1K.
 
 - : efxmap`disjoint-join-implies-equiv/L DJ (J:efxmap`join M1 M2 M)
-    F (U:efxmap`update MP K Xx M) N2P BL CML FML R CNN AP M2P
+    F (U:efxmap`update MP K Xx M) N2P BL CML FML R AP M2P
     (efxmap`domain?/out F1) (efxmap`domain?/in (L2:efxmap`lookup M2 K Xy)) _ _
-    M2P1 (efxmap2perm/U M2P2P N2P BL CML FML R CNN AP F2 U2K)
+    M2P1 (efxmap2perm/U M2P2P N2P BL CML FML R AP F2 U2K)
     (equiv/transitive (equiv/combine equiv/reflexive EQVP) equiv/roll2)
     <- efxmap`lookup-implies-fresh-update L2 _ F2 U2
     <- efxmap`fresh-update-implies-leq F2 U2 (LE2:efxmap`leq M2' M2)
@@ -1295,20 +1180,20 @@ env2progtype/
     <- efxmap`update-respects-eq U2 efxmap`eq/ nat`eq/ DE efxmap`eq/ U2K.
 
 - : efxmap`disjoint-join-implies-equiv DJ J
-    (efxmap2perm/U M2P N2P BL CML FML R CNN AP F U)
+    (efxmap2perm/U M2P N2P BL CML FML R AP F U)
     _ _ M2P1 M2P2 EQV
     <- efxmap`domain?-total D1?
     <- efxmap`domain?-total D2?
-    <- efxmap`disjoint-join-implies-equiv/L DJ J F U N2P BL CML FML R CNN AP M2P
+    <- efxmap`disjoint-join-implies-equiv/L DJ J F U N2P BL CML FML R AP M2P
       D1? D2? _ _ M2P1 M2P2 EQV.
 
 %worlds (objvar) (efxmap`disjoint-join-implies-equiv/F _ _ _ _ _ _).
 %total { } (efxmap`disjoint-join-implies-equiv/F _ _ _ _ _ _).
 
 %worlds (objvar) (efxmap`disjoint-join-implies-equiv _ _ _ _ _ _ _ _)
-  (efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+  (efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (T1 T2) (efxmap`disjoint-join-implies-equiv _ _ T1 _ _ _ _ _)
-  (efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _).
+  (efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _).
 
 
 %theorem efxmap`disjoint-join-implies-equiv-converse
@@ -1377,7 +1262,7 @@ env2progtype/
 - : efxmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ
     (J:efxmap`join M1 M2 M) F (U:efxmap`update MP K Xx M) A1 A2
     (efxmap`domain?/in _) (efxmap`domain?/out F2)
-    _ (efxmap2perm/U AP N2P BL CML FML R CNN APL F U)
+    _ (efxmap2perm/U AP N2P BL CML FML R APL F U)
     (equiv/transitive3
       (equiv/combine (equiv/symmetric EQV1) equiv/reflexive)
       (equiv/symmetric equiv/associate)
@@ -1386,7 +1271,7 @@ env2progtype/
     <- efxmap`fresh-join-right-preserves-lookup-converse L F2 J L1
     <- efxmap`lookup-implies-fresh-update L1 M1P F1 U1
     <- efxmap2perm/U-inversion A1 F1 U1 _ _ N2P _ _ _ _ BL _ CML
-      _ FML _ R _ CNN _ APL _ A1P EQV1
+      _ FML _ R _ APL _ A1P EQV1
     <- efxmap`fresh-update-left-preserves-join-converse* F1 U1 F2 J F U J1
     <- efxmap`fresh-update-implies-leq F1 U1 LE1
     <- efxmap`disjoint-respects-geq* DJ LE1 DJP
@@ -1396,7 +1281,7 @@ env2progtype/
 - : efxmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ
     (J:efxmap`join M1 M2 M) F (U:efxmap`update MP K Xx M) A1 A2
     (efxmap`domain?/out F1) (efxmap`domain?/in _)
-    _ (efxmap2perm/U AP N2P BL CML FML R CNN APL F U)
+    _ (efxmap2perm/U AP N2P BL CML FML R APL F U)
     (equiv/transitive3
       (equiv/combine equiv/reflexive (equiv/symmetric EQV2))
       (equiv/roll2)
@@ -1405,7 +1290,7 @@ env2progtype/
     <- fresh-join-left-preserves-lookup-converse F1 L J L2
     <- efxmap`lookup-implies-fresh-update L2 _ F2 U2
     <- efxmap2perm/U-inversion A2 F2 U2 _ _ N2P _ _ _ _ BL _ CML
-      _ FML _ R _ CNN _ APL _ A2P EQV2
+      _ FML _ R _ APL _ A2P EQV2
     <- efxmap`fresh-update-right-preserves-join-converse* F1 F2 U2 J F U J2
     <- efxmap`fresh-update-implies-leq F2 U2 LE2
     <- efxmap`disjoint-symmetric DJ DJ'
@@ -1738,12 +1623,11 @@ env2progtype/
 
 - : make-encumbered-total CM-CM CM2PM
     (clsmap-cxt-objset/U CM-B-S' BL CML FS U) _
-    (make-encumbered/U MFP' BL PML CML  FM-DM MF1 CNN FS U)
+    (make-encumbered/U MFP' BL PML CML  FM-DM MF1 FS U)
     <- fldmap`domain-total FM-DM
     <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
     <- set`leq-reflexive _ LEQ
     <- ({x} fldmap2perm-total CM-CM CM2PM CML FM-DM LEQ _ (MF1 x))
-    <- consider-nn-total CNN
     <- make-encumbered-total CM-CM CM2PM CM-B-S' _ MFP'.
 
 %worlds (objvar) (make-encumbered-total _ _ _ _ _).
@@ -1761,26 +1645,20 @@ env2progtype/
     {FM} {CML: clsmap`lookup CM C FM}
     {FS} {DM: fldmap`domain FM FS}
     {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
-    {PiF} {CNN: consider-nn
-                ([x] (combine (one-predcall CP x)
-                       (combine (obj-ne-null x)
-                         (unitperm (encumbered (PiP x) (allperm x)))))) NN PiF}
-    {EQV: equiv Pi ((PiF O) , Pi1)}
+    {EQV: equiv Pi
+          ((combine (one-predcall CP O)
+                   (unitperm (encumbered (PiP O) (allperm O)))) , Pi1)}
     true.
 
 %theorem make-encumbered/U-inversion/L
   : forall* {CM} {PM} {B} {S} {SP} {N} {S1} {Pi1} {N1} {O1} {NN1}
-    {A1} {C1} {CP1} {FM1} {FS1} {PiP1} {PiF1} {P}
+    {A1} {C1} {CP1} {FM1} {FS1} {PiP1} {P}
     forall {MF1: make-encumbered CM PM B S1 Pi1}
     {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
     {PML1: predmap`lookup PM C1 CP1}
     {CML1: clsmap`lookup CM C1 FM1}
     {DM1: fldmap`domain FM1 FS1}
     {MF11: {x} fldmap2perm PM x FM1 FS1 (PiP1 x)}
-    {CNN1: consider-nn
-           ([x] (combine (one-predcall CP1 x)
-                  (combine (obj-ne-null x)
-                    (unitperm (encumbered (PiP1 x) (allperm x)))))) NN1 PiF1}
     {NM1: set`not-member S1 N1}
     {U1: set`add S1 N1 S}
     {NM: set`not-member SP N}
@@ -1792,41 +1670,41 @@ env2progtype/
     {FM} {CML: clsmap`lookup CM C FM}
     {FS} {DM: fldmap`domain FM FS}
     {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
-    {PiF} {CNN: consider-nn
-                ([x] (combine (one-predcall CP x)
-                       (combine (obj-ne-null x)
-                         (unitperm (encumbered (PiP x) (allperm x)))))) NN PiF}
-    {EQV: equiv ((PiF1 O1) , Pi1) ((PiF O) , Pi)}
+    {EQV: equiv
+          ((combine (one-predcall CP1 O1)
+             (unitperm (encumbered (PiP1 O1) (allperm O1)))) , Pi1)
+          ((combine (one-predcall CP O)
+             (unitperm (encumbered (PiP O) (allperm O)))) , Pi)}
     true.
 
-- : make-encumbered/U-inversion/L MF1 BL1 PML1 CML1 DM1 MFO1 CNN1 F1 U1 F2 U2
-    nat`eq?/yes %{=>}% _ MF _ _ _ _ BL1 _ PML1 _ CML1 _ DM1 _ MFO1 _ CNN1
+- : make-encumbered/U-inversion/L MF1 BL1 PML1 CML1 DM1 MFO1 F1 U1 F2 U2
+    nat`eq?/yes %{=>}% _ MF _ _ _ _ BL1 _ PML1 _ CML1 _ DM1 _ MFO1
     equiv/reflexive
     <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ SE
     <- make-encumbered-respects-eq MF1 clsmap`eq/ predmap`eq/ cxt`eq/ SE
       permission`eq/ MF.
 
-- : make-encumbered/U-inversion/L MF1 BL1 PML1 CML1 DM1 MFO1 CNN1 F1 U1 F2 U2
+- : make-encumbered/U-inversion/L MF1 BL1 PML1 CML1 DM1 MFO1 F1 U1 F2 U2
     (nat`eq?/no N<>N1) %{=>}%
-    _ (make-encumbered/U MF2 BL1 PML1 CML1 DM1 MFO1 CNN1 F4 U4)
-    _ _ _ _ BL2 _ PML2 _ CML2 _ DM2 _ MFO2 _ CNN2
+    _ (make-encumbered/U MF2 BL1 PML1 CML1 DM1 MFO1 F4 U4)
+    _ _ _ _ BL2 _ PML2 _ CML2 _ DM2 _ MFO2
     (equiv/transitive (equiv/combine equiv/reflexive EQV2) equiv/roll2)
     <- set`add-commutes-converse U2 U1 N<>N1 _ U4 U3
     <- set`add-preserves-not-member-converse F2 U4 F3
     <- set`add-preserves-not-member-converse F1 U3 F4
     <- make-encumbered/U-inversion MF1 F3 U3 _ MF2 _ _ _ _ BL2 _ PML2 _ CML2 _ DM2
-      _ MFO2 _ CNN2 EQV2.
+      _ MFO2 EQV2.
 
-- : make-encumbered/U-inversion (make-encumbered/U MF1 BL1 PML1 CML1 DM1 MFO1 CNN1 F1 U1)
-    F2 U2 _ MF _ _ _ _ BL _ PML _ CML _ DM _ MFO _ CNN EQV
+- : make-encumbered/U-inversion (make-encumbered/U MF1 BL1 PML1 CML1 DM1 MFO1 F1 U1)
+    F2 U2 _ MF _ _ _ _ BL _ PML _ CML _ DM _ MFO EQV
     <- nat`eq?-total E?
-    <- make-encumbered/U-inversion/L MF1 BL1 PML1 CML1 DM1 MFO1 CNN1 F1 U1
-      F2 U2 E? _ MF _ _ _ _ BL _ PML _ CML _ DM _ MFO _ CNN EQV.
+    <- make-encumbered/U-inversion/L MF1 BL1 PML1 CML1 DM1 MFO1 F1 U1
+      F2 U2 E? _ MF _ _ _ _ BL _ PML _ CML _ DM _ MFO EQV.
 
-%worlds (objvar) (make-encumbered/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (N N0) (make-encumbered/U-inversion N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (make-encumbered/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  (make-encumbered/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N N0) (make-encumbered/U-inversion N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  (make-encumbered/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem make-encumbered-disjoint-join-implies-equiv
@@ -1858,7 +1736,7 @@ env2progtype/
 
 %theorem make-encumbered-disjoint-join-implies-equiv/L
   : forall* {CM} {PM} {B} {S1} {S2} {S} {SP} {N}
-    {Pi} {O} {NN} {A} {C} {CP} {FM} {FS} {Pi2} {PiF} {B1} {B2}
+    {Pi} {O} {NN} {A} {C} {CP} {FM} {FS} {PF} {B1} {B2}
     forall {DJ: set`disjoint S1 S2}
     {U: set`union S1 S2 S}
     {F: set`not-member SP N}
@@ -1868,26 +1746,24 @@ env2progtype/
     {PML: predmap`lookup PM C CP}
     {CML: clsmap`lookup CM C FM}
     {DM: fldmap`domain FM FS}
-    {MFO: {x} fldmap2perm PM x FM FS (Pi2 x)}
-    {CNN: consider-nn
-          ([x] (combine (one-predcall CP x)
-                 (combine (obj-ne-null x)
-                   (unitperm (encumbered (Pi2 x) (allperm x)))))) NN PiF}
+    {MFO: {x} fldmap2perm PM x FM FS (PF x)}
     {D1?: set`domain? S1 N B1}
     {D2?: set`domain? S2 N B2}
     exists {Pi1} {Pi2}
     {S2P1: make-encumbered CM PM B S1 Pi1}
     {S2P2: make-encumbered CM PM B S2 Pi2}
-    {EQV: equiv (Pi1 , Pi2) ((PiF O) , Pi)}
+    {EQV: equiv (Pi1 , Pi2)
+          ((combine (one-predcall CP O)
+                   (unitperm (encumbered (PF O) (allperm O)))) , Pi)}
     true.
 
 - : make-encumbered-disjoint-join-implies-equiv/L DJ J F U A BL PML CML DM
-    FMO CNN (set`domain?/in L1) (set`domain?/in L2) _ _ A1 A2 EQV
+    FMO (set`domain?/in L1) (set`domain?/in L2) _ _ A1 A2 EQV
     <- set`disjoint-lookup-contradiction DJ L1 L2 V
     <- make-encumbered-disjoint-join-implies-equiv/F V _ _ A1 A2 EQV.
 
 - : make-encumbered-disjoint-join-implies-equiv/L _ J _ U _ _ _ _ _
-    _ _ (set`domain?/out F1) (set`domain?/out F2) _ _ A1 A2 EQV
+    _ (set`domain?/out F1) (set`domain?/out F2) _ _ A1 A2 EQV
     <- set`join-preserves-fresh* F1 F2 J F
     <- set`update-implies-lookup U L
     <- set`fresh-lookup-not-equal F L N<>N
@@ -1896,8 +1772,8 @@ env2progtype/
 
 - : make-encumbered-disjoint-join-implies-equiv/L
     (DJ:set`disjoint S1 S2) J F U AP BL PML CML DM
-    MFO CNN (set`domain?/in L1) (set`domain?/out F2)
-    _ _ (make-encumbered/U A1P BL PML CML DM MFO CNN F1 U1) A2
+    MFO (set`domain?/in L1) (set`domain?/out F2)
+    _ _ (make-encumbered/U A1P BL PML CML DM MFO F1 U1) A2
     (equiv/transitive (equiv/symmetric equiv/associate)
       (equiv/combine equiv/reflexive EQVP))
     <- set`lookup-implies-fresh-update L1 _ F1 U1
@@ -1916,8 +1792,8 @@ env2progtype/
 
 - : make-encumbered-disjoint-join-implies-equiv/L
     (DJ:set`disjoint S1 S2) J F U AP BL PML CML DM
-    MFO CNN (set`domain?/out F1) (set`domain?/in L2)
-    _ _ A1 (make-encumbered/U A2P BL PML CML DM MFO CNN F2 U2)
+    MFO (set`domain?/out F1) (set`domain?/in L2)
+    _ _ A1 (make-encumbered/U A2P BL PML CML DM MFO F2 U2)
     (equiv/transitive
       (equiv/roll2)
       (equiv/combine equiv/reflexive EQVP))
@@ -1936,19 +1812,19 @@ env2progtype/
     <- make-encumbered-disjoint-join-implies-equiv DJP' JP' AP _ _ A1 A2P EQVP.
 
 - : make-encumbered-disjoint-join-implies-equiv DJ J
-    (make-encumbered/U S2P BL PML CML DM MFO CNN F U) _ _ S2P1 S2P2 EQV
+    (make-encumbered/U S2P BL PML CML DM MFO F U) _ _ S2P1 S2P2 EQV
     <- set`domain?-total D1?
     <- set`domain?-total D2?
     <- make-encumbered-disjoint-join-implies-equiv/L DJ J F U
-      S2P BL PML CML DM MFO CNN D1? D2? _ _ S2P1 S2P2 EQV.
+      S2P BL PML CML DM MFO D1? D2? _ _ S2P1 S2P2 EQV.
 
 %worlds (objvar) (make-encumbered-disjoint-join-implies-equiv/F _ _ _ _ _ _).
 %total { } (make-encumbered-disjoint-join-implies-equiv/F _ _ _ _ _ _).
 
 %worlds (objvar) (make-encumbered-disjoint-join-implies-equiv _ _ _ _ _ _ _ _)
-  (make-encumbered-disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+  (make-encumbered-disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (N N0) (make-encumbered-disjoint-join-implies-equiv _ _ N _ _ _ _ _)
-  (make-encumbered-disjoint-join-implies-equiv/L _ _ _ _ N0 _ _ _ _ _ _ _ _ _ _ _ _ _).
+  (make-encumbered-disjoint-join-implies-equiv/L _ _ _ _ N0 _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem make-encumbered-disjoint-join-implies-equiv-converse
@@ -2017,7 +1893,7 @@ env2progtype/
 - : make-encumbered-disjoint-join-implies-equiv-converse/LL (s N) Z DJ
     (J:set`join S1 S2 S) F (U:set`add SP K S) A1 A2
     (set`domain?/in _) (set`domain?/out F2)
-    _ (make-encumbered/U AP BL PML CML DM MFO CNN F U)
+    _ (make-encumbered/U AP BL PML CML DM MFO F U)
     (equiv/transitive3
       (equiv/combine EQV1 equiv/reflexive)
       (equiv/symmetric equiv/associate)
@@ -2026,7 +1902,7 @@ env2progtype/
     <- set`fresh-join-right-preserves-lookup-converse L F2 J L1
     <- set`lookup-implies-fresh-update L1 S1P F1 U1
     <- make-encumbered/U-inversion A1 F1 U1 _ A1P _ _ _ _ BL _ PML _ CML _ DM
-      _ MFO _ CNN EQV1
+      _ MFO EQV1
     <- set`fresh-update-left-preserves-join-converse* F1 U1 F2 J F U J1
     <- set`fresh-update-implies-leq F1 U1 LE1
     <- set`disjoint-respects-geq* DJ LE1 DJP
@@ -2036,7 +1912,7 @@ env2progtype/
 - : make-encumbered-disjoint-join-implies-equiv-converse/LL (s N) Z DJ
     (J:set`join S1 S2 S) F (U:set`add SP K S) A1 A2
     (set`domain?/out F1) (set`domain?/in _)
-    _ (make-encumbered/U AP BL PML CML DM MFO CNN F U)
+    _ (make-encumbered/U AP BL PML CML DM MFO F U)
     (equiv/transitive3
       (equiv/combine equiv/reflexive EQV2)
       (equiv/roll2)
@@ -2045,7 +1921,7 @@ env2progtype/
     <- set`fresh-join-left-preserves-lookup-converse F1 L J L2
     <- set`lookup-implies-fresh-update L2 _ F2 U2
     <- make-encumbered/U-inversion A2 F2 U2 _ A2P _ _ _ _ BL _ PML _ CML _ DM
-      _ MFO _ CNN EQV2
+      _ MFO EQV2
     <- set`fresh-update-right-preserves-join-converse* F1 F2 U2 J F U J2
     <- set`fresh-update-implies-leq F2 U2 LE2
     <- set`disjoint-symmetric DJ DJ'
@@ -2094,27 +1970,21 @@ env2progtype/
     exists
     {IMP1: {x} implies
            (combine (one-predcall CP1 x)
-             (combine (unitperm (nonlinear (neg (objequal x null))))
-               (unitperm (encumbered (PF1 x) (allperm x)))))
+             (unitperm (encumbered (PF1 x) (allperm x))))
            (combine (one-predcall CP2 x)
-             (combine (unitperm (nonlinear (neg (objequal x null))))
-               (unitperm (encumbered (PF2 x) (allperm x)))))}
+             (unitperm (encumbered (PF2 x) (allperm x))))}
     {IMP2: {x} implies
            (combine (one-predcall CP2 x)
-             (combine (unitperm (nonlinear (neg (objequal x null))))
-               (unitperm (encumbered (PF2 x) (allperm x)))))
+             (unitperm (encumbered (PF2 x) (allperm x))))
            (combine (one-predcall CP1 x)
-             (combine (unitperm (nonlinear (neg (objequal x null))))
-               (unitperm (encumbered (PF1 x) (allperm x)))))}
+             (unitperm (encumbered (PF1 x) (allperm x))))}
     true.
 
 - : make-encumbered-implies/L predicate`eq/ EQV
     ([x] (implies/combine implies/reflexive
-           (implies/combine implies/reflexive
-             (implies/equiv-encumbered (EQV x) equiv/reflexive))))
+           (implies/equiv-encumbered (EQV x) equiv/reflexive)))
     ([x] (implies/combine implies/reflexive
-           (implies/combine implies/reflexive
-             (implies/equiv-encumbered (equiv/symmetric (EQV x)) equiv/reflexive)))).
+           (implies/equiv-encumbered (equiv/symmetric (EQV x)) equiv/reflexive))).
 
 %worlds (objvar) (make-encumbered-implies/L _ _ _ _).
 %total { } (make-encumbered-implies/L _ _ _ _).
@@ -2123,7 +1993,7 @@ env2progtype/
     implies/reflexive implies/reflexive.
 
 - : make-encumbered-implies MF
-    (make-encumbered/U MF1 BL1 PML1 CML1 DM1 MFO1 CNN1 F1 U1) CME PME BE SE
+    (make-encumbered/U MF1 BL1 PML1 CML1 DM1 MFO1 F1 U1) CME PME BE SE
     (implies/trans
       (implies/equiv EQV0)
       (implies/combine I1P I3))
@@ -2131,7 +2001,7 @@ env2progtype/
       (implies/combine I2P I4)
       (implies/equiv (equiv/symmetric EQV0)))
     <- make-encumbered/U-inversion MF F1 U1 _ MF0 _ _ _ _ BL0 _ PML0
-      _ CML0 _ DM0 _ MFO0 _ CNN0 EQV0
+      _ CML0 _ DM0 _ MFO0 EQV0
     <- cxt`lookup-unique BL0 BL1 BE nat`eq/ CIE
     <- cxt-info-eq-inversion CIE OE TE
     <- ty-eq-inversion TE NNE AE CE
@@ -2141,11 +2011,10 @@ env2progtype/
     <- ({x} fldmap2perm-equiv (MFO0 x) (MFO1 x) PME object`eq/ FME FSE
          (PEQV x))
     <- make-encumbered-implies/L CPE PEQV I1 I2
-    <- consider-nn-implies CNN0 CNN1 I1 I2 NNE I1' I2'
     <- make-encumbered-implies MF0 MF1 CME PME BE set`eq/ I3 I4
-    <- permission`apply-object-implies I1' OE I1P
+    <- permission`apply-object-implies I1 OE I1P
     <- object`eq-symmetric OE OE'
-    <- permission`apply-object-implies I2' OE' I2P.
+    <- permission`apply-object-implies I2 OE' I2P.
 
 %worlds (objvar) (make-encumbered-implies _ _ _ _ _ _ _ _).
 %total (K) (make-encumbered-implies _ K _ _ _ _ _ _).
