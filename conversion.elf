@@ -1,5 +1,12 @@
 %%% Converting *map to permission
 
+
+%%%
+%abbrev cond-fldperm
+  : object -> nat -> (object -> permission) -> permission
+  = [O][F][PF] (unitperm (conditional (objequal O null) empty
+                           (unitperm (precise-exists O F ([x] PF x))))).
+
 % Convert a set of object locations to a conditional of objequal
 % facts. Used in output.
 
@@ -41,12 +48,13 @@ cxt2perm/U
 apply-efx : efx -> permission -> permission -> type.
 
 apply-efx/read : apply-efx efx/read Pi (scale half Pi).
+
 apply-efx/write : apply-efx efx/write Pi Pi.
 
 
 
-% Convert a efx to a fraction, which is either half or one.
-% This function is partial, and only applies to read and write.
+%% Convert a efx to a fraction, which is either half or one.
+%% This function is partial, and only applies to read and write.
 
 efx2frac : efx -> fraction -> type.
 
@@ -70,11 +78,12 @@ efxmap2perm/U
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F T
     -> ty2perm PM T PF
-    -> apply-efx X (PF O) Pi1
+    -> apply-efx X
+      (unitperm (conditional (objequal O null) empty
+                  (unitperm (precise-exists O F ([x] PF x))))) Pi1
     -> efxmap`fresh M' K
     -> efxmap`update M' K X M
     -> efxmap2perm CM PM B M (Pi1 , Pi2).
-
 
 %{
  A whole object can be consumed, for instance, in x.f = a, object
@@ -84,7 +93,7 @@ efxmap2perm/U
 
  Given a set of objects, the relation "make-encumbered" construct
  such an encumbered permission for each object, using "fldmap2perm".
- }%
+}%
 
 fldmap2perm : predmap -> object -> fldmap -> set -> permission -> type.
 
@@ -104,7 +113,7 @@ make-encumbered : clsmap -> predmap -> cxt -> set -> permission -> type.
 make-encumbered/0 : make-encumbered _ _ _ set/0 empty.
 
 make-encumbered/U : make-encumbered CM PM B SP Pi
-               -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
+               -> cxt`lookup B N (cxt-info/ O (ty/ _ _ C))
                -> predmap`lookup PM C CP
                -> clsmap`lookup CM C FM
                -> fldmap`domain FM FS
@@ -112,8 +121,12 @@ make-encumbered/U : make-encumbered CM PM B SP Pi
                -> set`not-member SP N
                -> set`add SP N S
                -> make-encumbered CM PM B S
-                 ((combine (one-predcall CP O)
-                   (unitperm (encumbered (PF O) (allperm O)))) , Pi).
+                 (combine
+                   (unitperm (conditional (objequal O null) empty
+                               (combine (one-predcall CP O)
+                                 (unitperm (encumbered (PF O) (allperm O))))))
+                   Pi).
+
 
 
 % Convert effects to input permissions. This is simply a wrapper on
@@ -175,9 +188,8 @@ effects2output/simple
     (reftype/ NN C G) (effects/ M _ _)
     (output/exists [r]
       (output/expr r % "shared" don't need scaling
-        (combine Pi1
-          (combine (PF r) Pi2))))
-    <- cxt2perm CM PM B Pi1
+        (combine PiB (combine (PF r) Pi2))))
+    <- cxt2perm CM PM B PiB
     <- efxmap2perm CM PM B M Pi2
     <- simple-targets G
     <- reftype2ty (reftype/ NN C G) T
@@ -188,12 +200,12 @@ effects2output/unique/0f
     (reftype/ NN C (targets/unique S S2)) (effects/ M _ _)
     (output/exists [r]
       (output/expr r
-        (combine Pi1
+        (combine PiB
           (combine (PF r)
             (combine (GF r) Pi2)))))
     <- set`size S (s _)
     <- set`size S2 z
-    <- cxt2perm CM PM B Pi1
+    <- cxt2perm CM PM B PiB
     <- ({r} set2cond B r S (GF r))
     <- efxmap2perm CM PM B M Pi2
     <- ty2perm PM (ty/ NN annot/borrow C) PF.
@@ -879,7 +891,7 @@ env2progtype/
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     {PF} {T2PF: ty2perm PM T PF}
-    {Pi1} {AP: apply-efx X (PF O) Pi1}
+    {Pi1} {AP: apply-efx X (cond-fldperm O F PF) Pi1}
     {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
     {EQV: equiv (Pi1 , Pi2) Pi}
     true.
@@ -894,7 +906,7 @@ env2progtype/
     {CML1: clsmap`lookup CM C1 FM1}
     {FML1: fldmap`lookup FM1 F1 T1}
     {T2PF1: ty2perm PM T1 PF1}
-    {AP1: apply-efx X1 (PF1 O1) Pi11}
+    {AP1: apply-efx X1 (cond-fldperm O1 F1 PF1) Pi11}
     {M2P: efxmap2perm CM PM B MP1 Pi21}
     {FS2: efxmap`fresh MP K}
     {U2: efxmap`update MP K X M}
@@ -904,7 +916,7 @@ env2progtype/
     {FM} {CML: clsmap`lookup CM C FM}
     {T} {FML: fldmap`lookup FM F T}
     {PF} {T2PF: ty2perm PM T PF}
-    {Pi1} {AP: apply-efx X (PF O) Pi1}
+    {Pi1} {AP: apply-efx X (cond-fldperm O F PF) Pi1}
     {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
     {EQV: equiv (Pi1 , Pi2) (Pi11 , Pi21)}
     true.
@@ -956,13 +968,24 @@ env2progtype/
     exists {EQV: equiv Pi1 Pi2}
     true.
 
+ %theorem efxmap2perm-equiv/L
+  : forall* {F0} {F1} {PF0:object -> permission} {PF1} {O1} {O2}
+    forall {PFE: {x} permission`eq (PF0 x) (PF1 x)}
+    {FE: nat`eq F0 F1} {OE: object`eq O1 O2}
+    exists {PE: permission`eq
+                (unitperm (conditional (objequal O1 null) empty
+                            (unitperm (precise-exists O1 F0 PF0))))
+                (unitperm (conditional (objequal O2 null) empty
+                            (unitperm (precise-exists O2 F1 PF1))))}
+    true.
+
+- : efxmap2perm-equiv/L ([_] permission`eq/) nat`eq/ object`eq/ permission`eq/.
+
 - : efxmap2perm-equiv efxmap2perm/0 efxmap2perm/0 _ _ _ _ equiv/reflexive.
 
 - : efxmap2perm-equiv (efxmap2perm/U M2P0 P2K0 L0 CML0 FML0 R0 AP0 F0 U0)
     M2P CME PME BE ME
-    (equiv/transitive
-      (equiv/combine PXEQV EQV2)
-      (EQV1))
+    (equiv/transitive (equiv/combine PXEQV EQV2) (EQV1))
     <- efxmap2perm/U-inversion M2P F0 U0 _ _ P2K1 _ _ _ _ L1 _ CML1 _ FML1
       _ R1 _ AP1 _ M2P1 EQV1
     <- efxmap2perm-equiv M2P0 M2P1 CME PME BE efxmap`eq/ EQV2
@@ -974,9 +997,12 @@ env2progtype/
     <- clsmap`lookup-unique CML0 CML1 CME CE FME
     <- fldmap`lookup-unique FML0 FML1 FME FE TE2
     <- ty2perm-deterministic R0 R1 PME TE2 PFE
-    <- permission`apply-object-preserves-eq PFE OE PFE'
+    <- efxmap2perm-equiv/L PFE FE OE PFE'
     <- apply-efx-unique AP0 AP1 efx`eq/ PFE' PXE
     <- permission`eq-implies-equiv PXE PXEQV.
+
+%worlds (objvar) (efxmap2perm-equiv/L _ _ _ _).
+%total { } (efxmap2perm-equiv/L _ _ _ _).
 
 %worlds (objvar) (efxmap2perm-equiv _ _ _ _ _ _ _).
 %total (R) (efxmap2perm-equiv R _ _ _ _ _ _).
@@ -1000,7 +1026,7 @@ env2progtype/
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F T}
     {T2PF: ty2perm PM T PF}
-    {AE: apply-efx X (PF O) Pi21}
+    {AE: apply-efx X (cond-fldperm O F PF) Pi21}
     {M2'=>Pi22: efxmap2perm CM PM B M2' Pi22}
     {M1<=M2: efxmap`leq M1 M2}
     {BP} {DM?: efxmap`domain? M1 K BP}
@@ -1111,7 +1137,7 @@ env2progtype/
     {CML: clsmap`lookup CM C FM}
     {FML: fldmap`lookup FM F T}
     {T=>PF: ty2perm PM T PF}
-    {AP: apply-efx X (PF O) Pix}
+    {AP: apply-efx X (cond-fldperm O F PF) Pix}
     {M=>Pi: efxmap2perm CM PM B MP Piy}
     {IN1?: efxmap`domain? M1 K B1}
     {IN2?: efxmap`domain? M2 K B2}
@@ -1646,8 +1672,9 @@ env2progtype/
     {FS} {DM: fldmap`domain FM FS}
     {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
     {EQV: equiv Pi
-          ((combine (one-predcall CP O)
-                   (unitperm (encumbered (PiP O) (allperm O)))) , Pi1)}
+          (unitperm (conditional (objequal O null) empty
+                      (combine (one-predcall CP O)
+                        (unitperm (encumbered (PiP O) (allperm O))))) , Pi1)}
     true.
 
 %theorem make-encumbered/U-inversion/L
@@ -1671,10 +1698,12 @@ env2progtype/
     {FS} {DM: fldmap`domain FM FS}
     {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
     {EQV: equiv
-          ((combine (one-predcall CP1 O1)
-             (unitperm (encumbered (PiP1 O1) (allperm O1)))) , Pi1)
-          ((combine (one-predcall CP O)
-             (unitperm (encumbered (PiP O) (allperm O)))) , Pi)}
+          (unitperm (conditional (objequal O1 null) empty
+                      (combine (one-predcall CP1 O1)
+                        (unitperm (encumbered (PiP1 O1) (allperm O1))))) , Pi1)
+          (unitperm (conditional (objequal O null) empty
+                      (combine (one-predcall CP O)
+                        (unitperm (encumbered (PiP O) (allperm O))))) , Pi)}
     true.
 
 - : make-encumbered/U-inversion/L MF1 BL1 PML1 CML1 DM1 MFO1 F1 U1 F2 U2
@@ -1753,8 +1782,9 @@ env2progtype/
     {S2P1: make-encumbered CM PM B S1 Pi1}
     {S2P2: make-encumbered CM PM B S2 Pi2}
     {EQV: equiv (Pi1 , Pi2)
-          ((combine (one-predcall CP O)
-                   (unitperm (encumbered (PF O) (allperm O)))) , Pi)}
+          (unitperm (conditional (objequal O null) empty
+                      (combine (one-predcall CP O)
+                        (unitperm (encumbered (PF O) (allperm O))))) , Pi)}
     true.
 
 - : make-encumbered-disjoint-join-implies-equiv/L DJ J F U A BL PML CML DM
@@ -1963,31 +1993,44 @@ env2progtype/
     exists {PE: implies Pi Pi'} {PE': implies Pi' Pi}
     true.
 
+%% Could we get a equivalence here?
 %theorem make-encumbered-implies/L
-  : forall* {PF1} {PF2} {CP1} {CP2}
-    forall {EQ: predicate`eq CP1 CP2}
+  : forall* {O1} {O2} {PF1} {PF2} {CP1} {CP2}
+    forall {EQ: object`eq O1 O2} {EQ: predicate`eq CP1 CP2}
     {EQV: {x} equiv (PF1 x) (PF2 x)}
     exists
     {IMP1: {x} implies
-           (combine (one-predcall CP1 x)
-             (unitperm (encumbered (PF1 x) (allperm x))))
-           (combine (one-predcall CP2 x)
-             (unitperm (encumbered (PF2 x) (allperm x))))}
+           (unitperm (conditional (objequal O1 null) empty
+                       (combine (one-predcall CP1 x)
+                         (unitperm (encumbered (PF1 x) (allperm x))))))
+           (unitperm (conditional (objequal O2 null) empty
+                       (combine (one-predcall CP2 x)
+                         (unitperm (encumbered (PF2 x) (allperm x))))))}
     {IMP2: {x} implies
-           (combine (one-predcall CP2 x)
-             (unitperm (encumbered (PF2 x) (allperm x))))
-           (combine (one-predcall CP1 x)
-             (unitperm (encumbered (PF1 x) (allperm x))))}
+           (unitperm (conditional (objequal O2 null) empty
+                       (combine (one-predcall CP2 x)
+                         (unitperm (encumbered (PF2 x) (allperm x))))))
+           (unitperm (conditional (objequal O1 null) empty
+                      (combine (one-predcall CP1 x)
+                        (unitperm (encumbered (PF1 x) (allperm x))))))}
     true.
 
-- : make-encumbered-implies/L predicate`eq/ EQV
-    ([x] (implies/combine implies/reflexive
-           (implies/equiv-encumbered (EQV x) equiv/reflexive)))
-    ([x] (implies/combine implies/reflexive
-           (implies/equiv-encumbered (equiv/symmetric (EQV x)) equiv/reflexive))).
+- : make-encumbered-implies/L object`eq/ predicate`eq/ EQV
+    ([x] (implies/cond-inner
+           (bimplies/reflexive)
+           (bimplies/reflexive)
+           (implies/reflexive)
+           (implies/combine implies/reflexive
+             (implies/equiv-encumbered (EQV x) equiv/reflexive))))
+    ([x] ((implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/reflexive)
+            (implies/combine implies/reflexive
+              (implies/equiv-encumbered (equiv/symmetric (EQV x)) equiv/reflexive))))).
 
-%worlds (objvar) (make-encumbered-implies/L _ _ _ _).
-%total { } (make-encumbered-implies/L _ _ _ _).
+%worlds (objvar) (make-encumbered-implies/L _ _ _ _ _).
+%total { } (make-encumbered-implies/L _ _ _ _ _).
 
 - : make-encumbered-implies make-encumbered/0 make-encumbered/0 _ _ _ _
     implies/reflexive implies/reflexive.
@@ -2010,7 +2053,7 @@ env2progtype/
     <- fldmap`domain-unique DM0 DM1 FME FSE
     <- ({x} fldmap2perm-equiv (MFO0 x) (MFO1 x) PME object`eq/ FME FSE
          (PEQV x))
-    <- make-encumbered-implies/L CPE PEQV I1 I2
+    <- make-encumbered-implies/L OE CPE PEQV I1 I2
     <- make-encumbered-implies MF0 MF1 CME PME BE set`eq/ I3 I4
     <- permission`apply-object-implies I1 OE I1P
     <- object`eq-symmetric OE OE'
