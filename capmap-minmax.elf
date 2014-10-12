@@ -1,0 +1,266 @@
+% Compute minimum effects for this efxmap, start with efx/write.
+% Here, efxmap-max-efx is really a copy-and-paste from efxmap-min-efx.
+
+capmap-min-cap* : cap -> capmap -> cap -> type.
+
+capmap-min-cap/0 : capmap-min-cap* X capmap/0 X.
+
+capmap-min-cap/U : capmap-min-cap* X1 M X4
+                <- capmap`fresh M' N
+                <- capmap`update M' N X2 M
+                <- cap`min X1 X2 X3
+                <- capmap-min-cap* X3 M' X4.
+
+%abbrev capmap-min-cap = [M][X] capmap-min-cap* cap/write M X.
+
+
+capmap-max-cap* : cap -> capmap -> cap -> type.
+
+capmap-max-cap/0 : capmap-max-cap* X capmap/0 X.
+
+capmap-max-cap/U : capmap-max-cap* X1 M X4
+                <- capmap`fresh M' N
+                <- capmap`update M' N X2 M
+                <- cap`max X1 X2 X3
+                <- capmap-max-cap* X3 M' X4.
+
+%abbrev capmap-max-cap = [M][X] capmap-max-cap* cap/read M X.
+
+
+
+%%% 1, theorems about capmap-min-cap
+
+%theorem capmap-min-cap-respects-eq
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-min-cap* X1 M X2}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'} {E: cap`eq X2 X2'}
+    exists {MX: capmap-min-cap* X1' M' X2'}
+    true.
+
+- : capmap-min-cap-respects-eq MX cap`eq/ capmap`eq/ cap`eq/ MX.
+
+%worlds (objvar) (capmap-min-cap-respects-eq _ _ _ _ _).
+%total {} (capmap-min-cap-respects-eq _ _ _ _ _).
+
+
+%theorem capmap-min-cap-total*
+  : forall* {M} {X1}
+    exists {X2} {MX: capmap-min-cap* X1 M X2} true.
+
+%theorem capmap-min-cap-total*/L
+  : forall* {M} {X1}
+    forall {N} {Z: capmap`size M N}
+    exists {X2} {MX: capmap-min-cap* X1 M X2} true.
+
+- : capmap-min-cap-total*/L z _  _ capmap-min-cap/0.
+
+- : capmap-min-cap-total*/L (s N) Z _ (capmap-min-cap/U MX MIN U F)
+    <- capmap`lookup-implies-fresh-update (capmap`lookup/= nat`eq/) MP F U
+    <- cap`min-total MIN
+    <- capmap`fresh-update-increases-size-converse Z F U ZP
+    <- capmap-min-cap-total*/L N ZP _ MX.
+
+%worlds (objvar) (capmap-min-cap-total*/L _ _ _ _).
+%total (N) (capmap-min-cap-total*/L N _ _ _).
+
+- : capmap-min-cap-total* _ MX
+    <- capmap`size-total Z
+    <- capmap-min-cap-total*/L _ Z _ MX.
+
+%worlds (objvar) (capmap-min-cap-total* _ _).
+%total {} (capmap-min-cap-total* _ _).
+
+%abbrev capmap-min-cap-total = capmap-min-cap-total* _.
+
+
+%theorem capmap-min-cap-unique
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-min-cap* X1 M X2}
+    {MX': capmap-min-cap* X1' M' X2'}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'}
+    exists {E: cap`eq X2 X2'}
+    true.
+
+- : capmap-min-cap-unique MX MX cap`eq/ capmap`eq/ cap`eq/.
+
+%worlds (objvar) (capmap-min-cap-unique _ _ _ _ _).
+%trustme %total {} (capmap-min-cap-unique _ _ _ _ _).
+
+
+%theorem set2capmap-implies-capmap-min-cap
+  : forall* {X} {S} {M}
+    forall {N} {SZ: set`size S (s N)} {S+X=>M: set2capmap S X M}
+    exists {MX: capmap-min-cap M X}
+    true.
+
+%worlds () (set2capmap-implies-capmap-min-cap _ _ _ _).
+%trustme %total { } (set2capmap-implies-capmap-min-cap _ _ _ _).
+
+%theorem capmap-min-cap/U-inversion
+  : forall* {M'} {N} {M} {X1} {X2} {X3} {X4}
+    forall {MX: capmap-min-cap* X1 M X4}
+    {F: capmap`fresh M' N}
+    {U: capmap`update M' N X2 M}
+    exists {X2} {MX: cap`min X1 X2 X3}
+    {MX': capmap-min-cap* X3 M' X4}
+    true.
+
+%worlds (objvar) (capmap-min-cap/U-inversion _ _ _ _ _ _).
+%trustme %total {} (capmap-min-cap/U-inversion _ _ _ _ _ _).
+
+
+%theorem capmap-min-cap-respects-leq
+  : forall* {M1} {M2} {X1} {X2}
+    forall {M1<=M2: capmap`leq M1 M2}
+    {MX-M1: capmap-min-cap M1 X1}
+    {MX-M2: capmap-min-cap M2 X2}
+    exists {X2<=X1: cap`leq X2 X1}
+    true.
+
+%worlds (objvar) (capmap-min-cap-respects-leq _ _ _ _).
+%trustme %total {} (capmap-min-cap-respects-leq _ _ _ _).
+
+
+%theorem capmap-min-cap-respects-leq-domain
+  : forall* {M} {M'} {X} {S}
+    forall {MX: capmap-min-cap M X}
+    {M<=M': capmap`leq M M'}
+    {DM-M: capmap`domain M S} {DM-M': capmap`domain M' S}
+    exists {X'} {MX': capmap-min-cap M' X'}
+    {X<=X': cap`leq X X'}
+    true.
+
+%worlds () (capmap-min-cap-respects-leq-domain _ _ _ _ _ _ _).
+%trustme %total { } (capmap-min-cap-respects-leq-domain _ _ _ _ _ _ _).
+
+
+%theorem capmap`join-joins-min-cap
+  : forall* {M1} {M2} {M} {X1} {X2}
+    forall {J: capmap`join M1 M2 M}
+    {MX-M1: capmap-min-cap M1 X1}
+    {MX-M2: capmap-min-cap M2 X2}
+    exists {X} {MX: cap`min X1 X2 X}
+    {MX-M: capmap-min-cap M X}
+    true.
+
+%worlds (objvar) (capmap`join-joins-min-cap _ _ _ _ _ _).
+%trustme %total {} (capmap`join-joins-min-cap _ _ _ _ _ _).
+
+
+%%% 2, theorems about capmap-max-cap
+
+%theorem capmap-max-cap-respects-eq
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-max-cap* X1 M X2}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'} {E: cap`eq X2 X2'}
+    exists {MX: capmap-max-cap* X1' M' X2'}
+    true.
+
+- : capmap-max-cap-respects-eq MX cap`eq/ capmap`eq/ cap`eq/ MX.
+
+%worlds (objvar) (capmap-max-cap-respects-eq _ _ _ _ _).
+%total {} (capmap-max-cap-respects-eq _ _ _ _ _).
+
+
+%theorem capmap-max-cap-total*
+  : forall* {M} {X1}
+    exists {X2} {MX: capmap-max-cap* X1 M X2} true.
+
+%theorem capmap-max-cap-total*/L
+  : forall* {M} {X1}
+    forall {N} {Z: capmap`size M N}
+    exists {X2} {MX: capmap-max-cap* X1 M X2} true.
+
+- : capmap-max-cap-total*/L z _  _ capmap-max-cap/0.
+
+- : capmap-max-cap-total*/L (s N) Z _ (capmap-max-cap/U MX MAX U F)
+    <- capmap`lookup-implies-fresh-update (capmap`lookup/= nat`eq/) MP F U
+    <- cap`max-total MAX
+    <- capmap`fresh-update-increases-size-converse Z F U ZP
+    <- capmap-max-cap-total*/L N ZP _ MX.
+
+%worlds (objvar) (capmap-max-cap-total*/L _ _ _ _).
+%total (N) (capmap-max-cap-total*/L N _ _ _).
+
+- : capmap-max-cap-total* _ MX
+    <- capmap`size-total Z
+    <- capmap-max-cap-total*/L _ Z _ MX.
+
+%worlds (objvar) (capmap-max-cap-total* _ _).
+%total {} (capmap-max-cap-total* _ _).
+
+%abbrev capmap-max-cap-total = capmap-max-cap-total* _.
+
+
+%theorem capmap-max-cap-unique
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-max-cap* X1 M X2}
+    {MX': capmap-max-cap* X1' M' X2'}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'}
+    exists {E: cap`eq X2 X2'}
+    true.
+
+- : capmap-max-cap-unique MX MX cap`eq/ capmap`eq/ cap`eq/.
+
+%worlds (objvar) (capmap-max-cap-unique _ _ _ _ _).
+%trustme %total {} (capmap-max-cap-unique _ _ _ _ _).
+
+
+%theorem set2capmap-implies-capmap-max-cap
+  : forall* {X} {S} {M}
+    forall {N} {SZ: set`size S (s N)} {S+X=>M: set2capmap S X M}
+    exists {MX: capmap-max-cap M X}
+    true.
+
+%worlds () (set2capmap-implies-capmap-max-cap _ _ _ _).
+%trustme %total { } (set2capmap-implies-capmap-max-cap _ _ _ _).
+
+%theorem capmap-max-cap/U-inversion
+  : forall* {M'} {N} {M} {X1} {X2} {X3} {X4}
+    forall {MX: capmap-max-cap* X1 M X4}
+    {F: capmap`fresh M' N}
+    {U: capmap`update M' N X2 M}
+    exists {X2} {MX: cap`max X1 X2 X3}
+    {MX': capmap-max-cap* X3 M' X4}
+    true.
+
+%worlds (objvar) (capmap-max-cap/U-inversion _ _ _ _ _ _).
+%trustme %total {} (capmap-max-cap/U-inversion _ _ _ _ _ _).
+
+
+%theorem capmap-max-cap-respects-leq
+  : forall* {M1} {M2} {X1} {X2}
+    forall {M1<=M2: capmap`leq M1 M2}
+    {MX-M1: capmap-max-cap M1 X1}
+    {MX-M2: capmap-max-cap M2 X2}
+    exists {X2<=X1: cap`leq X1 X2}
+    true.
+
+%worlds (objvar) (capmap-max-cap-respects-leq _ _ _ _).
+%trustme %total {} (capmap-max-cap-respects-leq _ _ _ _).
+
+
+%theorem capmap-max-cap-respects-leq-domain
+  : forall* {M} {M'} {X} {S}
+    forall {MX: capmap-max-cap M X}
+    {M<=M': capmap`leq M M'}
+    {DM-M: capmap`domain M S} {DM-M': capmap`domain M' S}
+    exists {X'} {MX': capmap-max-cap M' X'}
+    {X<=X': cap`leq X X'}
+    true.
+
+%worlds () (capmap-max-cap-respects-leq-domain _ _ _ _ _ _ _).
+%trustme %total { } (capmap-max-cap-respects-leq-domain _ _ _ _ _ _ _).
+
+
+%theorem capmap`join-joins-max-cap
+  : forall* {M1} {M2} {M} {X1} {X2}
+    forall {J: capmap`join M1 M2 M}
+    {MX-M1: capmap-max-cap M1 X1}
+    {MX-M2: capmap-max-cap M2 X2}
+    exists {X} {MX: cap`max X1 X2 X}
+    {MX-M: capmap-max-cap M X}
+    true.
+
+%worlds (objvar) (capmap`join-joins-max-cap _ _ _ _ _ _).
+%trustme %total {} (capmap`join-joins-max-cap _ _ _ _ _ _).

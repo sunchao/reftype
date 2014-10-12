@@ -7,8 +7,11 @@
   = [Q][O][F][PF]
     (scale Q (unitperm (precise-exists O F ([x] PF x)))).
 
-% Convert a set of object locations to a conditional of objequal
-% facts. Used in output.
+
+%%% ======================= Definitions =======================================
+
+%%% Convert a set of object locations to a conditional of objequal
+%%% facts. Used in output.
 
 set2cond : cxt -> object -> set -> permission -> type.
 
@@ -20,41 +23,8 @@ set2cond/U : set2cond B O S (unitperm (conditional (objequal O O') empty Pi))
              <- set`add S' N S
              <- set2cond B O S' Pi.
 
-%{%
- Convert the explicit context to permissions, which
- consists of non-null information, class predicate, and,
- for shared the nesting facts, for each parameter.
- Notice that, unique has the same permission as borrowed
- parameter. We use a separate procedure to generate the
- encumbered permission for them. So, the cxt should only
- contain borrowed and shared types.
-%}%
 
-cxt2perm : clsmap -> predmap -> cxt -> permission -> type.
-
-cxt2perm/0 : cxt2perm _ _ cxt/0 empty.
-
-cxt2perm/U
-  : cxt2perm CM PM B' Pi2
-    -> cxt`fresh B' N
-    -> cxt`update B' N (cxt-info/ O T) B
-    -> ty2perm PM T PF
-    -> cxt2perm CM PM B ((PF O) , Pi2).
-
-
-%{%
- Convert a efx to a fraction, which is either half or one.
- This function is partial, and only applies to read and write.
-%}%
-
-efx2frac : efx -> fraction -> type.
-
-efx2frac/read : efx2frac efx/read half.
-
-efx2frac/write : efx2frac efx/write (fraction/ one).
-
-
-%% Apply nonnull-ness
+%%% Apply nonnull-ness
 
 apply-nn : nonnull -> (object -> permission) -> (object -> permission) -> type.
 
@@ -64,291 +34,174 @@ apply-nn/may : apply-nn nn/may ([x] PF x)
 apply-nn/yes : apply-nn nn/yes ([x] PF x) ([x] PF x).
 
 
-%% Create field permission
+%%% A whole object can be consumed, for instance, in x.f = a, object
+%%% a is consumed. In this case, we treated as if all of a's field are
+%%% consumed. But, we also need the encumbered permission:
+%%%  \forall f (P(a.f) encumbered-in P(a.all))
+%%%
+%%% Given a set of objects, the relation "make-encumbered" construct
+%%% such an encumbered permission for each object, using "fldmap2perm".
+
+fldmap2perm : predmap -> object -> fldmap -> permission -> type.
+
+fldmap2perm/0 : fldmap2perm _ _ fldmap/0 empty.
+
+fldmap2perm/U : fldmap2perm PM O FM' Pi
+                -> fldmap`fresh FM' F
+                -> fldmap`update FM' F T FM
+                -> ty2perm PM T PF
+                -> fldmap2perm PM O FM (unitperm (precise-exists O F PF) , Pi).
+
+%%% Convert a type in a context to a permission
+%%% The interesting case is unique type, for which we convert to an
+%%% encumbered permissions. The field permissions are recorded in the
+%%% capabilities, together with which we can restore the whole permission
+%%% for the object, and then used for consumption.
+
+ty2perm2 : clsmap -> predmap -> ty -> (object -> permission) -> type.
+
+ty2perm2/null : ty2perm2 _ _ ty/null ([x] unitperm (nonlinear (objequal x null))).
+
+ty2perm2/shared : annot2perm annot/shared AF
+                     -> nn2perm NN AF PF
+                     -> predmap`lookup PM C CP
+                     -> ty2perm2 _ PM (ty/ NN annot/shared C) ([x] (PF CP x)).
+
+ty2perm2/borrow : annot2perm annot/borrow AF
+                     -> nn2perm NN AF PF
+                     -> predmap`lookup PM C CP
+                     -> ty2perm2 _ PM (ty/ NN annot/borrow C) ([x] (PF CP x)).
+
+ty2perm2/unique : clsmap`lookup CM C FM
+                     -> predmap`lookup PM C CP
+                     -> ({x} fldmap2perm PM x FM (PF x))
+                     -> apply-nn NN ([x] unitperm (encumbered (PF x)
+                       (combine (obj-ne-null x)
+                         (combine (allperm x) (one-predcall CP x))))) ([x] Pi x)
+                     -> ty2perm2 CM PM (ty/ NN annot/unique C) ([x] (Pi x)).
+
+
+%%% Convert the explicit context to permissions, which
+%%% consists of non-null information, class predicate, and,
+%%% for shared the nesting facts, for each parameter.
+%%% Notice that, unique has the same permission as borrowed
+%%% parameter. We use a separate procedure to generate the
+%%% encumbered permission for them. So, the cxt should only
+%%% contain borrowed and shared types.
+
+cxt2perm : clsmap -> predmap -> cxt -> permission -> type.
+
+cxt2perm/0 : cxt2perm _ _ cxt/0 empty.
+
+cxt2perm/U : cxt2perm CM PM B' Pi2
+             -> cxt`fresh B' N
+             -> cxt`update B' N (cxt-info/ O T) B
+             -> ty2perm2 CM PM T PF
+             -> cxt2perm CM PM B ((PF O) , Pi2).
+
+
+%%% Convert a efx to a fraction, which is either half or one.
+%%% This function is partial, and only applies to read and write.
+
+cap2frac : cap -> fraction -> type.
+
+cap2frac/read : cap2frac cap/read half.
+
+cap2frac/write : cap2frac cap/write (fraction/ one).
+
+
+%%% Create field permission
 
 create-fldperm : clsmap -> predmap -> nat -> nat -> (object -> permission) -> type.
 
-create-fldperm/
-  : clsmap`lookup CM C FM
-    -> fldmap`lookup FM F T
-    -> ty2perm PM T PF
-    -> create-fldperm CM PM C F ([x] PF x).
+create-fldperm/ : clsmap`lookup CM C FM
+                  -> fldmap`lookup FM F T
+                  -> ty2perm PM T PF
+                  -> create-fldperm CM PM C F ([x] PF x).
 
-% Convert a efxmap to permissions. Each entry ((O, F), X) in
-% the efxmap will be converted to a packed field permission with
-% the effect X been applied to it.
-% Note that, the object O in this case must be not-null, otherwise
-% we cannot do anything on the field F.
+%%% Convert a capmap to permissions. Each entry ((O, F), X) in
+%%% the capmap will be converted to a packed field permission with
+%%% the effect X been applied to it.
+%%% Note that, the object O in this case must be not-null, otherwise
+%%% we cannot do anything on the field F.
 
-efxmap2perm : clsmap -> predmap -> cxt -> efxmap -> permission -> type.
+capmap2perm : clsmap -> predmap -> cxt -> capmap -> permission -> type.
 
-efxmap2perm/0 : efxmap2perm _ _ _ efxmap/0 empty.
+capmap2perm/0 : capmap2perm _ _ _ capmap/0 empty.
 
-efxmap2perm/U
-  : efxmap2perm CM PM B M' Pi2
-    -> nat2pair K (pair/ N F)
-    -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
-    -> create-fldperm CM PM C F PF
-    -> efx2frac X Q
-    -> apply-nn NN ([x] scale-fldperm Q x F PF) ([x] Pi1 x)
-    -> efxmap`fresh M' K
-    -> efxmap`update M' K X M
-    -> efxmap2perm CM PM B M ((Pi1 O) , Pi2).
-
-%{
- A whole object can be consumed, for instance, in x.f = a, object
- a is consumed. In this case, we treated as if all of a's field are
- consumed. But, we also need the encumbered permission:
-  \forall f (P(a.f) encumbered-in P(a.all))
-
- Given a set of objects, the relation "make-encumbered" construct
- such an encumbered permission for each object, using "fldmap2perm".
-}%
-
-fldmap2perm : predmap -> object -> fldmap -> set -> permission -> type.
-
-fldmap2perm/0 : fldmap2perm _ _ _ set/0 empty.
-
-fldmap2perm/U
-  : fldmap2perm PM O FM S' Pi
-    -> set`not-member S' F
-    -> set`add S' F S
-    -> fldmap`lookup FM F T
-    -> ty2perm PM T PF
-    -> fldmap2perm PM O FM S (unitperm (precise-exists O F PF) , Pi).
+capmap2perm/U : capmap2perm CM PM B M' Pi2
+                -> nat2pair K (pair/ N F)
+                -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
+                -> create-fldperm CM PM C F PF
+                -> cap2frac X Q
+                -> apply-nn NN ([x] scale-fldperm Q x F PF) ([x] Pi1 x)
+                -> capmap`fresh M' K
+                -> capmap`update M' K X M
+                -> capmap2perm CM PM B M ((Pi1 O) , Pi2).
 
 
-make-encumbered : clsmap -> predmap -> cxt -> set -> permission -> type.
 
-make-encumbered/0 : make-encumbered _ _ _ set/0 empty.
+%%% Convert an input environment (context and capabilities) to a set of
+%%%  input permissions.
 
-make-encumbered/U : make-encumbered CM PM B S' Pi2
-               -> cxt`lookup B N (cxt-info/ O (ty/ NN _ C))
-               -> clsmap`lookup CM C FM
-               -> predmap`lookup PM C CP
-               -> fldmap`domain FM FS
-               -> ({x} fldmap2perm PM x FM FS (PF x))
-               -> apply-nn NN ([x] unitperm (encumbered (PF x)
-                    (combine (obj-ne-null x)
-                      (combine (allperm x) (one-predcall CP x))))) ([x] Pi1 x)
-               -> set`not-member S' N
-               -> set`add S' N S
-               -> make-encumbered CM PM B S ((Pi1 O) , Pi2).
+env2input : clsmap -> predmap -> env -> permission -> type.
 
-% Convert effects to input permissions. This is simply a wrapper on
-% efxmap2perm and shared-efx2perm, as the definition of effects.
-
-effects2input : clsmap -> predmap -> cxt -> effects -> permission -> type.
-
-effects2input/
-  : cxt2perm CM PM B Pi1
-    -> make-encumbered CM PM B Q Pi2
-    -> objset2fldset CM B Q OS
-    -> set`union S OS S2
-    -> set2efxmap S2 efx/write M'
-    -> efxmap2perm CM PM B M' Pi3
-    -> efxmap2perm CM PM B M Pi4
-    -> effects2input CM PM B (effects/ M S Q) ((Pi1 , (Pi2 , Pi3)) , Pi4).
+env2input/ : env2input CM PM (env/ B M) Pi
+             <- capmap2perm CM PM B M Pi.
 
 
-%{
- Convert effects to output (defined in permission-type/environment.elf).
- The format of output varies depending on the resulting reftype. The
- cases for unique reftype are basically combinations on size of set and
- tgtmap. We need special case when tgtmap size is zero since
-   Pi, Pi --|- empty is obviously unsound: Pi should come from at least
- one field permission.
+%%% Convert result to output permissions.
 
- Another special case is when set and tgtmap are both empty, and
- the unique permission is not from shared. This is the case when we
- have method calls (including constructor call) that return fresh
- locations alone with permissions. These locations are local, and unless
- they are later bound to a let-expression, they will only be used once.
- For let-expression, we use substitution to check effects.
+result2output : clsmap -> predmap -> expr-result -> expr-output -> type.
 
- Note:
- 06-16-13: efxmap may contain inner-efxmap/0 as value. Do we need to
- remove them first? Maybe not, since tgtmap in reftype should definitely
- be well-formed.
- 08-01-13: previous definition is wrong: it always generate scaled perm
- for unique/0t, unique/+f and unique/+t. However, in these two instances
- we need to consider all encumbered permissions and generate the "best"
- permission. In other words, if all encumbered permissions are not
- fractional, then we shouldn't apply scale.
- 09-22-13: we separate read/write efx with consume efx. The consume efx
- only appear as input.
-}%
-
-
-%% Simple targets are either shared targets or unique targets that
-%%% are not bound to any other targets (created by the "new" expression)
-
-simple-targets : targets -> type.
-
-simple-targets/shared : simple-targets targets/shared.
-
-simple-targets/unique : simple-targets (targets/unique set/0 set/0).
-
-
-effects2output : clsmap -> predmap ->
-	cxt -> reftype -> effects -> expr-output -> type.
-
-effects2output/simple
-  : effects2output CM PM B
-    (reftype/ NN C G) (effects/ M _ _)
-    (output/exists [r]
-      (output/expr r (combine PiB (combine (PF r) Pi))))
-    <- cxt2perm CM PM B PiB
-    <- efxmap2perm CM PM B M Pi
-    <- simple-targets G
-    <- reftype2ty (reftype/ NN C G) T
-    <- ty2perm PM T PF.
-
-effects2output/unique/0f
-  : effects2output CM PM B
-    (reftype/ NN C (targets/unique OS FS)) (effects/ M _ _)
-    (output/exists [r]
-      (output/expr r (combine PiB (combine (PF r) (combine (GF r) Pi)))))
-    <- set`size OS (s _)
-    <- set`size FS z
-    <- cxt2perm CM PM B PiB
-    <- ({r} set2cond B r OS (GF r))
-    <- efxmap2perm CM PM B M Pi
-    <- ty2perm PM (ty/ NN annot/borrow C) PF.
-
-effects2output/unique/+f
-  : effects2output CM PM B
-    (reftype/ NN C (targets/unique OS FS)) (effects/ M _ _)
-    (output/exists [o]
+result2output/shared
+  : ty2perm PM (ty/ NN annot/shared C) PF
+    -> cxt2perm CM PM CTX Pi_CTX
+    -> capmap2perm CM PM CTX CPM Pi_CPM
+    -> result2output CM PM (result/expr (reftype/ NN C targets/shared) (env/ CTX CPM))
       (output/exists [r]
-        (output/expr o
-          (combine PiB
-            (combine
-              (unitperm
-                (conditional (objequal o r) empty (GF o)))
-              (combine (scale Q (PF r))
-                (combine (unitperm (encumbered (scale Q (PF r)) Pi2)) Pi1)))))))
-    <- set`size FS (s _)
-    <- cxt2perm CM PM B PiB
-    <- ({r} set2cond B r OS (GF r))
-    <- efxmap`partition M FS M1 M2
-    <- efxmap2perm CM PM B M1 Pi1
-    <- efxmap2perm CM PM B M2 Pi2
-    <- efxmap-min-efx M2 X
-    <- efx2frac X Q
-    <- ty2perm PM (ty/ NN annot/unique C) PF.
+        (output/expr r (combine Pi_CTX (combine (PF r) Pi_CPM)))).
+
+result2output/unique/1
+  : set`size OS (nat`s _)
+    -> set`size FS nat`z
+    -> ty2perm PM (ty/ NN annot/borrow C) PF
+    -> ({x} set2cond CTX x OS (GF x))
+    -> cxt2perm CM PM CTX Pi_CTX
+    -> capmap2perm CM PM CTX CPM Pi_CPM
+    -> result2output CM PM
+      (result/expr (reftype/ NN C (targets/unique OS FS)) (env/ CTX CPM))
+      (output/exists [r]
+        (output/expr r (combine Pi_CTX (combine (PF r) (combine (GF r) Pi_CPM))))).
+
+result2output/unique/2
+  : set`size FS (nat`s _)
+    -> ty2perm PM (ty/ NN annot/unique C) PF
+    -> ({x} set2cond CTX x OS (GF x))
+    -> cxt2perm CM PM CTX Pi_CTX
+    -> capmap`partition CPM FS CPM1 CPM2
+    -> capmap2perm CM PM CTX CPM1 Pi_CPM1
+    -> capmap2perm CM PM CTX CPM2 Pi_CPM2
+    -> capmap-min-cap CPM2 X
+    -> cap2frac X Q
+    -> result2output CM PM
+      (result/expr (reftype/ NN C (targets/unique OS FS)) (env/ CTX CPM))
+      (output/exists [o]
+        (output/exists [r]
+          (output/expr o
+            (combine Pi_CTX
+              (combine
+                (unitperm
+                  (conditional (objequal o r) empty (GF o)))
+                (combine (scale Q (PF r))
+                  (combine (unitperm (encumbered
+                                       (scale Q (PF r)) Pi_CPM2)) Pi_CPM1))))))).
 
 
-% Convert methty to proctype.
 
-% The first set of permissions are those from read and write effects,
-% the second set of permissions are those from consumed effects.
-
-methty2proctype*
-  : predmap -> permission -> permission -> methty -> proctype -> type.
-
-methty2proctype/base
-  : methty2proctype* PM Pi Pic (methty/base T)
-    (proctype/base (combine Pi (combine Pic Pis))
-      (output/exists [ret]
-        (output/expr ret (combine (PF ret) (combine Pi Pis)))))
-    <- ty2perm PM T PF.
-
-methty2proctype/args/unique
-  : methty2proctype* PM Pi Pic
-    (methty/arg (ty/ NN annot/unique C) efxmap/0 MT) (proctype/arg PTF)
-    <- ty2perm PM (ty/ NN annot/unique C) PF
-    <- ({x:object} methty2proctype* PM Pi (Pic , (PF x)) MT (PTF x)).
-
-methty2proctype/args/borrow
-  : methty2proctype* PM Pi1 Pic
-    (methty/arg (ty/ NN annot/borrow C) XM MT) (proctype/arg PTF)
-    <- ty2perm PM (ty/ NN annot/borrow C) PF
-    <- ({x} methty2proctype* PM
-         (Pi1 , (Pi2 x)) (Pic , PF x) MT (PTF x)).
-
-methty2proctype/args/shared
-  : methty2proctype* PM Pi Pic
-    (methty/arg (ty/ NN annot/shared C) efxmap/0 MT) (proctype/arg PTF)
-    <- ty2perm PM (ty/ NN annot/shared C) PF
-    <- ({x} methty2proctype* PM Pi Pic MT (PTF x)).
-
-%abbrev methty2proctype = [PM][MT][PT] methty2proctype* PM empty empty MT PT.
-
-
-% Convert consty (constructor type) to proctype with a hole.
-
-consty2proctype* : predmap -> fldmap -> permission
-    -> permission -> methty -> (object -> proctype) -> type.
-
-consty2proctype/base
-  : consty2proctype* PM FM Pi Pic
-    (methty/base (ty/ nn/yes annot/unique C))
-    ([t] (proctype/base
-           (combine (obj-ne-null t)
-             (combine (OS t) (combine Pi (combine Pic Pis))))
-           (output/exists [ret]
-             (output/expr ret
-               (combine (PF ret) (combine Pi Pis))))))
-    <- ty2perm PM (ty/ nn/yes annot/unique C) PF
-    <- fldmap`domain FM S
-    <- ({t} allocFields t S (OS t)).
-
-consty2proctype/args/unique
-  : consty2proctype* PM FM Pi Pic
-    (methty/arg (ty/ NN annot/unique C) efxmap/0 CT) ([t] proctype/arg (PTF t))
-    <- ty2perm PM (ty/ NN annot/unique C) PF
-    <- ({x} consty2proctype* PM FM Pi (Pic , PF x) CT ([t] (PTF t x))).
-
-consty2proctype/args/borrow
-  : consty2proctype* PM FM Pi1 Pic
-    (methty/arg (ty/ NN annot/borrow C) XM CT) ([t] proctype/arg (CTF t))
-    <- ty2perm PM (ty/ NN annot/unique C) PF
-    <- ({x} consty2proctype* PM FM (Pi1 , (Pi2 x)) (Pic , PF x) CT ([t] (CTF t x))).
-
-consty2proctype/args/shared
-  : consty2proctype* PM FM Pi Pic
-    (methty/arg (ty/ NN annot/shared C) efxmap/0 CT) ([t] proctype/arg (CTF t))
-    <- ty2perm PM (ty/ NN annot/shared C) PF
-    <- ({x} consty2proctype* PM FM Pi Pic CT (CTF x)).
-
-%abbrev consty2proctype = [PM][FM][CT][PTF]
-  consty2proctype* PM FM empty empty CT PTF.
-
-
-% Convert methmap to progtype, calls methty2proctype and consty2proctype.
+%%% Convert a method map into a progtype.
 
 methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
-
-methmap2progtype/0 : methmap2progtype _ _ methmap`map/0 progtype`map/0.
-
-methmap2progtype/U/c
-  : methmap2progtype CM PM MM W
-    <- methmap`fresh MMP N
-    <- methmap`update MMP N
-      (methty/arg (ty/ nn/yes annot/unique C) efxmap/0 CT) MM
-    <- clsmap`lookup CM N FM
-    <- consty2proctype PM FM CT PTF
-    <- methmap2progtype CM PM MMP WP
-    <- progtype`update WP N (proctype/arg PTF) W.
-
-methmap2progtype/U/m
-  : methmap2progtype CM PM MM W
-    <- methmap`fresh MMP N
-    <- methmap`update MMP N MT MM
-    <- methty2proctype PM MT PT
-    <- methmap2progtype CM PM MMP WP
-    <- progtype`update WP N PT W.
-
-
-% Convert a methmap to progtype, calling methmap2progtype.
-
-env2progtype : clsmap -> methmap -> progtype -> type.
-
-env2progtype/
-  : env2progtype CM MM W
-    <- clsmap2predmap CM PM
-    <- methmap2progtype CM PM MM W.
 
 
 
@@ -397,6 +250,7 @@ env2progtype/
 %worlds (objvar) (clsmap-cxt-unique-objset-implies-set2cond _ _ _).
 %total (CM) (clsmap-cxt-unique-objset-implies-set2cond CM _ _).
 
+
 %theorem same-class-implies-set2cond
   : forall* {B} {S} {C} {O}
     forall {SOC: same-class B S C}
@@ -409,6 +263,8 @@ env2progtype/
     _ (set2cond/U S2G' U F BL)
     <- same-class-implies-set2cond SOC' _ S2G'.
 
+%worlds (objvar) (same-class-implies-set2cond _ _ _).
+%total (B) (same-class-implies-set2cond B _ _).
 
 
 %theorem clsmap-cxt-objset-implies-set2cond
@@ -533,133 +389,7 @@ env2progtype/
 %total (R) (set2cond-implies R _ _ _ _ _).
 
 
-%% 2, theorems about cxt2perm
-
-%theorem false-implies-cxt2perm
-  : forall* {CM} {PM} {B} {Pi}
-    forall {F:void} exists {B2P: cxt2perm CM PM B Pi}
-    true.
-
-%worlds () (false-implies-cxt2perm _ _).
-%total { } (false-implies-cxt2perm _ _).
-
-
-%theorem cxt2perm-respects-eq
-  : forall* {CM} {PM} {B} {Pi} {CM'} {PM'} {B'} {Pi'}
-    forall {B2P: cxt2perm CM PM B Pi}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
-    {BE: cxt`eq B B'} {PE: permission`eq Pi Pi'}
-    exists {B2P': cxt2perm CM' PM' B' Pi'}
-    true.
-
-- : cxt2perm-respects-eq B2P clsmap`eq/ predmap`eq/ cxt`eq/ permission`eq/ B2P.
-
-%worlds (objvar) (cxt2perm-respects-eq _ _ _ _ _ _).
-%total { } (cxt2perm-respects-eq _ _ _ _ _ _).
-
-
-%theorem clsmap-cxt-implies-cxt2perm
-  : forall* {CM} {PM} {B}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    exists {Pi:permission} {B=>Pi: cxt2perm CM PM B Pi}
-    true.
-
-- : clsmap-cxt-implies-cxt2perm _ _ clsmap-cxt/0 _ cxt2perm/0.
-
-- : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
-    (clsmap-cxt/U CM-B' (clsmap-ty/ L) BF BU)
-    _ (cxt2perm/U B2P' BF BU T2PF)
-    <- clsmap-lookup-implies-ty2perm CM2PM L _ T2PF
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B' _ B2P'.
-
-- : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
-    (clsmap-cxt/U CM-B' clsmap-ty/null BF BU)
-    _ (cxt2perm/U B2P' BF BU ty2perm/null)
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B' _ B2P'.
-
-%worlds (objvar) (clsmap-cxt-implies-cxt2perm _ _ _ _ _).
-%total (CM-B) (clsmap-cxt-implies-cxt2perm _ _ CM-B _ _).
-
-
-%theorem cxt2perm/U-inversion
-  : forall* {CM} {PM} {B} {Pi} {BP} {N} {O} {T}
-    forall {B2P: cxt2perm CM PM B Pi}
-    {F: cxt`fresh BP N}
-    {U: cxt`update BP N (cxt-info/ O T) B}
-    exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
-    {PF} {T2P: ty2perm PM T PF}
-    {E: equiv Pi (combine (PF O) PiP)}
-    true.
-
-%theorem cxt2perm/U-inversion/L
-  : forall* {CM} {PM} {B} {BP} {N} {O} {T} {B1} {N1} {O1} {T1} {PF1} {Pi1} {P}
-    forall {B2P1: cxt2perm CM PM B1 Pi1}
-    {F1: cxt`fresh B1 N1}
-    {U1: cxt`update B1 N1 (cxt-info/ O1 T1) B}
-    {R1: ty2perm PM T1 PF1}
-    {F: cxt`fresh BP N}
-    {U: cxt`update BP N (cxt-info/ O T) B}
-    {E?: nat`eq? N N1 P}
-    exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
-    {PF} {R: ty2perm PM T PF}
-    {E: equiv (combine (PF1 O1) Pi1) (combine (PF O) PiP)}
-    true.
-
-- : cxt2perm/U-inversion/L B2P1 F1 U1 R1 F2 U2 nat`eq?/yes _ B2P _ R
-    (equiv/combine PEQV equiv/reflexive)
-    <- cxt`fresh-update-cancels F1 U1 F2 U2 nat`eq/ cxt`eq/ CIE BE
-    <- cxt2perm-respects-eq B2P1 clsmap`eq/ predmap`eq/ BE permission`eq/ B2P
-    <- cxt-info-eq-inversion CIE (OE:object`eq O O') TE
-    <- ty2perm-respects-eq (R1:ty2perm PM _ PF) predmap`eq/ TE ([_] permission`eq/) R
-    <- permission`apply-object-preserves-eq
-      (([_] permission`eq/):({o} permission`eq (PF o) (PF o))) OE PE
-    <- permission`eq-implies-equiv PE PEQV.
-
-- : cxt2perm/U-inversion/L B2P1 F1 U1 R1 F2 U2 (nat`eq?/no N<>N1)
-    _ (cxt2perm/U B2P2 F4 U4 R1) _ R
-    (equiv/transitive (equiv/combine equiv/reflexive EQV1) equiv/roll2)
-    <- cxt`update-commutes-converse U2 U1 N<>N1 _ U4 U3
-    <- cxt`update-preserves-fresh-converse F2 U4 F3
-    <- cxt`update-preserves-fresh-converse F1 U3 F4
-    <- cxt2perm/U-inversion B2P1 F3 U3 _ B2P2 _ R EQV1.
-
-- : cxt2perm/U-inversion (cxt2perm/U B2P0 F0 U0 R0) F1 U1 _ B2P _ R EQV
-    <- nat`eq?-total E?
-    <- cxt2perm/U-inversion/L B2P0 F0 U0 R0 F1 U1 E? _ B2P _ R EQV.
-
-%worlds (objvar) (cxt2perm/U-inversion _ _ _ _ _ _ _ _)
-  (cxt2perm/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _).
-%total (R R0) (cxt2perm/U-inversion R _ _ _ _ _ _ _)
-  (cxt2perm/U-inversion/L R0 _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem cxt2perm-equiv
-  : forall* {CM} {CM'} {PM} {PM'} {B} {B'} {Pi} {Pi'}
-    forall {B=>Pi: cxt2perm CM PM B Pi}
-    {B=>Pi': cxt2perm CM' PM' B' Pi'}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'} {BE: cxt`eq B B'}
-    exists {PiE: permission`equiv Pi Pi'}
-    true.
-
-- : cxt2perm-equiv cxt2perm/0 cxt2perm/0 _ _ _ equiv/reflexive.
-
-- : cxt2perm-equiv (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
-                     (R0:ty2perm PM0 T PF0)) B2P CME PME BE
-    (equiv/transitive (equiv/combine PFEQV EQV2)
-      (equiv/symmetric EQV1))
-    <- cxt2perm/U-inversion B2P F0 U0 _ B2P1 _ (R1:ty2perm PM1 T PF1) EQV1
-    <- cxt2perm-equiv B2P0 B2P1 CME PME cxt`eq/ EQV2
-    <- ty2perm-deterministic R0 R1 PME ty`eq/ PFE
-    <- permission`apply-object-preserves-eq PFE (object`eq/:object`eq O O) PFEQ
-    <- permission`eq-implies-equiv PFEQ PFEQV.
-
-%worlds (objvar) (cxt2perm-equiv _ _ _ _ _ _).
-%total (T) (cxt2perm-equiv T _ _ _ _ _).
-
-
-%% 3, theorems about apply-nn
+%% theorems about apply-nn
 
 %theorem apply-nn-respects-eq
   : forall* {NN} {NN'} {Pi1} {Pi1'} {Pi2} {Pi2'}
@@ -704,65 +434,400 @@ env2progtype/
 %trustme %total { } (apply-nn-unique _ _ _ _ _).
 
 
-%% 4, theorems about efx2frac
+%% theorems about fldmap2perm
 
-%theorem efx2frac-respects-eq
-  : forall* {X} {X'} {Q}
-    forall {X2Q: efx2frac X Q}
-    {XE: efx`eq X X'}
-    exists {X2Q': efx2frac X' Q}
+%theorem false-implies-fldmap2perm
+  : forall* {PM} {O} {FM} {Pi}
+    forall {V:void} exists {MFP: fldmap2perm PM O FM Pi}
     true.
 
-- : efx2frac-respects-eq X2Q efx`eq/ X2Q.
-
-%worlds (objvar) (efx2frac-respects-eq _ _ _).
-%total {} (efx2frac-respects-eq _ _ _).
+%worlds (objvar) (false-implies-fldmap2perm _ _).
+%total { } (false-implies-fldmap2perm _ _).
 
 
-%theorem efx2frac-total*
-  : forall {X} exists {Q} {X2Q: efx2frac X Q} true.
+%theorem fldmap2perm-respects-eq
+  : forall* {PM1} {PM2} {O1} {O2} {FM1} {FM2} {Pi1} {Pi2}
+    forall {MFP1: fldmap2perm PM1 O1 FM1 Pi1}
+    {PME: predmap`eq PM1 PM2}
+    {OE: object`eq O1 O2}
+    {FME: fldmap`eq FM1 FM2}
+    {PE: permission`eq Pi1 Pi2}
+    exists {MFP2: fldmap2perm PM2 O2 FM2 Pi2}
+    true.
 
-- : efx2frac-total* efx/read _ efx2frac/read.
+- : fldmap2perm-respects-eq MFP predmap`eq/ object`eq/ fldmap`eq/ permission`eq/ MFP.
 
-- : efx2frac-total* efx/write _ efx2frac/write.
-
-%worlds (objvar) (efx2frac-total* _ _ _).
-%total {} (efx2frac-total* _ _ _).
-
-%abbrev efx2frac-total = efx2frac-total* _ _.
+%worlds (objvar) (fldmap2perm-respects-eq _ _ _ _ _ _).
+%total {} (fldmap2perm-respects-eq _ _ _ _ _ _).
 
 
-%theorem efx2frac-unique
+%theorem fldmap2perm-total
+  : forall* {CM} {PM} {O} {FM}
+    forall {CM-FM: clsmap-fldmap CM FM}
+    {CM2PM: clsmap2predmap CM PM}
+    exists {Pi} {MF1: fldmap2perm PM O FM Pi}
+    true.
+
+- : fldmap2perm-total clsmap-fldmap/0 _ _ fldmap2perm/0.
+
+%worlds (objvar) (fldmap2perm-total _ _ _ _).
+%trustme %total { } (fldmap2perm-total _ _ _ _).
+
+
+%theorem fldmap2perm/U-inversion
+  : forall* {PM} {O} {FM} {Pi} {FM'} {F} {T}
+    forall {MF1: fldmap2perm PM O FM Pi}
+    {F!<FM': fldmap`fresh FM' F}
+    {FM'+F=FM: fldmap`update FM' F T FM}
+    exists {Pi'} {MF1': fldmap2perm PM O FM' Pi'}
+    {PF} {T2PF: ty2perm PM T PF}
+    {EQV: equiv Pi ((unitperm (precise-exists O F PF)) , Pi')}
+    true.
+
+%theorem fldmap2perm/U-inversion/L
+  : forall* {PM} {O} {FM} {FM'} {F} {FM1} {Pi1} {F1} {T} {T1} {PF1} {B}
+    forall {MF1: fldmap2perm PM O FM Pi1}
+    {FR1: fldmap`fresh FM1 F1}
+    {UD1: fldmap`update FM1 F1 T1 FM}
+    {T2PF1: ty2perm PM T1 PF1}
+    {FR: fldmap`fresh FM' F}
+    {UD: fldmap`update FM' F T FM}
+    {E?: nat`eq? F F1 B}
+    exists {Pi'} {MF1': fldmap2perm PM O FM' Pi'}
+    {PF} {T2PF: ty2perm PM T PF}
+    {EQV: equiv (unitperm (precise-exists O F1 PF1) , Pi1)
+          ((unitperm (precise-exists O F PF)) , Pi')}
+    true.
+
+% - : fldmap2perm/U-inversion/L MF1 F1 U1 R1 F2 U2 nat`eq?/yes %{=>}%
+%     _ MF _ R1 equiv/reflexive
+%     <- fldmap`fresh-update-cancels F1 U1 F2 U2 nat`eq/ fldmap`eq/ KKK SE
+%     <- fldmap2perm-respects-eq MF1 predmap`eq/ object`eq/
+%       SE permission`eq/ MF.
+
+% - : fldmap2perm/U-inversion/L MF1 F1 U1 R1 F2 U2 (nat`eq?/no F1<>F) %{=>}%
+%     _ (fldmap2perm/U MF F4 U4 R1) _ R
+%     (equiv/transitive
+%       (equiv/combine equiv/reflexive EQV)
+%       (equiv/roll2))
+%     <- fldmap`update-commutes-converse U2 U1 F1<>F _ U4 U3
+%     <- fldmap`update-preserves-fresh-converse F2 U4 F3
+%     <- fldmap`update-preserves-fresh-converse F1 U3 F4
+%     <- fldmap2perm/U-inversion MF1 F3 U3 _ MF _ R EQV.
+
+% - : fldmap2perm/U-inversion
+%     (fldmap2perm/U MF1 F1 U1 R1) F2 U2 _ MF2 _ R2 EQV
+%     <- nat`eq?-total E?
+%     <- fldmap2perm/U-inversion/L MF1 F1 U1 R1 F2 U2 E? _ MF2 _ R2 EQV.
+
+%worlds (objvar) (fldmap2perm/U-inversion _ _ _ _ _ _ _ _)
+  (fldmap2perm/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (N N0) (fldmap2perm/U-inversion N _ _ _ _ _ _ _)
+  (fldmap2perm/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem fldmap2perm-equiv
+  : forall* {PM} {O} {FM} {Pi} {PM'} {O'} {FM'} {Pi'}
+    forall {MF1: fldmap2perm PM O FM Pi}
+    {MF1': fldmap2perm PM' O' FM' Pi'}
+    {PME: predmap`eq PM PM'} {OE: object`eq O O'}
+    {FME: fldmap`eq FM FM'}
+    exists {EQV: equiv Pi Pi'}
+    true.
+
+%theorem fldmap2perm-equiv/L
+  : forall* {O0} {O1} {PF0:object -> permission} {PF1} {F}
+    forall {PFE: {x} permission`eq (PF0 x) (PF1 x)}
+    {FE: object`eq O0 O1}
+    exists {PE: permission`eq (unitperm (precise-exists O0 F PF0))
+                (unitperm (precise-exists O1 F PF1))}
+    true.
+
+% - : fldmap2perm-equiv/L ([_] permission`eq/) object`eq/ permission`eq/.
+
+% - : fldmap2perm-equiv fldmap2perm/0 fldmap2perm/0 _ _ _ _ equiv/reflexive.
+
+% - : fldmap2perm-equiv (fldmap2perm/U MF1 F1 U1 L1 R1) MF PME OE FME SE
+%     (equiv/transitive
+%       (equiv/combine PFEQV EQV2)
+%       (equiv/symmetric EQV1))
+%     <- fldmap2perm/U-inversion MF F1 U1 _ MF2 _ L2 _ R2 EQV1
+%     <- fldmap2perm-equiv MF1 MF2 PME OE FME set`eq/ EQV2
+%     <- fldmap`lookup-unique L1 L2 FME nat`eq/ TE
+%     <- ty2perm-deterministic R1 R2 PME TE ([x] PFE x)
+%     <- fldmap2perm-equiv/L PFE OE PFE'
+%     <- permission`eq-implies-equiv PFE' PFEQV.
+
+%worlds (objvar) (fldmap2perm-equiv/L _ _ _).
+%trustme %total { } (fldmap2perm-equiv/L _ _ _).
+
+%worlds (objvar) (fldmap2perm-equiv _ _ _ _ _ _).
+%trustme %total (M) (fldmap2perm-equiv M _ _ _ _ _).
+
+
+%% theorems about cxt2perm
+
+%% 2.1 theorems about ty2perm2
+
+%theorem ty2perm2-respects-eq
+  : forall* {T1} {T2} {CM1} {CM2} {PM1} {PM2} {PF1} {PF2}
+    forall {T2PF: ty2perm2 CM1 PM1 T1 PF1}
+    {CME: clsmap`eq CM1 CM2} {PME: predmap`eq PM1 PM2} {TE: ty`eq T1 T2}
+    {PFE: {o} permission`eq (PF1 o) (PF2 o)}
+    exists {T2PF: ty2perm2 CM2 PM2 T2 PF2}
+    true.
+
+- : ty2perm2-respects-eq T2PF clsmap`eq/ predmap`eq/ ty`eq/ ([_] permission`eq/) T2PF.
+
+%worlds (objvar) (ty2perm2-respects-eq _ _ _ _ _ _).
+%total { } (ty2perm2-respects-eq _ _ _ _ _ _).
+
+
+%theorem ty2perm2-deterministic/L :
+    forall* {PF1: clspred -> object -> permission} {PF2} {PD1} {PD2}
+    forall  {FEQ: {p}{o} permission`eq (PF1 p o) (PF2 p o)}
+            {PEQ: predicate`eq PD1 PD2}
+    exists  {PEQ: {o} permission`eq (PF1 PD1 o) (PF2 PD2 o)}
+    true.
+
+- : ty2perm2-deterministic/L
+     ([_][_] permission`eq/) predicate`eq/ ([_] permission`eq/).
+
+%worlds (objvar | fracvar) (ty2perm2-deterministic/L _ _ _).
+%total  {} (ty2perm2-deterministic/L _ _ _).
+
+
+%theorem ty2perm2-deterministic :
+    forall* {CM1} {CM2} {PM1} {PM2} {T1} {T2} {PF1} {PF2}
+    forall  {T12PF1: ty2perm2 CM1 PM1 T1 PF1}
+            {T22PF2: ty2perm2 CM2 PM2 T2 PF2}
+            {E: clsmap`eq CM1 CM2} {E: predmap`eq PM1 PM2} {EQ: ty`eq T1 T2}
+    exists  {E: {o} permission`eq (PF1 o) (PF2 o)}
+    true.
+
+%worlds (objvar | fracvar) (ty2perm2-deterministic _ _ _ _ _ _).
+%trustme %total { } (ty2perm2-deterministic _ _ _ _ _ _).
+
+%abbrev ty2perm2-unique = ty2perm2-deterministic.
+
+
+%theorem clsmap-lookup-implies-ty2perm2*
+  : forall* {CM} {PM} {FM} {C} {NN}
+    forall {A} {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-L: clsmap`lookup CM C FM}
+    exists {PF} {T2PF: ty2perm2 CM PM (ty/ NN A C) PF}
+    true.
+
+- : clsmap-lookup-implies-ty2perm2*
+    annot/shared _ CM2PM CM-L _ (ty2perm2/shared A2P NN2P PM-L)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
+    <- annot2perm-total A2P
+    <- nn2perm-total NN2P.
+
+- : clsmap-lookup-implies-ty2perm2*
+    annot/borrow _ CM2PM CM-L _ (ty2perm2/borrow A2P NN2P PM-L)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
+    <- annot2perm-total A2P
+    <- nn2perm-total NN2P.
+
+- : clsmap-lookup-implies-ty2perm2*
+    annot/unique CM-CM CM2PM CM-L _ (ty2perm2/unique CM-L PM-L ([x] FM2P x) AP)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
+    <- lookup-implies-clsmap-fldmap CM-CM CM-L CM-FM
+    <- ({x} fldmap2perm-total CM-FM CM2PM _ (FM2P x))
+    <- apply-nn-total _ AP.
+
+%worlds (objvar) (clsmap-lookup-implies-ty2perm2* _ _ _ _ _ _).
+%total {} (clsmap-lookup-implies-ty2perm2* _ _ _ _ _ _).
+
+%abbrev clsmap-lookup-implies-ty2perm2 = clsmap-lookup-implies-ty2perm2* _.
+
+
+%theorem false-implies-cxt2perm
+  : forall* {CM} {PM} {B} {Pi}
+    forall {F:void} exists {B2P: cxt2perm CM PM B Pi}
+    true.
+
+%worlds () (false-implies-cxt2perm _ _).
+%total { } (false-implies-cxt2perm _ _).
+
+
+%theorem cxt2perm-respects-eq
+  : forall* {CM} {PM} {B} {Pi} {CM'} {PM'} {B'} {Pi'}
+    forall {B2P: cxt2perm CM PM B Pi}
+    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
+    {BE: cxt`eq B B'} {PE: permission`eq Pi Pi'}
+    exists {B2P': cxt2perm CM' PM' B' Pi'}
+    true.
+
+- : cxt2perm-respects-eq B2P clsmap`eq/ predmap`eq/ cxt`eq/ permission`eq/ B2P.
+
+%worlds (objvar) (cxt2perm-respects-eq _ _ _ _ _ _).
+%total { } (cxt2perm-respects-eq _ _ _ _ _ _).
+
+
+%theorem clsmap-cxt-implies-cxt2perm
+  : forall* {CM} {PM} {B}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    exists {Pi:permission} {B=>Pi: cxt2perm CM PM B Pi}
+    true.
+
+- : clsmap-cxt-implies-cxt2perm _ _ clsmap-cxt/0 _ cxt2perm/0.
+
+- : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
+    (clsmap-cxt/U CM-B' (clsmap-ty/ L) BF BU)
+    _ (cxt2perm/U B2P' BF BU T2PF)
+    <- clsmap-lookup-implies-ty2perm2 CM-CM CM2PM L _ T2PF
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B' _ B2P'.
+
+- : clsmap-cxt-implies-cxt2perm CM-CM CM2PM
+    (clsmap-cxt/U CM-B' clsmap-ty/null BF BU)
+    _ (cxt2perm/U B2P' BF BU ty2perm2/null)
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B' _ B2P'.
+
+%worlds (objvar) (clsmap-cxt-implies-cxt2perm _ _ _ _ _).
+%total (CM-B) (clsmap-cxt-implies-cxt2perm _ _ CM-B _ _).
+
+
+%theorem cxt2perm/U-inversion
+  : forall* {CM} {PM} {B} {Pi} {BP} {N} {O} {T}
+    forall {B2P: cxt2perm CM PM B Pi}
+    {F: cxt`fresh BP N}
+    {U: cxt`update BP N (cxt-info/ O T) B}
+    exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
+    {PF} {T2P: ty2perm2 CM PM T PF}
+    {E: equiv Pi (combine (PF O) PiP)}
+    true.
+
+%theorem cxt2perm/U-inversion/L
+  : forall* {CM} {PM} {B} {BP} {N} {O} {T} {B1} {N1} {O1} {T1} {PF1} {Pi1} {P}
+    forall {B2P1: cxt2perm CM PM B1 Pi1}
+    {F1: cxt`fresh B1 N1}
+    {U1: cxt`update B1 N1 (cxt-info/ O1 T1) B}
+    {R1: ty2perm2 CM PM T1 PF1}
+    {F: cxt`fresh BP N}
+    {U: cxt`update BP N (cxt-info/ O T) B}
+    {E?: nat`eq? N N1 P}
+    exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
+    {PF} {R: ty2perm2 CM PM T PF}
+    {E: equiv (combine (PF1 O1) Pi1) (combine (PF O) PiP)}
+    true.
+
+- : cxt2perm/U-inversion/L B2P1 F1 U1 R1 F2 U2 nat`eq?/yes _ B2P _ R
+    (equiv/combine PEQV equiv/reflexive)
+    <- cxt`fresh-update-cancels F1 U1 F2 U2 nat`eq/ cxt`eq/ CIE BE
+    <- cxt2perm-respects-eq B2P1 clsmap`eq/ predmap`eq/ BE permission`eq/ B2P
+    <- cxt-info-eq-inversion CIE (OE:object`eq O O') TE
+    <- ty2perm2-respects-eq (R1:ty2perm2 _ PM _ PF) clsmap`eq/ predmap`eq/ TE ([_] permission`eq/) R
+    <- permission`apply-object-preserves-eq
+      (([_] permission`eq/):({o} permission`eq (PF o) (PF o))) OE PE
+    <- permission`eq-implies-equiv PE PEQV.
+
+- : cxt2perm/U-inversion/L B2P1 F1 U1 R1 F2 U2 (nat`eq?/no N<>N1)
+    _ (cxt2perm/U B2P2 F4 U4 R1) _ R
+    (equiv/transitive (equiv/combine equiv/reflexive EQV1) equiv/roll2)
+    <- cxt`update-commutes-converse U2 U1 N<>N1 _ U4 U3
+    <- cxt`update-preserves-fresh-converse F2 U4 F3
+    <- cxt`update-preserves-fresh-converse F1 U3 F4
+    <- cxt2perm/U-inversion B2P1 F3 U3 _ B2P2 _ R EQV1.
+
+- : cxt2perm/U-inversion (cxt2perm/U B2P0 F0 U0 R0) F1 U1 _ B2P _ R EQV
+    <- nat`eq?-total E?
+    <- cxt2perm/U-inversion/L B2P0 F0 U0 R0 F1 U1 E? _ B2P _ R EQV.
+
+%worlds (objvar) (cxt2perm/U-inversion _ _ _ _ _ _ _ _)
+  (cxt2perm/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _).
+%total (R R0) (cxt2perm/U-inversion R _ _ _ _ _ _ _)
+  (cxt2perm/U-inversion/L R0 _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem cxt2perm-equiv
+  : forall* {CM} {CM'} {PM} {PM'} {B} {B'} {Pi} {Pi'}
+    forall {B=>Pi: cxt2perm CM PM B Pi}
+    {B=>Pi': cxt2perm CM' PM' B' Pi'}
+    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'} {BE: cxt`eq B B'}
+    exists {PiE: permission`equiv Pi Pi'}
+    true.
+
+- : cxt2perm-equiv cxt2perm/0 cxt2perm/0 _ _ _ equiv/reflexive.
+
+- : cxt2perm-equiv (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
+                     (R0:ty2perm2 CM0 PM0 T PF0)) B2P CME PME BE
+    (equiv/transitive (equiv/combine PFEQV EQV2)
+      (equiv/symmetric EQV1))
+    <- cxt2perm/U-inversion B2P F0 U0 _ B2P1 _ (R1:ty2perm2 CM1 PM1 T PF1) EQV1
+    <- cxt2perm-equiv B2P0 B2P1 CME PME cxt`eq/ EQV2
+    <- ty2perm2-unique R0 R1 CME PME ty`eq/ PFE
+    <- permission`apply-object-preserves-eq PFE (object`eq/:object`eq O O) PFEQ
+    <- permission`eq-implies-equiv PFEQ PFEQV.
+
+%worlds (objvar) (cxt2perm-equiv _ _ _ _ _ _).
+%total (T) (cxt2perm-equiv T _ _ _ _ _).
+
+
+
+%% 4, theorems about cap2frac
+
+%theorem cap2frac-respects-eq
+  : forall* {X} {X'} {Q}
+    forall {X2Q: cap2frac X Q}
+    {XE: cap`eq X X'}
+    exists {X2Q': cap2frac X' Q}
+    true.
+
+- : cap2frac-respects-eq X2Q cap`eq/ X2Q.
+
+%worlds (objvar) (cap2frac-respects-eq _ _ _).
+%total {} (cap2frac-respects-eq _ _ _).
+
+
+%theorem cap2frac-total*
+  : forall {X} exists {Q} {X2Q: cap2frac X Q} true.
+
+- : cap2frac-total* cap/read _ cap2frac/read.
+
+- : cap2frac-total* cap/write _ cap2frac/write.
+
+%worlds (objvar) (cap2frac-total* _ _ _).
+%total {} (cap2frac-total* _ _ _).
+
+%abbrev cap2frac-total = cap2frac-total* _ _.
+
+
+%theorem cap2frac-unique
   : forall* {X1} {X2} {Q1} {Q2}
-    forall {X1=>Q1: efx2frac X1 (fraction/ Q1)}
-    {X2=>Q2: efx2frac X2 (fraction/ Q2)}
-    {X1=X2: efx`eq X1 X2}
+    forall {X1=>Q1: cap2frac X1 (fraction/ Q1)}
+    {X2=>Q2: cap2frac X2 (fraction/ Q2)}
+    {X1=X2: cap`eq X1 X2}
     exists {Q1=Q2: rat`eq Q1 Q2}
     true.
 
-- : efx2frac-unique T1 T2 efx`eq/ rat`eq/.
+- : cap2frac-unique T1 T2 cap`eq/ rat`eq/.
 
-%worlds (objvar) (efx2frac-unique _ _ _ _).
-%total { } (efx2frac-unique _ _ _ _).
+%worlds (objvar) (cap2frac-unique _ _ _ _).
+%total { } (cap2frac-unique _ _ _ _).
 
 
-%theorem efx2frac-permission-respects-geq
+%theorem cap2frac-permission-respects-geq
   : forall* {X1} {X2} {Q2} {Pi1}
-    forall {X2Q: efx2frac X2 Q2}
-    {X1<=X2: efx`leq X1 X2}
-    exists {Q1} {Pi2} {X2Q: efx2frac X1 Q1}
+    forall {X2Q: cap2frac X2 Q2}
+    {X1<=X2: cap`leq X1 X2}
+    exists {Q1} {Pi2} {X2Q: cap2frac X1 Q1}
     {IMP: equiv (scale Q2 Pi1) ((scale Q1 Pi1) , Pi2)}
     true.
 
-- : efx2frac-permission-respects-geq X2Q (efx`geq/= efx`eq/) _ _
+- : cap2frac-permission-respects-geq X2Q (cap`geq/= cap`eq/) _ _
     X2Q (equiv/symmetric equiv/identity).
 
-- : efx2frac-permission-respects-geq efx2frac/write
-    (efx`geq/> efx`grt/wr) _ _ efx2frac/read
+- : cap2frac-permission-respects-geq cap2frac/write
+    (cap`geq/> cap`grt/wr) _ _ cap2frac/read
     (equiv/symmetric (equiv/add 1/2+1/2=1)).
 
-%worlds (objvar) (efx2frac-permission-respects-geq _ _ _ _ _ _).
-%total { } (efx2frac-permission-respects-geq _ _ _ _ _ _).
+%worlds (objvar) (cap2frac-permission-respects-geq _ _ _ _ _ _).
+%total { } (cap2frac-permission-respects-geq _ _ _ _ _ _).
 
 
 %%% theorems about create-fldperm
@@ -782,166 +847,166 @@ env2progtype/
 %trustme %total { } (create-fldperm-unique _ _ _ _ _ _ _).
 
 
-%% 6, theorems about efxmap2perm
+%% 6, theorems about capmap2perm
 
-%theorem false-implies-efxmap2perm
+%theorem false-implies-capmap2perm
   : forall* {CM} {PM} {B} {M} {Pi}
     forall  {V: void}
-    exists  {M=>Pi: efxmap2perm CM PM B M Pi}
+    exists  {M=>Pi: capmap2perm CM PM B M Pi}
     true.
 
-%worlds (objvar) (false-implies-efxmap2perm _ _).
-%total {} (false-implies-efxmap2perm _ _).
+%worlds (objvar) (false-implies-capmap2perm _ _).
+%total {} (false-implies-capmap2perm _ _).
 
 
-%theorem efxmap2perm-respects-eq
+%theorem capmap2perm-respects-eq
   : forall* {CM1} {PM1} {B1} {M1} {Pi1}
     {CM2} {PM2} {B2} {M2} {Pi2}
-    forall  {M1=>Pi1: efxmap2perm CM1 PM1 B1 M1 Pi1}
+    forall  {M1=>Pi1: capmap2perm CM1 PM1 B1 M1 Pi1}
     {E: clsmap`eq CM1 CM2} {E: predmap`eq PM1 PM2}
-    {E: cxt`eq B1 B2} {E: efxmap`eq M1 M2}
+    {E: cxt`eq B1 B2} {E: capmap`eq M1 M2}
     {E: permission`eq Pi1 Pi2}
-    exists  {M2=>Pi2: efxmap2perm CM2 PM2 B2 M2 Pi2}
+    exists  {M2=>Pi2: capmap2perm CM2 PM2 B2 M2 Pi2}
     true.
 
-- : efxmap2perm-respects-eq M=>Pi clsmap`eq/ predmap`eq/
-    cxt`eq/ efxmap`eq/ permission`eq/ M=>Pi.
+- : capmap2perm-respects-eq M=>Pi clsmap`eq/ predmap`eq/
+    cxt`eq/ capmap`eq/ permission`eq/ M=>Pi.
 
-%worlds (objvar) (efxmap2perm-respects-eq _ _ _ _ _ _ _).
-%total {} (efxmap2perm-respects-eq _ _ _ _ _ _ _).
+%worlds (objvar) (capmap2perm-respects-eq _ _ _ _ _ _ _).
+%total {} (capmap2perm-respects-eq _ _ _ _ _ _ _).
 
 
-%theorem clsmap-cxt-fldset-implies-efxmap2perm
+%theorem clsmap-cxt-fldset-implies-capmap2perm
   : forall* {CM} {PM} {B} {M} {S}
     forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM} {DM: efxmap`domain M S}
+    {CM2PM: clsmap2predmap CM PM} {DM: capmap`domain M S}
     {B-M: clsmap-cxt-fldset CM B S}
-    exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
+    exists {Pi} {M=>Pi: capmap2perm CM PM B M Pi}
     true.
 
-- : clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM
-    efxmap`domain/0 clsmap-cxt-fldset/0 _ efxmap2perm/0.
+- : clsmap-cxt-fldset-implies-capmap2perm CM-CM CM2PM
+    capmap`domain/0 clsmap-cxt-fldset/0 _ capmap2perm/0.
 
-- : clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM-M=S
+- : clsmap-cxt-fldset-implies-capmap2perm CM-CM CM2PM DM-M=S
     (clsmap-cxt-fldset/U CM-B-S' N+F=>K BL CML FML K!<S' S'+K=S)
-    _ (efxmap2perm/U M'=>Pi' N+F=>K BL (create-fldperm/ CML FML T2PF) X2Q AP-NN K!<M' M'+K+X=M)
+    _ (capmap2perm/U M'=>Pi' N+F=>K BL (create-fldperm/ CML FML T2PF) X2Q AP-NN K!<M' M'+K+X=M)
     <- set`add-implies-member S'+K=S K<-S
-    <- efxmap`domain-preserves-lookup-converse K<-S DM-M=S X M->K=X
-    <- efxmap`lookup-implies-fresh-update M->K=X M' K!<M' M'+K+X=M
-    <- efxmap`domain-commute-fresh-update-converse DM-M=S K!<M' M'+K+X=M K!<S'
+    <- capmap`domain-preserves-lookup-converse K<-S DM-M=S X M->K=X
+    <- capmap`lookup-implies-fresh-update M->K=X M' K!<M' M'+K+X=M
+    <- capmap`domain-commute-fresh-update-converse DM-M=S K!<M' M'+K+X=M K!<S'
       S'+K=S DM-M'=S'
-    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM-M'=S' CM-B-S' _
+    <- clsmap-cxt-fldset-implies-capmap2perm CM-CM CM2PM DM-M'=S' CM-B-S' _
       M'=>Pi'
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML CM-T
     <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
-    <- efx2frac-total X2Q
+    <- cap2frac-total X2Q
     <- apply-nn-total _ AP-NN.
 
-%worlds (objvar) (clsmap-cxt-fldset-implies-efxmap2perm _ _ _ _ _ _).
-%total (T) (clsmap-cxt-fldset-implies-efxmap2perm _ _ _ T _ _).
+%worlds (objvar) (clsmap-cxt-fldset-implies-capmap2perm _ _ _ _ _ _).
+%total (T) (clsmap-cxt-fldset-implies-capmap2perm _ _ _ T _ _).
 
 
-%theorem clsmap-cxt-effects-implies-efxmap2perm
-  : forall* {CM} {PM} {B} {M} {S} {Q}
+%theorem clsmap-cxt-capmap-implies-capmap2perm
+  : forall* {CM} {PM} {B} {M}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {B-M: clsmap-cxt-effects CM B (effects/ M S Q)}
-    exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
+    {B-M: clsmap-cxt-capmap CM B M}
+    exists {Pi} {M=>Pi: capmap2perm CM PM B M Pi}
     true.
 
-- : clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM
-    (clsmap-cxt-effects/ DM _ _ _ _ CM-B-S _ _) _ M=>Pi
-    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM CM-B-S _ M=>Pi.
+- : clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM
+    (clsmap-cxt-capmap/ DM CM-B-S) _ M=>Pi
+    <- clsmap-cxt-fldset-implies-capmap2perm CM-CM CM2PM DM CM-B-S _ M=>Pi.
 
-%worlds (objvar) (clsmap-cxt-effects-implies-efxmap2perm _ _ _ _ _).
-%total {} (clsmap-cxt-effects-implies-efxmap2perm _ _ _ _ _).
+%worlds (objvar) (clsmap-cxt-capmap-implies-capmap2perm _ _ _ _ _).
+%total {} (clsmap-cxt-capmap-implies-capmap2perm _ _ _ _ _).
 
 
-%theorem efxmap2perm/U-inversion
+%theorem capmap2perm/U-inversion
   : forall* {M} {MP} {CM} {PM} {K} {X} {Pi} {B}
-    forall {M2P: efxmap2perm CM PM B M Pi}
-    {FS: efxmap`fresh MP K}
-    {U: efxmap`update MP K X M}
+    forall {M2P: capmap2perm CM PM B M Pi}
+    {FS: capmap`fresh MP K}
+    {U: capmap`update MP K X M}
     exists {N} {F} {K=>N+F: nat2pair K (pair/ N F)}
     {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {PF} {CT-PF: create-fldperm CM PM C F PF}
-    {Q} {X2Q: efx2frac X Q}
+    {Q} {X2Q: cap2frac X Q}
     {Pi1} {AP-NN: apply-nn NN ([x] scale-fldperm Q x F PF) ([x] Pi1 x)}
-    {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
+    {Pi2} {M2P: capmap2perm CM PM B MP Pi2}
     {EQV: equiv ((Pi1 O) , Pi2) Pi}
     true.
 
-%theorem efxmap2perm/U-inversion/L
+%theorem capmap2perm/U-inversion/L
   : forall* {BP} {M} {B} {CM} {PM} {K} {K1} {X1} {X} {PF1}
     {MP1} {MP} {Q1} {Pi21} {NN1} {A1} {C1} {N1} {F1} {O1} {Pi11}
-    forall {FS1: efxmap`fresh MP1 K1}
-    {U1: efxmap`update MP1 K1 X1 M}
+    forall {FS1: capmap`fresh MP1 K1}
+    {U1: capmap`update MP1 K1 X1 M}
     {K=>N+F: nat2pair K1 (pair/ N1 F1)}
     {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
     {CT-PF: create-fldperm CM PM C1 F1 PF1}
-    {X2Q: efx2frac X1 Q1}
+    {X2Q: cap2frac X1 Q1}
     {AP-NN1: apply-nn NN1 ([x] scale-fldperm Q1 x F1 PF1) ([x] Pi11 x)}
-    {M2P: efxmap2perm CM PM B MP1 Pi21}
-    {FS2: efxmap`fresh MP K}
-    {U2: efxmap`update MP K X M}
+    {M2P: capmap2perm CM PM B MP1 Pi21}
+    {FS2: capmap`fresh MP K}
+    {U2: capmap`update MP K X M}
     {EQ: nat`eq? K K1 BP}
     exists {N} {F} {K=>N+F: nat2pair K (pair/ N F)}
     {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {PF} {CT-PF: create-fldperm CM PM C F PF}
-    {Q} {X2Q: efx2frac X Q}
+    {Q} {X2Q: cap2frac X Q}
     {Pi1} {AP-NN: apply-nn NN ([x] scale-fldperm Q x F PF) ([x] Pi1 x)}
-    {Pi2} {M2P: efxmap2perm CM PM B MP Pi2}
+    {Pi2} {M2P: capmap2perm CM PM B MP Pi2}
     {EQV: equiv ((Pi1 O) , Pi2) ((Pi11 O1) , Pi21)}
     true.
 
-- : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CT-PF1 X2Q1 AP-NN1 M2P1 F2 U2
+- : capmap2perm/U-inversion/L F1 U1 N2P1 BL1 CT-PF1 X2Q1 AP-NN1 M2P1 F2 U2
     nat`eq?/yes _ _ N2P1 _ _ _ _ BL1 _ CT-PF1 _ X2Q2 _ AP-NN1 _ M2P
     equiv/reflexive
-    <- efxmap`fresh-update-cancels F1 U1 F2 U2 nat`eq/ efxmap`eq/ X1=X2 M1=M2
-    <- efx2frac-respects-eq X2Q1 X1=X2 X2Q2
-    <- efxmap2perm-respects-eq M2P1 clsmap`eq/ predmap`eq/ cxt`eq/
+    <- capmap`fresh-update-cancels F1 U1 F2 U2 nat`eq/ capmap`eq/ X1=X2 M1=M2
+    <- cap2frac-respects-eq X2Q1 X1=X2 X2Q2
+    <- capmap2perm-respects-eq M2P1 clsmap`eq/ predmap`eq/ cxt`eq/
       M1=M2 permission`eq/ M2P.
 
-- : efxmap2perm/U-inversion/L F1 U1 N2P1 BL1 CT-PF1 X2Q1 AP-NN1 M2P1 F2 U2
+- : capmap2perm/U-inversion/L F1 U1 N2P1 BL1 CT-PF1 X2Q1 AP-NN1 M2P1 F2 U2
     (nat`eq?/no K<>K1) _ _ N2P2 _ _ _ _ BL2 _ CT-PF2 _ X2Q2 _ AP-NN2 _
-    (efxmap2perm/U M2P2 N2P1 BL1 CT-PF1 X2Q1 AP-NN1 F4 U4)
+    (capmap2perm/U M2P2 N2P1 BL1 CT-PF1 X2Q1 AP-NN1 F4 U4)
     (equiv/transitive equiv/roll2 (equiv/combine equiv/reflexive EQV))
-    <- efxmap`update-commutes-converse U2 U1 K<>K1 _ U4 U3
-    <- efxmap`update-preserves-fresh-converse F2 U4 F3
-    <- efxmap`update-preserves-fresh-converse F1 U3 F4
-    <- efxmap2perm/U-inversion M2P1 F3 U3 _ _ N2P2 _ _ _ _ BL2
+    <- capmap`update-commutes-converse U2 U1 K<>K1 _ U4 U3
+    <- capmap`update-preserves-fresh-converse F2 U4 F3
+    <- capmap`update-preserves-fresh-converse F1 U3 F4
+    <- capmap2perm/U-inversion M2P1 F3 U3 _ _ N2P2 _ _ _ _ BL2
       _ CT-PF2 _ X2Q2 _ AP-NN2 _ M2P2 EQV.
 
-- : efxmap2perm/U-inversion
-    (efxmap2perm/U M2P1 N2P1 BL1 CT-PF1 X2Q1 AP1 F1 U1)
+- : capmap2perm/U-inversion
+    (capmap2perm/U M2P1 N2P1 BL1 CT-PF1 X2Q1 AP1 F1 U1)
     F2 U2 _ _ N2P _ _ _ _ BL _ CT-PF _ X2Q _ AP _ M2P EQV
     <- nat`eq?-total E?
-    <- efxmap2perm/U-inversion/L
+    <- capmap2perm/U-inversion/L
       F1 U1 N2P1 BL1 CT-PF1 X2Q1 AP1 M2P1 F2 U2 E? _ _ N2P
       _ _ _ _ BL _ CT-PF _ X2Q _ AP _ M2P EQV.
 
 %worlds (objvar)
-	(efxmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-	(efxmap2perm/U-inversion/L
+	(capmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(capmap2perm/U-inversion/L
     _ _ _ _ _ _ _ _ _ _ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A B)
-	(efxmap2perm/U-inversion A _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-	(efxmap2perm/U-inversion/L
+	(capmap2perm/U-inversion A _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+	(capmap2perm/U-inversion/L
     _ _ _ _ _ _ _ B _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
-%theorem efxmap2perm-equiv
+%theorem capmap2perm-equiv
   : forall* {CM1} {CM2} {PM1} {PM2} {B1} {B2}
     {M1} {M2} {Pi1} {Pi2}
-    forall {M1=>Pi1: efxmap2perm CM1 PM1 B1 M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM2 PM2 B2 M2 Pi2}
+    forall {M1=>Pi1: capmap2perm CM1 PM1 B1 M1 Pi1}
+    {M2=>Pi2: capmap2perm CM2 PM2 B2 M2 Pi2}
     {E: clsmap`eq CM1 CM2}
-    {E: predmap`eq PM1 PM2} {E: cxt`eq B1 B2} {E: efxmap`eq M1 M2}
+    {E: predmap`eq PM1 PM2} {E: cxt`eq B1 B2} {E: capmap`eq M1 M2}
     exists {EQV: equiv Pi1 Pi2}
     true.
 
- %theorem efxmap2perm-equiv/L
+ %theorem capmap2perm-equiv/L
   : forall* {F0} {F1} {PF0:object -> permission} {PF1} {O0} {O1} {Q0} {Q1}
     {NN0} {NN1} {Pi0} {Pi1}
     forall {PFE: {x} permission`eq (PF0 x) (PF1 x)}
@@ -954,1187 +1019,470 @@ env2progtype/
     exists {PE: permission`eq (Pi0 O0) (Pi1 O1)}
     true.
 
-- : efxmap2perm-equiv/L ([_] permission`eq/) nonnull`eq/ rat`eq/
+- : capmap2perm-equiv/L ([_] permission`eq/) nonnull`eq/ rat`eq/
     nat`eq/ object`eq/ AP AP permission`eq/.
 
-- : efxmap2perm-equiv efxmap2perm/0 efxmap2perm/0 _ _ _ _ equiv/reflexive.
+- : capmap2perm-equiv capmap2perm/0 capmap2perm/0 _ _ _ _ equiv/reflexive.
 
-- : efxmap2perm-equiv (efxmap2perm/U M2P0 P2K0 L0 R0 X2Q0 AP0 F0 U0)
+- : capmap2perm-equiv (capmap2perm/U M2P0 P2K0 L0 R0 X2Q0 AP0 F0 U0)
     M2P CME PME BE ME
     (equiv/transitive (equiv/combine PXEQV EQV2) (EQV1))
-    <- efxmap2perm/U-inversion M2P F0 U0 _ _ P2K1 _ _ _ _ L1 _ R1 _ X2Q1 _ AP1 _ M2P1 EQV1
-    <- efxmap2perm-equiv M2P0 M2P1 CME PME BE efxmap`eq/ EQV2
+    <- capmap2perm/U-inversion M2P F0 U0 _ _ P2K1 _ _ _ _ L1 _ R1 _ X2Q1 _ AP1 _ M2P1 EQV1
+    <- capmap2perm-equiv M2P0 M2P1 CME PME BE capmap`eq/ EQV2
     <- nat2pair-unique P2K0 P2K1 nat`eq/ PE
     <- pair-eq-implies-eq PE (NE:nat`eq Nx0 Nx1) (FE:nat`eq Fx0 Fx1)
     <- cxt`lookup-unique L0 L1 BE NE CIE
     <- cxt-info-eq-inversion CIE (OE:object`eq O0 O1) TE
     <- ty-eq-inversion TE (NNE:nonnull`eq NN0 NN1) _ (CE:nat`eq C0 C1)
     <- create-fldperm-unique R0 R1 CME PME CE FE PFE
-    <- efx2frac-unique X2Q0 X2Q1 efx`eq/ QE
-    <- efxmap2perm-equiv/L PFE NNE QE FE OE AP0 AP1 PFE'
+    <- cap2frac-unique X2Q0 X2Q1 cap`eq/ QE
+    <- capmap2perm-equiv/L PFE NNE QE FE OE AP0 AP1 PFE'
     <- permission`eq-implies-equiv PFE' PXEQV.
 
-%worlds (objvar) (efxmap2perm-equiv/L _ _ _ _ _ _ _ _).
-%total { } (efxmap2perm-equiv/L _ _ _ _ _ _ _ _).
+%worlds (objvar) (capmap2perm-equiv/L _ _ _ _ _ _ _ _).
+%total { } (capmap2perm-equiv/L _ _ _ _ _ _ _ _).
 
-%worlds (objvar) (efxmap2perm-equiv _ _ _ _ _ _ _).
-%total (R) (efxmap2perm-equiv R _ _ _ _ _ _).
+%worlds (objvar) (capmap2perm-equiv _ _ _ _ _ _ _).
+%total (R) (capmap2perm-equiv R _ _ _ _ _ _).
 
 
-%theorem efxmap2perm-respects-geq
+%theorem capmap2perm-respects-geq
   : forall* {M1} {M2} {CM} {PM} {B} {Pi2}
-    forall {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    {M1<=M2: efxmap`leq M1 M2}
-    exists {Pi1} {Pi3} {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
+    forall {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
+    {M1<=M2: capmap`leq M1 M2}
+    exists {Pi1} {Pi3} {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
     {EQV: (equiv Pi2 (Pi1 , Pi3))}
     true.
 
-%theorem efxmap2perm-respects-geq/L
+%theorem capmap2perm-respects-geq/L
   : forall* {M1} {M2} {CM} {PM} {B} {Q} {Pi22}
     {M2'} {K} {N} {F} {X} {NN} {A} {C} {Pi21} {T} {PF} {O}
-    forall {FS: efxmap`fresh M2' K}
-    {UD: efxmap`update M2' K X M2}
+    forall {FS: capmap`fresh M2' K}
+    {UD: capmap`update M2' K X M2}
     {K=>NF: nat2pair K (pair/ N F)}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CT: create-fldperm CM PM C T PF}
-    {X2Q: efx2frac X Q}
+    {X2Q: cap2frac X Q}
     {AP: apply-nn NN ([x] scale-fldperm Q x F PF) Pi21}
-    {M2'=>Pi22: efxmap2perm CM PM B M2' Pi22}
-    {M1<=M2: efxmap`leq M1 M2}
-    {BP} {DM?: efxmap`domain? M1 K BP}
-    exists {Pi1} {Pi3} {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
+    {M2'=>Pi22: capmap2perm CM PM B M2' Pi22}
+    {M1<=M2: capmap`leq M1 M2}
+    {BP} {DM?: capmap`domain? M1 K BP}
+    exists {Pi1} {Pi3} {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
     {EQV: (equiv ((Pi21 O) , Pi22) (Pi1 , Pi3))}
     true.
 
-% - : efxmap2perm-respects-geq/L K!<M2' M2'+K+X=M2
-%     K2NF BL CT AE AP M2'=>Pi22 M1<=M2 _ (efxmap`domain?/out K!<M1)
+% - : capmap2perm-respects-geq/L K!<M2' M2'+K+X=M2
+%     K2NF BL CT AE AP M2'=>Pi22 M1<=M2 _ (capmap`domain?/out K!<M1)
 %     _ _ M1=>Pi1
 %     (equiv/transitive
 %       (equiv/combine equiv/reflexive (Pi22<=>Pi1+Pi3))
 %       (equiv/reorder))
-%     <- efxmap`fresh-update2-preserves-leq-converse
+%     <- capmap`fresh-update2-preserves-leq-converse
 %       M1<=M2 K!<M1 K!<M2' M2'+K+X=M2 M1<=M2'
-%     <- efxmap2perm-respects-geq
+%     <- capmap2perm-respects-geq
 %       M2'=>Pi22 M1<=M2' _ _ M1=>Pi1 Pi22<=>Pi1+Pi3.
 
-% - : efxmap2perm-respects-geq/L K!<M2' M2'+K+X=M2
-%     K2NF BL CT X2Q AP M2'=>Pi22 M1<=M2 _ (efxmap`domain?/in M1->K=X1)
-%     _ _ (efxmap2perm/U M1'=>Pi11 K2NF BL CT X2Q1 AP K!<M1' M1'+K+X1=M1)
+% - : capmap2perm-respects-geq/L K!<M2' M2'+K+X=M2
+%     K2NF BL CT X2Q AP M2'=>Pi22 M1<=M2 _ (capmap`domain?/in M1->K=X1)
+%     _ _ (capmap2perm/U M1'=>Pi11 K2NF BL CT X2Q1 AP K!<M1' M1'+K+X1=M1)
 %     (equiv/transitive6
 %       (equiv/combine (EQV1) (Pi22<=>Pi11+Pi3))
 %       (equiv/symmetric equiv/associate)
 %       (equiv/combine equiv/reflexive equiv/reorder)
 %       (equiv/associate))
-%     <- efxmap`lookup-implies-fresh-update M1->K=X1 M1' K!<M1' M1'+K+X1=M1
-%     <- efxmap`fresh-update-preserves-leq-converse M1<=M2
+%     <- capmap`lookup-implies-fresh-update M1->K=X1 M1' K!<M1' M1'+K+X1=M1
+%     <- capmap`fresh-update-preserves-leq-converse M1<=M2
 %       K!<M1' M1'+K+X1=M1 K!<M2' M2'+K+X=M2 M1'<=M2' X1<=X
-%     <- efxmap2perm-respects-geq
+%     <- capmap2perm-respects-geq
 %       M2'=>Pi22 M1'<=M2' _ _ M1'=>Pi11 Pi22<=>Pi11+Pi3
-%     <- efx2frac-permission-respects-geq X2Q X1<=X _ _ X2Q1 EQV1.
+%     <- cap2frac-permission-respects-geq X2Q X1<=X _ _ X2Q1 EQV1.
 
-% - : efxmap2perm-respects-geq
-%     efxmap2perm/0 efxmap`leq/0 _ _ efxmap2perm/0
+% - : capmap2perm-respects-geq
+%     capmap2perm/0 capmap`leq/0 _ _ capmap2perm/0
 %     (equiv/symmetric equiv/identity).
 
-% - : efxmap2perm-respects-geq
-%     (efxmap2perm/U T' P BL CML FML T2PF AE F U) M1<=M2 _ _ M1=>Pi1 EQV
-%     <- efxmap`domain?-total DM?
-%     <- efxmap2perm-respects-geq/L F U P BL CML FML T2PF AE
+% - : capmap2perm-respects-geq
+%     (capmap2perm/U T' P BL CML FML T2PF AE F U) M1<=M2 _ _ M1=>Pi1 EQV
+%     <- capmap`domain?-total DM?
+%     <- capmap2perm-respects-geq/L F U P BL CML FML T2PF AE
 %       T' M1<=M2 _ DM? _ _ M1=>Pi1 EQV.
 
 %worlds (objvar)
-	(efxmap2perm-respects-geq _ _ _ _ _ _)
-	(efxmap2perm-respects-geq/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+	(capmap2perm-respects-geq _ _ _ _ _ _)
+	(capmap2perm-respects-geq/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %trustme %total (A1 A2)
-	(efxmap2perm-respects-geq A1 _ _ _ _ _)
-	(efxmap2perm-respects-geq/L _ _ _ _ _ _ _ A2 _ _ _ _ _ _ _).
+	(capmap2perm-respects-geq A1 _ _ _ _ _)
+	(capmap2perm-respects-geq/L _ _ _ _ _ _ _ A2 _ _ _ _ _ _ _).
 
 
-%theorem efxmap2perm-respects-geq*
+%theorem capmap2perm-respects-geq*
   : forall* {M1} {M2} {CM} {PM} {B} {Pi1} {Pi2}
-    forall {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    {M1<=M2: efxmap`leq M1 M2}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
+    forall {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
+    {M1<=M2: capmap`leq M1 M2}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
     exists {Pi3} {EQV: (equiv Pi2 (Pi1 , Pi3))}
     true.
 
-- : efxmap2perm-respects-geq* M2=>Pi2 M1<=M2 M1=>Pi1 _
+- : capmap2perm-respects-geq* M2=>Pi2 M1<=M2 M1=>Pi1 _
     (equiv/transitive EQV1 (equiv/combine EQV2 equiv/reflexive))
-    <- efxmap2perm-respects-geq M2=>Pi2 M1<=M2 _ _ M1=>Pi1' EQV1
-    <- efxmap2perm-equiv M1=>Pi1' M1=>Pi1 clsmap`eq/
-      predmap`eq/ cxt`eq/ efxmap`eq/ EQV2.
+    <- capmap2perm-respects-geq M2=>Pi2 M1<=M2 _ _ M1=>Pi1' EQV1
+    <- capmap2perm-equiv M1=>Pi1' M1=>Pi1 clsmap`eq/
+      predmap`eq/ cxt`eq/ capmap`eq/ EQV2.
 
-%worlds (objvar) (efxmap2perm-respects-geq* _ _ _ _ _).
-%total {} (efxmap2perm-respects-geq* _ _ _ _ _).
+%worlds (objvar) (capmap2perm-respects-geq* _ _ _ _ _).
+%total {} (capmap2perm-respects-geq* _ _ _ _ _).
 
 
-%theorem efxmap`disjoint-join-implies-equiv
+%theorem capmap`disjoint-join-implies-equiv
   : forall* {M1} {M2} {M} {O} {FM} {PM} {Pi}
-    forall {DJ: efxmap`disjoint M1 M2}
-    {J: efxmap`join M1 M2 M}
-    {M=>Pi: efxmap2perm O FM PM M Pi}
+    forall {DJ: capmap`disjoint M1 M2}
+    {J: capmap`join M1 M2 M}
+    {M=>Pi: capmap2perm O FM PM M Pi}
     exists {Pi1} {Pi2}
-    {M1=>Pi1: efxmap2perm O FM PM M1 Pi1}
-    {M2=>Pi2: efxmap2perm O FM PM M2 Pi2}
+    {M1=>Pi1: capmap2perm O FM PM M1 Pi1}
+    {M2=>Pi2: capmap2perm O FM PM M2 Pi2}
     {EQV: equiv Pi (Pi1 , Pi2)}
     true.
 
-- : efxmap`disjoint-join-implies-equiv _ efxmap`join/L M2P
-    _ _ efxmap2perm/0 M2P
+- : capmap`disjoint-join-implies-equiv _ capmap`join/L M2P
+    _ _ capmap2perm/0 M2P
     (equiv/transitive (equiv/symmetric equiv/identity)
       equiv/commute).
 
-- : efxmap`disjoint-join-implies-equiv _ efxmap`join/R M2P
-    _ _ M2P efxmap2perm/0 (equiv/symmetric equiv/identity).
+- : capmap`disjoint-join-implies-equiv _ capmap`join/R M2P
+    _ _ M2P capmap2perm/0 (equiv/symmetric equiv/identity).
 
 
-%theorem efxmap`disjoint-join-implies-equiv/F
+%theorem capmap`disjoint-join-implies-equiv/F
   : forall* {CM} {PM} {B} {M1} {M2} {Pix} {Piy}
     forall {V:void}
     exists {Pi1} {Pi2}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
     {EQV: (equiv (Pix , Piy) (Pi1 , Pi2))}
     true.
 
-%theorem efxmap`disjoint-join-implies-equiv/L
+%theorem capmap`disjoint-join-implies-equiv/L
   : forall* {M1} {M2} {M} {MP} {F} {X} {PF} {B}
     {O} {PM} {Q} {Pix} {Piy} {K} {N} {NN} {A} {CM} {C} {B1} {B2}
-    forall {DJ: efxmap`disjoint M1 M2}
-    {J: efxmap`join M1 M2 M}
-    {FS: efxmap`fresh MP K}
-    {U: efxmap`update MP K X M}
+    forall {DJ: capmap`disjoint M1 M2}
+    {J: capmap`join M1 M2 M}
+    {FS: capmap`fresh MP K}
+    {U: capmap`update MP K X M}
     {K=>N+F: nat2pair K (pair/ N F)}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CT: create-fldperm CM PM C F PF}
-    {X2Q: efx2frac X Q}
+    {X2Q: cap2frac X Q}
     {ANN: apply-nn NN ([x] scale-fldperm Q x F PF) ([x] Pix x)}
-    {M=>Pi: efxmap2perm CM PM B MP Piy}
-    {IN1?: efxmap`domain? M1 K B1}
-    {IN2?: efxmap`domain? M2 K B2}
+    {M=>Pi: capmap2perm CM PM B MP Piy}
+    {IN1?: capmap`domain? M1 K B1}
+    {IN2?: capmap`domain? M2 K B2}
     exists {Pi1} {Pi2}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
     {EQV: (equiv ((Pix O) , Piy) (Pi1 , Pi2))}
     true.
 
-- : efxmap`disjoint-join-implies-equiv/L DJ J
+- : capmap`disjoint-join-implies-equiv/L DJ J
     F U N2P BL R AP AN M2P
-    (efxmap`domain?/in L1) (efxmap`domain?/in L2) _ _ M2P1 M2P2 EQV
-    <- efxmap`disjoint-lookup-contradiction DJ L1 L2 V
-    <- efxmap`disjoint-join-implies-equiv/F V _ _ M2P1 M2P2 EQV.
+    (capmap`domain?/in L1) (capmap`domain?/in L2) _ _ M2P1 M2P2 EQV
+    <- capmap`disjoint-lookup-contradiction DJ L1 L2 V
+    <- capmap`disjoint-join-implies-equiv/F V _ _ M2P1 M2P2 EQV.
 
-- : efxmap`disjoint-join-implies-equiv/L DJ J _ U _ _ _ _ _ _
-    (efxmap`domain?/out F1) (efxmap`domain?/out F2) _ _ M2P1 M2P2 EQV
-    <- efxmap`join-preserves-fresh* F1 F2 J F
-    <- efxmap`update-implies-lookup U L
-    <- efxmap`fresh-lookup-not-equal F L N<>N
+- : capmap`disjoint-join-implies-equiv/L DJ J _ U _ _ _ _ _ _
+    (capmap`domain?/out F1) (capmap`domain?/out F2) _ _ M2P1 M2P2 EQV
+    <- capmap`join-preserves-fresh* F1 F2 J F
+    <- capmap`update-implies-lookup U L
+    <- capmap`fresh-lookup-not-equal F L N<>N
     <- nat`ne-anti-reflexive N<>N V
-    <- efxmap`disjoint-join-implies-equiv/F V _ _ M2P1 M2P2 EQV.
+    <- capmap`disjoint-join-implies-equiv/F V _ _ M2P1 M2P2 EQV.
 
-- : efxmap`disjoint-join-implies-equiv/L DJ (J:efxmap`join M1 M2 M)
-    F (U:efxmap`update MP K Xx M) N2P BL R AP AN M2P
-    (efxmap`domain?/in (L1:efxmap`lookup M1 K Xy))
-    (efxmap`domain?/out F2) _ _
-    (efxmap2perm/U M2P1P N2P BL R AP AN F1 U1K) M2P2
+- : capmap`disjoint-join-implies-equiv/L DJ (J:capmap`join M1 M2 M)
+    F (U:capmap`update MP K Xx M) N2P BL R AP AN M2P
+    (capmap`domain?/in (L1:capmap`lookup M1 K Xy))
+    (capmap`domain?/out F2) _ _
+    (capmap2perm/U M2P1P N2P BL R AP AN F1 U1K) M2P2
     (equiv/transitive (equiv/combine equiv/reflexive EQVP)
       (equiv/associate))
-    <- efxmap`lookup-implies-fresh-update L1 _ F1 U1
-    <- efxmap`fresh-update-implies-leq F1 U1 LE1
-    <- efxmap`disjoint-respects-geq* DJ LE1 (DJP:efxmap`disjoint M1P M2)
-    <- efxmap`fresh-update-implies-unit-join F1 U1 UJ1
-    <- efxmap`join-commutative UJ1 UJ1P
-    <- efxmap`join-associative UJ1P J M3 (JP:efxmap`join M1P M2 M3) UJ2
-    <- efxmap`join-commutative UJ2 UJ2P
-    <- efxmap`join-preserves-fresh* F1 F2 JP F3
-    <- efxmap`fresh-unit-join-implies-update F3 UJ2P U3
-    <- efxmap`fresh-update-cancels F U F3 U3 nat`eq/ efxmap`eq/ DE' ME'
-    <- efx`eq-symmetric DE' DE
-    <- efxmap`eq-symmetric ME' ME
-    <- efxmap`join-respects-eq JP efxmap`eq/ efxmap`eq/ ME JP'
-    <- efxmap`disjoint-join-implies-equiv DJP JP' M2P _ _ M2P1P M2P2 EQVP
-    <- efxmap`update-respects-eq U1 efxmap`eq/ nat`eq/ DE efxmap`eq/ U1K.
+    <- capmap`lookup-implies-fresh-update L1 _ F1 U1
+    <- capmap`fresh-update-implies-leq F1 U1 LE1
+    <- capmap`disjoint-respects-geq* DJ LE1 (DJP:capmap`disjoint M1P M2)
+    <- capmap`fresh-update-implies-unit-join F1 U1 UJ1
+    <- capmap`join-commutative UJ1 UJ1P
+    <- capmap`join-associative UJ1P J M3 (JP:capmap`join M1P M2 M3) UJ2
+    <- capmap`join-commutative UJ2 UJ2P
+    <- capmap`join-preserves-fresh* F1 F2 JP F3
+    <- capmap`fresh-unit-join-implies-update F3 UJ2P U3
+    <- capmap`fresh-update-cancels F U F3 U3 nat`eq/ capmap`eq/ DE' ME'
+    <- cap`eq-symmetric DE' DE
+    <- capmap`eq-symmetric ME' ME
+    <- capmap`join-respects-eq JP capmap`eq/ capmap`eq/ ME JP'
+    <- capmap`disjoint-join-implies-equiv DJP JP' M2P _ _ M2P1P M2P2 EQVP
+    <- capmap`update-respects-eq U1 capmap`eq/ nat`eq/ DE capmap`eq/ U1K.
 
-- : efxmap`disjoint-join-implies-equiv/L DJ (J:efxmap`join M1 M2 M)
-    F (U:efxmap`update MP K Xx M) N2P BL R AP AN M2P
-    (efxmap`domain?/out F1) (efxmap`domain?/in (L2:efxmap`lookup M2 K Xy)) _ _
-    M2P1 (efxmap2perm/U M2P2P N2P BL R AP AN F2 U2K)
+- : capmap`disjoint-join-implies-equiv/L DJ (J:capmap`join M1 M2 M)
+    F (U:capmap`update MP K Xx M) N2P BL R AP AN M2P
+    (capmap`domain?/out F1) (capmap`domain?/in (L2:capmap`lookup M2 K Xy)) _ _
+    M2P1 (capmap2perm/U M2P2P N2P BL R AP AN F2 U2K)
     (equiv/transitive (equiv/combine equiv/reflexive EQVP) equiv/roll2)
-    <- efxmap`lookup-implies-fresh-update L2 _ F2 U2
-    <- efxmap`fresh-update-implies-leq F2 U2 (LE2:efxmap`leq M2' M2)
-    <- efxmap`disjoint-symmetric DJ DJ'
-    <- efxmap`disjoint-respects-geq* DJ' LE2 (DJP:efxmap`disjoint M2' M1)
-    <- efxmap`fresh-update-implies-unit-join F2 U2 UJ2
-    <- efxmap`join-associative-converse UJ2 J _ (JP:efxmap`join M1 M2' M') UJ2P
-    <- efxmap`join-preserves-fresh* F1 F2 JP (F3:efxmap`fresh M' K)
-    <- efxmap`fresh-unit-join-implies-update F3 UJ2P U3
-    <- efxmap`fresh-update-cancels F U F3 U3 nat`eq/ efxmap`eq/ DE' ME'
-    <- efxmap`eq-symmetric ME' ME
-    <- efx`eq-symmetric DE' DE
-    <- efxmap`join-respects-eq JP efxmap`eq/ efxmap`eq/ ME JP'
-    <- efxmap`disjoint-symmetric DJP DJP'
-    <- efxmap`disjoint-join-implies-equiv DJP' JP' M2P _ _ M2P1 M2P2P EQVP
-    <- efxmap`update-respects-eq U2 efxmap`eq/ nat`eq/ DE efxmap`eq/ U2K.
+    <- capmap`lookup-implies-fresh-update L2 _ F2 U2
+    <- capmap`fresh-update-implies-leq F2 U2 (LE2:capmap`leq M2' M2)
+    <- capmap`disjoint-symmetric DJ DJ'
+    <- capmap`disjoint-respects-geq* DJ' LE2 (DJP:capmap`disjoint M2' M1)
+    <- capmap`fresh-update-implies-unit-join F2 U2 UJ2
+    <- capmap`join-associative-converse UJ2 J _ (JP:capmap`join M1 M2' M') UJ2P
+    <- capmap`join-preserves-fresh* F1 F2 JP (F3:capmap`fresh M' K)
+    <- capmap`fresh-unit-join-implies-update F3 UJ2P U3
+    <- capmap`fresh-update-cancels F U F3 U3 nat`eq/ capmap`eq/ DE' ME'
+    <- capmap`eq-symmetric ME' ME
+    <- cap`eq-symmetric DE' DE
+    <- capmap`join-respects-eq JP capmap`eq/ capmap`eq/ ME JP'
+    <- capmap`disjoint-symmetric DJP DJP'
+    <- capmap`disjoint-join-implies-equiv DJP' JP' M2P _ _ M2P1 M2P2P EQVP
+    <- capmap`update-respects-eq U2 capmap`eq/ nat`eq/ DE capmap`eq/ U2K.
 
-- : efxmap`disjoint-join-implies-equiv DJ J
-    (efxmap2perm/U M2P N2P BL R AP AN F U) _ _ M2P1 M2P2 EQV
-    <- efxmap`domain?-total D1?
-    <- efxmap`domain?-total D2?
-    <- efxmap`disjoint-join-implies-equiv/L DJ J F U N2P BL R AP AN M2P
+- : capmap`disjoint-join-implies-equiv DJ J
+    (capmap2perm/U M2P N2P BL R AP AN F U) _ _ M2P1 M2P2 EQV
+    <- capmap`domain?-total D1?
+    <- capmap`domain?-total D2?
+    <- capmap`disjoint-join-implies-equiv/L DJ J F U N2P BL R AP AN M2P
       D1? D2? _ _ M2P1 M2P2 EQV.
 
-%worlds (objvar) (efxmap`disjoint-join-implies-equiv/F _ _ _ _ _ _).
-%total { } (efxmap`disjoint-join-implies-equiv/F _ _ _ _ _ _).
+%worlds (objvar) (capmap`disjoint-join-implies-equiv/F _ _ _ _ _ _).
+%total { } (capmap`disjoint-join-implies-equiv/F _ _ _ _ _ _).
 
-%worlds (objvar) (efxmap`disjoint-join-implies-equiv _ _ _ _ _ _ _ _)
-  (efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (T1 T2) (efxmap`disjoint-join-implies-equiv _ _ T1 _ _ _ _ _)
-  (efxmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _).
+%worlds (objvar) (capmap`disjoint-join-implies-equiv _ _ _ _ _ _ _ _)
+  (capmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (T1 T2) (capmap`disjoint-join-implies-equiv _ _ T1 _ _ _ _ _)
+  (capmap`disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _).
 
 
-%theorem efxmap`disjoint-join-implies-equiv-converse
+%theorem capmap`disjoint-join-implies-equiv-converse
   : forall* {M1} {M2} {M} {CM} {PM} {B} {Pi1} {Pi2}
-    forall {DJ: efxmap`disjoint M1 M2}
-    {J: efxmap`join M1 M2 M}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
+    forall {DJ: capmap`disjoint M1 M2}
+    {J: capmap`join M1 M2 M}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
+    exists {Pi} {M=>Pi: capmap2perm CM PM B M Pi}
     {EQV: (equiv (Pi1 , Pi2) Pi)}
     true.
 
-%theorem efxmap`disjoint-join-implies-equiv-converse/L
+%theorem capmap`disjoint-join-implies-equiv-converse/L
   : forall* {M1} {M2} {M} {CM} {PM} {B} {Pi1} {Pi2}
-    forall {N} {Z: efxmap`size M N}
-    {DJ: efxmap`disjoint M1 M2}
-    {J: efxmap`join M1 M2 M}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
+    forall {N} {Z: capmap`size M N}
+    {DJ: capmap`disjoint M1 M2}
+    {J: capmap`join M1 M2 M}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
+    exists {Pi} {M=>Pi: capmap2perm CM PM B M Pi}
     {EQV: (equiv (Pi1 , Pi2) Pi)}
     true.
 
-- : efxmap`disjoint-join-implies-equiv-converse/L
-    z _ _ efxmap`join/L efxmap2perm/0 M2P _ M2P
+- : capmap`disjoint-join-implies-equiv-converse/L
+    z _ _ capmap`join/L capmap2perm/0 M2P _ M2P
     (equiv/transitive equiv/commute equiv/identity).
 
-- : efxmap`disjoint-join-implies-equiv-converse/L
-    z _ _ efxmap`join/R M2P efxmap2perm/0 _ M2P equiv/identity.
+- : capmap`disjoint-join-implies-equiv-converse/L
+    z _ _ capmap`join/R M2P capmap2perm/0 _ M2P equiv/identity.
 
-%theorem efxmap`disjoint-join-implies-equiv-converse/F
+%theorem capmap`disjoint-join-implies-equiv-converse/F
   : forall* {CM} {PM} {B} {M} {Pi1} {Pi2}
     forall {V:void}
-    exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
+    exists {Pi} {M=>Pi: capmap2perm CM PM B M Pi}
     {EQV: (equiv (Pi1 , Pi2) Pi)}
     true.
 
-%theorem efxmap`disjoint-join-implies-equiv-converse/LL
+%theorem capmap`disjoint-join-implies-equiv-converse/LL
   : forall* {M1} {M2} {M} {CM} {PM} {B} {Pi1} {Pi2} {MP} {K} {X} {B1} {B2}
-    forall {N} {Z: efxmap`size M N}
-    {DJ: efxmap`disjoint M1 M2}
-    {J: efxmap`join M1 M2 M}
-    {F: efxmap`fresh MP K}
-    {U: efxmap`update MP K X M}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    {D1?: efxmap`domain? M1 K B1}
-    {D2?: efxmap`domain? M2 K B2}
-    exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
+    forall {N} {Z: capmap`size M N}
+    {DJ: capmap`disjoint M1 M2}
+    {J: capmap`join M1 M2 M}
+    {F: capmap`fresh MP K}
+    {U: capmap`update MP K X M}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
+    {D1?: capmap`domain? M1 K B1}
+    {D2?: capmap`domain? M2 K B2}
+    exists {Pi} {M=>Pi: capmap2perm CM PM B M Pi}
     {EQV: (equiv (Pi1 , Pi2) Pi)}
     true.
 
-- : efxmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ J
-    F U A1 A2 (efxmap`domain?/in L1) (efxmap`domain?/in L2) _ M2P EQV
-    <- efxmap`disjoint-lookup-contradiction DJ L1 L2 V
-    <- efxmap`disjoint-join-implies-equiv-converse/F V _ M2P EQV.
+- : capmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ J
+    F U A1 A2 (capmap`domain?/in L1) (capmap`domain?/in L2) _ M2P EQV
+    <- capmap`disjoint-lookup-contradiction DJ L1 L2 V
+    <- capmap`disjoint-join-implies-equiv-converse/F V _ M2P EQV.
 
-- : efxmap`disjoint-join-implies-equiv-converse/LL (s N) Z _ J
-    _ U A1 A2 (efxmap`domain?/out F1) (efxmap`domain?/out F2) _ M2P EQV
-    <- efxmap`join-preserves-fresh* F1 F2 J F
-    <- efxmap`update-implies-lookup U L
-    <- efxmap`fresh-lookup-not-equal F L N<>N
+- : capmap`disjoint-join-implies-equiv-converse/LL (s N) Z _ J
+    _ U A1 A2 (capmap`domain?/out F1) (capmap`domain?/out F2) _ M2P EQV
+    <- capmap`join-preserves-fresh* F1 F2 J F
+    <- capmap`update-implies-lookup U L
+    <- capmap`fresh-lookup-not-equal F L N<>N
     <- nat`ne-anti-reflexive N<>N V
-    <- efxmap`disjoint-join-implies-equiv-converse/F V _ M2P EQV.
+    <- capmap`disjoint-join-implies-equiv-converse/F V _ M2P EQV.
 
-- : efxmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ
-    (J:efxmap`join M1 M2 M) F (U:efxmap`update MP K Xx M) A1 A2
-    (efxmap`domain?/in _) (efxmap`domain?/out F2)
-    _ (efxmap2perm/U AP N2P BL R APL AN F U)
+- : capmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ
+    (J:capmap`join M1 M2 M) F (U:capmap`update MP K Xx M) A1 A2
+    (capmap`domain?/in _) (capmap`domain?/out F2)
+    _ (capmap2perm/U AP N2P BL R APL AN F U)
     (equiv/transitive3
       (equiv/combine (equiv/symmetric EQV1) equiv/reflexive)
       (equiv/symmetric equiv/associate)
       (equiv/combine equiv/reflexive EQVP))
-    <- efxmap`update-implies-lookup U L
-    <- efxmap`fresh-join-right-preserves-lookup-converse L F2 J L1
-    <- efxmap`lookup-implies-fresh-update L1 M1P F1 U1
-    <- efxmap2perm/U-inversion A1 F1 U1 _ _ N2P _ _ _ _ BL _ R _ APL _ AN _ A1P EQV1
-    <- efxmap`fresh-update-left-preserves-join-converse* F1 U1 F2 J F U J1
-    <- efxmap`fresh-update-implies-leq F1 U1 LE1
-    <- efxmap`disjoint-respects-geq* DJ LE1 DJP
-    <- efxmap`fresh-update-increases-size-converse Z F U Z1
-    <- efxmap`disjoint-join-implies-equiv-converse/L N Z1 DJP J1 A1P A2 _ AP EQVP.
+    <- capmap`update-implies-lookup U L
+    <- capmap`fresh-join-right-preserves-lookup-converse L F2 J L1
+    <- capmap`lookup-implies-fresh-update L1 M1P F1 U1
+    <- capmap2perm/U-inversion A1 F1 U1 _ _ N2P _ _ _ _ BL _ R _ APL _ AN _ A1P EQV1
+    <- capmap`fresh-update-left-preserves-join-converse* F1 U1 F2 J F U J1
+    <- capmap`fresh-update-implies-leq F1 U1 LE1
+    <- capmap`disjoint-respects-geq* DJ LE1 DJP
+    <- capmap`fresh-update-increases-size-converse Z F U Z1
+    <- capmap`disjoint-join-implies-equiv-converse/L N Z1 DJP J1 A1P A2 _ AP EQVP.
 
-- : efxmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ
-    (J:efxmap`join M1 M2 M) F (U:efxmap`update MP K Xx M) A1 A2
-    (efxmap`domain?/out F1) (efxmap`domain?/in _)
-    _ (efxmap2perm/U AP N2P BL R APL AN F U)
+- : capmap`disjoint-join-implies-equiv-converse/LL (s N) Z DJ
+    (J:capmap`join M1 M2 M) F (U:capmap`update MP K Xx M) A1 A2
+    (capmap`domain?/out F1) (capmap`domain?/in _)
+    _ (capmap2perm/U AP N2P BL R APL AN F U)
     (equiv/transitive3
       (equiv/combine equiv/reflexive (equiv/symmetric EQV2))
       (equiv/roll2)
       (equiv/combine equiv/reflexive EQVP))
-    <- efxmap`update-implies-lookup U L
+    <- capmap`update-implies-lookup U L
     <- fresh-join-left-preserves-lookup-converse F1 L J L2
-    <- efxmap`lookup-implies-fresh-update L2 _ F2 U2
-    <- efxmap2perm/U-inversion A2 F2 U2 _ _ N2P _ _ _ _ BL _ R _ APL _ AN _ A2P EQV2
-    <- efxmap`fresh-update-right-preserves-join-converse* F1 F2 U2 J F U J2
-    <- efxmap`fresh-update-implies-leq F2 U2 LE2
-    <- efxmap`disjoint-symmetric DJ DJ'
-    <- efxmap`disjoint-respects-geq* DJ' LE2 DJP'
-    <- efxmap`disjoint-symmetric DJP' DJP
-    <- efxmap`fresh-update-increases-size-converse Z F U Z1
-    <- efxmap`disjoint-join-implies-equiv-converse/L N Z1 DJP J2 A1 A2P _ AP EQVP.
+    <- capmap`lookup-implies-fresh-update L2 _ F2 U2
+    <- capmap2perm/U-inversion A2 F2 U2 _ _ N2P _ _ _ _ BL _ R _ APL _ AN _ A2P EQV2
+    <- capmap`fresh-update-right-preserves-join-converse* F1 F2 U2 J F U J2
+    <- capmap`fresh-update-implies-leq F2 U2 LE2
+    <- capmap`disjoint-symmetric DJ DJ'
+    <- capmap`disjoint-respects-geq* DJ' LE2 DJP'
+    <- capmap`disjoint-symmetric DJP' DJP
+    <- capmap`fresh-update-increases-size-converse Z F U Z1
+    <- capmap`disjoint-join-implies-equiv-converse/L N Z1 DJP J2 A1 A2P _ AP EQVP.
 
-- : efxmap`disjoint-join-implies-equiv-converse/L _ Z DJ J M2P1 M2P2 _ M2P EQV
-    <- efxmap`lookup-implies-fresh-update (efxmap`lookup/= nat`eq/) _ F U
-    <- efxmap`domain?-total D1?
-    <- efxmap`domain?-total D2?
-    <- efxmap`disjoint-join-implies-equiv-converse/LL
+- : capmap`disjoint-join-implies-equiv-converse/L _ Z DJ J M2P1 M2P2 _ M2P EQV
+    <- capmap`lookup-implies-fresh-update (capmap`lookup/= nat`eq/) _ F U
+    <- capmap`domain?-total D1?
+    <- capmap`domain?-total D2?
+    <- capmap`disjoint-join-implies-equiv-converse/LL
       _ Z DJ J F U M2P1 M2P2 D1? D2? _ M2P EQV.
 
-- : efxmap`disjoint-join-implies-equiv-converse DJ J A1 A2 _ A EQV
-    <- efxmap`size-total Z
-    <- efxmap`disjoint-join-implies-equiv-converse/L _ Z DJ J A1 A2 _ A EQV.
+- : capmap`disjoint-join-implies-equiv-converse DJ J A1 A2 _ A EQV
+    <- capmap`size-total Z
+    <- capmap`disjoint-join-implies-equiv-converse/L _ Z DJ J A1 A2 _ A EQV.
 
-%worlds (objvar) (efxmap`disjoint-join-implies-equiv-converse/F _ _ _ _).
-%total { } (efxmap`disjoint-join-implies-equiv-converse/F _ _ _ _).
+%worlds (objvar) (capmap`disjoint-join-implies-equiv-converse/F _ _ _ _).
+%total { } (capmap`disjoint-join-implies-equiv-converse/F _ _ _ _).
 
-%worlds (objvar) (efxmap`disjoint-join-implies-equiv-converse/L _ _ _ _ _ _ _ _ _)
-  (efxmap`disjoint-join-implies-equiv-converse/LL _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (capmap`disjoint-join-implies-equiv-converse/L _ _ _ _ _ _ _ _ _)
+  (capmap`disjoint-join-implies-equiv-converse/LL _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (N N1)
-  (efxmap`disjoint-join-implies-equiv-converse/LL N _ _ _ _ _ _ _ _ _ _ _ _)
-  (efxmap`disjoint-join-implies-equiv-converse/L N1 _ _ _ _ _ _ _ _).
+  (capmap`disjoint-join-implies-equiv-converse/LL N _ _ _ _ _ _ _ _ _ _ _ _)
+  (capmap`disjoint-join-implies-equiv-converse/L N1 _ _ _ _ _ _ _ _).
 
-%worlds (objvar) (efxmap`disjoint-join-implies-equiv-converse _ _ _ _ _ _ _).
-%total { } (efxmap`disjoint-join-implies-equiv-converse _ _ _ _ _ _ _).
+%worlds (objvar) (capmap`disjoint-join-implies-equiv-converse _ _ _ _ _ _ _).
+%total { } (capmap`disjoint-join-implies-equiv-converse _ _ _ _ _ _ _).
 
 
-%theorem efxmap`disjoint-join-implies-equiv*
+%theorem capmap`disjoint-join-implies-equiv*
   : forall* {M1} {M2} {M} {CM} {PM} {B} {Pi1} {Pi2} {Pi}
-    forall {DJ: efxmap`disjoint M1 M2}
-    {J: efxmap`join M1 M2 M}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    {M=>Pi: efxmap2perm CM PM B M Pi}
+    forall {DJ: capmap`disjoint M1 M2}
+    {J: capmap`join M1 M2 M}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
+    {M=>Pi: capmap2perm CM PM B M Pi}
     exists {EQV: (equiv ((Pi1) , (Pi2)) (Pi))}
     true.
 
-- : efxmap`disjoint-join-implies-equiv* M1^M2 M1UM2=M M1=>Pi1 M2=>Pi2 M=>Pi
+- : capmap`disjoint-join-implies-equiv* M1^M2 M1UM2=M M1=>Pi1 M2=>Pi2 M=>Pi
     (equiv/transitive (EQV1) (EQV2))
-    <- efxmap`disjoint-join-implies-equiv-converse
+    <- capmap`disjoint-join-implies-equiv-converse
     M1^M2 M1UM2=M M1=>Pi1 M2=>Pi2 _ M=>Pi' EQV1
-    <- efxmap2perm-equiv M=>Pi' M=>Pi
-      clsmap`eq/ predmap`eq/ cxt`eq/ efxmap`eq/ EQV2.
+    <- capmap2perm-equiv M=>Pi' M=>Pi
+      clsmap`eq/ predmap`eq/ cxt`eq/ capmap`eq/ EQV2.
 
-%worlds (objvar) (efxmap`disjoint-join-implies-equiv* _ _ _ _ _ _).
-%total {} (efxmap`disjoint-join-implies-equiv* _ _ _ _ _ _).
+%worlds (objvar) (capmap`disjoint-join-implies-equiv* _ _ _ _ _ _).
+%total {} (capmap`disjoint-join-implies-equiv* _ _ _ _ _ _).
 
 
-%theorem efxmap`partition-implies-permission-combine
+%theorem capmap`partition-implies-permission-combine
   : forall* {M1} {M2} {M} {S22} {CM} {PM} {B} {Pi}
-    forall {R: efxmap`partition M S22 M1 M2}
-    {M=>Pi: efxmap2perm CM PM B M Pi}
-    exists {Pi1} {Pi2} {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
+    forall {R: capmap`partition M S22 M1 M2}
+    {M=>Pi: capmap2perm CM PM B M Pi}
+    exists {Pi1} {Pi2} {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
     {EQV: (equiv Pi (Pi1 , Pi2))}
     true.
 
-- : efxmap`partition-implies-permission-combine
+- : capmap`partition-implies-permission-combine
     M/S22=M1+M2 M=>Pi _ _ M1=>Pi1 M2=>Pi2 (Pi1+Pi2<=>Pi)
-    <- efxmap`partition-implies-disjoint-join M/S22=M1+M2 M1^M2 M1+M2=M
-    <- efxmap`disjoint-join-implies-equiv
+    <- capmap`partition-implies-disjoint-join M/S22=M1+M2 M1^M2 M1+M2=M
+    <- capmap`disjoint-join-implies-equiv
       M1^M2 M1+M2=M M=>Pi _ _ M1=>Pi1 M2=>Pi2 Pi1+Pi2<=>Pi.
 
-%worlds (objvar) (efxmap`partition-implies-permission-combine _ _ _ _ _ _ _).
-%total {} (efxmap`partition-implies-permission-combine _ _ _ _ _ _ _).
+%worlds (objvar) (capmap`partition-implies-permission-combine _ _ _ _ _ _ _).
+%total {} (capmap`partition-implies-permission-combine _ _ _ _ _ _ _).
 
 
-%theorem efxmap`partition-implies-permission-combine-converse
+%theorem capmap`partition-implies-permission-combine-converse
   :forall* {M1} {M2} {M} {S22} {CM} {PM} {B} {Pi1} {Pi2}
-    forall {R: efxmap`partition M S22 M1 M2}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
-    exists {Pi} {M=>Pi: efxmap2perm CM PM B M Pi}
+    forall {R: capmap`partition M S22 M1 M2}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
+    exists {Pi} {M=>Pi: capmap2perm CM PM B M Pi}
     {EQV: equiv (Pi1 , Pi2) Pi}
     true.
 
-- : efxmap`partition-implies-permission-combine-converse SG T1 T2 _ T EQV
-    <- efxmap`partition-implies-disjoint-join SG X J
-    <- efxmap`disjoint-join-implies-equiv-converse X J T1 T2 _ T EQV.
+- : capmap`partition-implies-permission-combine-converse SG T1 T2 _ T EQV
+    <- capmap`partition-implies-disjoint-join SG X J
+    <- capmap`disjoint-join-implies-equiv-converse X J T1 T2 _ T EQV.
 
-%worlds (objvar) (efxmap`partition-implies-permission-combine-converse _ _ _ _ _ _).
-%total {} (efxmap`partition-implies-permission-combine-converse _ _ _ _ _ _).
+%worlds (objvar) (capmap`partition-implies-permission-combine-converse _ _ _ _ _ _).
+%total {} (capmap`partition-implies-permission-combine-converse _ _ _ _ _ _).
 
 
-%theorem efxmap`partition-implies-permission-combine*
+%theorem capmap`partition-implies-permission-combine*
   : forall* {M1} {M2} {M} {S22} {CM} {PM} {B} {Pi1} {Pi2} {Pi}
-    forall {R: efxmap`partition M S22 M1 M2}
-    {M=>Pi: efxmap2perm CM PM B M Pi}
-    {M1=>Pi1: efxmap2perm CM PM B M1 Pi1}
-    {M2=>Pi2: efxmap2perm CM PM B M2 Pi2}
+    forall {R: capmap`partition M S22 M1 M2}
+    {M=>Pi: capmap2perm CM PM B M Pi}
+    {M1=>Pi1: capmap2perm CM PM B M1 Pi1}
+    {M2=>Pi2: capmap2perm CM PM B M2 Pi2}
     exists {EQV: (equiv Pi (Pi1 , Pi2))}
     true.
 
-- : efxmap`partition-implies-permission-combine* M/S22=M1+M2 M=>Pi M1=>Pi1 M2=>Pi2
+- : capmap`partition-implies-permission-combine* M/S22=M1+M2 M=>Pi M1=>Pi1 M2=>Pi2
     (equiv/symmetric (Pi1+Pi2<=>Pi))
-    <- efxmap`partition-implies-disjoint-join M/S22=M1+M2 M1^M2 M1+M2=M
-    <- efxmap`disjoint-join-implies-equiv*
+    <- capmap`partition-implies-disjoint-join M/S22=M1+M2 M1^M2 M1+M2=M
+    <- capmap`disjoint-join-implies-equiv*
       M1^M2 M1+M2=M M1=>Pi1 M2=>Pi2 M=>Pi Pi1+Pi2<=>Pi.
 
-%worlds (objvar) (efxmap`partition-implies-permission-combine* _ _ _ _ _).
-%total {} (efxmap`partition-implies-permission-combine* _ _ _ _ _).
+%worlds (objvar) (capmap`partition-implies-permission-combine* _ _ _ _ _).
+%total {} (capmap`partition-implies-permission-combine* _ _ _ _ _).
 
 
-% %theorem efxmap`leq-partition
+% %theorem capmap`leq-partition
 %   : forall* {M1} {M} {S}
-%     forall {LEQ: efxmap`leq M1 M}
-%     {DM: efxmap`domain M1 S}
-%     exists {M2} {M3} {DJ: efxmap`disjoint M2 M3}
-%     {J: efxmap`join M2 M3 M}
-%     {DM: efxmap`domain M2 S}
+%     forall {LEQ: capmap`leq M1 M}
+%     {DM: capmap`domain M1 S}
+%     exists {M2} {M3} {DJ: capmap`disjoint M2 M3}
+%     {J: capmap`join M2 M3 M}
+%     {DM: capmap`domain M2 S}
 %     true.
 
-% %worlds (objvar) (efxmap`leq-partition _ _ _ _ _ _ _).
-% %total { } (efxmap`leq-partition _ _ _ _ _ _ _).
+% %worlds (objvar) (capmap`leq-partition _ _ _ _ _ _ _).
+% %total { } (capmap`leq-partition _ _ _ _ _ _ _).
 
 
-%% 7, theorems about fldmap2perm
-
-
-%theorem false-implies-fldmap2perm
-  : forall* {PM} {O} {FM} {FS} {Pi}
-    forall {V:void} exists {MFP: fldmap2perm PM O FM FS Pi}
+%theorem result2output-respects-eq
+  : forall* {CM} {PM} {Rslt} {Rslt'} {Out}
+    forall {XX2O: result2output CM PM Rslt Out}
+    {EQ: result`eq Rslt Rslt'}
+    exists {XX2O: result2output CM PM Rslt' Out}
     true.
 
-%worlds (objvar) (false-implies-fldmap2perm _ _).
-%total { } (false-implies-fldmap2perm _ _).
+- : result2output-respects-eq XX result`eq/ XX.
 
+%worlds (objvar) (result2output-respects-eq _ _ _).
+%total { } (result2output-respects-eq _ _ _).
 
-%theorem fldmap2perm-respects-eq
-  : forall* {FS1} {PM1} {PM2} {O1} {O2} {FM1} {FM2} {Pi1} {Pi2} {FS2}
-    forall {MFP1: fldmap2perm PM1 O1 FM1 FS1 Pi1}
-    {PME: predmap`eq PM1 PM2} {OE: object`eq O1 O2}
-    {FME: fldmap`eq FM1 FM2} {FSE: set`eq FS1 FS2}
-    {PE: permission`eq Pi1 Pi2}
-    exists {MFP2: fldmap2perm PM2 O2 FM2 FS2 Pi2}
-    true.
-
-- : fldmap2perm-respects-eq MFP predmap`eq/
-    object`eq/ fldmap`eq/ set`eq/ permission`eq/ MFP.
-
-%worlds (objvar) (fldmap2perm-respects-eq _ _ _ _ _ _ _).
-%total {} (fldmap2perm-respects-eq _ _ _ _ _ _ _).
-
-
-%theorem fldmap2perm-total
-  : forall* {CM} {C} {PM} {O} {FM} {FS} {FS0}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CML: clsmap`lookup CM C FM}
-    {DM: fldmap`domain FM FS0}
-    {FS<=FS0: set`leq FS FS0}
-    exists {Pi} {MF1: fldmap2perm PM O FM FS Pi}
-    true.
-
-%theorem fldmap2perm-total/L
-  : forall* {CM} {C} {PM} {O} {FM} {FS0} {FS}
-    forall {N} {SZ: set`size FS N}
-    {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CML: clsmap`lookup CM C FM}
-    {DM: fldmap`domain FM FS0}
-    {LE: set`leq FS FS0}
-    exists {Pi} {MF1: fldmap2perm PM O FM FS Pi}
-    true.
-
-- : fldmap2perm-total/L z _ _ _ _ _ set`leq/0 _ fldmap2perm/0.
-
-- : fldmap2perm-total/L (s N) SZ CM-CM CM2PM CML DM-FM=FS0 FS<=FS0 _
-    (fldmap2perm/U FS'=>Pi F!<FS' FS'+F=FS FML T2PF)
-    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) FS' F!<FS' FS'+F=FS
-    <- set`add-implies-member FS'+F=FS F<-FS
-    <- set`member-respects-leq F<-FS FS<=FS0 F<-FS0
-    <- fldmap`domain-preserves-lookup-converse F<-FS0 DM-FM=FS0 T FML
-    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
-    <- lookup-implies-clsmap-ty CM-FM FML CM-T
-    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
-    <- set`fresh-update-implies-leq F!<FS' FS'+F=FS FS'<=FS
-    <- set`leq-transitive FS'<=FS FS<=FS0 FS'<=FS0
-    <- set`not-member-add-increases-size-converse SZ F!<FS' FS'+F=FS SZ'
-    <- fldmap2perm-total/L N SZ' CM-CM CM2PM CML DM-FM=FS0 FS'<=FS0 _ FS'=>Pi.
-
-- : fldmap2perm-total CM-CM CM2PM CML DM LEQ _ MF1
-    <- set`size-total SZ
-    <- fldmap2perm-total/L _ SZ CM-CM CM2PM CML DM LEQ _ MF1.
-
-%worlds (objvar) (fldmap2perm-total/L _ _ _ _ _ _ _ _ _).
-%total (N) (fldmap2perm-total/L N _ _ _ _ _ _ _ _).
-
-%worlds (objvar) (fldmap2perm-total _ _ _ _ _ _ _).
-%total { } (fldmap2perm-total _ _ _ _ _ _ _).
-
-
-%theorem fldmap2perm/U-inversion
-  : forall* {PM} {O} {FM} {FS} {Pi} {FS'} {F}
-    forall {MF1: fldmap2perm PM O FM FS Pi}
-    {F!<FS': set`not-member FS' F}
-    {FS'+F=FS: set`add FS' F FS}
-    exists {Pi'} {MF1': fldmap2perm PM O FM FS' Pi'}
-    {T} {FML: fldmap`lookup FM F T}
-    {PF} {T2PF: ty2perm PM T PF}
-    {EQV: equiv Pi ((unitperm (precise-exists O F PF)) , Pi')}
-    true.
-
-%theorem fldmap2perm/U-inversion/L
-  : forall* {PM} {O} {FM} {FS} {FS'} {F} {FS1} {Pi1} {F1} {T1} {PF1} {B}
-    forall {MF1: fldmap2perm PM O FM FS1 Pi1}
-    {FR1: set`not-member FS1 F1}
-    {UD1: set`add FS1 F1 FS}
-    {FML1: fldmap`lookup FM F1 T1}
-    {T2PF1: ty2perm PM T1 PF1}
-    {FR: set`not-member FS' F}
-    {UD: set`add FS' F FS}
-    {E?: nat`eq? F F1 B}
-    exists {Pi'} {MF1': fldmap2perm PM O FM FS' Pi'}
-    {T} {FML: fldmap`lookup FM F T}
-    {PF} {T2PF: ty2perm PM T PF}
-    {EQV: equiv (unitperm (precise-exists O F1 PF1) , Pi1)
-          ((unitperm (precise-exists O F PF)) , Pi')}
-    true.
-
-- : fldmap2perm/U-inversion/L MF1 F1 U1 L1 R1 F2 U2 nat`eq?/yes %{=>}%
-    _ MF _ L1 _ R1 equiv/reflexive
-    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ SE
-    <- fldmap2perm-respects-eq MF1 predmap`eq/ object`eq/
-      fldmap`eq/ SE permission`eq/ MF.
-
-- : fldmap2perm/U-inversion/L MF1 F1 U1 L1 R1 F2 U2 (nat`eq?/no F1<>F) %{=>}%
-    _ (fldmap2perm/U MF F4 U4 L1 R1) _ L _ R
-    (equiv/transitive
-      (equiv/combine equiv/reflexive EQV)
-      (equiv/roll2))
-    <- set`add-commutes-converse U2 U1 F1<>F _ U4 U3
-    <- set`add-preserves-not-member-converse F2 U4 F3
-    <- set`add-preserves-not-member-converse F1 U3 F4
-    <- fldmap2perm/U-inversion MF1 F3 U3 _ MF _ L _ R EQV.
-
-- : fldmap2perm/U-inversion
-    (fldmap2perm/U MF1 F1 U1 L1 R1) F2 U2 _ MF2 _ L2 _ R2 EQV
-    <- nat`eq?-total E?
-    <- fldmap2perm/U-inversion/L MF1 F1 U1 L1 R1 F2 U2 E? _ MF2 _ L2 _ R2 EQV.
-
-%worlds (objvar) (fldmap2perm/U-inversion _ _ _ _ _ _ _ _ _ _)
-  (fldmap2perm/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (N N0) (fldmap2perm/U-inversion N _ _ _ _ _ _ _ _ _)
-  (fldmap2perm/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem fldmap2perm-equiv
-  : forall* {PM} {O} {FM} {FS} {Pi}
-    {PM'} {O'} {FM'} {FS'} {Pi'}
-    forall {MF1: fldmap2perm PM O FM FS Pi}
-    {MF1': fldmap2perm PM' O' FM' FS' Pi'}
-    {PME: predmap`eq PM PM'} {OE: object`eq O O'}
-    {FME: fldmap`eq FM FM'} {FSE: set`eq FS FS'}
-    exists {EQV: equiv Pi Pi'}
-    true.
-
-%theorem fldmap2perm-equiv/L
-  : forall* {O0} {O1} {PF0:object -> permission} {PF1} {F}
-    forall {PFE: {x} permission`eq (PF0 x) (PF1 x)}
-    {FE: object`eq O0 O1}
-    exists {PE: permission`eq (unitperm (precise-exists O0 F PF0))
-                (unitperm (precise-exists O1 F PF1))}
-    true.
-
-- : fldmap2perm-equiv/L ([_] permission`eq/) object`eq/ permission`eq/.
-
-- : fldmap2perm-equiv fldmap2perm/0 fldmap2perm/0 _ _ _ _ equiv/reflexive.
-
-- : fldmap2perm-equiv (fldmap2perm/U MF1 F1 U1 L1 R1) MF PME OE FME SE
-    (equiv/transitive
-      (equiv/combine PFEQV EQV2)
-      (equiv/symmetric EQV1))
-    <- fldmap2perm/U-inversion MF F1 U1 _ MF2 _ L2 _ R2 EQV1
-    <- fldmap2perm-equiv MF1 MF2 PME OE FME set`eq/ EQV2
-    <- fldmap`lookup-unique L1 L2 FME nat`eq/ TE
-    <- ty2perm-deterministic R1 R2 PME TE ([x] PFE x)
-    <- fldmap2perm-equiv/L PFE OE PFE'
-    <- permission`eq-implies-equiv PFE' PFEQV.
-
-%worlds (objvar) (fldmap2perm-equiv/L _ _ _).
-%total { } (fldmap2perm-equiv/L _ _ _).
-
-%worlds (objvar) (fldmap2perm-equiv _ _ _ _ _ _ _).
-%total (M) (fldmap2perm-equiv M _ _ _ _ _ _).
-
-
-%% 8, theorems about make-encumbered
-
-%theorem false-implies-make-encumbered
-  : forall* {CM} {PM} {B} {S} {Pi}
-    forall {V:void} exists {MF: make-encumbered CM PM B S Pi}
-    true.
-
-%worlds (objvar) (false-implies-make-encumbered _ _).
-%total { } (false-implies-make-encumbered _ _).
-
-
-%theorem make-encumbered-respects-eq
-  : forall* {PM1} {PM2} {CM1} {CM2} {B1} {B2} {S1} {S2} {Pi1} {Pi2}
-    forall {MFP1: make-encumbered CM1 PM1 B1 S1 Pi1}
-    {CME: clsmap`eq CM1 CM2}
-    {PME: predmap`eq PM1 PM2}
-    {BE: cxt`eq B1 B2} {SE: set`eq S1 S2}
-    {PE: permission`eq Pi1 Pi2}
-    exists {MFP2: make-encumbered CM2 PM2 B2 S2 Pi2}
-    true.
-
-- : make-encumbered-respects-eq MFP clsmap`eq/ predmap`eq/ cxt`eq/ set`eq/
-    permission`eq/ MFP.
-
-%worlds (objvar) (make-encumbered-respects-eq _ _ _ _ _ _ _).
-%total {} (make-encumbered-respects-eq _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered-total
-  : forall* {CM} {PM} {B} {S}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B-S: clsmap-cxt-objset CM B S}
-    exists {Pi} {MF: make-encumbered CM PM B S Pi}
-    true.
-
-- : make-encumbered-total CM-CM CM2PM clsmap-cxt-objset/0 _ make-encumbered/0.
-
-- : make-encumbered-total CM-CM CM2PM
-    (clsmap-cxt-objset/U CM-B-S' BL CML FS U) _
-    (make-encumbered/U MFP' BL CML PML FM-DM MF1 AN FS U)
-    <- fldmap`domain-total FM-DM
-    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
-    <- set`leq-reflexive _ LEQ
-    <- ({x} fldmap2perm-total CM-CM CM2PM CML FM-DM LEQ _ (MF1 x))
-    <- apply-nn-total _ AN
-    <- make-encumbered-total CM-CM CM2PM CM-B-S' _ MFP'.
-
-%worlds (objvar) (make-encumbered-total _ _ _ _ _).
-%total (S) (make-encumbered-total _ _ S _ _).
-
-
-%theorem make-encumbered/U-inversion
-  : forall* {CM} {PM} {B} {S} {Pi} {SP} {N}
-    forall {MF: make-encumbered CM PM B S Pi}
-    {NM: set`not-member SP N}
-    {UD: set`add SP N S}
-    exists {Pi1} {MFP: make-encumbered CM PM B SP Pi1}
-    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {FM} {CML: clsmap`lookup CM C FM}
-    {CP} {PML: predmap`lookup PM C CP}
-    {FS} {DM: fldmap`domain FM FS}
-    {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
-    {PiF} {AP: apply-nn NN ([x] unitperm (encumbered (PiP x)
-       (combine (obj-ne-null x) (combine (allperm x) (one-predcall CP x))))) ([x] PiF x)}
-    {EQV: equiv Pi ((PiF O) , Pi1)}
-    true.
-
-%theorem make-encumbered/U-inversion/L
-  : forall* {CM} {PM} {B} {S} {SP} {N} {S1} {Pi1} {N1} {O1} {NN1}
-    {A1} {C1} {FM1} {FS1} {PiP1} {P} {CP1} {PiF1}
-    forall {MF1: make-encumbered CM PM B S1 Pi1}
-    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
-    {CML1: clsmap`lookup CM C1 FM1}
-    {PML1: predmap`lookup PM C1 CP1}
-    {DM1: fldmap`domain FM1 FS1}
-    {MF11: {x} fldmap2perm PM x FM1 FS1 (PiP1 x)}
-    {AP1: apply-nn NN1 ([x] unitperm (encumbered (PiP1 x)
-      (combine (obj-ne-null x) (combine (allperm x) (one-predcall CP1 x))))) ([x] PiF1 x)}
-    {NM1: set`not-member S1 N1}
-    {U1: set`add S1 N1 S}
-    {NM: set`not-member SP N}
-    {U: set`add SP N S}
-    {E?: nat`eq? N N1 P}
-    exists {Pi} {MFP: make-encumbered CM PM B SP Pi}
-    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {FM} {CML: clsmap`lookup CM C FM}
-    {CP} {PML: predmap`lookup PM C CP}
-    {FS} {DM: fldmap`domain FM FS}
-    {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
-    {PiF} {AP: apply-nn NN ([x] unitperm (encumbered (PiP x)
-       (combine (obj-ne-null x) (combine (allperm x) (one-predcall CP x))))) ([x] PiF x)}
-    {EQV: equiv ((PiF1 O1) , Pi1) ((PiF O) , Pi)}
-    true.
-
-- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 AP1 F1 U1 F2 U2
-    nat`eq?/yes %{=>}% _ MF _ _ _ _ BL1 _ CML1 _ PML1 _ DM1 _ MFO1 _ AP1 equiv/reflexive
-    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ SE
-    <- make-encumbered-respects-eq MF1 clsmap`eq/ predmap`eq/ cxt`eq/ SE
-      permission`eq/ MF.
-
-- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 AN1 F1 U1 F2 U2
-    (nat`eq?/no N<>N1) %{=>}%
-    _ (make-encumbered/U MF2 BL1 CML1 PML1 DM1 MFO1 AN1 F4 U4)
-    _ _ _ _ BL2 _ CML2 _ PML2 _ DM2 _ MFO2 _ AN2
-    (equiv/transitive
-      (equiv/combine equiv/reflexive EQV)
-      (equiv/roll2))
-    <- set`add-commutes-converse U2 U1 N<>N1 _ U4 U3
-    <- set`add-preserves-not-member-converse F2 U4 F3
-    <- set`add-preserves-not-member-converse F1 U3 F4
-    <- make-encumbered/U-inversion MF1 F3 U3 _ MF2 _ _ _ _ BL2 _ CML2 _ PML2 _ DM2
-      _ MFO2 _ AN2 EQV.
-
-- : make-encumbered/U-inversion (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 AN1 F1 U1)
-    F2 U2 _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO _ AN EQV
-    <- nat`eq?-total E?
-    <- make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 AN1 F1 U1
-      F2 U2 E? _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO _ AN EQV.
-
-%worlds (objvar) (make-encumbered/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (N N0) (make-encumbered/U-inversion N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered-disjoint-join-implies-equiv
-  : forall* {CM} {PM} {B} {S1} {S2} {S} {Pi}
-    forall {D: set`disjoint S1 S2}
-    {U: set`union S1 S2 S}
-    {S=>Pi: make-encumbered CM PM B S Pi}
-    exists {Pi1} {Pi2}
-    {S1=>Pi1: make-encumbered CM PM B S1 Pi1}
-    {S2=>Pi2: make-encumbered CM PM B S2 Pi2}
-    {EQV: equiv (Pi1 , Pi2) Pi}
-    true.
-
-- : make-encumbered-disjoint-join-implies-equiv
-    _ set`union/L M2P _ _ make-encumbered/0 M2P
-    (equiv/transitive equiv/commute equiv/identity).
-
-- : make-encumbered-disjoint-join-implies-equiv
-    _ set`union/R M2P _ _ M2P make-encumbered/0 equiv/identity.
-
-%theorem make-encumbered-disjoint-join-implies-equiv/F
-  : forall* {CM} {PM} {B} {S1} {S2} {Pi}
-    forall {V:void}
-    exists {Pi1} {Pi2}
-    {S1=>Pi1: make-encumbered CM PM B S1 Pi1}
-    {S2=>Pi2: make-encumbered CM PM B S2 Pi2}
-    {EQV: equiv (Pi1 , Pi2) Pi}
-    true.
-
-%theorem make-encumbered-disjoint-join-implies-equiv/L
-  : forall* {CM} {PM} {B} {S1} {S2} {S} {SP} {N}
-    {Pi} {O} {NN} {A} {C} {FM} {FS} {PF} {B1} {B2} {CP} {PiF}
-    forall {DJ: set`disjoint S1 S2}
-    {U: set`union S1 S2 S}
-    {F: set`not-member SP N}
-    {U: set`add SP N S}
-    {S2P: make-encumbered CM PM B SP Pi}
-    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {CML: clsmap`lookup CM C FM}
-    {PML: predmap`lookup PM C CP}
-    {DM: fldmap`domain FM FS}
-    {MFO: {x} fldmap2perm PM x FM FS (PF x)}
-    {AP: apply-nn NN ([x] unitperm (encumbered (PF x)
-      (combine (obj-ne-null x) (combine (allperm x) (one-predcall CP x))))) ([x] PiF x)}
-    {D1?: set`domain? S1 N B1}
-    {D2?: set`domain? S2 N B2}
-    exists {Pi1} {Pi2}
-    {S2P1: make-encumbered CM PM B S1 Pi1}
-    {S2P2: make-encumbered CM PM B S2 Pi2}
-    {EQV: equiv (Pi1 , Pi2) ((PiF O) , Pi)}
-    true.
-
-- : make-encumbered-disjoint-join-implies-equiv/L DJ J F U A BL CML PML DM
-    FMO AP (set`domain?/in L1) (set`domain?/in L2) _ _ A1 A2 EQV
-    <- set`disjoint-lookup-contradiction DJ L1 L2 V
-    <- make-encumbered-disjoint-join-implies-equiv/F V _ _ A1 A2 EQV.
-
-- : make-encumbered-disjoint-join-implies-equiv/L _ J _ U _ _ _ _ _
-    _ _ (set`domain?/out F1) (set`domain?/out F2) _ _ A1 A2 EQV
-    <- set`join-preserves-fresh* F1 F2 J F
-    <- set`update-implies-lookup U L
-    <- set`fresh-lookup-not-equal F L N<>N
-    <- nat`ne-anti-reflexive N<>N V
-    <- make-encumbered-disjoint-join-implies-equiv/F V _ _ A1 A2 EQV.
-
-- : make-encumbered-disjoint-join-implies-equiv/L
-    (DJ:set`disjoint S1 S2) J F U AP BL CML PML DM
-    MFO AN (set`domain?/in L1) (set`domain?/out F2)
-    _ _ (make-encumbered/U A1P BL CML PML DM MFO AN F1 U1) A2
-    (equiv/transitive (equiv/symmetric equiv/associate)
-      (equiv/combine equiv/reflexive EQVP))
-    <- set`lookup-implies-fresh-update L1 _ F1 U1
-    <- set`fresh-update-implies-leq F1 U1 LE1
-    <- set`disjoint-respects-geq* DJ LE1 (DJP:set`disjoint S1P S2)
-    <- set`fresh-update-implies-unit-join F1 U1 UJ1
-    <- set`join-commutative UJ1 UJ1P
-    <- set`join-associative UJ1P J S3 (JP:set`join S1P S2 S3) UJ2
-    <- set`join-commutative UJ2 UJ2P
-    <- set`join-preserves-fresh* F1 F2 JP F3
-    <- set`fresh-unit-join-implies-update F3 UJ2P U3
-    <- set`not-member-add-cancels F U F3 U3 nat`eq/ set`eq/ SE'
-    <- set`eq-symmetric SE' SE
-    <- set`join-respects-eq JP set`eq/ set`eq/ SE JP'
-    <- make-encumbered-disjoint-join-implies-equiv DJP JP' AP _ _ A1P A2 EQVP.
-
-- : make-encumbered-disjoint-join-implies-equiv/L
-    (DJ:set`disjoint S1 S2) J F U AP BL CML PML DM
-    MFO AN (set`domain?/out F1) (set`domain?/in L2)
-    _ _ A1 (make-encumbered/U A2P BL CML PML DM MFO AN F2 U2)
-    (equiv/transitive
-      (equiv/roll2)
-      (equiv/combine equiv/reflexive EQVP))
-    <- set`member-implies-not-member-add L2 S2P F2 U2
-    <- set`add-implies-leq U2 LE2
-    <- set`disjoint-symmetric DJ DJ'
-    <- set`disjoint-respects-geq* DJ' LE2 DJP
-    <- set`add-implies-unit-union U2 UJ2
-    <- set`union-associative-converse UJ2 J _ JP UJ2P
-    <- set`union-preserves-not-member* F1 F2 JP F3
-    <- set`unit-union-implies-add UJ2P U3
-    <- set`not-member-add-cancels F U F3 U3 nat`eq/ set`eq/ SE'
-    <- set`eq-symmetric SE' SE
-    <- set`union-respects-eq JP set`eq/ set`eq/ SE JP'
-    <- set`disjoint-symmetric DJP DJP'
-    <- make-encumbered-disjoint-join-implies-equiv DJP' JP' AP _ _ A1 A2P EQVP.
-
-- : make-encumbered-disjoint-join-implies-equiv DJ J
-    (make-encumbered/U S2P BL CML PML DM MFO AN F U) _ _ S2P1 S2P2 EQV
-    <- set`domain?-total D1?
-    <- set`domain?-total D2?
-    <- make-encumbered-disjoint-join-implies-equiv/L DJ J F U
-      S2P BL CML PML DM MFO AN D1? D2? _ _ S2P1 S2P2 EQV.
-
-%worlds (objvar) (make-encumbered-disjoint-join-implies-equiv/F _ _ _ _ _ _).
-%total { } (make-encumbered-disjoint-join-implies-equiv/F _ _ _ _ _ _).
-
-%worlds (objvar) (make-encumbered-disjoint-join-implies-equiv _ _ _ _ _ _ _ _)
-  (make-encumbered-disjoint-join-implies-equiv/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (N N0) (make-encumbered-disjoint-join-implies-equiv _ _ N _ _ _ _ _)
-  (make-encumbered-disjoint-join-implies-equiv/L _ _ _ _ N0 _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered-disjoint-join-implies-equiv-converse
-  : forall* {S1} {S2} {S} {CM} {PM} {B} {Pi1} {Pi2}
-    forall {DJ: set`disjoint S1 S2}
-    {J: set`join S1 S2 S}
-    {S1=>Pi1: make-encumbered CM PM B S1 Pi1}
-    {S2=>Pi2: make-encumbered CM PM B S2 Pi2}
-    exists {Pi} {S=>Pi: make-encumbered CM PM B S Pi}
-    {EQV: (equiv (Pi1 , Pi2) Pi)}
-    true.
-
-%theorem make-encumbered-disjoint-join-implies-equiv-converse/L
-  : forall* {S1} {S2} {S} {CM} {PM} {B} {Pi1} {Pi2}
-    forall {N} {Z: set`size S N}
-    {DJ: set`disjoint S1 S2}
-    {J: set`join S1 S2 S}
-    {S1=>Pi1: make-encumbered CM PM B S1 Pi1}
-    {S2=>Pi2: make-encumbered CM PM B S2 Pi2}
-    exists {Pi} {S=>Pi: make-encumbered CM PM B S Pi}
-    {EQV: (equiv (Pi1 , Pi2) Pi)}
-    true.
-
-- : make-encumbered-disjoint-join-implies-equiv-converse/L
-    z _ _ set`join/L make-encumbered/0 S2P _ S2P
-    (equiv/transitive equiv/commute equiv/identity).
-
-- : make-encumbered-disjoint-join-implies-equiv-converse/L
-    z _ _ set`join/R S2P make-encumbered/0 _ S2P equiv/identity.
-
-%theorem make-encumbered-disjoint-join-implies-equiv-converse/F
-  : forall* {CM} {PM} {B} {S} {Pi1} {Pi2}
-    forall {V:void}
-    exists {Pi} {S=>Pi: make-encumbered CM PM B S Pi}
-    {EQV: (equiv (Pi1 , Pi2) Pi)}
-    true.
-
-%theorem make-encumbered-disjoint-join-implies-equiv-converse/LL
-  : forall* {S1} {S2} {S} {CM} {PM} {B} {Pi1} {Pi2} {SP} {K} {X} {B1} {B2}
-    forall {N} {Z: set`size S N}
-    {DJ: set`disjoint S1 S2}
-    {J: set`join S1 S2 S}
-    {F: set`fresh SP K}
-    {U: set`update SP K X S}
-    {S1=>Pi1: make-encumbered CM PM B S1 Pi1}
-    {S2=>Pi2: make-encumbered CM PM B S2 Pi2}
-    {D1?: set`domain? S1 K B1}
-    {D2?: set`domain? S2 K B2}
-    exists {Pi} {S=>Pi: make-encumbered CM PM B S Pi}
-    {EQV: (equiv (Pi1 , Pi2) Pi)}
-    true.
-
-- : make-encumbered-disjoint-join-implies-equiv-converse/LL (s N) Z DJ J
-    F U A1 A2 (set`domain?/in L1) (set`domain?/in L2) _ S2P EQV
-    <- set`disjoint-lookup-contradiction DJ L1 L2 V
-    <- make-encumbered-disjoint-join-implies-equiv-converse/F V _ S2P EQV.
-
-- : make-encumbered-disjoint-join-implies-equiv-converse/LL (s N) Z _ J
-    _ U A1 A2 (set`domain?/out F1) (set`domain?/out F2) _ S2P EQV
-    <- set`join-preserves-fresh* F1 F2 J F
-    <- set`update-implies-lookup U L
-    <- set`fresh-lookup-not-equal F L N<>N
-    <- nat`ne-anti-reflexive N<>N V
-    <- make-encumbered-disjoint-join-implies-equiv-converse/F V _ S2P EQV.
-
-- : make-encumbered-disjoint-join-implies-equiv-converse/LL (s N) Z DJ
-    (J:set`join S1 S2 S) F (U:set`add SP K S) A1 A2
-    (set`domain?/in _) (set`domain?/out F2)
-    _ (make-encumbered/U AP BL CML PML DM MFO AN F U)
-    (equiv/transitive3
-      (equiv/combine EQV1 equiv/reflexive)
-      (equiv/symmetric equiv/associate)
-      (equiv/combine equiv/reflexive EQVP))
-    <- set`update-implies-lookup U L
-    <- set`fresh-join-right-preserves-lookup-converse L F2 J L1
-    <- set`lookup-implies-fresh-update L1 S1P F1 U1
-    <- make-encumbered/U-inversion A1 F1 U1 _ A1P _ _ _ _ BL _ CML _ PML _ DM _ MFO _ AN EQV1
-    <- set`fresh-update-left-preserves-join-converse* F1 U1 F2 J F U J1
-    <- set`fresh-update-implies-leq F1 U1 LE1
-    <- set`disjoint-respects-geq* DJ LE1 DJP
-    <- set`fresh-update-increases-size-converse Z F U Z1
-    <- make-encumbered-disjoint-join-implies-equiv-converse/L N Z1 DJP J1 A1P A2 _ AP EQVP.
-
-- : make-encumbered-disjoint-join-implies-equiv-converse/LL (s N) Z DJ
-    (J:set`join S1 S2 S) F (U:set`add SP K S) A1 A2
-    (set`domain?/out F1) (set`domain?/in _)
-    _ (make-encumbered/U AP BL CML PML DM MFO AN F U)
-    (equiv/transitive3
-      (equiv/combine equiv/reflexive EQV2)
-      (equiv/roll2)
-      (equiv/combine equiv/reflexive EQVP))
-    <- set`update-implies-lookup U L
-    <- set`fresh-join-left-preserves-lookup-converse F1 L J L2
-    <- set`lookup-implies-fresh-update L2 _ F2 U2
-    <- make-encumbered/U-inversion A2 F2 U2 _ A2P _ _ _ _ BL _ CML _ PML _ DM _ MFO _ AN EQV2
-    <- set`fresh-update-right-preserves-join-converse* F1 F2 U2 J F U J2
-    <- set`fresh-update-implies-leq F2 U2 LE2
-    <- set`disjoint-symmetric DJ DJ'
-    <- set`disjoint-respects-geq* DJ' LE2 DJP'
-    <- set`disjoint-symmetric DJP' DJP
-    <- set`fresh-update-increases-size-converse Z F U Z1
-    <- make-encumbered-disjoint-join-implies-equiv-converse/L N Z1 DJP J2 A1 A2P _ AP EQVP.
-
-- : make-encumbered-disjoint-join-implies-equiv-converse/L _ Z DJ J S2P1 S2P2 _ S2P EQV
-    <- set`lookup-implies-fresh-update (set`lookup/= nat`eq/) _ F U
-    <- set`domain?-total D1?
-    <- set`domain?-total D2?
-    <- make-encumbered-disjoint-join-implies-equiv-converse/LL
-      _ Z DJ J F U S2P1 S2P2 D1? D2? _ S2P EQV.
-
-- : make-encumbered-disjoint-join-implies-equiv-converse DJ J A1 A2 _ A EQV
-    <- set`size-total Z
-    <- make-encumbered-disjoint-join-implies-equiv-converse/L _ Z DJ J A1 A2 _ A EQV.
-
-%worlds (objvar) (make-encumbered-disjoint-join-implies-equiv-converse/F _ _ _ _).
-%total { } (make-encumbered-disjoint-join-implies-equiv-converse/F _ _ _ _).
-
-%worlds (objvar) (make-encumbered-disjoint-join-implies-equiv-converse/L _ _ _ _ _ _ _ _ _)
-  (make-encumbered-disjoint-join-implies-equiv-converse/LL _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (N N1)
-  (make-encumbered-disjoint-join-implies-equiv-converse/LL N _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered-disjoint-join-implies-equiv-converse/L N1 _ _ _ _ _ _ _ _).
-
-%worlds (objvar) (make-encumbered-disjoint-join-implies-equiv-converse _ _ _ _ _ _ _).
-%total { } (make-encumbered-disjoint-join-implies-equiv-converse _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered-implies
-  : forall* {CM} {PM} {B} {Q} {Pi} {CM'} {PM'} {B'} {Q'} {Pi'}
-    forall {MF: make-encumbered CM PM B Q Pi}
-    {MF': make-encumbered CM' PM' B' Q' Pi'}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
-    {BE: cxt`eq B B'} {QE: set`eq Q Q'}
-    exists {PE: implies Pi Pi'} {PE': implies Pi' Pi}
-    true.
-
-%% Could we get a equivalence here?
-%theorem make-encumbered-implies/L
-  : forall* {PF1:object -> permission} {PF2:object -> permission}
-    {CP1} {CP2} {PiF1} {PiF2}
-    forall {O1} {O2} {EQ: object`eq O1 O2}
-    {NN1} {NN2} {EQ: nonnull`eq NN1 NN2}
-    {EQ: predicate`eq CP1 CP2}
-    {EQV: {x} equiv (PF1 x) (PF2 x)}
-    {AN1: apply-nn NN1 ([x] unitperm (encumbered (PF1 x)
-       (combine (obj-ne-null x) (combine (allperm x) (one-predcall CP1 x))))) ([x] PiF1 x)}
-    {AN2: apply-nn NN2 ([x] unitperm (encumbered (PF2 x)
-       (combine (obj-ne-null x) (combine (allperm x) (one-predcall CP2 x))))) ([x] PiF2 x)}
-    exists {IMP1: implies (PiF1 O1) (PiF2 O2)}
-    {IMP2: implies (PiF2 O2) (PiF1 O1)}
-    true.
-
-- : make-encumbered-implies/L O1 _ object`eq/ nn/yes _ nonnull`eq/ predicate`eq/
-    EQV apply-nn/yes apply-nn/yes
-    (implies/equiv-encumbered (EQV O1) equiv/reflexive)
-    (implies/equiv-encumbered (equiv/symmetric (EQV O1)) equiv/reflexive).
-
-- : make-encumbered-implies/L O1 _ object`eq/ nn/may _ nonnull`eq/ predicate`eq/
-    EQV apply-nn/may apply-nn/may
-    (implies/cond-inner
-      (bimplies/reflexive)
-      (bimplies/reflexive)
-      (implies/reflexive)
-      (implies/equiv-encumbered (EQV O1) equiv/reflexive))
-    (implies/cond-inner
-      (bimplies/reflexive)
-      (bimplies/reflexive)
-      (implies/reflexive)
-      (implies/equiv-encumbered (equiv/symmetric (EQV O1)) equiv/reflexive)).
-
-%worlds (objvar) (make-encumbered-implies/L _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (make-encumbered-implies/L _ _ _ _ _ _ _ _ _ _ _ _).
-
-- : make-encumbered-implies make-encumbered/0 make-encumbered/0 _ _ _ _
-    implies/reflexive implies/reflexive.
-
-- : make-encumbered-implies MF
-    (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 AN1 F1 U1) CME PME BE SE
-    (implies/trans
-      (implies/equiv EQV)
-      (implies/combine I1 I3))
-    (implies/trans
-      (implies/combine I2 I4)
-      (implies/equiv (equiv/symmetric EQV)))
-    <- make-encumbered/U-inversion MF F1 U1 _ MF0 _ _ _ _ BL0
-      _ CML0 _ PML0 _ DM0 _ MFO0 _ AN0 EQV
-    <- cxt`lookup-unique BL0 BL1 BE nat`eq/ CIE
-    <- cxt-info-eq-inversion CIE OE TE
-    <- ty-eq-inversion TE NNE AE CE
-    <- clsmap`lookup-unique CML0 CML1 CME CE FME
-    <- predmap`lookup-unique PML0 PML1 PME CE CPE
-    <- fldmap`domain-unique DM0 DM1 FME FSE
-    <- ({x} fldmap2perm-equiv (MFO0 x) (MFO1 x) PME object`eq/ FME FSE (PEQV x))
-    <- make-encumbered-implies/L _ _ OE _ _ NNE CPE PEQV AN0 AN1 I1 I2
-    <- make-encumbered-implies MF0 MF1 CME PME BE set`eq/ I3 I4.
-
-%worlds (objvar) (make-encumbered-implies _ _ _ _ _ _ _ _).
-%total (K) (make-encumbered-implies _ K _ _ _ _ _ _).
-
-
-%% 9, theorems about effects2input
-
-%theorem false-implies-effects2input
-  : forall* {CM} {PM} {B} {XX} {Pi}
-    forall {V:void}
-    exists {XX2P: effects2input CM PM B XX Pi}
-    true.
-
-%worlds (objvar) (false-implies-effects2input _ _).
-%total { } (false-implies-effects2input _ _).
-
-
-%theorem effects2input-respects-eq
-  : forall* {CM} {PM} {B} {XX} {XX'} {Pi} {Pi'}
-    forall {XX2I: effects2input CM PM B XX Pi}
-    {E: effects`eq XX XX'} {E: permission`eq Pi Pi'}
-    exists {XX2I': effects2input CM PM B XX' Pi'}
-    true.
-
-- : effects2input-respects-eq XX2I effects`eq/ permission`eq/ XX2I.
-
-%worlds (objvar) (effects2input-respects-eq _ _ _ _).
-%total {} (effects2input-respects-eq _ _ _ _).
-
-
-%theorem clsmap-cxt-effects-implies-effects2input
-  : forall* {CM} {PM} {B} {XX}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-B-XX: clsmap-cxt-effects CM B XX}
-    exists {Pi} {XX=>Pi: effects2input CM PM B XX Pi}
-    true.
-
-- : clsmap-cxt-effects-implies-effects2input CM-CM CM2PM CM-B
-    (clsmap-cxt-effects/ DM _ _ _ _ CM-B-R CM-B-S CM-B-Q) _
-    (effects2input/ B=>Pi1 MFP CV SuQS=S2 S2=>M' M'=>Pi3 M=>Pi4)
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- make-encumbered-total CM-CM CM2PM CM-B-Q _ MFP
-    <- clsmap-cxt-objset-implies-objset2fldset CM-B-Q _ CV
-    <- objset2fldset-preserves-clsmap-cxt-fldset CM-B-Q CV CM-B-QS
-    <- set`union-total (SuQS=S2:set`union S QS S2)
-    <- set2efxmap-total S2=>M'
-    <- set2efxmap-implies-domain S2=>M' DM'
-    <- join-preserves-clsmap-cxt-fldset CM-B-S CM-B-QS SuQS=S2 CM-B-S2
-    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM' CM-B-S2 _ M'=>Pi3
-    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM CM-B-R _ M=>Pi4.
-
-%worlds (objvar) (clsmap-cxt-effects-implies-effects2input _ _ _ _ _ _).
-%total {} (clsmap-cxt-effects-implies-effects2input _ _ _ _ _ _).
-
-
-%% cascading effects - cannot derive equivalence because of make-encumbered
-
-%theorem effects2input-implies
-  : forall* {CM} {CM'} {PM} {PM'} {B} {B'} {XX} {XX'} {Pi} {Pi'}
-    forall {XX=>Pi: effects2input CM PM B XX Pi}
-    {XX=>Pi: effects2input CM' PM' B' XX' Pi'}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
-    {BE: cxt`eq B B'} {XXE: effects`eq XX XX'}
-    exists {IMP1: implies Pi Pi'} {IMP2: implies Pi' Pi}
-    true.
-
-- : effects2input-implies
-    (effects2input/
-      (B2P1:cxt2perm CM1 PM1 B1 Pi11) (MFO1:make-encumbered CM1 PM1 B1 Q1 Pi21)
-      (CV1:objset2fldset CM1 B1 Q1 QS1)
-      (U1:set`union S1 QS1 R1)
-      (S2M1:set2efxmap R1 efx/write M'1)
-      (M2P11:efxmap2perm CM1 PM1 B1 M'1 Pi31)
-      (M2P12:efxmap2perm CM1 PM1 B1 M1 Pi41))
-    (effects2input/
-      (B2P2:cxt2perm CM2 PM2 B2 Pi12) (MFO2:make-encumbered CM2 PM2 B2 Q2 Pi22)
-      (CV2:objset2fldset CM2 B2 Q2 QS2)
-      (U2:set`union S2 QS2 R2)
-      (S2M2:set2efxmap R2 efx/write M'2)
-      (M2P21:efxmap2perm CM2 PM2 B2 M'2 Pi32)
-      (M2P22:efxmap2perm CM2 PM2 B2 M2 Pi42))
-    CME PME BE XXE
-    (implies/combine
-      (implies/combine
-        (implies/equiv EQV1)
-        (implies/combine I1 (implies/equiv EQV2)))
-      (implies/equiv EQV3))
-    (implies/combine
-      (implies/combine
-        (implies/equiv (equiv/symmetric EQV1))
-        (implies/combine I2 (implies/equiv (equiv/symmetric EQV2))))
-      (implies/equiv (equiv/symmetric EQV3)))
-    <- cxt2perm-equiv B2P1 B2P2 CME PME BE EQV1
-    <- effects`eq-inversion XXE ME (SE:set`eq S1 S2) (QE:set`eq Q1 Q2)
-    <- objset2fldset-unique CV1 CV2 CME BE QE (QSE:set`eq QS1 QS2)
-    <- set`union-unique U1 U2 SE QSE S2E
-    <- make-encumbered-implies MFO1 MFO2 CME PME BE QE I1 I2
-    <- set2efxmap-unique S2M1 S2M2 S2E efx`eq/ MME
-    <- efxmap2perm-equiv M2P11 M2P21 CME PME BE MME EQV2
-    <- efxmap2perm-equiv M2P12 M2P22 CME PME BE ME EQV3.
-
-%worlds (objvar) (effects2input-implies _ _ _ _ _ _ _ _).
-%total { } (effects2input-implies _ _ _ _ _ _ _ _).
-
-
-%theorem effects2output-respects-eq
-  : forall* {CM} {PM} {B} {NN} {C} {XX} {NN1} {C1} {XX1} {Out} {GS} {GS1}
-    forall {XX2O: effects2output CM PM B (reftype/ NN C GS) XX Out}
-    {E: nonnull`eq NN NN1} {E: nat`eq C C1} {E: targets`eq GS GS1}
-    {E: effects`eq XX XX1}
-    exists {XX2O: effects2output CM PM B (reftype/ NN1 C1 GS1) XX1 Out}
-    true.
-
-- : effects2output-respects-eq XX nonnull`eq/ nat`eq/ targets`eq/ effects`eq/ XX.
-
-%worlds (objvar) (effects2output-respects-eq _ _ _ _ _ _).
-%total { } (effects2output-respects-eq _ _ _ _ _ _).
 
 
 % TODO: respects-eq for methty2proctype and consty2proctype..
@@ -2142,129 +1490,122 @@ env2progtype/
 % cxt needs to be consistent with clsmap
 
 
-%theorem clsmap-cxt-effects-implies-effects2output*
-  : forall* {CM} {PM} {B} {XX} {NN} {C} {FM}
+%theorem clsmap-cxt-capmap-implies-result2output*
+  : forall* {CM} {PM} {CTX} {CAM} {NN} {C} {FM}
     forall {GS} {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-B-GS: clsmap-cxt-reftype CM B (reftype/ NN C GS)}
-    {CM-B-XX: clsmap-cxt-effects CM B XX}
-    {GS-XX: targets-effects GS XX}
+    {CM-CTX: clsmap-cxt CM CTX}
+    {CM-CTX-GS: clsmap-cxt-reftype CM CTX (reftype/ NN C GS)}
+    {CM-CTX-XX: clsmap-cxt-capmap CM CTX CAM}
+    {GS-XX: targets-capmap GS CAM}
     {CML: clsmap`lookup CM C FM}
-    exists {Out} {XX=>Out: effects2output CM PM B (reftype/ NN C GS) XX Out}
+    exists {Out}
+    {XX=>Out: result2output CM PM
+      (result/expr (reftype/ NN C GS) (env/ CTX CAM)) Out}
     true.
 
-%theorem clsmap-cxt-effects-implies-effects2output/shared
-  : forall* {CM} {PM} {B} {XX} {NN} {C} {FM}
+%theorem clsmap-cxt-capmap-implies-result2output/shared
+  : forall* {CM} {PM} {CTX} {CAM} {NN} {C} {FM}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    {CM-CTX: clsmap-cxt CM CTX}
+    {CM-CTX-XX: clsmap-cxt-capmap CM CTX CAM}
     {CML: clsmap`lookup CM C FM}
-    exists {Out} {XX=>Out: effects2output CM PM B (reftype/ NN C targets/shared) XX Out}
+    exists {Out}
+    {XX=>Out: result2output CM PM
+      (result/expr (reftype/ NN C targets/shared) (env/ CTX CAM)) Out}
     true.
 
-- : clsmap-cxt-effects-implies-effects2output/shared
-    CM-CM CM2PM CM-B CM-B-XX CML _
-    (effects2output/simple T2PF reftype2ty/shared simple-targets/shared
-      M=>Pi2 B=>Pi1)
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
+- : clsmap-cxt-capmap-implies-result2output/shared
+    CM-CM CM2PM CM-CTX CM-CTX-XX CML _
+    (result2output/shared T2PF CTX=>Pi1 M=>Pi2)
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-CTX _ CTX=>Pi1
+    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-CTX-XX _ M=>Pi2
     <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
 
-%worlds (objvar) (clsmap-cxt-effects-implies-effects2output/shared _ _ _ _ _ _ _).
-%total {} (clsmap-cxt-effects-implies-effects2output/shared _ _ _ _ _ _ _).
+%worlds (objvar) (clsmap-cxt-capmap-implies-result2output/shared _ _ _ _ _ _ _).
+%total {} (clsmap-cxt-capmap-implies-result2output/shared _ _ _ _ _ _ _).
 
 
-%theorem clsmap-cxt-effects-implies-effects2output/unique*
-  : forall* {CM} {PM} {B} {XX} {NN} {C} {FM}
-    forall {S} {S2} {CM-CM: clsmap-clsmap CM CM}
+%theorem clsmap-cxt-capmap-implies-result2output/unique
+  : forall* {CM} {PM} {CTX} {CAM} {NN} {C} {FM} {S} {S2}
+    forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-B-S2: clsmap-cxt-unique-objset CM B NN C S}
-    {G-XX: targets-effects (targets/unique S S2) XX}
-    {CM-B-XX: clsmap-cxt-effects CM B XX}
+    {CM-CTX: clsmap-cxt CM CTX}
+    {CM-CTX-S2: clsmap-cxt-unique-objset CM CTX NN C S}
+    {WF-TGTS: wf-unique-targets (targets/unique S S2)}
+    {G-CAM: targets-capmap (targets/unique S S2) CAM}
+    {CM-CTX-CAM: clsmap-cxt-capmap CM CTX CAM}
     {CML: clsmap`lookup CM C FM}
-    exists {Out} {XX=>Out: effects2output CM PM B
-                           (reftype/ NN C (targets/unique S S2)) XX Out}
+    exists {Out}
+    {CAM=>Out: result2output CM PM
+       (result/expr (reftype/ NN C (targets/unique S S2)) (env/ CTX CAM)) Out}
     true.
 
-- : clsmap-cxt-effects-implies-effects2output/unique*
-    set/0 set/0 CM-CM CM2PM CM-B SOC _ CM-B-XX CML _
-    (effects2output/simple T2PF reftype2ty/unique simple-targets/unique
-      M=>Pi2 B=>Pi1)
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
-
-- : clsmap-cxt-effects-implies-effects2output/unique*
-    (set/+ _ _) set/0 CM-CM CM2PM CM-B SOC _ CM-B-XX CML _
-    (effects2output/unique/0f T2PF M=>Pi2 S=>G B=>Pi1 set`size/0
-      (set`size/+ Z))
+- : clsmap-cxt-capmap-implies-result2output/unique
+    CM-CM CM2PM CM-CTX SOC wf-unique-targets/1
+    _ CM-CTX-XX CML _
+    (result2output/unique/1 (set`size/+ Z) set`size/0 T2PF S=>G CTX=>Pi1 M=>Pi2)
     <- set`size-total Z
     <- ({r} clsmap-cxt-unique-objset-implies-set2cond SOC _ (S=>G r))
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-effects-implies-efxmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-CTX _ CTX=>Pi1
+    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-CTX-XX _ M=>Pi2
     <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
 
-- : clsmap-cxt-effects-implies-effects2output/unique*
-    _ (set/+ _ _) CM-CM CM2PM CM-B SOC
-    (targets-effects/unique _ S2<=M2)
-    (clsmap-cxt-effects/ DM _ _ _ _ CM-B-S _ _) CML _
-    (effects2output/unique/+f T2PF X2Q MX-M2 M2=>Pi3 M1=>Pi2 R
-      S=>G B=>Pi1 (set`size/+ Z))
+- : clsmap-cxt-capmap-implies-result2output/unique
+    CM-CM CM2PM CM-CTX SOC wf-unique-targets/2
+    (targets-capmap/unique _ S2<=M2)
+    (clsmap-cxt-capmap/ DM CM-CTX-S) CML _
+    (result2output/unique/2 (set`size/+ Z) T2PF S=>G CTX=>Pi1
+      R M1=>Pi2 M2=>Pi3 MX-M2 X2Q)
     <- set`size-total Z
     <- ({r} clsmap-cxt-unique-objset-implies-set2cond SOC _ (S=>G r))
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- efxmap`partition-total R
-    <- efxmap`partition-implies-leq R LE1 LE2
-    <- efxmap`domain-total DM1
-    <- efxmap`domain-total DM2
-    <- efxmap`domain-preserves-leq* LE1 DM1 DM SLE1
-    <- efxmap`domain-preserves-leq* LE2 DM2 DM SLE2
-    <- clsmap-cxt-fldset-respects-geq CM-B-S SLE1 CM-B-S1
-    <- clsmap-cxt-fldset-respects-geq CM-B-S SLE2 CM-B-S2
-    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM1 CM-B-S1 _ M1=>Pi2
-    <- clsmap-cxt-fldset-implies-efxmap2perm CM-CM CM2PM DM2 CM-B-S2 _ M2=>Pi3
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-CTX _ CTX=>Pi1
+    <- capmap`partition-total R
+    <- capmap`partition-implies-leq R LE1 LE2
+    <- capmap`domain-total DM1
+    <- capmap`domain-total DM2
+    <- capmap`domain-preserves-leq* LE1 DM1 DM SLE1
+    <- capmap`domain-preserves-leq* LE2 DM2 DM SLE2
+    <- clsmap-cxt-fldset-respects-geq CM-CTX-S SLE1 CM-CTX-S1
+    <- clsmap-cxt-fldset-respects-geq CM-CTX-S SLE2 CM-CTX-S2
+    <- clsmap-cxt-fldset-implies-capmap2perm CM-CM CM2PM DM1 CM-CTX-S1 _ M1=>Pi2
+    <- clsmap-cxt-fldset-implies-capmap2perm CM-CM CM2PM DM2 CM-CTX-S2 _ M2=>Pi3
     <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
     <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF
-    <- efxmap-min-efx-total MX-M2
-    <- efx2frac-total X2Q.
+    <- capmap-min-cap-total MX-M2
+    <- cap2frac-total X2Q.
 
 %worlds (objvar)
-  (clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
+  (clsmap-cxt-capmap-implies-result2output/unique _ _ _ _ _ _ _ _ _ _).
 %total {}
-  (clsmap-cxt-effects-implies-effects2output/unique* _ _ _ _ _ _ _ _ _ _ _).
+  (clsmap-cxt-capmap-implies-result2output/unique _ _ _ _ _ _ _ _ _ _).
 
-
-%abbrev clsmap-cxt-effects-implies-effects2output/unique
-  = clsmap-cxt-effects-implies-effects2output/unique* _ _.
-
-- : clsmap-cxt-effects-implies-effects2output*
-    targets/shared CM-CM CM2PM CM-B CM-B-GS CM-B-XX GS-XX CML _ XX=>Out
-    <- clsmap-cxt-effects-implies-effects2output/shared CM-CM CM2PM CM-B CM-B-XX
+- : clsmap-cxt-capmap-implies-result2output*
+    targets/shared CM-CM CM2PM CM-CTX CM-CTX-GS CM-CTX-XX GS-XX CML _ XX=>Out
+    <- clsmap-cxt-capmap-implies-result2output/shared CM-CM CM2PM CM-CTX CM-CTX-XX
       CML _ XX=>Out.
 
-- : clsmap-cxt-effects-implies-effects2output* (targets/unique _ _)
-    CM-CM CM2PM CM-B (clsmap-cxt-reftype/unique _ SOC _)
-    CM-B-XX GS-XX CML _ XX=>Out
-    <- clsmap-cxt-effects-implies-effects2output/unique
-      CM-CM CM2PM CM-B SOC GS-XX CM-B-XX CML _ XX=>Out.
+- : clsmap-cxt-capmap-implies-result2output* (targets/unique _ _)
+    CM-CM CM2PM CM-CTX (clsmap-cxt-reftype/unique _ SOC _ WF-TGT)
+    CM-CTX-XX GS-XX CML _ XX=>Out
+    <- clsmap-cxt-capmap-implies-result2output/unique
+      CM-CM CM2PM CM-CTX SOC WF-TGT GS-XX CM-CTX-XX CML _ XX=>Out.
 
-%worlds (objvar) (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _ _).
-%total {} (clsmap-cxt-effects-implies-effects2output* _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (clsmap-cxt-capmap-implies-result2output* _ _ _ _ _ _ _ _ _ _).
+%total {} (clsmap-cxt-capmap-implies-result2output* _ _ _ _ _ _ _ _ _ _).
 
-%abbrev clsmap-cxt-effects-implies-effects2output
-  = clsmap-cxt-effects-implies-effects2output* _.
+%abbrev clsmap-cxt-capmap-implies-result2output
+  = clsmap-cxt-capmap-implies-result2output* _.
 
 
-%{
- theorems about leq - basically:
-
- if M1 is less or equal than M2, and
- M1 ==> Pi1, M2 ==> Pi2.
- then exists Pi3, such that Pi2 <==> Pi1 , Pi3
-}%
+%%%
+%%% theorems about leq - basically:
+%%%
+%%% if M1 is less or equal than M2, and
+%%% M1 ==> Pi1, M2 ==> Pi2.
+%%% then exists Pi3, such that Pi2 <==> Pi1 , Pi3
+%%%
 
 %theorem can-split-permission
   : forall* {Q1} {Pi}
@@ -2408,10 +1749,10 @@ env2progtype/
 
 
 %theorem clsmap-cxt-lookup-implies-ty2perm
-  : forall* {CM} {PM} {T} {B} {Pi} {O} {N}
-    forall {CM-B: clsmap-cxt CM B}
-    {BL: cxt`lookup B N (cxt-info/ O T)}
-    {B2P: cxt2perm CM PM B Pi}
+  : forall* {CM} {PM} {T} {CTX} {Pi} {O} {N}
+    forall {CM-CTX: clsmap-cxt CM CTX}
+    {CTXL: cxt`lookup CTX N (cxt-info/ O T)}
+    {CTX2P: cxt2perm CM PM CTX Pi}
     exists {PF} {T2PF: ty2perm PM T PF}
     {EQV: implies Pi ((PF O) , Pi)}
     true.

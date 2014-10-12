@@ -1,32 +1,31 @@
-% Unit Effect
-% $Id: efx-base.elf,v 1.6 2013/09/28 16:35:04 csun Exp csun $
+% Unit Capability
 
 %%% Definitions
 
-efx : type. %name efx X.
+cap : type. %name cap X.
 
-efx/read : efx.
+cap/read : cap.
 
-efx/write : efx.
+cap/write : cap.
 
 
 % equality
 
-eq : efx -> efx -> type.
+eq : cap -> cap -> type.
 
 eq/ : eq X X.
 
 
 % grt
 
-grt : efx -> efx -> type.
+grt : cap -> cap -> type.
 
-grt/wr : grt efx/write efx/read.
+grt/wr : grt cap/write cap/read.
 
 
 % compare
 
-cmp : efx -> efx -> comp -> type.
+cmp : cap -> cap -> comp -> type.
 
 cmp/= : cmp X X equal.
 
@@ -37,7 +36,7 @@ cmp/> : cmp X Y greater <- grt X Y.
 
 % join
 
-join : efx -> efx -> efx -> type.
+join : cap -> cap -> cap -> type.
 
 join/= : join X X X.
 
@@ -91,9 +90,9 @@ join/> : join X1 X2 X1 <- grt X1 X2.
 
 - : cmp-total* _ _ equal cmp/=.
 
-- : cmp-total* efx/read efx/write less (cmp/< grt/wr).
+- : cmp-total* cap/read cap/write less (cmp/< grt/wr).
 
-- : cmp-total* efx/write efx/read greater (cmp/> grt/wr).
+- : cmp-total* cap/write cap/read greater (cmp/> grt/wr).
 
 %worlds () (cmp-total* _ _ _ _).
 %total {} (cmp-total* _ _ _ _).
@@ -162,7 +161,7 @@ join/> : join X1 X2 X1 <- grt X1 X2.
 
 
 
-geq : efx -> efx -> type.
+geq : cap -> cap -> type.
 
 
 geq/= : geq X Y
@@ -171,6 +170,16 @@ geq/= : geq X Y
 geq/> : geq X Y
     <- grt X Y.
 
+
+
+geq? : cap -> cap -> bool -> type.
+
+
+geq?/yes : geq? X Y true
+    <- geq X Y.
+
+geq?/no : geq? X Y false
+    <- grt Y X.
 
 
 
@@ -280,11 +289,77 @@ geq/> : geq X Y
 
 
 
+%%% Theorems about geq?
+
+
+%theorem geq?-total*:
+ forall {N1} {N2}
+ exists {B}
+  {G: geq? N1 N2 B}
+ true.
+
+%abbrev geq?-total = geq?-total* _ _ _.
+
+%theorem geq?-total/L :
+ forall* {N1} {N2} {C}
+ forall {C: cmp N1 N2 C}
+ exists {B}
+  {G: geq? N1 N2 B}
+ true.
+
+- : geq?-total/L (cmp/=) _ (geq?/yes (geq/= eq/)).
+
+- : geq?-total/L (cmp/> N1>N2) _ (geq?/yes (geq/> N1>N2)).
+
+- : geq?-total/L (cmp/< N1<N2) _ (geq?/no N1<N2).
+
+%worlds () (geq?-total/L _ _ _).
+%total { } (geq?-total/L _ _ _).
+
+- : geq?-total G
+    <- cmp-total CMP
+    <- geq?-total/L CMP _ G.
+
+%worlds () (geq?-total* _ _ _ _).
+%total { } (geq?-total* _ _ _ _).
+
+
+%theorem geq?-unique:
+ forall* {N11} {N12} {B1}
+  {N21} {N22} {B2}
+ forall {G1: geq? N11 N12 B1}
+  {G2: geq? N21 N22 B2}
+  {E1: eq N11 N21}
+  {E2: eq N12 N22}
+ exists {BE: bool`eq B1 B2}
+ true.
+
+- : geq?-unique _ _ eq/ eq/ bool`eq/.
+
+- : geq?-unique
+ (geq?/yes N1>=N2)
+ (geq?/no N2>N1) eq/ eq/ BEQ
+    <- geq-transitive-grt N1>=N2 N2>N1 N1>N1
+    <- grt-anti-reflexive N1>N1 F
+    <- bool`false-implies-eq F BEQ.
+
+- : geq?-unique
+ (geq?/no N2>N1)
+ (geq?/yes N1>=N2) eq/ eq/ BEQ
+    <- geq-transitive-grt N1>=N2 N2>N1 N1>N1
+    <- grt-anti-reflexive N1>N1 F
+    <- bool`false-implies-eq F BEQ.
+
+%worlds () (geq?-unique _ _ _ _ _).
+%total { } (geq?-unique _ _ _ _ _).
+
+
+
 %%%% Definitions
 
 
 
-ne : efx -> efx -> type.
+ne : cap -> cap -> type.
 
 
 ne/< : ne X Y
@@ -296,7 +371,7 @@ ne/> : ne X Y
 
 
 
-eq? : efx -> efx -> bool -> type.
+eq? : cap -> cap -> bool -> type.
 
 
 eq?/yes : eq? X X true.
@@ -608,7 +683,7 @@ eq?/no : eq? X Y false
 
 
 
-leq? : efx -> efx -> bool -> type.
+leq? : cap -> cap -> bool -> type.
 
 
 leq?/yes : leq X1 X2 -> leq? X1 X2 true.
@@ -716,6 +791,8 @@ leq?/no : nle X1 X2 -> leq? X1 X2 false.
 
 %worlds () (join-deterministic _ _ _ _ _).
 %total {} (join-deterministic _ _ _ _ _).
+
+%abbrev join-unique = join-deterministic.
 
 
 %theorem join-total*
@@ -849,7 +926,7 @@ leq?/no : nle X1 X2 -> leq? X1 X2 false.
 
 - : join-associative* X1+X2=X3 X3+X4=X7 X2+X4=X6 X1+X6=X7
     <- join-associative X1+X2=X3 X3+X4=X7 Y6 X2+X4=Y6 X1+Y6=X7
-    <- join-deterministic X2+X4=Y6 X2+X4=X6 eq/ eq/ Y6=X6
+    <- join-unique X2+X4=Y6 X2+X4=X6 eq/ eq/ Y6=X6
     <- join-respects-eq X1+Y6=X7 eq/ Y6=X6 eq/ X1+X6=X7.
 
 %worlds () (join-associative* _ _ _ _).
@@ -881,7 +958,7 @@ leq?/no : nle X1 X2 -> leq? X1 X2 false.
 
 - : join-associative-converse* X2+X4=X6 X1+X6=X7 X1+X2=X3 X3+X4=X7
     <- join-associative-converse X2+X4=X6 X1+X6=X7 X3P X1+X2=X3P X3P+X4=X7
-    <- join-deterministic X1+X2=X3P X1+X2=X3 eq/ eq/ X3P=X3
+    <- join-unique X1+X2=X3P X1+X2=X3 eq/ eq/ X3P=X3
     <- join-respects-eq X3P+X4=X7 X3P=X3 eq/ eq/ X3+X4=X7.
 
 %worlds () (join-associative-converse* X2+X4=X6 X1+X6=X7 X1+X2=X3 %{=>}% X3+X4=X7).
@@ -975,7 +1052,7 @@ leq?/no : nle X1 X2 -> leq? X1 X2 false.
 %%%% Definitions
 
 
-min : efx -> efx -> efx -> type.
+min : cap -> cap -> cap -> type.
 
 
 min/= : min X X X.
@@ -986,7 +1063,7 @@ min/< : grt X2 X1 -> min X1 X2 X1.
 
 
 
-max : efx -> efx -> efx -> type.
+max : cap -> cap -> cap -> type.
 
 
 max/= : max X X X.
@@ -1059,6 +1136,17 @@ max/< : grt X2 X1 -> max X1 X2 X2.
 
 
 %abbrev min-total = min-total* _ _ _.
+
+
+%theorem min-idempotent:
+ forall {X}
+ exists {M: min X X X}
+ true.
+
+- : min-idempotent _ min/=.
+
+%worlds () (min-idempotent _ _).
+%total { } (min-idempotent _ _).
 
 
 %theorem min-deterministic :
@@ -1448,7 +1536,7 @@ max/< : grt X2 X1 -> max X1 X2 X2.
 
 - : min-associative* X1&X2=X3 X3&X4=X7 X2&X4=X6 X1&X6=X7
     <- min-associative X1&X2=X3 X3&X4=X7 Y6 X2&X4=Y6 X1&Y6=X7
-    <- min-deterministic X2&X4=Y6 X2&X4=X6 eq/ eq/ Y6=X6
+    <- min-unique X2&X4=Y6 X2&X4=X6 eq/ eq/ Y6=X6
     <- min-respects-eq X1&Y6=X7 eq/ Y6=X6 eq/ X1&X6=X7.
 
 %worlds () (min-associative* _ _ _ _).
@@ -1480,7 +1568,7 @@ max/< : grt X2 X1 -> max X1 X2 X2.
 
 - : min-associative-converse* X2&X4=X6 X1&X6=X7 X1&X2=X3 X3&X4=X7
     <- min-associative-converse X2&X4=X6 X1&X6=X7 X3P X1&X2=X3P X3P&X4=X7
-    <- min-deterministic X1&X2=X3P X1&X2=X3 eq/ eq/ X3P=X3
+    <- min-unique X1&X2=X3P X1&X2=X3 eq/ eq/ X3P=X3
     <- min-respects-eq X3P&X4=X7 X3P=X3 eq/ eq/ X3&X4=X7.
 
 %worlds () (min-associative-converse* X2&X4=X6 X1&X6=X7 X1&X2=X3 %{=>}% X3&X4=X7).
@@ -1612,6 +1700,17 @@ max/< : grt X2 X1 -> max X1 X2 X2.
 
 
 %abbrev max-total = max-total* _ _ _.
+
+
+%theorem max-idempotent:
+ forall {X}
+ exists {M: max X X X}
+ true.
+
+- : max-idempotent _ max/=.
+
+%worlds () (max-idempotent _ _).
+%total { } (max-idempotent _ _).
 
 
 %theorem max-deterministic :
@@ -1966,7 +2065,7 @@ max/< : grt X2 X1 -> max X1 X2 X2.
 
 - : max-associative* X1|X2=X3 X3|X4=X7 X2|X4=X6 X1|X6=X7
     <- max-associative X1|X2=X3 X3|X4=X7 Y6 X2|X4=Y6 X1|Y6=X7
-    <- max-deterministic X2|X4=Y6 X2|X4=X6 eq/ eq/ Y6=X6
+    <- max-unique X2|X4=Y6 X2|X4=X6 eq/ eq/ Y6=X6
     <- max-respects-eq X1|Y6=X7 eq/ Y6=X6 eq/ X1|X6=X7.
 
 %worlds () (max-associative* _ _ _ _).
@@ -1998,7 +2097,7 @@ max/< : grt X2 X1 -> max X1 X2 X2.
 
 - : max-associative-converse* X2|X4=X6 X1|X6=X7 X1|X2=X3 X3|X4=X7
     <- max-associative-converse X2|X4=X6 X1|X6=X7 X3P X1|X2=X3P X3P|X4=X7
-    <- max-deterministic X1|X2=X3P X1|X2=X3 eq/ eq/ X3P=X3
+    <- max-unique X1|X2=X3P X1|X2=X3 eq/ eq/ X3P=X3
     <- max-respects-eq X3P|X4=X7 X3P=X3 eq/ eq/ X3|X4=X7.
 
 %worlds () (max-associative-converse* X2|X4=X6 X1|X6=X7 X1|X2=X3 %{=>}% X3|X4=X7).
@@ -2392,203 +2491,213 @@ max/< : grt X2 X1 -> max X1 X2 X2.
 
 
 
-%theorem efx/write-is-upper-bound
-  : forall {X} exists {MX: min efx/write X X} true.
+%theorem cap/write-is-upper-bound
+  : forall {X} exists {MX: min cap/write X X} true.
 
-- : efx/write-is-upper-bound efx/write min/=.
+- : cap/write-is-upper-bound cap/write min/=.
 
-- : efx/write-is-upper-bound efx/read (min/> grt/wr).
+- : cap/write-is-upper-bound cap/read (min/> grt/wr).
 
-%worlds (objvar) (efx/write-is-upper-bound _ _).
-%total {} (efx/write-is-upper-bound _ _).
+%worlds (objvar) (cap/write-is-upper-bound _ _).
+%total {} (cap/write-is-upper-bound _ _).
 
 
 
 %%% Abbreviations
-%abbrev efx`efx = efx.
-%abbrev efx`efx/read = efx/read.
-%abbrev efx`efx/write = efx/write.
-%abbrev efx`eq = eq.
-%abbrev efx`eq/ = eq/.
-%abbrev efx`grt = grt.
-%abbrev efx`grt/wr = grt/wr.
-%abbrev efx`cmp = cmp.
-%abbrev efx`cmp/= = cmp/=.
-%abbrev efx`cmp/< = cmp/<.
-%abbrev efx`cmp/> = cmp/>.
-%abbrev efx`join = join.
-%abbrev efx`join/= = join/=.
-%abbrev efx`join/< = join/<.
-%abbrev efx`join/> = join/>.
-%abbrev efx`false-implies-grt = false-implies-grt.
-%abbrev efx`grt-anti-reflexive = grt-anti-reflexive.
-%abbrev efx`grt-transitive = grt-transitive.
-%abbrev efx`grt-anti-symmetric = grt-anti-symmetric.
-%abbrev efx`cmp-total* = cmp-total*.
-%abbrev efx`cmp-total = cmp-total.
-%abbrev efx`false-implies-eq = false-implies-eq.
-%abbrev efx`meta-eq = meta-eq.
-%abbrev efx`eq-reflexive = eq-reflexive.
-%abbrev efx`eq-symmetric = eq-symmetric.
-%abbrev efx`eq-transitive = eq-transitive.
-%abbrev efx`geq = geq.
-%abbrev efx`geq/= = geq/=.
-%abbrev efx`geq/> = geq/>.
-%abbrev efx`false-implies-geq = false-implies-geq.
-%abbrev efx`geq-respects-eq = geq-respects-eq.
-%abbrev efx`geq-reflexive = geq-reflexive.
-%abbrev efx`geq-transitive = geq-transitive.
-%abbrev efx`geq-anti-symmetric = geq-anti-symmetric.
-%abbrev efx`geq-transitive-grt = geq-transitive-grt.
-%abbrev efx`grt-transitive-geq = grt-transitive-geq.
-%abbrev efx`ne = ne.
-%abbrev efx`ne/< = ne/<.
-%abbrev efx`ne/> = ne/>.
-%abbrev efx`eq? = eq?.
-%abbrev efx`eq?/yes = eq?/yes.
-%abbrev efx`eq?/no = eq?/no.
-%abbrev efx`false-implies-ne = false-implies-ne.
-%abbrev efx`ne-respects-eq = ne-respects-eq.
-%abbrev efx`ne-anti-reflexive = ne-anti-reflexive.
-%abbrev efx`ne-symmetric = ne-symmetric.
-%abbrev efx`eq-ne-implies-false = eq-ne-implies-false.
-%abbrev efx`geq-ne-implies-grt = geq-ne-implies-grt.
-%abbrev efx`eq?-total* = eq?-total*.
-%abbrev efx`eq?-total*/L = eq?-total*/L.
-%abbrev efx`eq?-total = eq?-total.
-%abbrev efx`ltn = ltn.
-%abbrev efx`false-implies-ltn = false-implies-ltn.
-%abbrev efx`ltn-respects-eq = ltn-respects-eq.
-%abbrev efx`ltn-anti-symmetric = ltn-anti-symmetric.
-%abbrev efx`ltn-transitive = ltn-transitive.
-%abbrev efx`ltn-anti-reflexive = ltn-anti-reflexive.
-%abbrev efx`leq = leq.
-%abbrev efx`false-implies-leq = false-implies-leq.
-%abbrev efx`leq-respects-eq = leq-respects-eq.
-%abbrev efx`leq-anti-symmetric = leq-anti-symmetric.
-%abbrev efx`leq-transitive = leq-transitive.
-%abbrev efx`leq-reflexive = leq-reflexive.
-%abbrev efx`leq-transitive-ltn = leq-transitive-ltn.
-%abbrev efx`ltn-transitive-leq = ltn-transitive-leq.
-%abbrev efx`grt-respects-eq = grt-respects-eq.
-%abbrev efx`nle = nle.
-%abbrev efx`false-implies-nle = false-implies-nle.
-%abbrev efx`nle-respects-eq = nle-respects-eq.
-%abbrev efx`nle-anti-reflexive = nle-anti-reflexive.
-%abbrev efx`leq? = leq?.
-%abbrev efx`leq?/yes = leq?/yes.
-%abbrev efx`leq?/no = leq?/no.
-%abbrev efx`nle-implies-ne = nle-implies-ne.
-%abbrev efx`leq-nle-contradiction = leq-nle-contradiction.
-%abbrev efx`leq?-total* = leq?-total*.
-%abbrev efx`leq?-total = leq?-total.
-%abbrev efx`leq?-total** = leq?-total**.
-%abbrev efx`false-implies-join = false-implies-join.
-%abbrev efx`join-respects-eq = join-respects-eq.
-%abbrev efx`join-deterministic = join-deterministic.
-%abbrev efx`join-total* = join-total*.
-%abbrev efx`join-total*/L = join-total*/L.
-%abbrev efx`join-total = join-total.
-%abbrev efx`join-preserves-grt = join-preserves-grt.
-%abbrev efx`join-associative = join-associative.
-%abbrev efx`join-commutative = join-commutative.
-%abbrev efx`join-implies-leq* = join-implies-leq*.
-%abbrev efx`join-implies-leq = join-implies-leq.
-%abbrev efx`join-associative* = join-associative*.
-%abbrev efx`join-associative-converse = join-associative-converse.
-%abbrev efx`join-associative-converse* = join-associative-converse*.
-%abbrev efx`join-assoc-commutative* = join-assoc-commutative*.
-%abbrev efx`join-assoc-commutative = join-assoc-commutative.
-%abbrev efx`join-double-associative* = join-double-associative*.
-%abbrev efx`join-double-associative = join-double-associative.
-%abbrev efx`min = min.
-%abbrev efx`min/= = min/=.
-%abbrev efx`min/> = min/>.
-%abbrev efx`min/< = min/<.
-%abbrev efx`max = max.
-%abbrev efx`max/= = max/=.
-%abbrev efx`max/> = max/>.
-%abbrev efx`max/< = max/<.
-%abbrev efx`false-implies-min = false-implies-min.
-%abbrev efx`min-respects-eq = min-respects-eq.
-%abbrev efx`min-total** = min-total**.
-%abbrev efx`min-total* = min-total*.
-%abbrev efx`min-total = min-total.
-%abbrev efx`min-deterministic = min-deterministic.
-%abbrev efx`min-unique = min-unique.
-%abbrev efx`min-commutative = min-commutative.
-%abbrev efx`min/<-inversion = min/<-inversion.
-%abbrev efx`min/>-inversion = min/>-inversion.
-%abbrev efx`geq-implies-min = geq-implies-min.
-%abbrev efx`leq-implies-min = leq-implies-min.
-%abbrev efx`min-implies-geq = min-implies-geq.
-%abbrev efx`min-left-preserves-geq* = min-left-preserves-geq*.
-%abbrev efx`min-left-preserves-leq* = min-left-preserves-leq*.
-%abbrev efx`min-left-preserves-geq = min-left-preserves-geq.
-%abbrev efx`min-right-preserves-geq* = min-right-preserves-geq*.
-%abbrev efx`min-right-preserves-geq = min-right-preserves-geq.
-%abbrev efx`min-preserves-geq* = min-preserves-geq*.
-%abbrev efx`min-preserves-geq = min-preserves-geq.
-%abbrev efx`min-left-preserves-leq = min-left-preserves-leq.
-%abbrev efx`min-right-preserves-leq* = min-right-preserves-leq*.
-%abbrev efx`min-right-preserves-leq = min-right-preserves-leq.
-%abbrev efx`min-preserves-leq* = min-preserves-leq*.
-%abbrev efx`min-preserves-leq = min-preserves-leq.
-%abbrev efx`min-is-glb = min-is-glb.
-%abbrev efx`min-associative = min-associative.
-%abbrev efx`min-associative* = min-associative*.
-%abbrev efx`min-associative-converse = min-associative-converse.
-%abbrev efx`min-associative-converse* = min-associative-converse*.
-%abbrev efx`min-assoc-commutative* = min-assoc-commutative*.
-%abbrev efx`min-assoc-commutative = min-assoc-commutative.
-%abbrev efx`min-double-associative* = min-double-associative*.
-%abbrev efx`min-double-associative = min-double-associative.
-%abbrev efx`false-implies-max = false-implies-max.
-%abbrev efx`max-respects-eq = max-respects-eq.
-%abbrev efx`max-total** = max-total**.
-%abbrev efx`max-total* = max-total*.
-%abbrev efx`max-total = max-total.
-%abbrev efx`max-deterministic = max-deterministic.
-%abbrev efx`max-unique = max-unique.
-%abbrev efx`max-commutative = max-commutative.
-%abbrev efx`geq-implies-max = geq-implies-max.
-%abbrev efx`leq-implies-max = leq-implies-max.
-%abbrev efx`max-implies-geq = max-implies-geq.
-%abbrev efx`max-is-lub = max-is-lub.
-%abbrev efx`max-left-preserves-geq* = max-left-preserves-geq*.
-%abbrev efx`max-left-preserves-leq* = max-left-preserves-leq*.
-%abbrev efx`max-left-preserves-geq = max-left-preserves-geq.
-%abbrev efx`max-right-preserves-geq* = max-right-preserves-geq*.
-%abbrev efx`max-right-preserves-geq = max-right-preserves-geq.
-%abbrev efx`max-preserves-geq* = max-preserves-geq*.
-%abbrev efx`max-preserves-geq = max-preserves-geq.
-%abbrev efx`max-left-preserves-leq = max-left-preserves-leq.
-%abbrev efx`max-right-preserves-leq* = max-right-preserves-leq*.
-%abbrev efx`max-right-preserves-leq = max-right-preserves-leq.
-%abbrev efx`max-preserves-leq* = max-preserves-leq*.
-%abbrev efx`max-preserves-leq = max-preserves-leq.
-%abbrev efx`max-associative = max-associative.
-%abbrev efx`max-associative* = max-associative*.
-%abbrev efx`max-associative-converse = max-associative-converse.
-%abbrev efx`max-associative-converse* = max-associative-converse*.
-%abbrev efx`max-assoc-commutative* = max-assoc-commutative*.
-%abbrev efx`max-assoc-commutative = max-assoc-commutative.
-%abbrev efx`max-double-associative* = max-double-associative*.
-%abbrev efx`max-double-associative = max-double-associative.
-%abbrev efx`min-right-distributes-over-max = min-right-distributes-over-max.
-%abbrev efx`max-right-distributes-over-min = max-right-distributes-over-min.
-%abbrev efx`min-right-distributes-over-max* = min-right-distributes-over-max*.
-%abbrev efx`min-left-distributes-over-max* = min-left-distributes-over-max*.
-%abbrev efx`min-left-distributes-over-max = min-left-distributes-over-max.
-%abbrev efx`min-right-factors-over-max = min-right-factors-over-max.
-%abbrev efx`min-right-factors-over-max* = min-right-factors-over-max*.
-%abbrev efx`min-left-factors-over-max = min-left-factors-over-max.
-%abbrev efx`min-left-factors-over-max* = min-left-factors-over-max*.
-%abbrev efx`max-right-distributes-over-min* = max-right-distributes-over-min*.
-%abbrev efx`max-left-distributes-over-min* = max-left-distributes-over-min*.
-%abbrev efx`max-left-distributes-over-min = max-left-distributes-over-min.
-%abbrev efx`max-right-factors-over-min = max-right-factors-over-min.
-%abbrev efx`max-right-factors-over-min* = max-right-factors-over-min*.
-%abbrev efx`max-left-factors-over-min = max-left-factors-over-min.
-%abbrev efx`max-left-factors-over-min* = max-left-factors-over-min*.
-%abbrev efx`efx/write-is-upper-bound = efx/write-is-upper-bound.
+%abbrev cap`cap = cap.
+%abbrev cap`cap/read = cap/read.
+%abbrev cap`cap/write = cap/write.
+%abbrev cap`eq = eq.
+%abbrev cap`eq/ = eq/.
+%abbrev cap`grt = grt.
+%abbrev cap`grt/wr = grt/wr.
+%abbrev cap`cmp = cmp.
+%abbrev cap`cmp/= = cmp/=.
+%abbrev cap`cmp/< = cmp/<.
+%abbrev cap`cmp/> = cmp/>.
+%abbrev cap`join = join.
+%abbrev cap`join/= = join/=.
+%abbrev cap`join/< = join/<.
+%abbrev cap`join/> = join/>.
+%abbrev cap`false-implies-grt = false-implies-grt.
+%abbrev cap`grt-anti-reflexive = grt-anti-reflexive.
+%abbrev cap`grt-transitive = grt-transitive.
+%abbrev cap`grt-anti-symmetric = grt-anti-symmetric.
+%abbrev cap`cmp-total* = cmp-total*.
+%abbrev cap`cmp-total = cmp-total.
+%abbrev cap`false-implies-eq = false-implies-eq.
+%abbrev cap`meta-eq = meta-eq.
+%abbrev cap`eq-reflexive = eq-reflexive.
+%abbrev cap`eq-symmetric = eq-symmetric.
+%abbrev cap`eq-transitive = eq-transitive.
+%abbrev cap`geq = geq.
+%abbrev cap`geq/= = geq/=.
+%abbrev cap`geq/> = geq/>.
+%abbrev cap`geq? = geq?.
+%abbrev cap`geq?/yes = geq?/yes.
+%abbrev cap`geq?/no = geq?/no.
+%abbrev cap`false-implies-geq = false-implies-geq.
+%abbrev cap`geq-respects-eq = geq-respects-eq.
+%abbrev cap`geq-reflexive = geq-reflexive.
+%abbrev cap`geq-transitive = geq-transitive.
+%abbrev cap`geq-anti-symmetric = geq-anti-symmetric.
+%abbrev cap`geq-transitive-grt = geq-transitive-grt.
+%abbrev cap`grt-transitive-geq = grt-transitive-geq.
+%abbrev cap`geq?-total* = geq?-total*.
+%abbrev cap`geq?-total = geq?-total.
+%abbrev cap`geq?-total/L = geq?-total/L.
+%abbrev cap`geq?-unique = geq?-unique.
+%abbrev cap`ne = ne.
+%abbrev cap`ne/< = ne/<.
+%abbrev cap`ne/> = ne/>.
+%abbrev cap`eq? = eq?.
+%abbrev cap`eq?/yes = eq?/yes.
+%abbrev cap`eq?/no = eq?/no.
+%abbrev cap`false-implies-ne = false-implies-ne.
+%abbrev cap`ne-respects-eq = ne-respects-eq.
+%abbrev cap`ne-anti-reflexive = ne-anti-reflexive.
+%abbrev cap`ne-symmetric = ne-symmetric.
+%abbrev cap`eq-ne-implies-false = eq-ne-implies-false.
+%abbrev cap`geq-ne-implies-grt = geq-ne-implies-grt.
+%abbrev cap`eq?-total* = eq?-total*.
+%abbrev cap`eq?-total*/L = eq?-total*/L.
+%abbrev cap`eq?-total = eq?-total.
+%abbrev cap`ltn = ltn.
+%abbrev cap`false-implies-ltn = false-implies-ltn.
+%abbrev cap`ltn-respects-eq = ltn-respects-eq.
+%abbrev cap`ltn-anti-symmetric = ltn-anti-symmetric.
+%abbrev cap`ltn-transitive = ltn-transitive.
+%abbrev cap`ltn-anti-reflexive = ltn-anti-reflexive.
+%abbrev cap`leq = leq.
+%abbrev cap`false-implies-leq = false-implies-leq.
+%abbrev cap`leq-respects-eq = leq-respects-eq.
+%abbrev cap`leq-anti-symmetric = leq-anti-symmetric.
+%abbrev cap`leq-transitive = leq-transitive.
+%abbrev cap`leq-reflexive = leq-reflexive.
+%abbrev cap`leq-transitive-ltn = leq-transitive-ltn.
+%abbrev cap`ltn-transitive-leq = ltn-transitive-leq.
+%abbrev cap`grt-respects-eq = grt-respects-eq.
+%abbrev cap`nle = nle.
+%abbrev cap`false-implies-nle = false-implies-nle.
+%abbrev cap`nle-respects-eq = nle-respects-eq.
+%abbrev cap`nle-anti-reflexive = nle-anti-reflexive.
+%abbrev cap`leq? = leq?.
+%abbrev cap`leq?/yes = leq?/yes.
+%abbrev cap`leq?/no = leq?/no.
+%abbrev cap`nle-implies-ne = nle-implies-ne.
+%abbrev cap`leq-nle-contradiction = leq-nle-contradiction.
+%abbrev cap`leq?-total* = leq?-total*.
+%abbrev cap`leq?-total = leq?-total.
+%abbrev cap`leq?-total** = leq?-total**.
+%abbrev cap`false-implies-join = false-implies-join.
+%abbrev cap`join-respects-eq = join-respects-eq.
+%abbrev cap`join-deterministic = join-deterministic.
+%abbrev cap`join-unique = join-unique.
+%abbrev cap`join-total* = join-total*.
+%abbrev cap`join-total*/L = join-total*/L.
+%abbrev cap`join-total = join-total.
+%abbrev cap`join-preserves-grt = join-preserves-grt.
+%abbrev cap`join-associative = join-associative.
+%abbrev cap`join-commutative = join-commutative.
+%abbrev cap`join-implies-leq* = join-implies-leq*.
+%abbrev cap`join-implies-leq = join-implies-leq.
+%abbrev cap`join-associative* = join-associative*.
+%abbrev cap`join-associative-converse = join-associative-converse.
+%abbrev cap`join-associative-converse* = join-associative-converse*.
+%abbrev cap`join-assoc-commutative* = join-assoc-commutative*.
+%abbrev cap`join-assoc-commutative = join-assoc-commutative.
+%abbrev cap`join-double-associative* = join-double-associative*.
+%abbrev cap`join-double-associative = join-double-associative.
+%abbrev cap`min = min.
+%abbrev cap`min/= = min/=.
+%abbrev cap`min/> = min/>.
+%abbrev cap`min/< = min/<.
+%abbrev cap`max = max.
+%abbrev cap`max/= = max/=.
+%abbrev cap`max/> = max/>.
+%abbrev cap`max/< = max/<.
+%abbrev cap`false-implies-min = false-implies-min.
+%abbrev cap`min-respects-eq = min-respects-eq.
+%abbrev cap`min-total** = min-total**.
+%abbrev cap`min-total* = min-total*.
+%abbrev cap`min-total = min-total.
+%abbrev cap`min-idempotent = min-idempotent.
+%abbrev cap`min-deterministic = min-deterministic.
+%abbrev cap`min-unique = min-unique.
+%abbrev cap`min-commutative = min-commutative.
+%abbrev cap`min/<-inversion = min/<-inversion.
+%abbrev cap`min/>-inversion = min/>-inversion.
+%abbrev cap`geq-implies-min = geq-implies-min.
+%abbrev cap`leq-implies-min = leq-implies-min.
+%abbrev cap`min-implies-geq = min-implies-geq.
+%abbrev cap`min-left-preserves-geq* = min-left-preserves-geq*.
+%abbrev cap`min-left-preserves-leq* = min-left-preserves-leq*.
+%abbrev cap`min-left-preserves-geq = min-left-preserves-geq.
+%abbrev cap`min-right-preserves-geq* = min-right-preserves-geq*.
+%abbrev cap`min-right-preserves-geq = min-right-preserves-geq.
+%abbrev cap`min-preserves-geq* = min-preserves-geq*.
+%abbrev cap`min-preserves-geq = min-preserves-geq.
+%abbrev cap`min-left-preserves-leq = min-left-preserves-leq.
+%abbrev cap`min-right-preserves-leq* = min-right-preserves-leq*.
+%abbrev cap`min-right-preserves-leq = min-right-preserves-leq.
+%abbrev cap`min-preserves-leq* = min-preserves-leq*.
+%abbrev cap`min-preserves-leq = min-preserves-leq.
+%abbrev cap`min-is-glb = min-is-glb.
+%abbrev cap`min-associative = min-associative.
+%abbrev cap`min-associative* = min-associative*.
+%abbrev cap`min-associative-converse = min-associative-converse.
+%abbrev cap`min-associative-converse* = min-associative-converse*.
+%abbrev cap`min-assoc-commutative* = min-assoc-commutative*.
+%abbrev cap`min-assoc-commutative = min-assoc-commutative.
+%abbrev cap`min-double-associative* = min-double-associative*.
+%abbrev cap`min-double-associative = min-double-associative.
+%abbrev cap`false-implies-max = false-implies-max.
+%abbrev cap`max-respects-eq = max-respects-eq.
+%abbrev cap`max-total** = max-total**.
+%abbrev cap`max-total* = max-total*.
+%abbrev cap`max-total = max-total.
+%abbrev cap`max-idempotent = max-idempotent.
+%abbrev cap`max-deterministic = max-deterministic.
+%abbrev cap`max-unique = max-unique.
+%abbrev cap`max-commutative = max-commutative.
+%abbrev cap`geq-implies-max = geq-implies-max.
+%abbrev cap`leq-implies-max = leq-implies-max.
+%abbrev cap`max-implies-geq = max-implies-geq.
+%abbrev cap`max-is-lub = max-is-lub.
+%abbrev cap`max-left-preserves-geq* = max-left-preserves-geq*.
+%abbrev cap`max-left-preserves-leq* = max-left-preserves-leq*.
+%abbrev cap`max-left-preserves-geq = max-left-preserves-geq.
+%abbrev cap`max-right-preserves-geq* = max-right-preserves-geq*.
+%abbrev cap`max-right-preserves-geq = max-right-preserves-geq.
+%abbrev cap`max-preserves-geq* = max-preserves-geq*.
+%abbrev cap`max-preserves-geq = max-preserves-geq.
+%abbrev cap`max-left-preserves-leq = max-left-preserves-leq.
+%abbrev cap`max-right-preserves-leq* = max-right-preserves-leq*.
+%abbrev cap`max-right-preserves-leq = max-right-preserves-leq.
+%abbrev cap`max-preserves-leq* = max-preserves-leq*.
+%abbrev cap`max-preserves-leq = max-preserves-leq.
+%abbrev cap`max-associative = max-associative.
+%abbrev cap`max-associative* = max-associative*.
+%abbrev cap`max-associative-converse = max-associative-converse.
+%abbrev cap`max-associative-converse* = max-associative-converse*.
+%abbrev cap`max-assoc-commutative* = max-assoc-commutative*.
+%abbrev cap`max-assoc-commutative = max-assoc-commutative.
+%abbrev cap`max-double-associative* = max-double-associative*.
+%abbrev cap`max-double-associative = max-double-associative.
+%abbrev cap`min-right-distributes-over-max = min-right-distributes-over-max.
+%abbrev cap`max-right-distributes-over-min = max-right-distributes-over-min.
+%abbrev cap`min-right-distributes-over-max* = min-right-distributes-over-max*.
+%abbrev cap`min-left-distributes-over-max* = min-left-distributes-over-max*.
+%abbrev cap`min-left-distributes-over-max = min-left-distributes-over-max.
+%abbrev cap`min-right-factors-over-max = min-right-factors-over-max.
+%abbrev cap`min-right-factors-over-max* = min-right-factors-over-max*.
+%abbrev cap`min-left-factors-over-max = min-left-factors-over-max.
+%abbrev cap`min-left-factors-over-max* = min-left-factors-over-max*.
+%abbrev cap`max-right-distributes-over-min* = max-right-distributes-over-min*.
+%abbrev cap`max-left-distributes-over-min* = max-left-distributes-over-min*.
+%abbrev cap`max-left-distributes-over-min = max-left-distributes-over-min.
+%abbrev cap`max-right-factors-over-min = max-right-factors-over-min.
+%abbrev cap`max-right-factors-over-min* = max-right-factors-over-min*.
+%abbrev cap`max-left-factors-over-min = max-left-factors-over-min.
+%abbrev cap`max-left-factors-over-min* = max-left-factors-over-min*.
+%abbrev cap`cap/write-is-upper-bound = cap/write-is-upper-bound.

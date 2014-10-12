@@ -21,10 +21,6 @@ consider-ftype/shared : consider-ftype _ annot/shared targets/shared.
 consider-ftype/unique : consider-ftype G annot/unique G.
 
 
-%%% Given a set of targets for a receiver and a field ID, creates a set of
-%%% result targets, and possible output effects.
-%%% TODO: refactor this!
-
 make-tgts-and-caps : targets -> nat -> cap -> targets -> capmap -> type.
 
 make-tgts-and-caps/shared
@@ -143,31 +139,28 @@ compatible/unique : capmap`domain M R
 % `capmap`: the declared effects, only nonempty useful when checking parameters
 % `set`: the field set on LHS, used when consuming a whole object
 % `annot`: the annotation on the RHS
-% `capmap`: non-consumed capabilities needed for the subtyping
-% `set`: another set of consumed capabilities
+% `effects`: the result effects
+sub-annot-efx : targets -> efxmap -> set -> annot -> effects -> type.
 
-sub-annot-cap : targets -> capmap -> set -> annot -> capmap -> capmap -> type.
+sub-annot-efx/consume
+  : sub-annot-efx (targets/unique G1 G2) _ FS A (effects/ efxmap/0 G2 G1)
+    <- not-borrowed A.
 
-sub-annot-cap/consume
-  : not-borrowed A
-    -> set+set2set OS S FS1
-    -> set`union FS1 FS2 FS
-    -> set2capmap FS cap/write M
-    -> sub-annot-cap (targets/unique OS FS2) _ S A M M.
+sub-annot-efx/unique2borrow
+  : sub-annot-efx (targets/unique G1 G2) XMd
+    _ annot/borrow (effects/ XM set/0 set/0)
+    <- set+map2map G1 XMd XM1
+    <- efxmap-max-efx XMd X
+    <- set2efxmap G2 X XM2
+    <- efxmap`join XM1 XM2 XM.
 
-sub-annot-cap/unique2borrow
-  : sub-annot-cap (targets/unique G1 G2) Md _ annot/borrow M capmap/0
-    <- set+map2map G1 Md M1
-    <- capmap-max-cap Md X
-    <- set2capmap G2 X M2
-    <- capmap`join M1 M2 M.
+sub-annot-efx/shared2borrow
+ : sub-annot-efx targets/shared XMd _ annot/borrow
+   (effects/ (efxmap/+ shared-tgt X efxmap/0) set/0 set/0)
+   <- efxmap-max-efx XMd X.
 
-sub-annot-cap/shared2borrow
- : sub-annot-cap targets/shared Md _ annot/borrow (capmap/1 shared-tgt X) capmap/0
-   <- capmap-max-cap Md X.
-
-sub-annot-cap/shared2shared
-  : sub-annot-cap targets/shared capmap/0 _ annot/shared capmap/0 capmap/0.
+sub-annot-efx/shared2shared
+  : sub-annot-efx targets/shared efxmap/0 _ annot/shared no-effect.
 
 
 %abbrev sub-nonnull : nn -> nn -> type = [NN1][NN2] nonnull`leq NN2 NN1.
@@ -175,19 +168,19 @@ sub-annot-cap/shared2shared
 %abbrev sub-annot : annot -> annot -> type = [A1][A2] annot`leq A2 A1.
 
 
-% % The two sets are read and write fields respectively.
+% The two sets are read and write fields respectively.
 
-subtype : clsmap -> reftype -> ty -> capmap -> capmap -> capmap -> type.
+subtype : clsmap -> reftype -> ty -> efxmap -> effects -> type.
 
-subtype/ : subtype CM (reftype/ NN1 C1 GS) (ty/ NN2 A2 C2) Md M S
+subtype/ : subtype CM (reftype/ NN1 C1 GS) (ty/ NN2 A2 C2) XM XX
            <- nat`eq C1 C2
            <- sub-nonnull NN1 NN2
            <- clsmap`lookup CM C1 FM
            <- fldmap`domain FM FS
-           <- capmap`domain Md XS
+           <- efxmap`domain XM XS
            <- set`leq XS FS
-           <- sub-annot-cap GS Md FS A2 M S.
+           <- sub-annot-efx GS XM FS A2 XX.
 
-subtype/null : subtype _ reftype/null ty/null _ capmap/0 capmap/0.
+subtype/null : subtype _ reftype/null ty/null _ no-effect.
 
-subtype/maynull : subtype _ reftype/null (ty/ nn/may _ _) _ capmap/0 capmap/0.
+subtype/maynull : subtype _ reftype/null (ty/ nn/may _ _) _ no-effect.
