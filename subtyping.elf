@@ -1,7 +1,19 @@
-% Subtyping Rules
-
+%%% Subtyping Rules
 
 %%% Definitions
+
+
+%%% Environment - a pair of context and capmap
+
+env : type.
+
+env/ : cxt -> capmap -> env.
+
+
+env`eq : env -> env -> type.
+
+env`eq/ : env`eq V V.
+
 
 %% We use a special natural number z to represent the special
 %% shared target: world.all. There's a one-to-one mapping between
@@ -10,52 +22,87 @@
 %abbrev shared-tgt : nat = nat`z.
 
 
-% Consider field annotation, and returns either the input unique
-% targets, or a shared targets. (no borrowed targets since field
-% cannot be borrowed).
+%%% Type Checking Result
 
-consider-ftype : targets -> annot -> targets -> type.
+result : kind -> type.
 
-consider-ftype/shared : consider-ftype _ annot/shared targets/shared.
+%abbrev expr-result = result exprk.
 
-consider-ftype/unique : consider-ftype G annot/unique G.
+%abbrev cond-result = result condk.
+
+%abbrev args-result = result argsk.
+
+
+result/expr : reftype -> env -> expr-result.
+
+result/exists : (object -> result K) -> result K.
+
+result/cond : env -> cond-result.
+
+result/args/0 : env -> args-result.
+
+result/args/+ : reftype -> args-result -> args-result.
+
+
+result`eq : result K -> result K -> type.
+
+result`eq/ : result`eq R R.
+
+
 
 
 %%% Given a set of targets for a receiver and a field ID, creates a set of
 %%% result targets, and possible output effects.
 %%% TODO: refactor this!
 
-make-tgts-and-caps : targets -> nat -> cap -> targets -> capmap -> type.
+make-tgts-and-caps : capmap -> targets -> nat -> cap -> targets -> capmap -> type.
 
+%%% When the result is shared, we can claim back the encumbered capabilities.
 make-tgts-and-caps/shared
-  : make-tgts-and-caps targets/shared _ X
-    (targets/unique set/0 (set/1 shared-tgt)) (capmap/1 shared-tgt X).
+  : make-tgts-and-caps M0 targets/shared _ X
+    (targets/unique set/0 (capmap/1 shared-tgt X)) M1
+    <- capmap-split M0 (capmap/1 shared-tgt X) M1.
 
 make-tgts-and-caps/unique
-  : set+nat2set OS F FS2
-    -> set`disjoint FS FS2
-    -> set`union FS FS2 FS3
-    -> set2capmap FS3 X M
-    -> make-tgts-and-caps (targets/unique OS FS) F X (targets/unique set/0 FS3) M.
+  : set+nat2capmap OS F X M2
+    -> capmap-min-cap M1 X
+    -> capmap`disjoint M1 M2
+    -> capmap`join M1 M2 M
+    -> capmap-split M0 M2 M3
+    -> make-tgts-and-caps M0 (targets/unique OS M1) F X (targets/unique set/0 M) M3.
 
 
-%% Convert an object target set into a field target set, which
-%% includes ALL fields of all object target.
+% Consider field annotation, and returns either the input unique
+% targets, or a shared targets. (no borrowed targets since field
+% cannot be borrowed).
 
-objset2fldset : clsmap -> cxt -> set -> set -> type.
+consider-ftype : targets -> capmap -> annot -> targets -> capmap -> type.
 
-objset2fldset/0 : objset2fldset _ _ set/0 set/0.
+consider-ftype/shared
+  : consider-ftype (targets/unique set/0 M) M0 annot/shared targets/shared M1
+    <- capmap`disjoint M M0
+    <- capmap`join M M0 M1.
 
-objset2fldset/U
-  : objset2fldset CM B OSP SP
-    -> cxt`lookup B N (cxt-info/ _ (ty/ _ _ C))
-    -> clsmap`lookup CM C FM
-    -> fldmap`domain FM FS
-    -> nat+set2set N FS R
-    -> set`union SP R S
-    -> set`not-member OSP N
-    -> set`add OSP N OS
-    -> objset2fldset CM B OS S.
+consider-ftype/unique : consider-ftype G M annot/unique G M.
+
+
+% %% Convert an object target set into a field target set, which
+% %% includes ALL fields of all object target.
+
+% objset2fldset : clsmap -> cxt -> set -> set -> type.
+
+% objset2fldset/0 : objset2fldset _ _ set/0 set/0.
+
+% objset2fldset/U
+%   : objset2fldset CM B OSP SP
+%     -> cxt`lookup B N (cxt-info/ _ (ty/ _ _ C))
+%     -> clsmap`lookup CM C FM
+%     -> fldmap`domain FM FS
+%     -> nat+set2set N FS R
+%     -> set`union SP R S
+%     -> set`not-member OSP N
+%     -> set`add OSP N OS
+%     -> objset2fldset CM B OS S.
 
 
 %%% Converting between ty and reftype
@@ -67,7 +114,7 @@ ty2reftype/shared
 
 ty2reftype/borrow
   : ty2reftype L (ty/ NN annot/borrow C)
-    (reftype/ NN C (targets/unique (set/1 L) set/0)).
+    (reftype/ NN C (targets/unique (set/1 L) capmap/0)).
 
 % ty2reftype/null : ty2reftype _ ty/null reftype/null.
 
@@ -138,36 +185,40 @@ compatible/unique : capmap`domain M R
 }%
 
 
+%%% For the given context, replace all occurrences of object id in the set
+%%%  from unique to borrowed.
+%%% TODO: change to a better name
+cxt-remove-unique : cxt -> set -> cxt -> type.
+
+cxt-remove-unique/0 : cxt-remove-unique B set/0 B.
+
+cxt-remove-unique/U
+  : cxt-remove-unique B0 S' B1
+    -> cxt`lookup B1 N (cxt-info/ O (ty/ NN annot/unique C))
+    -> cxt`update B1 N (cxt-info/ O (ty/ NN annot/borrow C)) B2
+    -> set`not-member S' N
+    -> set`add S' N S
+    -> cxt-remove-unique B0 S B2.
+
+
+
 % sub-annotation rule with side effects.
 % `targets`: the targets on the LHS
-% `capmap`: the declared effects, only nonempty useful when checking parameters
+% `env`: the input environment, we need to remove consumed caps from it.
 % `set`: the field set on LHS, used when consuming a whole object
 % `annot`: the annotation on the RHS
-% `capmap`: non-consumed capabilities needed for the subtyping
-% `set`: another set of consumed capabilities
+% `env`: the output environment
 
-sub-annot-cap : targets -> capmap -> set -> annot -> capmap -> capmap -> type.
+sub-annot-cap : targets -> env -> set -> annot -> env -> type.
 
 sub-annot-cap/consume
-  : not-borrowed A
-    -> set+set2set OS S FS1
-    -> set`union FS1 FS2 FS
-    -> set2capmap FS cap/write M
-    -> sub-annot-cap (targets/unique OS FS2) _ S A M M.
+  : set+set2capmap OS S cap/write M2
+    -> capmap-split M0 M2 M3
+    -> capmap-min-cap M1 cap/write
+    -> cxt-remove-unique B0 OS B1
+    -> sub-annot-cap (targets/unique OS M1) (env/ B0 M0) S A (env/ B1 M3).
 
-sub-annot-cap/unique2borrow
-  : sub-annot-cap (targets/unique G1 G2) Md _ annot/borrow M capmap/0
-    <- set+map2map G1 Md M1
-    <- capmap-max-cap Md X
-    <- set2capmap G2 X M2
-    <- capmap`join M1 M2 M.
-
-sub-annot-cap/shared2borrow
- : sub-annot-cap targets/shared Md _ annot/borrow (capmap/1 shared-tgt X) capmap/0
-   <- capmap-max-cap Md X.
-
-sub-annot-cap/shared2shared
-  : sub-annot-cap targets/shared capmap/0 _ annot/shared capmap/0 capmap/0.
+sub-annot-cap/shared2shared : sub-annot-cap targets/shared V _ annot/shared V.
 
 
 %abbrev sub-nonnull : nn -> nn -> type = [NN1][NN2] nonnull`leq NN2 NN1.
@@ -175,19 +226,36 @@ sub-annot-cap/shared2shared
 %abbrev sub-annot : annot -> annot -> type = [A1][A2] annot`leq A2 A1.
 
 
-% % The two sets are read and write fields respectively.
+%%% The two sets are read and write fields respectively.
 
-subtype : clsmap -> reftype -> ty -> capmap -> capmap -> capmap -> type.
+subtype : clsmap -> reftype -> env -> ty -> env -> type.
 
-subtype/ : subtype CM (reftype/ NN1 C1 GS) (ty/ NN2 A2 C2) Md M S
+subtype/ : subtype CM (reftype/ NN1 C1 GS) VI (ty/ NN2 A2 C2) VO
            <- nat`eq C1 C2
            <- sub-nonnull NN1 NN2
            <- clsmap`lookup CM C1 FM
            <- fldmap`domain FM FS
-           <- capmap`domain Md XS
-           <- set`leq XS FS
-           <- sub-annot-cap GS Md FS A2 M S.
+           <- sub-annot-cap GS VI FS A2 VO.
 
-subtype/null : subtype _ reftype/null ty/null _ capmap/0 capmap/0.
+subtype/null : subtype _ reftype/null V ty/null V.
 
-subtype/maynull : subtype _ reftype/null (ty/ nn/may _ _) _ capmap/0 capmap/0.
+subtype/maynull : subtype _ reftype/null V (ty/ nn/may _ _) V.
+
+
+%theorem make-tgts-and-caps-implies-min-cap
+  : forall* {M0} {G0} {F} {X} {M} {M1}
+    forall {MG: make-tgts-and-caps M0 G0 F X (targets/unique set/0 M) M1}
+    exists {MC-M=X: capmap-min-cap M X}
+    true.
+
+- : make-tgts-and-caps-implies-min-cap (make-tgts-and-caps/shared _)
+    (capmap-min-cap/U capmap-min-cap/0 MI capmap`update/0 capmap`fresh/0)
+    <- cap/write-is-upper-bound _ MI.
+
+- : make-tgts-and-caps-implies-min-cap
+    (make-tgts-and-caps/unique OS+X=M2 MC-M1=X M1^M2 M1+M2=M M0-M2=M3) MC-M=X
+    <- set+nat2capmap-implies-min-cap OS+X=M2 MC-M2=X
+    <- capmap-join-preserves-min-cap MC-M1=X MC-M2=X M1+M2=M MC-M=X.
+
+%worlds (objvar) (make-tgts-and-caps-implies-min-cap _ _).
+%total { } (make-tgts-and-caps-implies-min-cap _ _).

@@ -1,0 +1,1684 @@
+%%% Min-Max of a Capmap
+
+%%% Compute minimum effects for this efxmap, start with efx/write.
+%%% Here, efxmap-max-efx is really a copy-and-paste from efxmap-min-efx.
+
+capmap-min-cap* : cap -> capmap -> cap -> type.
+
+capmap-min-cap/0 : capmap-min-cap* X capmap/0 X.
+
+capmap-min-cap/U : capmap-min-cap* X1 M X4
+                <- capmap`fresh M' N
+                <- capmap`update M' N X2 M
+                <- cap`min X1 X2 X3
+                <- capmap-min-cap* X3 M' X4.
+
+%abbrev capmap-min-cap = [M][X] capmap-min-cap* cap/write M X.
+
+
+capmap-max-cap* : cap -> capmap -> cap -> type.
+
+capmap-max-cap/0 : capmap-max-cap* X capmap/0 X.
+
+capmap-max-cap/U : capmap-max-cap* X1 M X4
+                <- capmap`fresh M' N
+                <- capmap`update M' N X2 M
+                <- cap`max X1 X2 X3
+                <- capmap-max-cap* X3 M' X4.
+
+%abbrev capmap-max-cap = [M][X] capmap-max-cap* cap/read M X.
+
+
+
+capmap-same-domain : capmap -> capmap -> type.
+
+capmap-same-domain/
+  : capmap`domain M1 S
+    -> capmap`domain M2 S
+    -> capmap-same-domain M1 M2.
+
+
+%%% Capmap leq with same domain
+
+capmap-vleq : capmap -> capmap -> type.
+
+capmap-vleq/ : capmap`domain M1 S
+               -> capmap`domain M2 S
+               -> capmap`leq M1 M2
+               -> capmap-vleq M1 M2.
+
+
+
+%%% Capmap Split
+
+capmap-split : capmap -> capmap -> capmap -> type.
+
+capmap-split/ : capmap`disjoint M1 M2
+                -> capmap`join M1 M2 M
+                -> capmap-split M M1 M2.
+
+
+%%% Capmap Trans
+
+set+nat2set : set -> nat -> set -> type.
+
+set+nat2set/0 : set+nat2set set/0 _ set/0.
+
+set+nat2set/U : set+nat2set S' F Q'
+                -> pair2nat (pair/ N F) K
+                -> set`not-member S' N
+                -> set`add S' N S
+                -> set`add Q' K Q
+                -> set+nat2set S F Q.
+
+
+set+nat2capmap : set -> nat -> cap -> capmap -> type.
+
+set+nat2capmap/0 : set+nat2capmap set/0 _ _ capmap/0.
+
+set+nat2capmap/U : set+nat2capmap S' F X M'
+                -> pair2nat (pair/ N F) K
+                -> set`not-member S' N
+                -> set`add S' N S
+                -> capmap`update M' K X M
+                -> set+nat2capmap S F X M.
+
+
+nat+set2capmap : nat -> set -> cap -> capmap -> type.
+
+nat+set2capmap/0 : nat+set2capmap _ set/0 _ capmap/0.
+
+nat+set2capmap/U : nat+set2capmap N S' X Q'
+                -> pair2nat (pair/ N F) K
+                -> set`not-member S' F
+                -> set`add S' F S
+                -> capmap`update Q' K X Q
+                -> nat+set2capmap N S X Q.
+
+
+set+set2capmap : set -> set -> cap -> capmap -> type.
+
+set+set2capmap/0 : set+set2capmap set/0 _ _ capmap/0.
+
+set+set2capmap/U : set+set2capmap S' FS X M0
+                   -> nat+set2capmap N FS X M1
+                   -> set`not-member S' N
+                   -> set`add S' N S
+                   -> capmap`join M0 M1 M2
+                   -> set+set2capmap S FS X M2.
+
+
+%%% 4, set+nat2map (objs + fld + cap => ((obj,fld) => cap))
+
+nat+map2map : nat -> capmap -> capmap -> type.
+
+nat+map2map/0 : nat+map2map _ capmap/0 capmap/0.
+
+nat+map2map/U : nat+map2map N XMin' XMout'
+                -> pair2nat (pair/ N F) K
+                -> capmap`fresh XMin' F
+                -> capmap`update XMin' F X XMin
+                -> capmap`update XMout' K X XMout
+                -> nat+map2map N XMin XMout.
+
+%%% 4, set+map2map (objs + (flds => cap) => ((obj,fld) => cap)
+
+set+map2map : set -> capmap -> capmap -> type.
+
+set+map2map/0 : set+map2map set/0 _ capmap/0.
+
+set+map2map/U : set+map2map S' XMin XMout1
+                -> nat+map2map N XMin XMout2
+                -> set`not-member S' N
+                -> set`add S' N S
+                -> capmap`join XMout1 XMout2 XMout
+                -> set+map2map S XMin XMout.
+
+
+%%% Theorems
+
+%theorem capmap-min-cap-respects-eq
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-min-cap* X1 M X2}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'} {E: cap`eq X2 X2'}
+    exists {MX: capmap-min-cap* X1' M' X2'}
+    true.
+
+- : capmap-min-cap-respects-eq MX cap`eq/ capmap`eq/ cap`eq/ MX.
+
+%worlds (objvar) (capmap-min-cap-respects-eq _ _ _ _ _).
+%total {} (capmap-min-cap-respects-eq _ _ _ _ _).
+
+
+%theorem capmap-min-cap-total*
+  : forall* {M} {X1}
+    exists {X2} {MX: capmap-min-cap* X1 M X2} true.
+
+%theorem capmap-min-cap-total*/L
+  : forall* {M} {X1}
+    forall {N} {Z: capmap`size M N}
+    exists {X2} {MX: capmap-min-cap* X1 M X2} true.
+
+- : capmap-min-cap-total*/L z _  _ capmap-min-cap/0.
+
+- : capmap-min-cap-total*/L (s N) Z _ (capmap-min-cap/U MX MIN U F)
+    <- capmap`lookup-implies-fresh-update (capmap`lookup/= nat`eq/) MP F U
+    <- cap`min-total MIN
+    <- capmap`fresh-update-increases-size-converse Z F U ZP
+    <- capmap-min-cap-total*/L N ZP _ MX.
+
+%worlds (objvar) (capmap-min-cap-total*/L _ _ _ _).
+%total (N) (capmap-min-cap-total*/L N _ _ _).
+
+- : capmap-min-cap-total* _ MX
+    <- capmap`size-total Z
+    <- capmap-min-cap-total*/L _ Z _ MX.
+
+%worlds (objvar) (capmap-min-cap-total* _ _).
+%total {} (capmap-min-cap-total* _ _).
+
+%abbrev capmap-min-cap-total = capmap-min-cap-total* _.
+
+
+%theorem capmap-min-cap-unique
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-min-cap* X1 M X2}
+    {MX': capmap-min-cap* X1' M' X2'}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'}
+    exists {E: cap`eq X2 X2'}
+    true.
+
+- : capmap-min-cap-unique MX MX cap`eq/ capmap`eq/ cap`eq/.
+
+%worlds (objvar) (capmap-min-cap-unique _ _ _ _ _).
+%trustme %total {} (capmap-min-cap-unique _ _ _ _ _).
+
+
+%theorem set2capmap-implies-capmap-min-cap
+  : forall* {X} {S} {M}
+    forall {N} {SZ: set`size S (s N)} {S+X=>M: set2capmap S X M}
+    exists {MX: capmap-min-cap M X}
+    true.
+
+%worlds () (set2capmap-implies-capmap-min-cap _ _ _ _).
+%trustme %total { } (set2capmap-implies-capmap-min-cap _ _ _ _).
+
+%theorem capmap-min-cap/U-inversion
+  : forall* {M'} {N} {M} {X1} {X2} {X3} {X4}
+    forall {MX: capmap-min-cap* X1 M X4}
+    {F: capmap`fresh M' N}
+    {U: capmap`update M' N X2 M}
+    exists {X2} {MX: cap`min X1 X2 X3}
+    {MX': capmap-min-cap* X3 M' X4}
+    true.
+
+%worlds (objvar) (capmap-min-cap/U-inversion _ _ _ _ _ _).
+%trustme %total {} (capmap-min-cap/U-inversion _ _ _ _ _ _).
+
+
+%theorem capmap-min-cap-respects-leq
+  : forall* {M1} {M2} {X1} {X2}
+    forall {M1<=M2: capmap`leq M1 M2}
+    {MX-M1: capmap-min-cap M1 X1}
+    {MX-M2: capmap-min-cap M2 X2}
+    exists {X2<=X1: cap`leq X2 X1}
+    true.
+
+%worlds (objvar) (capmap-min-cap-respects-leq _ _ _ _).
+%trustme %total {} (capmap-min-cap-respects-leq _ _ _ _).
+
+
+%theorem capmap-min-cap-respects-leq-domain
+  : forall* {M} {M'} {X} {S}
+    forall {MX: capmap-min-cap M X}
+    {M<=M': capmap`leq M M'}
+    {DM-M: capmap`domain M S} {DM-M': capmap`domain M' S}
+    exists {X'} {MX': capmap-min-cap M' X'}
+    {X<=X': cap`leq X X'}
+    true.
+
+%worlds () (capmap-min-cap-respects-leq-domain _ _ _ _ _ _ _).
+%trustme %total { } (capmap-min-cap-respects-leq-domain _ _ _ _ _ _ _).
+
+
+%theorem capmap`join-joins-min-cap
+  : forall* {M1} {M2} {M} {X1} {X2}
+    forall {J: capmap`join M1 M2 M}
+    {MX-M1: capmap-min-cap M1 X1}
+    {MX-M2: capmap-min-cap M2 X2}
+    exists {X} {MX: cap`min X1 X2 X}
+    {MX-M: capmap-min-cap M X}
+    true.
+
+%worlds (objvar) (capmap`join-joins-min-cap _ _ _ _ _ _).
+%trustme %total {} (capmap`join-joins-min-cap _ _ _ _ _ _).
+
+
+%theorem capmap-join-preserves-min-cap
+  : forall* {M} {M1} {M2} {X}
+    forall {MX-M1=X: capmap-min-cap M1 X}
+    {MX-M2=X: capmap-min-cap M2 X}
+    {M1+M2=M: capmap`join M1 M2 M}
+    exists {MX-M=X: capmap-min-cap M X}
+    true.
+
+%worlds () (capmap-join-preserves-min-cap _ _ _ _).
+%trustme %total { } (capmap-join-preserves-min-cap _ _ _ _).
+
+
+%%% 2, theorems about capmap-max-cap
+
+%theorem capmap-max-cap-respects-eq
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-max-cap* X1 M X2}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'} {E: cap`eq X2 X2'}
+    exists {MX: capmap-max-cap* X1' M' X2'}
+    true.
+
+- : capmap-max-cap-respects-eq MX cap`eq/ capmap`eq/ cap`eq/ MX.
+
+%worlds (objvar) (capmap-max-cap-respects-eq _ _ _ _ _).
+%total {} (capmap-max-cap-respects-eq _ _ _ _ _).
+
+
+%theorem capmap-max-cap-total*
+  : forall* {M} {X1}
+    exists {X2} {MX: capmap-max-cap* X1 M X2} true.
+
+%theorem capmap-max-cap-total*/L
+  : forall* {M} {X1}
+    forall {N} {Z: capmap`size M N}
+    exists {X2} {MX: capmap-max-cap* X1 M X2} true.
+
+- : capmap-max-cap-total*/L z _  _ capmap-max-cap/0.
+
+- : capmap-max-cap-total*/L (s N) Z _ (capmap-max-cap/U MX MAX U F)
+    <- capmap`lookup-implies-fresh-update (capmap`lookup/= nat`eq/) MP F U
+    <- cap`max-total MAX
+    <- capmap`fresh-update-increases-size-converse Z F U ZP
+    <- capmap-max-cap-total*/L N ZP _ MX.
+
+%worlds (objvar) (capmap-max-cap-total*/L _ _ _ _).
+%total (N) (capmap-max-cap-total*/L N _ _ _).
+
+- : capmap-max-cap-total* _ MX
+    <- capmap`size-total Z
+    <- capmap-max-cap-total*/L _ Z _ MX.
+
+%worlds (objvar) (capmap-max-cap-total* _ _).
+%total {} (capmap-max-cap-total* _ _).
+
+%abbrev capmap-max-cap-total = capmap-max-cap-total* _.
+
+
+%theorem capmap-max-cap-unique
+  : forall* {M} {M'} {X1} {X1'} {X2} {X2'}
+    forall {MX: capmap-max-cap* X1 M X2}
+    {MX': capmap-max-cap* X1' M' X2'}
+    {E: cap`eq X1 X1'} {E: capmap`eq M M'}
+    exists {E: cap`eq X2 X2'}
+    true.
+
+- : capmap-max-cap-unique MX MX cap`eq/ capmap`eq/ cap`eq/.
+
+%worlds (objvar) (capmap-max-cap-unique _ _ _ _ _).
+%trustme %total {} (capmap-max-cap-unique _ _ _ _ _).
+
+
+%theorem set2capmap-implies-capmap-max-cap
+  : forall* {X} {S} {M}
+    forall {N} {SZ: set`size S (s N)} {S+X=>M: set2capmap S X M}
+    exists {MX: capmap-max-cap M X}
+    true.
+
+%worlds () (set2capmap-implies-capmap-max-cap _ _ _ _).
+%trustme %total { } (set2capmap-implies-capmap-max-cap _ _ _ _).
+
+%theorem capmap-max-cap/U-inversion
+  : forall* {M'} {N} {M} {X1} {X2} {X3} {X4}
+    forall {MX: capmap-max-cap* X1 M X4}
+    {F: capmap`fresh M' N}
+    {U: capmap`update M' N X2 M}
+    exists {X2} {MX: cap`max X1 X2 X3}
+    {MX': capmap-max-cap* X3 M' X4}
+    true.
+
+%worlds (objvar) (capmap-max-cap/U-inversion _ _ _ _ _ _).
+%trustme %total {} (capmap-max-cap/U-inversion _ _ _ _ _ _).
+
+
+%theorem capmap-max-cap-respects-leq
+  : forall* {M1} {M2} {X1} {X2}
+    forall {M1<=M2: capmap`leq M1 M2}
+    {MX-M1: capmap-max-cap M1 X1}
+    {MX-M2: capmap-max-cap M2 X2}
+    exists {X2<=X1: cap`leq X1 X2}
+    true.
+
+%worlds (objvar) (capmap-max-cap-respects-leq _ _ _ _).
+%trustme %total {} (capmap-max-cap-respects-leq _ _ _ _).
+
+
+%theorem capmap-max-cap-respects-leq-domain
+  : forall* {M} {M'} {X} {S}
+    forall {MX: capmap-max-cap M X}
+    {M<=M': capmap`leq M M'}
+    {DM-M: capmap`domain M S} {DM-M': capmap`domain M' S}
+    exists {X'} {MX': capmap-max-cap M' X'}
+    {X<=X': cap`leq X X'}
+    true.
+
+%worlds () (capmap-max-cap-respects-leq-domain _ _ _ _ _ _ _).
+%trustme %total { } (capmap-max-cap-respects-leq-domain _ _ _ _ _ _ _).
+
+
+%theorem capmap`join-joins-max-cap
+  : forall* {M1} {M2} {M} {X1} {X2}
+    forall {J: capmap`join M1 M2 M}
+    {MX-M1: capmap-max-cap M1 X1}
+    {MX-M2: capmap-max-cap M2 X2}
+    exists {X} {MX: cap`max X1 X2 X}
+    {MX-M: capmap-max-cap M X}
+    true.
+
+%worlds (objvar) (capmap`join-joins-max-cap _ _ _ _ _ _).
+%trustme %total {} (capmap`join-joins-max-cap _ _ _ _ _ _).
+
+
+%%% Theorems about capmap-vleq
+
+%theorem capmap-vleq-reflexive
+  : forall* {M}
+    exists {M=<=M: capmap-vleq M M}
+    true.
+
+- : capmap-vleq-reflexive (capmap-vleq/ DM DM M<=M)
+    <- capmap`domain-total DM
+    <- capmap`leq-reflexive _ M<=M.
+
+%worlds () (capmap-vleq-reflexive _).
+%total { } (capmap-vleq-reflexive _).
+
+
+%theorem capmap-vleq-implies-leq
+  : forall* {M} {MP}
+    forall {M=<=MP: capmap-vleq M MP}
+    exists {M<=MP: capmap`leq M MP}
+    true.
+
+- : capmap-vleq-implies-leq
+    (capmap-vleq/ _ _ LE) LE.
+
+%worlds () (capmap-vleq-implies-leq _ _).
+%total { } (capmap-vleq-implies-leq _ _).
+
+
+%theorem capmap-vleq-implies-same-domain
+  : forall* {M} {MP}
+    forall {M=<=MP: capmap-vleq M MP}
+    exists {M-D-MP: capmap-same-domain M MP}
+    true.
+
+- : capmap-vleq-implies-same-domain
+    (capmap-vleq/ DM1 DM2 _)
+    (capmap-same-domain/ DM1 DM2).
+
+%worlds () (capmap-vleq-implies-same-domain _ _).
+%total { } (capmap-vleq-implies-same-domain _ _).
+
+
+%theorem capmap-same-domain-implies-domain-left
+  : forall* {M} {MP} {S}
+    forall {M=<=MP: capmap-same-domain M MP}
+    {DM-M: capmap`domain M S}
+    exists {DM-MP: capmap`domain MP S}
+    true.
+
+- : capmap-same-domain-implies-domain-left
+    (capmap-same-domain/ DM-M=SP DM-MP=SP) DM-M=S DM-MP=S
+    <- capmap`domain-unique DM-M=SP DM-M=S capmap`eq/ SP=S
+    <- capmap`domain-respects-eq DM-MP=SP capmap`eq/ SP=S DM-MP=S.
+
+%worlds () (capmap-same-domain-implies-domain-left _ _ _).
+%total { } (capmap-same-domain-implies-domain-left _ _ _).
+
+
+%theorem capmap-same-domain-implies-domain-right
+  : forall* {M} {MP} {S}
+    forall {M=<=MP: capmap-same-domain M MP}
+    {DM-MP: capmap`domain MP S}
+    exists {DM-M: capmap`domain M S}
+    true.
+
+- : capmap-same-domain-implies-domain-right
+    (capmap-same-domain/ DM-M=SP DM-MP=SP) DM-MP=S DM-M=S
+    <- capmap`domain-unique DM-MP=SP DM-MP=S capmap`eq/ SP=S
+    <- capmap`domain-respects-eq DM-M=SP capmap`eq/ SP=S DM-M=S.
+
+%worlds () (capmap-same-domain-implies-domain-right _ _ _).
+%total { } (capmap-same-domain-implies-domain-right _ _ _).
+
+
+%theorem capmap-vleq-respects-disjoint
+  : forall* {M1} {M1P} {M2} {M2P}
+    forall {M1=<=M1P: capmap-vleq M1 M1P}
+    {M2=<=M2P: capmap-vleq M2 M2P}
+    {M1^M2: capmap`disjoint M1 M2}
+    exists {M1P^M2P: capmap`disjoint M1P M2P}
+    true.
+
+%worlds () (capmap-vleq-respects-disjoint _ _ _ _).
+%trustme %total { } (capmap-vleq-respects-disjoint _ _ _ _).
+
+
+%%% For this lemma, we actually just need the "same-domain" condition.
+
+% %theorem capmap-vleq-preserves-same-object
+%   : forall* {M} {MP} {N}
+%     forall {M-N: capmap-same-object M N}
+%     {M<=MP: capmap-vleq M MP}
+%     exists {MP-N: capmap-same-object MP N}
+%     true.
+
+% %worlds () (capmap-vleq-preserves-same-object _ _ _).
+% %trustme %total {} (capmap-vleq-preserves-same-object _ _ _).
+
+
+% %theorem capmap-map-fields-vleq
+%   : forall* {M} {MP} {MF}
+%     forall {M=>MF: capmap-map-fields M MF}
+%     {SDM: capmap-vleq M MP}
+%     exists {MFP}
+%     {MP=>MFP: capmap-map-fields MP MFP}
+%     {SDM: capmap-vleq MF MFP}
+%     true.
+
+% %worlds () (capmap-map-fields-vleq _ _ _ _ _).
+% %trustme %total { } (capmap-map-fields-vleq _ _ _ _ _).
+
+
+% %theorem capmap-map-fields-vleq-converse
+%   : forall* {M} {MFP} {MF}
+%     forall {M=>MF: capmap-map-fields M MF}
+%     {SDM: capmap-vleq MF MFP}
+%     exists {MP}
+%     {MP=>MFP: capmap-map-fields MP MFP}
+%     {SDM: capmap-vleq M MP}
+%     true.
+
+% %worlds () (capmap-map-fields-vleq-converse _ _ _ _ _).
+% %trustme %total { } (capmap-map-fields-vleq-converse _ _ _ _ _).
+
+
+% %theorem capmap-map-fields-vleq-converse*
+%   : forall* {M} {MFP} {MF} {MP}
+%     forall {M=>MF: capmap-map-fields M MF}
+%     {SDM: capmap-vleq MF MFP}
+%     {MP=>MFP: capmap-map-fields MP MFP}
+%     exists {SDM: capmap-vleq M MP}
+%     true.
+
+% %worlds () (capmap-map-fields-vleq-converse* _ _ _ _).
+% %trustme %total { } (capmap-map-fields-vleq-converse* _ _ _ _).
+
+
+%theorem set+map2map-vleq
+  : forall* {S} {MF} {M} {MFP}
+    forall {S+MF=M: set+map2map S MF M}
+    {MF<=MFP: capmap-vleq MF MFP}
+    exists {MP} {S+MFP=MP: set+map2map S MFP MP}
+    {MF<=MFP: capmap-vleq M MP}
+    true.
+
+%worlds () (set+map2map-vleq _ _ _ _ _).
+%trustme %total {} (set+map2map-vleq _ _ _ _ _).
+
+
+%{%
+
+This theorem cannot be proved:
+Suppose S is {a,b}, and MF is {f:R, g:W}, then M is {a.f:R, b.f:R, a.g:W, b.g:W}
+Now, MP could be {a.f:R, b.f:W, a.g:W, b.g:W}, so MFP doesn't exist for this case.
+
+%theorem set+map2map-vleq-converse
+  : forall* {S} {MF} {M} {MP}
+    forall {S+MF=M: set+map2map S MF M}
+    {M<=MP: capmap-vleq M MP}
+    exists {MFP} {S+MFP=MP: set+map2map S MFP MP}
+    {MF<=MFP: capmap-vleq MF MFP}
+    true.
+
+%worlds () (set+map2map-vleq-converse _ _ _ _ _).
+%trustme %total {} (set+map2map-vleq-converse _ _ _ _ _).
+
+%}%
+
+
+%theorem set2capmap-vleq
+  : forall* {S} {X} {XP} {M}
+    forall {S+MF=M: set2capmap S X M}
+    {X<=XP: cap`leq X XP}
+    exists {MP} {S+XP=MP: set2capmap S XP MP}
+    {MF<=MFP: capmap-vleq M MP}
+    true.
+
+%worlds () (set2capmap-vleq _ _ _ _ _).
+%trustme %total {} (set2capmap-vleq _ _ _ _ _).
+
+
+%theorem set2capmap-vleq-converse
+  : forall* {S} {X} {XP} {M}
+    forall {S+X=M: set2capmap S X M}
+    {X<=XP: cap`leq X XP}
+    exists {MP} {S+MFP=MP: set2capmap S XP MP}
+    {MF<=MFP: capmap-vleq M MP}
+    true.
+
+%worlds () (set2capmap-vleq-converse _ _ _ _ _).
+%trustme %total {} (set2capmap-vleq-converse _ _ _ _ _).
+
+
+%theorem set2capmap-vleq-converse*
+  : forall* {S} {X} {XP} {M} {MP}
+    forall {S+X=M: set2capmap S X M}
+    {X<=XP: cap`leq X XP}
+    {S+MFP=MP: set2capmap S XP MP}
+    exists {MF<=MFP: capmap-vleq M MP}
+    true.
+
+%worlds () (set2capmap-vleq-converse* _ _ _ _).
+%trustme %total {} (set2capmap-vleq-converse* _ _ _ _).
+
+
+%theorem capmap-disjoint-join-vleq
+  : forall* {M1} {M2} {M} {M1P} {M2P}
+    forall {M1^M2: capmap`disjoint M1 M2}
+    {M1+M2=M: capmap`join M1 M2 M}
+    {M1<=M1P: capmap-vleq M1 M1P}
+    {M2<=M2P: capmap-vleq M2 M2P}
+    exists {MP}
+    {M1P^M2P: capmap`disjoint M1P M2P}
+    {M1P+M2P=MP: capmap`join M1P M2P MP}
+    {M<=MP: capmap-vleq M MP}
+    true.
+
+%worlds () (capmap-disjoint-join-vleq _ _ _ _ _ _ _ _).
+%trustme %total {} (capmap-disjoint-join-vleq _ _ _ _ _ _ _ _).
+
+
+%theorem capmap-disjoint-join-vleq-converse
+  : forall* {M1} {M2} {M} {MP}
+    forall {M1^M2: capmap`disjoint M1 M2}
+    {M1+M2=M: capmap`join M1 M2 M}
+    {M<=MP: capmap-vleq M MP}
+    exists {M1P} {M2P}
+    {M1P^M2P: capmap`disjoint M1P M2P}
+    {M1P+M2P=MP: capmap`join M1P M2P MP}
+    {M1<=M1P: capmap-vleq M1 M1P}
+    {M2<=M2P: capmap-vleq M2 M2P}
+    true.
+
+%worlds () (capmap-disjoint-join-vleq-converse _ _ _ _ _ _ _ _ _).
+%trustme %total {} (capmap-disjoint-join-vleq-converse _ _ _ _ _ _ _ _ _).
+
+
+% %theorem capmap-partition-on-index-vleq
+%   : forall* {M} {N} {MP} {Mout} {Min}
+%     forall {M|N=Mout+Min: capmap-partition-on-index M N Mout Min}
+%     {M=<=MP: capmap-vleq M MP}
+%     exists {MoutP} {MinP}
+%     {MP|N=MoutP+MinP: capmap-partition-on-index MP N MoutP MinP}
+%     {Mout=<=MoutP: capmap-vleq Mout MoutP}
+%     {Min=<=MinP: capmap-vleq Min MinP}
+%     true.
+
+% %worlds () (capmap-partition-on-index-vleq _ _ _ _ _ _ _).
+% %trustme %total {} (capmap-partition-on-index-vleq _ _ _ _ _ _ _).
+
+
+% %theorem capmap-partition-on-index-vleq-converse
+%   : forall* {N} {M} {Mout} {MoutP} {Min} {MinP}
+%     forall {M|N=Mout+Min: capmap-partition-on-index M N Mout Min}
+%     {Mout=<=MoutP: capmap-vleq Mout MoutP}
+%     {Min=<=MinP: capmap-vleq Min MinP}
+%     exists {MP}
+%     {MP|N=MoutP+MinP: capmap-partition-on-index MP N MoutP MinP}
+%     {M=<=MP: capmap-vleq M MP}
+%     true.
+
+% %worlds () (capmap-partition-on-index-vleq-converse _ _ _ _ _ _).
+% %trustme %total {} (capmap-partition-on-index-vleq-converse _ _ _ _ _ _).
+
+
+% %theorem join-preserves-capmap-vleq
+%   : forall* {M1} {M2} {MP1} {MP2} {M}
+%     forall {M1+M2=M: capmap`join M1 M2 M}
+%     {M1=<=MP1: capmap-vleq M1 MP1}
+%     {M2=<=MP2: capmap-vleq M2 MP2}
+%     exists {MP} {MP1+MP2=MP: capmap`join MP1 MP2 MP}
+%     {M=<=MP: capmap-vleq M MP}
+%     true.
+
+% %worlds () (join-preserves-capmap-vleq _ _ _ _ _ _).
+% %trustme %total {} (join-preserves-capmap-vleq _ _ _ _ _ _).
+
+
+% %theorem capmap-vleq-preserves-disjoint-left
+%   : forall* {M1} {M1P} {M2}
+%     forall {M1^M2: capmap`disjoint M1 M2}
+%     {M1=<=M1P: capmap-vleq M1 M1P}
+%     exists {M1P^M2: capmap`disjoint M1P M2}
+%     true.
+
+% - : capmap-vleq-preserves-disjoint-left M1^M2
+%     (capmap-vleq/ DM-M1=S DM-M1P=S M1<=M1P) M1P^M2
+%     <- capmap`domain-total DM-M2=S2
+%     <- capmap`domain-preserves-disjoint M1^M2 DM-M1=S DM-M2=S2 S^S2
+%     <- capmap`domain-preserves-disjoint-converse S^S2 DM-M1P=S DM-M2=S2 M1P^M2.
+
+% %worlds () (capmap-vleq-preserves-disjoint-left _ _ _).
+% %total { } (capmap-vleq-preserves-disjoint-left _ _ _).
+
+
+%theorem capmap-partition-implies-split
+  : forall* {M} {S} {Mout} {Min}
+    forall {P: capmap`partition M S Mout Min}
+    exists {SP: capmap-split M Mout Min}
+    true.
+
+- : capmap-partition-implies-split M|S=Mout+Min
+    (capmap-split/ Mout^Min Mout+Min=M)
+    <- capmap`partition-implies-disjoint-join M|S=Mout+Min Mout^Min Mout+Min=M.
+
+%worlds () (capmap-partition-implies-split _ _).
+%total { } (capmap-partition-implies-split _ _).
+
+
+%theorem capmap-split-implies-disjoint-join
+  : forall* {M} {M1} {M2}
+    forall {SP: capmap-split M M1 M2}
+    exists {M1^M2: capmap`disjoint M1 M2}
+    {M1+M2=M: capmap`join M1 M2 M}
+    true.
+
+- : capmap-split-implies-disjoint-join (capmap-split/ D J) D J.
+
+%worlds () (capmap-split-implies-disjoint-join _ _ _).
+%total { } (capmap-split-implies-disjoint-join _ _ _).
+
+
+%theorem capmap-split-unique
+  : forall* {M} {MP} {M1} {M1P} {M2} {M2P}
+    forall {M-M1=M2: capmap-split M M1 M2}
+    {MP-M1P=M2P: capmap-split MP M1P M2P}
+    {M=MP: capmap`eq M MP}
+    {M1=M1P: capmap`eq M1 M1P}
+    exists {M2=M2P: capmap`eq M2 M2P}
+    true.
+
+%worlds () (capmap-split-unique _ _ _ _ _).
+%trustme %total { } (capmap-split-unique _ _ _ _ _).
+
+
+%theorem capmap-split-implies-leq
+  : forall* {M} {M1} {M2}
+    forall {SP: capmap-split M M1 M2}
+    exists {M1<=M: capmap`leq M1 M}
+    {M2<=M: capmap`leq M2 M}
+    true.
+
+%worlds () (capmap-split-implies-leq _ _ _).
+%trustme %total { } (capmap-split-implies-leq _ _ _).
+
+
+%theorem set+nat2set-preserves-fresh
+  : forall* {S} {N} {F} {K} {Q}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {NM: set`not-member S N}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : set+nat2set-preserves-fresh set+nat2set/0
+    set`not-member/0 _ set`not-member/0.
+
+%theorem set+nat2set-preserves-fresh/L
+  : forall* {S} {N} {F} {K} {Q} {SP} {QP} {NP} {KP} {B}
+    forall {S+F=>Q: set+nat2set SP F QP}
+    {NP+F=>KP: pair2nat (pair/ NP F) KP}
+    {NMP: set`not-member SP NP}
+    {UP: set`add SP NP S}
+    {UQ: set`add QP KP Q}
+    {NM: set`not-member S N}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? N NP B}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : set+nat2set-preserves-fresh/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- set`add-implies-member UP MB
+    <- set`not-member-member-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- set`false-implies-not-member V NMQ.
+
+- : set+nat2set-preserves-fresh/L SP+F=>QP NP+F=>KP _
+    SP+NP=S QP+KP=Q N!<S N+F=>K (nat`eq?/no N<>NP) K!<Q
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- set+nat2set-preserves-fresh SP+F=>QP N!<SP N+F=>K K!<QP
+    <- pair2nat-preserves-ne* (natpair`ne/1 N<>NP) N+F=>K NP+F=>KP K<>KP
+    <- set`add-preserves-not-member K!<QP QP+KP=Q K<>KP K!<Q.
+
+- : set+nat2set-preserves-fresh
+    (set+nat2set/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- set+nat2set-preserves-fresh/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (set+nat2set-preserves-fresh _ _ _ _)
+	(set+nat2set-preserves-fresh/L _ _ _ _ _ _ _ _ _).
+%total (T1 T2) (set+nat2set-preserves-fresh T1 _ _ _)
+	(set+nat2set-preserves-fresh/L T2 _ _ _ _ _ _ _ _).
+
+
+%theorem set+nat2set-preserves-size
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {SZ: set`size S N}
+    exists {QZ: set`size Q N}
+    true.
+
+- : set+nat2set-preserves-size set+nat2set/0 set`size/0 set`size/0.
+
+- : set+nat2set-preserves-size
+    (set+nat2set/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-S SZ-Q
+    <- set`not-member-add-increases-size-converse SZ-S N!<S' S'+N=S SZ-S'
+    <- set+nat2set-preserves-size S'+F=>Q' SZ-S' SZ-Q'
+    <- set+nat2set-preserves-fresh S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- set`not-member-add-increases-size SZ-Q' K!<Q' Q'+K=Q SZ-Q.
+
+%worlds () (set+nat2set-preserves-size _ _ _).
+%total (N) (set+nat2set-preserves-size N _ _).
+
+
+%theorem set+nat2set-preserves-size-converse
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {QZ: set`size Q N}
+    exists {SZ: set`size S N}
+    true.
+
+- : set+nat2set-preserves-size-converse set+nat2set/0 set`size/0 set`size/0.
+
+- : set+nat2set-preserves-size-converse
+    (set+nat2set/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-Q SZ-S
+    <- set+nat2set-preserves-fresh S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- set`not-member-add-increases-size-converse SZ-Q K!<Q' Q'+K=Q SZ-Q'
+    <- set+nat2set-preserves-size-converse S'+F=>Q' SZ-Q' SZ-S'
+    <- set`not-member-add-increases-size SZ-S' N!<S' S'+N=S SZ-S.
+
+%worlds () (set+nat2set-preserves-size-converse _ _ _).
+%total (N) (set+nat2set-preserves-size-converse N _ _).
+
+
+%%% set+nat2capmap
+
+%theorem set+nat2capmap-preserves-fresh
+  : forall* {S} {N} {F} {K} {Q} {X}
+    forall {S+F=>Q: set+nat2capmap S F X Q}
+    {NM: set`not-member S N}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {NM: capmap`fresh Q K}
+    true.
+
+- : set+nat2capmap-preserves-fresh set+nat2capmap/0
+    set`not-member/0 _ capmap`fresh/0.
+
+%worlds () (set+nat2capmap-preserves-fresh T1 _ _ _).
+%trustme %total { } (set+nat2capmap-preserves-fresh T1 _ _ _).
+
+
+%theorem set+nat2capmap-total*
+  : forall {S} {F} {X}
+    exists {M} {S+N+X=>M: set+nat2capmap S F X M}
+    true.
+
+%worlds () (set+nat2capmap-total* _ _ _ _ _).
+%trustme %total { } (set+nat2capmap-total* _ _ _ _ _).
+
+%abbrev set+nat2capmap-total = set+nat2capmap-total* _ _ _ _.
+
+
+%theorem set+nat2capmap-respects-eq
+  : forall* {S} {F} {X} {S'} {F'} {X'} {M} {M'}
+    forall {T: set+nat2capmap S F X M}
+    {E: set`eq S S'} {E: nat`eq F F'} {E: cap`eq X X'} {E: capmap`eq M M'}
+    exists {T: set+nat2capmap S' F' X' M'}
+    true.
+
+%worlds () (set+nat2capmap-respects-eq _ _ _ _ _ _).
+%trustme %total { } (set+nat2capmap-respects-eq _ _ _ _ _ _).
+
+
+%theorem set+nat2capmap-unique
+  : forall* {S} {F} {X} {S'} {F'} {X'} {M} {M'}
+    forall {T: set+nat2capmap S F X M}
+    {T: set+nat2capmap S' F' X' M'}
+    {E: set`eq S S'} {E: nat`eq F F'} {E: cap`eq X X'}
+    exists {E: capmap`eq M M'}
+    true.
+
+%worlds () (set+nat2capmap-unique _ _ _ _ _ _).
+%trustme %total { } (set+nat2capmap-unique _ _ _ _ _ _).
+
+
+%theorem set+nat2capmap-preserves-size
+  : forall* {S} {F} {Q} {N} {X}
+    forall {S+F=>Q: set+nat2capmap S F X Q}
+    {SZ: set`size S N}
+    exists {QZ: capmap`size Q N}
+    true.
+
+- : set+nat2capmap-preserves-size set+nat2capmap/0 set`size/0 capmap`size/0.
+
+- : set+nat2capmap-preserves-size
+    (set+nat2capmap/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-S SZ-Q
+    <- set`not-member-add-increases-size-converse SZ-S N!<S' S'+N=S SZ-S'
+    <- set+nat2capmap-preserves-size S'+F=>Q' SZ-S' SZ-Q'
+    <- set+nat2capmap-preserves-fresh S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- capmap`fresh-update-increases-size SZ-Q' K!<Q' Q'+K=Q SZ-Q.
+
+%worlds () (set+nat2capmap-preserves-size _ _ _).
+%total (N) (set+nat2capmap-preserves-size N _ _).
+
+
+%theorem set+nat2capmap-preserves-size-converse
+  : forall* {S} {F} {Q} {N} {X}
+    forall {S+F=>Q: set+nat2capmap S F X Q}
+    {QZ: capmap`size Q N}
+    exists {SZ: set`size S N}
+    true.
+
+- : set+nat2capmap-preserves-size-converse set+nat2capmap/0 capmap`size/0 set`size/0.
+
+- : set+nat2capmap-preserves-size-converse
+    (set+nat2capmap/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-Q SZ-S
+    <- set+nat2capmap-preserves-fresh S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- capmap`fresh-update-increases-size-converse SZ-Q K!<Q' Q'+K=Q SZ-Q'
+    <- set+nat2capmap-preserves-size-converse S'+F=>Q' SZ-Q' SZ-S'
+    <- set`not-member-add-increases-size SZ-S' N!<S' S'+N=S SZ-S.
+
+%worlds () (set+nat2capmap-preserves-size-converse _ _ _).
+%total (N) (set+nat2capmap-preserves-size-converse N _ _).
+
+
+%theorem set+nat2capmap-implies-min-cap
+  : forall* {S} {M} {X} {F}
+    forall {S=>M: set+nat2capmap S F X M}
+    exists {MX-M: capmap-min-cap M X}
+    true.
+
+%worlds () (set+nat2capmap-implies-min-cap _ _).
+%trustme %total { } (set+nat2capmap-implies-min-cap _ _).
+
+
+
+
+%%% nat+set2capmap
+
+% 2. nat+set2set
+
+%theorem false-implies-nat+set2capmap
+  : forall* {N} {FS} {X} {S} forall {F:void} exists {NSS: nat+set2capmap N FS X S} true.
+
+%worlds () (false-implies-nat+set2capmap _ _).
+%total { } (false-implies-nat+set2capmap _ _).
+
+
+%theorem nat+set2capmap-respects-eq
+  : forall* {N} {N0} {FS} {FS0} {S} {S0} {X} {X0}
+    forall {NSS: nat+set2capmap N FS X S}
+    {E: nat`eq N N0} {E: set`eq FS FS0} {E: cap`eq X X0} {E: capmap`eq S S0}
+    exists {NSS0: nat+set2capmap N0 FS0 X0 S0}
+    true.
+
+- : nat+set2capmap-respects-eq NSS nat`eq/ set`eq/ cap`eq/ capmap`eq/ NSS.
+
+%worlds (objvar) (nat+set2capmap-respects-eq _ _ _ _ _ _).
+%total { } (nat+set2capmap-respects-eq _ _ _ _ _ _).
+
+
+%theorem nat+set2capmap-total*
+  : forall {N} {FS} {X}
+    exists {S} {N+FS=>S: nat+set2capmap N FS X S} true.
+
+%abbrev nat+set2capmap-total = nat+set2capmap-total* _ _ _ _.
+
+
+%theorem nat+set2capmap-total/L
+  : forall* {FS}
+    forall {K} {Z: set`size FS K} {N} {X}
+    exists {S} {N+FS=>S: nat+set2capmap N FS X S}
+    true.
+
+- : nat+set2capmap-total/L _ _ _ _ _ nat+set2capmap/0.
+
+- : nat+set2capmap-total/L _ Z _ _ _ (nat+set2capmap/U NSS1 P2N F A QA)
+    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) _ F A
+    <- set`not-member-add-increases-size-converse Z F A Z1
+    <- nat+set2capmap-total/L _ Z1 _ _ _ NSS1
+    <- pair2nat-total P2N
+    <- capmap`update-total QA.
+
+%worlds () (nat+set2capmap-total/L _ _ _ _ _ _).
+%total (N) (nat+set2capmap-total/L N _ _ _ _ _).
+
+- : nat+set2capmap-total NSS
+    <- set`size-total Z
+    <- nat+set2capmap-total/L _ Z _ _ _ NSS.
+
+%worlds () (nat+set2capmap-total* _ _ _ _ _).
+%total {} (nat+set2capmap-total* _ _ _ _ _).
+
+
+%theorem nat+set2capmap-preserves-fresh
+  : forall* {S} {N} {F} {K} {Q} {X}
+    forall {S+F=>Q: nat+set2capmap N S X Q}
+    {NM: set`not-member S F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {NM: capmap`fresh Q K}
+    true.
+
+- : nat+set2capmap-preserves-fresh nat+set2capmap/0 set`not-member/0 _ capmap`fresh/0.
+
+%theorem nat+set2capmap-preserves-fresh/L
+  : forall* {S} {N} {F} {K} {Q} {SP} {QP} {FP} {KP} {B} {X}
+    forall {S+F=>Q: nat+set2capmap N SP X QP}
+    {NP+F=>KP: pair2nat (pair/ N FP) KP}
+    {NMP: set`not-member SP FP}
+    {UP: set`add SP FP S}
+    {UQ: capmap`update QP KP X Q}
+    {NM: set`not-member S F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? F FP B}
+    exists {NM: capmap`fresh Q K}
+    true.
+
+- : nat+set2capmap-preserves-fresh/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- set`add-implies-member UP MB
+    <- set`not-member-member-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- capmap`false-implies-fresh V NMQ.
+
+- : nat+set2capmap-preserves-fresh/L SP+F=>QP NP+F=>KP _
+    SP+NP=S QP+KP=Q N!<S N+F=>K (nat`eq?/no N<>NP) K!<Q
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- nat+set2capmap-preserves-fresh SP+F=>QP N!<SP N+F=>K K!<QP
+    <- pair2nat-preserves-ne* (natpair`ne/2 N<>NP) N+F=>K NP+F=>KP K<>KP
+    <- capmap`update-preserves-fresh K!<QP QP+KP=Q K<>KP K!<Q.
+
+- : nat+set2capmap-preserves-fresh
+    (nat+set2capmap/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- nat+set2capmap-preserves-fresh/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (nat+set2capmap-preserves-fresh _ _ _ _)
+	(nat+set2capmap-preserves-fresh/L _ _ _ _ _ _ _ _ _).
+%total (T1 T2) (nat+set2capmap-preserves-fresh T1 _ _ _)
+	(nat+set2capmap-preserves-fresh/L T2 _ _ _ _ _ _ _ _).
+
+
+%%% we don't require X and X' to be equal, although they must be equal.
+
+%theorem nat+set2capmap-lookup-implies-nat2pair-lookup-converse
+  : forall* {N} {FS} {S} {K} {X} {X'}
+    forall {A: nat+set2capmap N FS X S}
+		{MB: capmap`lookup S K X'}
+    exists {F} {R: nat2pair K (pair/ N F)} {MB: set`member FS F}
+    true.
+
+%theorem nat+set2capmap-lookup-implies-nat2pair-lookup-converse/L
+  : forall* {N} {FS} {S} {K} {B} {FS'} {S'} {K'} {F'} {X} {X'}
+    forall {A: nat+set2capmap N FS' X S'}
+    {R: nat2pair K' (pair/ N F')}
+    {NM: set`not-member FS' F'}
+    {A: set`add FS' F' FS}
+    {A: capmap`update S' K' X S}
+		{MB: capmap`lookup S K X'}
+    {E?: nat`eq? K' K B}
+		exists {F} {R: nat2pair K (pair/ N F)}
+    {MB: set`member FS F}
+    true.
+
+- : nat+set2capmap-lookup-implies-nat2pair-lookup-converse/L
+    N+FS'=>S' K'=>N+F' F'!<FS' FS'+F'=FS S'+K'=S K<-S nat`eq?/yes
+    _ K'=>N+F' F'<-FS
+    <- set`add-implies-member FS'+F'=FS F'<-FS.
+
+- : nat+set2capmap-lookup-implies-nat2pair-lookup-converse/L
+    N+FS'=>S' K'=>N+F' F'!<FS' FS'+F'=FS S'+K'=S K<-S (nat`eq?/no K'<>K)
+    _ K=>N+F F<-FS
+    <- nat`ne-symmetric K'<>K K<>K'
+    <- capmap`update-preserves-lookup-converse K<-S S'+K'=S K<>K' K<-S'
+    <- nat+set2capmap-lookup-implies-nat2pair-lookup-converse
+      N+FS'=>S' K<-S' _ K=>N+F F<-FS'
+    <- set`add-preserves-member F<-FS' FS'+F'=FS F<-FS.
+
+- : nat+set2capmap-lookup-implies-nat2pair-lookup-converse
+    (nat+set2capmap/U A0 P2N0 F0 U0 SU0) MB _ P2N MBF
+    <- nat`eq?-total E?
+    <- nat+set2capmap-lookup-implies-nat2pair-lookup-converse/L
+      A0 P2N0 F0 U0 SU0 MB E? _ P2N MBF.
+
+%worlds () (nat+set2capmap-lookup-implies-nat2pair-lookup-converse _ _ _ _ _)
+  (nat+set2capmap-lookup-implies-nat2pair-lookup-converse/L _ _ _ _ _ _ _ _ _ _).
+%total (A A0) (nat+set2capmap-lookup-implies-nat2pair-lookup-converse A _ _ _ _)
+  (nat+set2capmap-lookup-implies-nat2pair-lookup-converse/L A0 _ _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2capmap-preserves-size
+  : forall* {S} {N} {Q} {K} {X}
+    forall {S+F=>Q: nat+set2capmap N S X Q}
+    {SZ: set`size S K}
+    exists {QZ: capmap`size Q K}
+    true.
+
+- : nat+set2capmap-preserves-size nat+set2capmap/0 set`size/0 capmap`size/0.
+
+- : nat+set2capmap-preserves-size (nat+set2capmap/U T R F U QU) SZ SZQ
+    <- set`not-member-add-increases-size-converse SZ F U SZ'
+    <- nat+set2capmap-preserves-size T SZ' SZQ'
+    <- nat+set2capmap-preserves-fresh T F R QF
+    <- capmap`fresh-update-increases-size SZQ' QF QU SZQ.
+
+%worlds () (nat+set2capmap-preserves-size _ _ _).
+%total (N) (nat+set2capmap-preserves-size N _ _).
+
+
+%theorem nat+set2capmap-preserves-size-converse
+  : forall* {S} {F} {Q} {N} {X}
+    forall {S+F=>Q: nat+set2capmap F S X Q}
+    {QZ: capmap`size Q N}
+    exists {SZ: set`size S N}
+    true.
+
+- : nat+set2capmap-preserves-size-converse nat+set2capmap/0 capmap`size/0 set`size/0.
+
+- : nat+set2capmap-preserves-size-converse
+    (nat+set2capmap/U T R F U QU) SZQ SZ
+    <- nat+set2capmap-preserves-fresh T F R QF
+    <- capmap`fresh-update-increases-size-converse SZQ QF QU SZQ'
+    <- nat+set2capmap-preserves-size-converse T SZQ' SZ'
+    <- set`not-member-add-increases-size SZ' F U SZ.
+
+%worlds () (nat+set2capmap-preserves-size-converse _ _ _).
+%total (N) (nat+set2capmap-preserves-size-converse N _ _).
+
+
+%theorem nat+set2capmap/U-inversion
+  : forall* {N} {FS} {S} {FS'} {F} {X}
+    forall {N+FS=>S: nat+set2capmap N FS X S}
+    {NM: set`not-member FS' F}
+    {AD: set`add FS' F FS}
+    exists {S'} {N+FS'=>S': nat+set2capmap N FS' X S'}
+    {K} {K=>NF: nat2pair K (pair/ N F)}
+    {S'+K=S: capmap`update S' K X S}
+    true.
+
+%theorem nat+set2capmap/U-inversion/L
+  : forall* {N} {FS} {S} {FS'} {F} {B} {FS0} {F0} {S0} {K0} {X}
+    forall {N+FS0=>S0: nat+set2capmap N FS0 X S0}
+    {NM0: set`not-member FS0 F0}
+    {A0: set`add FS0 F0 FS}
+    {AS0: capmap`update S0 K0 X S}
+    {K2NF0: nat2pair K0 (pair/ N F0)}
+    {NM: set`not-member FS' F}
+    {A: set`add FS' F FS}
+    {E?: nat`eq? F F0 B}
+    exists {S'} {N+FS'=>S': nat+set2capmap N FS' X S'}
+    {K} {K2NF: nat2pair K (pair/ N F)}
+    {AS': capmap`update S' K X S}
+    true.
+
+- : nat+set2capmap/U-inversion/L NSS0 F0 U0 SU0 K2NF0 F1 U1
+    nat`eq?/yes %{=>}% _ NSS _ K2NF0 SU0
+    <- set`not-member-add-cancels F0 U0 F1 U1 nat`eq/ set`eq/ (FS0=FS:set`eq FS0 FS)
+    <- nat+set2capmap-respects-eq NSS0 nat`eq/ FS0=FS cap`eq/ capmap`eq/ NSS.
+
+- : nat+set2capmap/U-inversion/L NSS0 F0 U0 SU0 K2NF0 F1 U1
+    (nat`eq?/no (F<>F0)) %{=>}% _
+    (nat+set2capmap/U NSS K2NF0 F4 U4 SU2) _ K2NF SU3
+    <- set`add-commutes-converse U1 U0 F<>F0 SP U4 U3
+    <- set`add-preserves-not-member-converse F1 U4 F3
+    <- set`add-preserves-not-member-converse F0 U3 F4
+    <- nat+set2capmap/U-inversion NSS0 F3 U3 _ NSS _ K2NF SU
+    <- pair2nat-preserves-ne* (natpair`ne/2 F<>F0) K2NF K2NF0 NE
+    <- capmap`update-commutes SU SU0 NE _ SU2 SU3.
+
+- : nat+set2capmap/U-inversion (nat+set2capmap/U NSS0 P2K0 F0 U0 SU0) F1 U1
+    _ NSS1 _ P2K1 SU1
+    <- nat`eq?-total E?
+    <- nat+set2capmap/U-inversion/L NSS0 F0 U0 SU0 P2K0 F1 U1 E? _ NSS1 _ P2K1 SU1.
+
+%worlds () (nat+set2capmap/U-inversion _ _ _ _ _ _ _ _)
+  (nat+set2capmap/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N N0) (nat+set2capmap/U-inversion N _ _ _ _ _ _ _)
+  (nat+set2capmap/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2capmap-unique
+  : forall* {N} {FS} {N'} {FS'} {S} {S'} {X} {X'}
+    forall {N+FS=>S: nat+set2capmap N FS X S}
+    {N+FS=>S': nat+set2capmap N' FS' X' S'}
+    {NE: nat`eq N N'} {SE: set`eq FS FS'} {XE: cap`eq X X'}
+    exists {SE: capmap`eq S S'}
+    true.
+
+- : nat+set2capmap-unique nat+set2capmap/0 nat+set2capmap/0 nat`eq/ set`eq/ cap`eq/ capmap`eq/.
+
+- : nat+set2capmap-unique (nat+set2capmap/U TP0 R0 F0 U0 QU0) T1 NE1 SE XE QE
+    <- nat+set2capmap/U-inversion T1 F0 U0 _ TP1 _ R1 QU1
+    <- nat+set2capmap-unique TP0 TP1 NE1 set`eq/ XE QEP
+    <- pair2nat-unique R0 R1 natpair`eq/ NE
+    <- capmap`update-unique QU0 QU1 QEP NE XE QE.
+
+%worlds () (nat+set2capmap-unique _ _ _ _ _ _).
+%total (N) (nat+set2capmap-unique N _ _ _ _ _).
+
+
+%theorem nat+set2capmap/UP-inversion
+  : forall* {N} {FS} {S} {SP} {K} {X}
+    forall {N+FS=>S: nat+set2capmap N FS X S}
+    {NM: capmap`fresh SP K}
+    {A: capmap`update SP K X S}
+    exists {FSP} {N+FSP=>SP: nat+set2capmap N FSP X SP}
+    {F} {K=>N+F: nat2pair K (pair/ N F)}
+    {U: set`add FSP F FS}
+    true.
+
+- : nat+set2capmap/UP-inversion N+FS=>S K!<SP SP+K=S %{=>}%
+    _ N+FS'=>SP _ K=>N+F FS'+F=FS
+    <- capmap`update-implies-lookup SP+K=S K<-S
+    <- nat+set2capmap-lookup-implies-nat2pair-lookup-converse
+      N+FS=>S K<-S _ K=>N+F F<-FS
+    <- set`member-implies-not-member-add F<-FS FS' F!<FS' FS'+F=FS
+    <- nat+set2capmap/U-inversion N+FS=>S F!<FS' FS'+F=FS S' N+FS'=>S' K'
+      K'=>N+F S'+K'=S
+    <- pair2nat-unique K'=>N+F K=>N+F natpair`eq/ (K'=K:nat`eq K' K)
+    <- nat+set2capmap-preserves-fresh N+FS'=>S' F!<FS' K'=>N+F K'!<S'
+    <- capmap`fresh-update-cancels K'!<S' S'+K'=S K!<SP SP+K=S K'=K capmap`eq/ cap`eq/ S'=SP
+    <- nat+set2capmap-respects-eq N+FS'=>S' nat`eq/ set`eq/ cap`eq/ S'=SP N+FS'=>SP.
+
+%worlds () (nat+set2capmap/UP-inversion _ _ _ _ _ _ _ _).
+%total { } (nat+set2capmap/UP-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2capmap-implies-cap-equal
+  : forall* {N} {S} {M} {K} {X} {X'}
+    forall {N+S+X=M: nat+set2capmap N S X M}
+    {M->K=X': capmap`lookup M K X'}
+    exists {EQ: cap`eq X' X}
+    true.
+
+%worlds () (nat+set2capmap-implies-cap-equal _ _ _).
+%trustme %total { } (nat+set2capmap-implies-cap-equal _ _ _).
+
+
+%%% set+set2capmap
+
+%theorem set+set2capmap-respects-eq
+  : forall* {S} {FS} {Q} {S'} {FS'} {Q'} {X} {X'}
+    forall {T: set+set2capmap S FS X Q}
+    {SE: set`eq S S'} {FSE: set`eq FS FS'}
+    {XE: cap`eq X X'} {QE: capmap`eq Q Q'}
+    exists {T': set+set2capmap S' FS' X' Q'}
+    true.
+
+- : set+set2capmap-respects-eq T set`eq/ set`eq/ cap`eq/ capmap`eq/ T.
+
+%worlds () (set+set2capmap-respects-eq _ _ _ _ _ _).
+%total {} (set+set2capmap-respects-eq _ _ _ _ _ _).
+
+
+%theorem set+set2capmap/U-inversion
+  : forall* {S} {S'} {FS} {N} {X} {M}
+    forall {S+FS=>Q: set+set2capmap S FS X M}
+    {NM: set`not-member S' N}
+    {A: set`add S' N S}
+    exists {M'} {M''} {S'+FS=>MP: set+set2capmap S' FS X M'}
+    {N+FS=>R: nat+set2capmap N FS X M''}
+    {U: capmap`join M' M'' M}
+    true.
+
+%worlds () (set+set2capmap/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total { } (set+set2capmap/U-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem set+set2capmap-unique
+  : forall* {S} {FS} {M} {S'} {FS'} {M'} {X} {X'}
+    forall {T: set+set2capmap S FS X M}
+    {T': set+set2capmap S' FS' X' M'}
+    {SE: set`eq S S'} {FSE: set`eq FS FS'} {XE: cap`eq X X'}
+    exists {ME: capmap`eq M M'}
+    true.
+
+- : set+set2capmap-unique set+set2capmap/0 set+set2capmap/0
+    set`eq/ set`eq/ cap`eq/ capmap`eq/.
+
+- : set+set2capmap-unique (set+set2capmap/U TP0 NT0 F0 U0 MU0) T1 SE FSE XE ME
+    <- set+set2capmap/U-inversion T1 F0 U0 _ _ TP1 NT1 MU1
+    <- set+set2capmap-unique TP0 TP1 set`eq/ FSE XE MEP
+    <- nat+set2capmap-unique NT0 NT1 nat`eq/ FSE XE RE
+    <- capmap`join-unique MU0 MU1 MEP RE ME.
+
+%worlds () (set+set2capmap-unique _ _ _ _ _ _).
+%trustme %total (T) (set+set2capmap-unique T _ _ _ _ _).
+
+
+%theorem set+set2capmap-on-empty-set
+  : forall* {FS} {X} exists {T: set+set2capmap set/0 FS X capmap/0} true.
+
+- : set+set2capmap-on-empty-set set+set2capmap/0.
+
+%worlds () (set+set2capmap-on-empty-set _).
+%total {} (set+set2capmap-on-empty-set _).
+
+
+%theorem set+set2capmap-lookup-implies-nat2pair
+  : forall* {S} {FS} {S2} {K} {X} {X'}
+    forall {S+FS=>S2: set+set2capmap S FS X S2}
+    {L: capmap`lookup S2 K X'}
+    exists {N} {F} {L: set`member S N}
+    {L: set`member FS F}
+    {K=>NF: nat2pair K (pair/ N F)}
+    true.
+
+%theorem set+set2capmap-lookup-implies-nat2pair/L
+  : forall* {SP} {FS} {QP} {N0} {R} {S} {Q} {K} {B} {X} {X'}
+    forall {SP+FS=>QP: set+set2capmap SP FS X QP}
+    {N+FS=>R: nat+set2capmap N0 FS X R}
+    {NM: set`not-member SP N0}
+    {AD: set`add SP N0 S}
+    {U: capmap`join QP R Q}
+    {MB: capmap`lookup Q K X'}
+    {MB?: capmap`domain? R K B}
+    exists {N} {F} {MB: set`member S N}
+    {MB: set`member FS F}
+    {K=>NF: nat2pair K (pair/ N F)}
+    true.
+
+% - : set+set2capmap-lookup-implies-nat2pair/L
+%     SP+FS=>QP N0+FS=>R N0!<SP SP+N0=S QP+R=Q K<-Q (capmap`domain?/in K<-R)
+%     N0 _ N0<-S F<-FS K=>N0+F
+%     <- capmap`lookup-implies-fresh-update K<-R RP K!<RP RP+K=R
+%     <- nat+set2capmap/UP-inversion N0+FS=>R K!<RP RP+K=R FSP N0+FSP=>RP F K=>N0+F FSP+F=FS.
+%     <- set`add-implies-member SP+N0=S N0<-S
+%     <- set`add-implies-member FSP+F=FS F<-FS.
+
+% - : set+set2capmap-lookup-implies-nat2pair/L
+%     SP+FS=>QP N0+FS=>R N0!<SP SP+N0=S QP+R=Q K<-Q (capmap`domain?/out K!<R)
+%     _ _ N<-S F<-FS K=>N+F
+%     <- set`not-member-union-right-preserves-member-converse
+%       K<-Q K!<R QP+R=Q K<-QP
+%     <- set+set2capmap-lookup-implies-nat2pair SP+FS=>QP K<-QP _ _ N<-SP
+%       F<-FS K=>N+F
+%     <- set`add-preserves-member N<-SP SP+N0=S N<-S.
+
+% - : set+set2capmap-lookup-implies-nat2pair
+%     (set+set2capmap/U SP+FS=>QP N+FS=>R N!<SP SP+N=S QP+R=Q) K<-Q
+%     _ _ N<-S F<-FS K=>N+F
+%     <- capmap`domain?-total K<-R?
+%     <- set+set2capmap-lookup-implies-nat2pair/L SP+FS=>QP N+FS=>R N!<SP SP+N=S QP+R=Q
+%       K<-Q K<-R? _ _ N<-S F<-FS K=>N+F.
+
+%worlds () (set+set2capmap-lookup-implies-nat2pair _ _ _ _ _ _ _)
+	(set+set2capmap-lookup-implies-nat2pair/L _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (A0 A1) (set+set2capmap-lookup-implies-nat2pair A0 _ _ _ _ _ _)
+	(set+set2capmap-lookup-implies-nat2pair/L A1 _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem set+set2capmap-implies-cap-equal
+  : forall* {S} {FS} {M} {K} {X} {X'}
+    forall {N+S+X=M: set+set2capmap S FS X M}
+    {M->K=X': capmap`lookup M K X'}
+    exists {EQ: cap`eq X' X}
+    true.
+
+%worlds () (set+set2capmap-implies-cap-equal _ _ _).
+%trustme %total { } (set+set2capmap-implies-cap-equal _ _ _).
+
+
+%%% 3, theorems about nat+map2map
+
+%theorem nat+map2map-total*
+  : forall {N} {XMin}
+    exists {XMout} {N+XMin=>XMout: nat+map2map N XMin XMout} true.
+
+%worlds () (nat+map2map-total* _ _ _ _).
+%trustme %total {} (nat+map2map-total* _ _ _ _).
+
+%abbrev nat+map2map-total = nat+map2map-total* _ _ _.
+
+
+%theorem nat+map2map/U-inversion
+  : forall* {N} {F} {X} {XMin} {XMin'} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {FS: capmap`fresh XMin' F}
+    {UD: capmap`update XMin' F X XMin}
+    exists {XMout'} {N+XMin'=>XMout': nat+map2map N XMin' XMout'}
+    {K} {N+F=>K: pair2nat (pair/ N F) K}
+    {UD: capmap`update XMout' K X XMout}
+    true.
+
+%worlds () (nat+map2map/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total {} (nat+map2map/U-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map/UP-inversion
+  : forall* {N} {K} {X} {XMin} {XMout} {XMout'}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {FS: capmap`fresh XMout' K}
+    {UD: capmap`update XMout' K X XMin}
+    exists {XMin'} {N+XMin'=>XMout': nat+map2map N XMin' XMout'}
+    {F} {N+F=>K: pair2nat (pair/ N F) K}
+    {UD: capmap`update XMin' F X XMin}
+    true.
+
+%worlds () (nat+map2map/UP-inversion _ _ _ _ _ _ _ _).
+%trustme %total {} (nat+map2map/UP-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map-unique
+  : forall* {N} {XMin} {XMout} {N'} {XMin'} {XMout'}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {N'+XMin'=>XMout': nat+map2map N' XMin' XMout'}
+    {N=N': nat`eq N N'} {XMin=XMin': capmap`eq XMin XMin'}
+    exists {XMout=XMout': capmap`eq XMout XMout'}
+    true.
+
+%worlds () (nat+map2map-unique _ _ _ _ _).
+%trustme %total {} (nat+map2map-unique _ _ _ _ _).
+
+
+%theorem nat+map2map-preserves-fresh
+  : forall* {N} {F} {K} {XMin} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {FS: capmap`fresh XMin F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {FS: capmap`fresh XMout K}
+    true.
+
+- : nat+map2map-preserves-fresh nat+map2map/0
+    capmap`fresh/0 _ capmap`fresh/0.
+
+%theorem nat+map2map-preserves-fresh/L
+  : forall* {N} {F} {F'} {K} {K'} {X} {XMin} {XMin'} {XMout} {XMout'} {B}
+    forall {N+XMin'=>XMout': nat+map2map N XMin' XMout'}
+    {N+F'=>K': pair2nat (pair/ N F') K'}
+    {FS': capmap`fresh XMin' F'}
+    {UD: capmap`update XMin' F' X XMin}
+    {UD: capmap`update XMout' K' X XMout}
+    {FS: capmap`fresh XMin F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? F F' B}
+    exists {NM: capmap`fresh XMout K}
+    true.
+
+- : nat+map2map-preserves-fresh/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- capmap`update-implies-lookup UP MB
+    <- capmap`fresh-lookup-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- capmap`false-implies-fresh V NMQ.
+
+- : nat+map2map-preserves-fresh/L SP+F=>QP NP+F=>KP _
+    SP+NP=S QP+KP=Q N!<S N+F=>K (nat`eq?/no N<>NP) K!<Q
+    <- capmap`update-preserves-fresh-converse N!<S SP+NP=S N!<SP
+    <- nat+map2map-preserves-fresh SP+F=>QP N!<SP N+F=>K K!<QP
+    <- pair2nat-preserves-ne* (natpair`ne/2 N<>NP) N+F=>K NP+F=>KP K<>KP
+    <- capmap`update-preserves-fresh K!<QP QP+KP=Q K<>KP K!<Q.
+
+- : nat+map2map-preserves-fresh
+    (nat+map2map/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- nat+map2map-preserves-fresh/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (nat+map2map-preserves-fresh _ _ _ _)
+	(nat+map2map-preserves-fresh/L _ _ _ _ _ _ _ _ _).
+%trustme %total (T1 T2) (nat+map2map-preserves-fresh T1 _ _ _)
+	(nat+map2map-preserves-fresh/L T2 _ _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map-preserves-fresh-converse
+  : forall* {N} {F} {K} {XMin} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {FS: capmap`fresh XMout K}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {FS: capmap`fresh XMin F}
+    true.
+
+- : nat+map2map-preserves-fresh-converse nat+map2map/0
+    capmap`fresh/0 _ capmap`fresh/0.
+
+%theorem nat+map2map-preserves-fresh-converse/L
+  : forall* {N} {F} {F'} {K} {K'} {X} {XMin} {XMin'} {XMout} {XMout'} {B}
+    forall {N+XMin'=>XMout': nat+map2map N XMin' XMout'}
+    {N+F'=>K': pair2nat (pair/ N F') K'}
+    {FS': capmap`fresh XMout' K'}
+    {UD: capmap`update XMout' K' X XMout}
+    {UD: capmap`update XMin' F' X XMin}
+    {FS: capmap`fresh XMout K}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? K K' B}
+    exists {NM: capmap`fresh XMin F}
+    true.
+
+- : nat+map2map-preserves-fresh-converse/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- capmap`update-implies-lookup UP MB
+    <- capmap`fresh-lookup-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- capmap`false-implies-fresh V NMQ.
+
+- : nat+map2map-preserves-fresh-converse/L N+MIP=>MOP N+FP=>KP _
+    MOP+KP=MO MIP+FP=MI K!<MO N+F=>K (nat`eq?/no K<>KP) F!<MI
+    <- capmap`update-preserves-fresh-converse K!<MO MOP+KP=MO K!<MOP
+    <- nat+map2map-preserves-fresh-converse N+MIP=>MOP K!<MOP N+F=>K F!<MIP
+    <- pair2nat-preserves-ne* (natpair`ne/2 K<>KP) N+F=>K N+FP=>KP F<>FP
+    <- capmap`update-preserves-fresh F!<MIP MIP+FP=MI F<>FP F!<MI.
+
+- : nat+map2map-preserves-fresh-converse
+    (nat+map2map/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- nat+map2map-preserves-fresh-converse/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (nat+map2map-preserves-fresh-converse _ _ _ _)
+	(nat+map2map-preserves-fresh-converse/L _ _ _ _ _ _ _ _ _).
+%trustme %total (T1 T2) (nat+map2map-preserves-fresh-converse T1 _ _ _)
+	(nat+map2map-preserves-fresh-converse/L T2 _ _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map-preserves-size
+  : forall* {N} {K} {XMin} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {SZ: capmap`size XMin K}
+    exists {SZ: capmap`size XMout K}
+    true.
+
+%worlds () (nat+map2map-preserves-size _ _ _).
+%trustme %total {} (nat+map2map-preserves-size _ _ _).
+
+
+%theorem nat+map2map-preserves-size-converse
+  : forall* {N} {K} {XMin} {XMout}
+    forall {N+XMin=>XMout: nat+map2map N XMin XMout}
+    {SZ: capmap`size XMout K}
+    exists {SZ: capmap`size XMin K}
+    true.
+
+%worlds () (nat+map2map-preserves-size-converse _ _ _).
+%trustme %total {} (nat+map2map-preserves-size-converse _ _ _).
+
+
+%%% 4, theorems about set+map2map
+
+%theorem set+map2map-respects-eq
+  : forall* {S} {S'} {XMin} {XMin'} {XMout} {XMout'}
+    forall {S+XMin=>XMout: set+map2map S XMin XMout}
+    {SE: set`eq S S'} {XME: capmap`eq XMin XMin'}
+    {XME: capmap`eq XMout XMout'}
+    exists {S'+XMin'=>XMout': set+map2map S' XMin' XMout'}
+    true.
+
+- : set+map2map-respects-eq T set`eq/ capmap`eq/ capmap`eq/ T.
+
+%worlds () (set+map2map-respects-eq _ _ _ _ _).
+%total {} (set+map2map-respects-eq _ _ _ _ _).
+
+
+%theorem set+map2map/U-inversion
+  : forall* {S} {S'} {XMin} {N} {XMout}
+    forall {S+XMin=>XMout: set+map2map S XMin XMout}
+    {NM: set`not-member S' N}
+    {A: set`add S' N S}
+    exists {XMout1} {S'+XMin=>XMout1: set+map2map S' XMin XMout1}
+    {XMout2} {N+XMin=>XMout2: nat+map2map N XMin XMout2}
+    {J: capmap`join XMout1 XMout2 XMout}
+    true.
+
+%worlds () (set+map2map/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total {} (set+map2map/U-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem set+map2map-unique
+  : forall* {S} {XMin} {XMout} {S'} {XMin'} {XMout'}
+    forall {T: set+map2map S XMin XMout}
+    {T': set+map2map S' XMin' XMout'}
+    {SE: set`eq S S'} {XME: capmap`eq XMin XMin'}
+    exists {XME: capmap`eq XMout XMout'}
+    true.
+
+%worlds () (set+map2map-unique _ _ _ _ _).
+%trustme %total {} (set+map2map-unique _ _ _ _ _).
+
+
+%theorem set+map2map-on-empty-set
+  : forall* {XMin} exists {T: set+map2map set/0 XMin capmap/0} true.
+
+- : set+map2map-on-empty-set set+map2map/0.
+
+%worlds () (set+map2map-on-empty-set _).
+%total {} (set+map2map-on-empty-set _).
+
+
+%theorem set+map2map-lookup-implies-nat2pair
+  : forall* {S} {XMin} {XMout} {K} {X}
+    forall {S+XMin=>XMout: set+map2map S XMin XMout}
+    {L: capmap`lookup XMout K X}
+    exists {N} {F} {L: set`member S N}
+    {L: capmap`lookup XMin F X}
+    {K=>NF: nat2pair K (pair/ N F)}
+    true.
+
+%worlds () (set+map2map-lookup-implies-nat2pair _ _ _ _ _ _ _).
+%trustme %total {} (set+map2map-lookup-implies-nat2pair _ _ _ _ _ _ _).
+
+
+%theorem nat+map2map-nat-ne-implies-disjoint
+  : forall* {N1} {N2} {M} {MO1} {MO2}
+    forall {N1+M=MO1: nat+map2map N1 M MO1}
+    {N2+M=MO2: nat+map2map N2 M MO2}
+    {N1<>N2: nat`ne N1 N2}
+    exists {MO1^MO2: capmap`disjoint MO1 MO2}
+    true.
+
+- : nat+map2map-nat-ne-implies-disjoint nat+map2map/0 _ _ capmap`disjoint/L.
+
+%theorem nat+map2map-nat-ne-implies-disjoint/L
+  : forall* {N1} {N2} {F} {M} {MO} {K}
+    forall {N1+M=MO: nat+map2map N1 M MO}
+    {N1<>N2: nat`ne N1 N2}
+    {N2+F=K: pair2nat (pair/ N2 F) K}
+    exists {K!<MO: capmap`fresh MO K}
+    true.
+
+- : nat+map2map-nat-ne-implies-disjoint/L nat+map2map/0 _ _ capmap`fresh/0.
+
+- : nat+map2map-nat-ne-implies-disjoint/L
+    (nat+map2map/U N1+MP=MOP N1+F1=K1 F1!<MP MP+F1=M MOP+K1=MO)
+    (N1<>N2:nat`ne N1 N2) N2+F=K K!<MO
+    <- nat+map2map-nat-ne-implies-disjoint/L N1+MP=MOP N1<>N2 N2+F=K K!<MOP
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2) N1+F1=K1 N2+F=K K1<>K
+    <- nat`ne-symmetric K1<>K K<>K1
+    <- capmap`update-preserves-fresh K!<MOP MOP+K1=MO K<>K1 K!<MO.
+
+%worlds () (nat+map2map-nat-ne-implies-disjoint/L _ _ _ _).
+%total (P) (nat+map2map-nat-ne-implies-disjoint/L P _ _ _).
+
+- : nat+map2map-nat-ne-implies-disjoint
+    (nat+map2map/U N1+MP=MO1P N1+F=K1 F!<MP MP+F=M MO1P+K1=MO1) N2+M=MO2
+    (N1<>N2: nat`ne N1 N2) MO1^MO2
+    <- nat+map2map/U-inversion N2+M=MO2 F!<MP MP+F=M
+    %{=>}% MO2P N2+MP=MO2P K2 N2+F=K2 MO2P+K2=MO2
+    <- nat+map2map-nat-ne-implies-disjoint N1+MP=MO1P N2+MP=MO2P N1<>N2 MO1P^MO2P
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2)
+      N1+F=K1 N2+F=K2 (K1<>K2:nat`ne K1 K2)
+    <- nat+map2map-nat-ne-implies-disjoint/L N1+MP=MO1P N1<>N2 N2+F=K2 K2!<MO1P
+    <- nat`ne-symmetric N1<>N2 N2<>N1
+    <- nat+map2map-nat-ne-implies-disjoint/L N2+MP=MO2P N2<>N1 N1+F=K1 K1!<MO2P
+    <- capmap`update-preserves-fresh K1!<MO2P MO2P+K2=MO2 K1<>K2 K1!<MO2
+    <- capmap`fresh-update-preserves-disjoint MO1P^MO2P K2!<MO1P MO2P+K2=MO2 MO1P^MO2
+    <- capmap`disjoint-symmetric MO1P^MO2 MO2^MO1P
+    <- capmap`fresh-update-preserves-disjoint MO2^MO1P K1!<MO2 MO1P+K1=MO1 MO2^MO1
+    <- capmap`disjoint-symmetric MO2^MO1 MO1^MO2.
+
+%worlds () (nat+map2map-nat-ne-implies-disjoint _ _ _ _).
+%total (P) (nat+map2map-nat-ne-implies-disjoint P _ _ _).
+
+
+%theorem not-member-nat+map2map-implies-disjoint
+  : forall* {S} {N} {MF} {MP1} {MP2}
+    forall {SP+MF=MP1: set+map2map S MF MP1}
+    {N+MF=MP2: nat+map2map N MF MP2}
+    {N!<S: set`not-member S N}
+    exists {MP1^MP2: capmap`disjoint MP1 MP2}
+    true.
+
+%theorem not-member-nat+map2map-implies-disjoint/L
+  : forall* {S} {SP} {N} {NP} {MF} {MP1P} {MP2P} {MP2} {MP1} {B}
+    forall {SP+MF=MP1P: set+map2map SP MF MP1P}
+    {NP+MF=MP2P: nat+map2map NP MF MP2P}
+    {NP!<SP: set`not-member SP NP}
+    {SP+NP=S: set`add SP NP S}
+    {MP1P+MP2P=MP1: capmap`join MP1P MP2P MP1}
+    {N+MF=MP2: nat+map2map N MF MP2}
+    {N!<S: set`not-member S N}
+    {N=NP?: nat`eq? N NP B}
+    exists {MP1^MP2: capmap`disjoint MP1 MP2}
+    true.
+
+- : not-member-nat+map2map-implies-disjoint/L
+    SP+MF=MP1P NP+MF=MP2P NP!<SP SP+NP=S MP1P+MP2P=MP1
+    N+MF=MP2 N!<S (nat`eq?/no (N<>NP:nat`ne N NP)) MP1^MP2
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- not-member-nat+map2map-implies-disjoint SP+MF=MP1P N+MF=MP2 N!<SP MP1P^MP2
+    <- nat`ne-symmetric N<>NP NP<>N
+    <- nat+map2map-nat-ne-implies-disjoint NP+MF=MP2P N+MF=MP2 NP<>N MP2P^MP2
+    <- capmap`join-preserves-disjoint* MP1P^MP2 MP2P^MP2 MP1P+MP2P=MP1 MP1^MP2.
+
+- : not-member-nat+map2map-implies-disjoint/L
+    _ _ _ SP+N=S _ _ N!<S nat`eq?/yes MP1^MP2
+    <- set`add-implies-member SP+N=S N<-S
+    <- set`member-not-member-contradiction N<-S N!<S V
+    <- capmap`false-implies-disjoint V MP1^MP2.
+
+- : not-member-nat+map2map-implies-disjoint set+map2map/0
+    N+MF=MP2 set`not-member/0 capmap`disjoint/L.
+
+- : not-member-nat+map2map-implies-disjoint
+    (set+map2map/U SP+MF=MP1P NP+MF=MP2P NP!<SP SP+NP=S MP1P+MP2P=MP1)
+    N+MF=MP2 N!<S MP1+MP2=MP
+    <- nat`eq?-total N=NP?
+    <- not-member-nat+map2map-implies-disjoint/L SP+MF=MP1P NP+MF=MP2P
+      NP!<SP SP+NP=S MP1P+MP2P=MP1 N+MF=MP2 N!<S N=NP? MP1+MP2=MP.
+
+%worlds () (not-member-nat+map2map-implies-disjoint _ _ _ _)
+  (not-member-nat+map2map-implies-disjoint/L _ _ _ _ _ _ _ _ _).
+%total (P PP) (not-member-nat+map2map-implies-disjoint P _ _ _)
+  (not-member-nat+map2map-implies-disjoint/L PP _ _ _ _ _ _ _ _).

@@ -2,54 +2,30 @@
 
 %%% Definitions
 
-%%% Environment
 
-env : type.
+cxt-remove-consume : cxt -> set -> cxt -> type.
 
-env/ : cxt -> capmap -> env.
+cxt-remove-consume/0 : cxt-remove-consume cxt/0 _ cxt/0.
 
-
-env`eq : env -> env -> type.
-
-env`eq/ : env`eq ENV ENV.
-
-
-env`leq : env -> env -> type.
-
-env`leq/ : env`leq (env/ CTX CAM) (env/ CTX CAM')
-           <- capmap`leq CAM CAM'.
+cxt-remove-consume/U
+  : cxt-remove-consume B S' B'
+    -> cxt`lookup B' N (cxt-info/ O (ty/ NN annot/unique C))
+    -> cxt`update B' N (cxt-info/ O (ty/ NN annot/borrow C)) B''
+    -> set`not-member S' N
+    -> set`add S' N S
+    -> cxt-remove-consume B S B''.
 
 
-env-has-cap : env -> capmap -> type.
+env-remove-consume : env -> capmap -> env -> type.
 
-env-has-cap/ : env-has-cap (env/ _ CAM') CAM
-               <- capmap`leq CAM CAM'.
-
-
-%%% Type Checking Result
-
-result : kind -> type.
-
-%abbrev expr-result = result exprk.
-
-%abbrev cond-result = result condk.
-
-%abbrev args-result = result argsk.
+env-remove-consume/
+  : cxt-remove-consume B M B'
+    -> capmap-split M0 M1 M2
+    -> env-remove-consume (env/ B M0) M1 (env/ B' M2).
 
 
-result/expr : reftype -> env -> expr-result.
 
-result/cond : env -> cond-result.
-
-result/args/0 : env -> args-result.
-
-result/args/+ : reftype -> args-result -> args-result.
-
-
-result`eq : result K -> result K -> type.
-
-result`eq/ : result`eq R R.
-
+%%% Type Checking Rules
 
 reftyping : nat -> clsmap -> methmap -> env -> term K -> result K -> type.
 
@@ -110,7 +86,7 @@ reftyping : nat -> clsmap -> methmap -> env -> term K -> result K -> type.
 %%% Checking Literals
 
 % reftyping/lit
-%   : reftyping _ _ _ B (lit O) (result/expr RT no-effect)
+%   : Reftyping _ _ _ B (lit O) (result/expr RT no-effect)
 %     <- cxt`lookup-obj B O N T
 %     <- ty2reftype N T RT.
 
@@ -118,48 +94,33 @@ reftyping : nat -> clsmap -> methmap -> env -> term K -> result K -> type.
 %%% Type Rules with Direct Effect
 
 reftyping/read
-  : reftyping N CM MM ENV1 E (result/expr (reftype/ nn/yes C G) ENV2)
+  : reftyping N CM MM V E (result/expr (reftype/ nn/yes C G0) (env/ B M0))
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F (ty/ NN A FC)
-    -> make-tgts-and-caps G F cap/read G' M
-    -> consider-ftype G' A GP
-    -> env-has-cap ENV2 M
-    -> reftyping N CM MM ENV1 (read E F) (result/expr (reftype/ NN FC GP) ENV2).
-
-
-cxt-remove-consume : cxt -> set -> cxt -> type.
-
-cxt-remove-consume/0 : cxt-remove-consume cxt/0 _ cxt/0.
-
-cxt-remove-consume/U
-  : cxt-remove-consume CTX S' CTX'
-    -> cxt`lookup CTX' N (cxt-info/ O (ty/ NN annot/unique C))
-    -> cxt`update CTX' N (cxt-info/ O (ty/ NN annot/borrow C)) CTX''
-    -> set`not-member S' N
-    -> set`add S' N S
-    -> cxt-remove-consume CTX S CTX''.
-
-
-env-remove-consume : env -> capmap -> env -> type.
-
-env-remove-consume/
-  : cxt-remove-consume CTX M CTX'
-    -> capmap-split M0 M1 M2
-    -> env-remove-consume (env/ CTX M0) M1 (env/ CTX' M2).
-
+    -> make-tgts-and-caps M0 G0 F cap/read G1 M1
+    -> consider-ftype G1 M1 A G2 M2
+    -> reftyping N CM MM V (read E F) (result/expr (reftype/ NN FC G2) (env/ B M2)).
 
 reftyping/write
-  : reftyping N CM MM ENV1 E1 (result/expr (reftype/ nn/yes C G) ENV2)
-    -> reftyping N CM MM ENV2 E2 (result/expr RT ENV3)
+  : reftyping N CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F (ty/ NN A FC)
-    -> make-tgts-and-caps G F cap/write G' M1
-    -> consider-ftype G' A GP
-    -> env-has-cap ENV2 M1
-    -> subtype CM RT (ty/ NN A FC) capmap/0 M2 MC
-    -> env-has-cap ENV3 M2
-    -> env-remove-consume ENV3 MC ENV4
-    -> reftyping N CM MM ENV1 (write E1 F E2) (result/expr (reftype/ NN FC GP) ENV4).
+    -> make-tgts-and-caps M0 G0 F cap/write G1 M1 % wrong: can't release yet
+    -> reftyping N CM MM (env/ B0 M1) E2 (result/expr RT V2)
+    -> subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3)
+    -> consider-ftype G1 M3 A G2 M4
+    -> reftyping N CM MM V1 (write E1 F E2)
+      (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
+
+% reftyping/write
+%   : reftyping N CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
+%     -> clsmap`lookup CM C FM
+%     -> fldmap`lookup FM F (ty/ NN A FC)
+%     -> make-tgts-and-caps M0 G0 F cap/write G1 M1 % wrong: can't release yet
+%     -> consider-ftype G1 M1 A G2 M2
+%     -> reftyping N CM MM (env/ B0 M2) E2 (result/expr RT V2)
+%     -> subtype CM RT V2 (ty/ NN A FC) V3
+%     -> reftyping N CM MM V1 (write E1 F E2) (result/expr (reftype/ NN FC G2) V3).
 
     % -> compatible CM B G' XX6
     % -> effects`join XX1 (effects/ M3 set/0 set/0) XX5
