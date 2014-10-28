@@ -1,59 +1,94 @@
-%%% Checking read
-
-%theorem reftyping-ok/read/shared
-  : forall* {CM} {PM} {W} {B} {V1} {M0} {M1} {M2} {FM} {Pi} {G1} {G2}
-    {NN} {A} {FC} {C} {E} {F} {Out} {X} {Q}
+%theorem reftyping-ok/read/unique
+  : forall* {CM} {PM} {W} {Rslt} {Rslt2} {F} {Out}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {TI2: env2input CM PM V1 Pi}
-    {TI3: result2output CM PM
-      (result/expr (reftype/ nn/yes C targets/shared) (env/ B M0)) Out}
-    {TYE: typing W Pi E Out}
-    {CML: clsmap`lookup CM C FM}
-    {FML: fldmap`lookup FM F (ty/ NN A FC)}
-    {MTAE: make-tgts-and-caps M0 targets/shared F X G1 M1}
-    {X2Q: cap2frac X Q}
-    {CF: consider-ftype G1 M1 A G2 M2}
-    exists {Out2}
-    {TO: result2output CM PM (result/expr (reftype/ NN FC G2) (env/ B M2)) Out2}
-    {TYP: typing W Pi (read E F) Out2}
+    {CM-Rslt: clsmap-result CM Rslt}
+    {XX=>Out: result2output CM PM Rslt Out}
+    {R-HELPER: reftyping-helper/read CM Rslt F Rslt2}
+    exists {Out'} {Out2} {Out2'}
+    {Out2=>Out3: transform Out Out'}
+    {TO: result2output CM PM Rslt2 Out2}
+    {TYP: letTyping W Out' ([O] read (lit O) F) Out2'}
+    {TRANS2: transform Out2' Out2}
     true.
 
-% 1, the case when field type is shared
+%theorem reftyping-ok/read/unique/F
+  : forall* {CM} {PM} {W} {F} {Rslt2} {Out}
+    forall {V:void}
+    exists {Out'} {Out2} {Out2'}
+    {Out2=>Out3: transform Out Out'}
+    {TO: result2output CM PM Rslt2 Out2}
+    {TYP: letTyping W Out' ([O] read (lit O) F) Out2'}
+    {TRANS2: transform Out2' Out2}
+    true.
 
-- : reftyping-ok/read/shared CM-CM CM2PM
-    XX=>Pi1 XX=>Out TYP-E CML FML
-    (make-tgts-and-caps/shared
-      (SP:capmap-split M0 (capmap/1 shared-tgt Xx) M1)) X2Q
-    (consider-ftype/shared (JOIN:capmap`join (capmap/1 shared-tgt Xx) M1 M0') _)
-    %{=>}% _
+%worlds (objvar) (reftyping-ok/read/unique/F _ _ _ _ _ _ _ _).
+%total {} (reftyping-ok/read/unique/F _ _ _ _ _ _ _ _).
+
+
+- : reftyping-ok/read/unique CM-CM CM2PM
+    (clsmap-result/exists ([x] CM-Rslt x))
+    (result2output/exists ([x] R=>Out x))
+    (reftyping-helper/read/exists ([x] RTYP-HELPER x)) _ _ _
+    (transform/inside ([x] TRANS x))
+    (result2output/exists ([x] R2=>Out2 x))
+    (letTyping/exists ([x] TYP x))
+    (transform/inside ([x] TRANS2 x))
+    <- ({x} reftyping-ok/read/unique CM-CM CM2PM (CM-Rslt x)
+         (R=>Out x) (RTYP-HELPER x) _ _ _ (TRANS x) (R2=>Out2 x) (TYP x) (TRANS2 x)).
+
+- : reftyping-ok/read/unique CM-CM CM2PM
+    (clsmap-result/expr CM-B _
+      (clsmap-cxt-reftype/unique _ _ _ wf-unique-targets/1) _) _
+    (reftyping-helper/read/base _ _
+      (make-tgts-and-caps/unique
+        (S+F+X=>G: set+nat2capmap (set/+ _ _) _ _ (capmap/0)) _ _ _ _) _)
+    %{=>}% _ _ _ K1 K2 K3 K4
+    <- set`size-total SZ
+    <- set+nat2capmap-preserves-size S+F+X=>G (set`size/+ SZ) SZx
+    <- capmap`size-unique capmap`size/0 SZx capmap`eq/ E
+    <- nat`eq-contradiction E V
+    <- reftyping-ok/read/unique/F V _ _ _ K1 K2 K3 K4.
+
+- : reftyping-ok/read/unique CM-CM CM2PM
+    (clsmap-result/expr _ _
+      (clsmap-cxt-reftype/unique _ _ _ wf-unique-targets/2) _) _
+    (reftyping-helper/read/base _ _
+      (make-tgts-and-caps/unique
+        (S+F+X=>G: set+nat2capmap set/0 _ _ (capmap/+ _ _ _)) _ _ _ _) _)
+    %{=>}% _ _ _ K1 K2 K3 K4
+    <- capmap`size-total SZ
+    <- set+nat2capmap-preserves-size-converse S+F+X=>G (capmap`size/+ SZ) SZx
+    <- set`size-unique set`size/0 SZx set`eq/ E
+    <- nat`eq-contradiction E V
+    <- reftyping-ok/read/unique/F V _ _ _ K1 K2 K3 K4.
+
+- : reftyping-ok/read/unique CM-CM CM2PM CM-R R=>Out
+    (reftyping-helper/read/base CML FML
+      (make-tgts-and-caps/shared
+        (SP:capmap-split M0 (capmap/1 shared-tgt _) M1))
+      (consider-ftype/shared (JOIN:capmap`join (capmap/1 shared-tgt _) M1 M0') _))
+    %{=>}% _ _ _ TRANS
     (result2output/shared T2PF B=>Pi1 M=>Pi)
-    (tTrans2
-      (tRead1
-        (tTrans2
-          (TYP-E)
-          (transform/trans
-            (TRANS)
-            (transform/inside [r]
-              (transform/trans3
-                (transform/implies
-                  (implies/equiv
-                    (equiv/transitive
-                      (equiv/commute)
-                      (equiv/symmetric equiv/associate))))
-                (transform/skolem)
-                (transform/inside [v]
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/combine
-                          equiv/distribute equiv/reflexive)
-                        (equiv/symmetric equiv/associate)))))))))
-        (letTyping/exists [v]
-          (letTyping/exists [r]
-            (letTyping/base v tRead))))
-      (transform/trans
-        (transform/inside [r]
+    (letTyping/exists [r]
+      (letTyping/base r
+        (tTrans
+          (transform/trans3
+            (transform/implies
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/commute)
+                  (equiv/symmetric equiv/associate))))
+            (transform/skolem)
+            (transform/inside [v]
+              (transform/implies
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/combine
+                      equiv/distribute equiv/reflexive)
+                    (equiv/symmetric equiv/associate))))))
+          (letTyping/exists [v]
+            (letTyping/base null tRead))
           (transform/inside [v]
             (transform/implies
               (implies/trans
@@ -99,12 +134,12 @@
                       (implies/equiv
                         (equiv/transitive
                           (equiv/commute)
-                          (EQV))))))))))
-        (transform/rem-unused)))
-    <- before-read/shared CM-CM CM2PM CML FML SP X2Q XX=>Out
+                          (EQV))))))))))))
+    (transform/rem-unused)
+    <- before-read/shared CM-CM CM2PM CML FML SP cap2frac/read R=>Out
       _ _ _ _ T2PF B=>Pi1
       (M1=>Pi1:capmap2perm _ _ _ M1 Pi1)
-      (M2=>Pi2:capmap2perm _ _ _ (capmap/1 z Xx) Pi2) TRANS
+      (M2=>Pi2:capmap2perm _ _ _ (capmap/1 z _) Pi2) TRANS
     <- sharedperm-can-be-duplicated* T2PF IMP
     <- can-scale-from-shared T2PF DIS
     <- capmap-split-implies-disjoint-join SP _ JOIN'
@@ -116,37 +151,31 @@
 
 % 2, the case when field type is unique
 
-- : reftyping-ok/read/shared CM-CM CM2PM XX=>Pi1 XX=>Out TYP-E CML FML
-    (make-tgts-and-caps/shared SP) X2Q consider-ftype/unique
-    _ (result2output/unique/2 (capmap`size/+ capmap`size/0) T2PF
+- : reftyping-ok/read/unique CM-CM CM2PM _ R=>Out
+    (reftyping-helper/read/base CML FML
+      (make-tgts-and-caps/shared SP) consider-ftype/unique) _ _ _ TRANS
+    (result2output/unique/2 (capmap`size/+ capmap`size/0) T2PF
         ([_] set2cond/0) B=>Pi1 M1=>Pi1 M2=>Pi2
-        (capmap-min-cap/U capmap-min-cap/0 MX capmap`update/0 capmap`fresh/0) X2Q)
-    (tTrans2
-      (tRead1
-        (tTrans2
-          (TYP-E)
-          (transform/trans
-            (TRANS)
-            (transform/inside [r]
-              (transform/trans3
-                (transform/implies
-                  (implies/equiv
-                    (equiv/transitive
-                      (equiv/commute)
-                      (equiv/symmetric equiv/associate))))
-                (transform/skolem)
-                (transform/inside [v]
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/combine
-                          equiv/distribute equiv/reflexive)
-                        (equiv/symmetric equiv/associate)))))))))
+        (capmap-min-cap/U capmap-min-cap/0 MX capmap`update/0 capmap`fresh/0) cap2frac/read)
+    (letTyping/exists [r]
+      (letTyping/base r
+        (tTrans
+          (transform/trans3
+            (transform/implies
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/commute)
+                  (equiv/symmetric equiv/associate))))
+            (transform/skolem)
+            (transform/inside [v]
+              (transform/implies
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/combine
+                      equiv/distribute equiv/reflexive)
+                    (equiv/symmetric equiv/associate))))))
         (letTyping/exists [v]
-          (letTyping/exists [r]
-            (letTyping/base v tRead))))
-      (transform/trans
-        (transform/inside [r]
+            (letTyping/base null tRead))
           (transform/inside [v]
             (transform/trans
               (transform/implies
@@ -181,357 +210,43 @@
                           (implies/cond-intro))))
                     (implies/equiv equiv/roll2))
                   (implies/equiv (equiv/symmetric equiv/associate))))
-              (transform/gen-exists v))))
-        (transform/rem-unused)))
-    <- before-read/shared CM-CM CM2PM CML FML SP X2Q
-      XX=>Out _ _ _ _ T2PF B=>Pi1 M1=>Pi1 M2=>Pi2 TRANS
+              (transform/gen-exists v))))))
+    (transform/rem-unused)
+    <- before-read/shared CM-CM CM2PM CML FML SP cap2frac/read
+      R=>Out _ _ _ _ T2PF B=>Pi1 M1=>Pi1 M2=>Pi2 TRANS
     <- cap/write-is-upper-bound _ MX.
 
-%worlds () (reftyping-ok/read/shared _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total {} (reftyping-ok/read/shared _ _ _ _ _ _ _ _ _ _ _ _ _).
+%% 22
 
-
-%theorem reftyping-ok/read/unique
-  : forall* {CM} {PM} {W} {FM} {Pi} {B} {M0} {M1} {M2}
-    {G2} {NN} {A} {FC} {C} {E} {F} {Out} {G1} {S} {G}
-    forall {WF-GS: wf-unique-targets (targets/unique S G)}
-    {SOC: same-class B S C}
-    {LNN: least-nonnull B S nn/yes}
-    {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {G^M0: capmap`disjoint G M0}
-    {CM-B-M0: clsmap-cxt-capmap CM B M0}
-    {XX=>Out: result2output CM PM
-      (result/expr (reftype/ nn/yes C (targets/unique S G)) (env/ B M0)) Out}
-    {TYE: typing W Pi E Out}
-    {CML: clsmap`lookup CM C FM}
-    {FML: fldmap`lookup FM F (ty/ NN A FC)}
-    {MTAE: make-tgts-and-caps M0 (targets/unique S G) F cap/read G1 M1}
-    {CF: consider-ftype G1 M1 A G2 M2}
-    exists {Out2}
-    {TO: result2output CM PM (result/expr (reftype/ NN FC G2) (env/ B M2)) Out2}
-    {TYP: typing W Pi (read E F) Out2}
-    true.
-
-%theorem reftyping-ok/read/unique/F
-  : forall* {CM} {PM} {B} {NN} {FC} {GSP} {M} {W} {Pi} {E} {F}
-    forall {V:void}
-    exists {Out2}
-    {TO: result2output CM PM (result/expr (reftype/ NN FC GSP) (env/ B M)) Out2}
-    {TYP: typing W (Pi) (read E F) (Out2)}
-    true.
-
-%worlds () (reftyping-ok/read/unique/F _ _ _ _).
-%total {} (reftyping-ok/read/unique/F _ _ _ _).
-
-
-- : reftyping-ok/read/unique wf-unique-targets/1 _ _ _ _ _ _ _ _ _ _
-    (make-tgts-and-caps/unique
-      (S+F+X=>G: set+nat2capmap (set/+ _ _) _ _ (capmap/0)) _ _ _ _) _ K1 K2 K3
-    <- set`size-total SZ
-    <- set+nat2capmap-preserves-size S+F+X=>G (set`size/+ SZ) SZx
-    <- capmap`size-unique capmap`size/0 SZx capmap`eq/ E
-    <- nat`eq-contradiction E V
-    <- reftyping-ok/read/unique/F V K1 K2 K3.
-
-- : reftyping-ok/read/unique wf-unique-targets/2 _ _ _ _ _ _ _ _ _ _
-    (make-tgts-and-caps/unique
-      (S+F+X=>G: set+nat2capmap set/0 _ _ (capmap/+ _ _ _)) _ _ _ _) _ K1 K2 K3
-    <- capmap`size-total SZ
-    <- set+nat2capmap-preserves-size-converse S+F+X=>G (capmap`size/+ SZ) SZx
-    <- set`size-unique set`size/0 SZx set`eq/ E
-    <- nat`eq-contradiction E V
-    <- reftyping-ok/read/unique/F V K1 K2 K3.
-
-- : reftyping-ok/read/unique wf-unique-targets/2
-    SOC LNN CM-CM CM2PM _ _ XX=>Out TYP-E CML FML
-    (make-tgts-and-caps/unique S+F+X=>M2 MI-G=X
-      (G^M2:capmap`disjoint _ M2) (G+M2=G1:capmap`join _ M2 G1)
-      (M-M2=M3:capmap-split M M2 M3))
-    consider-ftype/unique _ %{=>}%
-    (result2output/unique/2 SZ-G1 T2PF ([_] set2cond/0) B=>Pi1
+- : reftyping-ok/read/unique CM-CM CM2PM
+    (clsmap-result/expr CM-B _
+      (clsmap-cxt-reftype/unique _ CM-B-OS _ wf-unique-targets/2) _) XX=>Out
+    (reftyping-helper/read/base CML FML
+      (make-tgts-and-caps/unique S+F+X=>M2 MI-G=X
+        (G^M2:capmap`disjoint _ M2) (G+M2=G1:capmap`join _ M2 G1)
+        (M-M2=M3:capmap-split M M2 M3))
+      (consider-ftype/unique)) %{=>}% _ _ _
+    TRANS (result2output/unique/2 SZ-G1 T2PF ([_] set2cond/0) B=>Pi1
       M3=>Pi3 G1=>Pi4 MI-G1=X cap2frac/read)
-    (tTrans2
-      (tRead1
-        (tTrans2
-          (TYP-E)
-          (transform/trans
-            (TRANS)
-            (transform/inside [r]
-              (transform/trans3
-                (transform/implies
-                  (implies/equiv
-                    (equiv/transitive
-                      (equiv/commute)
-                      (equiv/symmetric equiv/associate))))
-                (transform/skolem)
-                (transform/inside [v]
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/combine
-                          equiv/distribute equiv/reflexive)
-                        (equiv/symmetric equiv/associate)))))))))
-        (letTyping/exists [v]
-          (letTyping/exists [r]
-            (letTyping/base v tRead))))
-      (transform/trans
-        (transform/inside [r]
-          (transform/inside [v]
-            (transform/trans
+    (letTyping/exists [r]
+      (letTyping/base r
+        (tTrans
+          (transform/trans3
+            (transform/implies
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/commute)
+                  (equiv/symmetric equiv/associate))))
+            (transform/skolem)
+            (transform/inside [v]
               (transform/implies
-                (implies/trans
-                  (implies/equiv
+                (implies/equiv
                   (equiv/transitive
                     (equiv/combine
-                      (equiv/reflexive)
-                      (equiv/combine
-                        (equiv/reflexive)
-                        (equiv/commute)))
-                    (equiv/roll3)))
-                  (implies/combine
-                    (implies/reflexive)
-                    (implies/trans5
-                      (implies/combine
-                        (repack-fldperm v)
-                        (implies/reflexive))
-                      (implies/equiv equiv/roll2)
-                      (implies/combine
-                        (implies/reflexive)
-                        (implies/trans
-                          (implies/equiv equiv/associate)
-                          (implies/combine
-                            (implies/chain-implication)
-                            (implies/reflexive))))
-                      (implies/combine
-                        (implies/trans3
-                          (implies/equiv (equiv/symmetric equiv/identity))
-                          (implies/combine
-                            (implies/reflexive)
-                            (implies/trans4
-                              (implies/empty2true)
-                              (implies/nonlinear bimplies/objequal-reflexive)
-                              (implies/equiv (equiv/symmetric equiv/identity))
-                              (implies/cond-intro)))
-                          (implies/equiv equiv/commute))
-                        (implies/reflexive))
-                      (implies/equiv (equiv/symmetric equiv/associate))))))
-              (transform/gen-exists v))))
-        (transform/rem-unused)))
-    <- capmap`size-total SZ-G
-    <- capmap`size-total SZ-G1P
-    <- capmap`join-implies-leq G+M2=G1 G<=G1 M2<=G1
-    <- capmap`leq-implies-size-le G<=G1 (capmap`size/+ SZ-G) SZ-G1P LE
-    <- ge-succ-implies-succ LE _ E
-    <- capmap`size-respects-eq SZ-G1P capmap`eq/ E SZ-G1
-    <- before-read/unique/2 _ (capmap`size/+ SZ-G) MI-G=X
-      CM-CM CM2PM CML FML S+F+X=>M2 cap2frac/read G^M2 G+M2=G1 M-M2=M3
-      XX=>Out SOC LNN %{=>}% _ T2PF _ B=>Pi1
-      _ M3=>Pi3 _ G1=>Pi4 MI-G1=X TRANS.
-
-- : reftyping-ok/read/unique wf-unique-targets/2
-    SOC LNN CM-CM CM2PM G^M _ XX=>Out TYP-E CML FML
-    (make-tgts-and-caps/unique S+F+X=>M2 MI-G=X G^M2
-      (G+M2=G1:capmap`join _ M2 G1)
-      (M-M2=M3:capmap-split M M2 M3))
-    (consider-ftype/shared (JOIN:capmap`join G1 M3 M4) _) %{=>}% _
-    (result2output/shared T2PF B=>Pi1 M=>Pi)
-    (tTrans2
-      (tRead1
-        (tTrans2
-          (TYP-E)
-          (transform/trans
-            (TRANS)
-            (transform/inside [o]
-              (transform/trans3
-                (transform/implies
-                  (implies/equiv equiv/roll2))
-                (transform/skolem)
-                (transform/inside [v]
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/combine
-                          equiv/distribute equiv/reflexive)
-                        (equiv/symmetric equiv/associate)))))))))
-        (letTyping/exists [v]
-          (letTyping/exists [r]
-            (letTyping/base v tRead))))
-      (transform/trans
-        (transform/inside [r]
-          (transform/inside [v]
-            (transform/implies
-              (implies/trans10
-                (implies/combine
-                  (implies/reflexive)
-                  (implies/combine
-                    (implies/reflexive)
-                    (implies/equiv equiv/commute)))
-                (implies/combine
-                  (repack-fldperm v)
-                  (implies/combine
-                    (implies/reflexive)
-                    (implies/equiv (equiv/symmetric equiv/associate))))
-                (implies/combine
-                  (implies/reflexive)
-                  (implies/equiv equiv/roll2))
-                (implies/equiv equiv/associate)
-                (implies/combine
-                  (implies/chain-implication)
-                  (implies/reflexive))
-                (implies/equiv equiv/roll2)
-                (implies/combine
-                  (implies/trans
-                    (implies/scale (DUP v))
-                    (implies/equiv equiv/distribute))
-                  (implies/reflexive))
-                (implies/equiv (equiv/symmetric equiv/associate))
-                (implies/combine
-                  (DIS v)
-                  (implies/trans5
-                    (implies/equiv equiv/associate)
-                    (implies/combine
-                      (implies/linear-modus-ponens)
-                      (implies/reflexive))
-                    (implies/equiv equiv/associate)
-                    (implies/combine
-                      (implies/equiv EQV)
-                      (implies/reflexive))
-                    (implies/equiv equiv/commute)))
-                (implies/equiv equiv/roll2)))))
-        (transform/rem-unused)))
-    <- capmap`size-total SZ-G
-    <- before-read/unique/2 _ (capmap`size/+ SZ-G) MI-G=X
-      CM-CM CM2PM CML FML S+F+X=>M2 cap2frac/read G^M2 G+M2=G1 M-M2=M3
-      XX=>Out SOC LNN %{=>}% _ T2PF _ B=>Pi1
-      Pi3 M3=>Pi3 Pi4 G1=>Pi4 MI-G1=X TRANS
-    <- sharedperm-can-be-duplicated* T2PF DUP
-    <- can-scale-from-shared T2PF DIS
-    <- capmap-split-implies-leq M-M2=M3 M2<=M M3<=M
-    <- capmap`leq-reflexive _ G<=G
-    <- capmap`disjoint-respects-geq G^M G<=G M3<=M G^M3
-    <- capmap-split-implies-disjoint-join M-M2=M3 M2^M3 M2+M3=M
-    <- capmap`join-preserves-disjoint* G^M3 M2^M3 G+M2=G1 G1^M3
-    <- capmap-split-implies-permission-combine-converse
-      (capmap-split/ G1^M3 JOIN) G1=>Pi4 M3=>Pi3 _ M=>Pi EQV.
-
-- : reftyping-ok/read/unique wf-unique-targets/1
-    SOC LNN CM-CM CM2PM G^M0 CM-B-M XX=>Out TYP-E CML FML
-    (make-tgts-and-caps/unique S+F+X=>M2 MI-G=X G^M2
-      capmap`join/L
-      (M-M2=M3:capmap-split M M2 M3))
-    (consider-ftype/shared (M2+M3=M4:capmap`join M2 M3 M4) _)
-    _ (result2output/shared T2PF B=>Pi1 M4=>Pi)
-    (tTrans2
-      (tRead1
-        (tTrans2
-          (TYP-E)
-          (transform/trans
-            (TRANS)
-            (transform/inside [r]
-              (transform/trans3
-                (transform/implies (implies/equiv equiv/roll2))
-                (transform/skolem)
-                (transform/inside [v]
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/combine
-                          equiv/distribute equiv/reflexive)
-                        (equiv/symmetric equiv/associate)))))))))
-        (letTyping/exists [v]
-          (letTyping/exists [r]
-            (letTyping/base v tRead))))
-      (transform/trans
-        (transform/inside [r]
-          (transform/inside [v]
-            (transform/implies
-              (implies/trans10
-                (implies/combine
-                  (implies/reflexive)
-                  (implies/combine
-                    (implies/reflexive)
-                    (implies/equiv equiv/commute)))
-                (implies/combine
-                  (repack-fldperm v)
-                  (implies/combine
-                    (implies/reflexive)
-                    (implies/equiv (equiv/symmetric equiv/associate))))
-                (implies/combine
-                  (implies/reflexive)
-                  (implies/equiv equiv/roll2))
-                (implies/equiv equiv/associate)
-                (implies/combine
-                  (implies/chain-implication)
-                  (implies/reflexive))
-                (implies/equiv equiv/roll2)
-                (implies/combine
-                  (implies/trans
-                    (implies/scale (DUP v))
-                    (implies/equiv equiv/distribute))
-                  (implies/reflexive))
-                (implies/equiv (equiv/symmetric equiv/associate))
-                (implies/combine
-                  (DIS v)
-                  (implies/trans5
-                    (implies/equiv equiv/associate)
-                    (implies/combine
-                      (implies/linear-modus-ponens)
-                      (implies/reflexive))
-                    (implies/equiv equiv/associate)
-                    (implies/combine
-                      (implies/equiv EQV)
-                      (implies/reflexive))
-                    (implies/equiv equiv/commute)))
-                (implies/equiv equiv/roll2)))))
-        (transform/rem-unused)))
-    <- set`size-total S-SZ
-    <- before-read/unique/1 CM-B-M CM-CM CM2PM CML FML
-      S+F+X=>M2 cap2frac/read M-M2=M3 XX=>Out SOC LNN (set`size/+ S-SZ) _ T2PF _ B=>Pi1
-      _ M1=>Pi3 _ M2=>Pi4 MX-M' TRANS
-    <- sharedperm-can-be-duplicated* T2PF DUP
-    <- can-scale-from-shared T2PF DIS
-    <- capmap-split-implies-permission-combine-converse
-      M-M2=M3 M2=>Pi4 M1=>Pi3 _ M=>Pi EQV
-    <- capmap-split-implies-disjoint-join M-M2=M3 M2^M3 M2+M3=M
-    <- capmap`join-unique M2+M3=M M2+M3=M4 capmap`eq/ capmap`eq/ M=M4
-    <- capmap2perm-respects-eq M=>Pi clsmap`eq/ predmap`eq/ cxt`eq/
-      M=M4 permission`eq/ M4=>Pi.
-
-- : reftyping-ok/read/unique wf-unique-targets/1
-    SOC LNN CM-CM CM2PM _ CM-B-M XX=>Out TYP-E CML FML
-    (make-tgts-and-caps/unique S+F+X=>M2 _ G^M2
-      capmap`join/L
-      (M-M2=M3:capmap-split M M2 M3))
-    consider-ftype/unique
-    _ (result2output/unique/2 SZ-M T2PF ([_] set2cond/0) B=>Pi1
-        M3=>Pi3 M2=>Pi2 MI-M2=X cap2frac/read)
-    (tTrans2
-      (tRead1
-        (tTrans2
-          (TYP-E)
-          (transform/trans
-            (TRANS)
-            (transform/inside [r]
-              (transform/trans3
-                (transform/implies
-                  (implies/equiv
-                    (equiv/transitive
-                      (equiv/commute)
-                      (equiv/symmetric equiv/associate))))
-                (transform/skolem)
-                (transform/inside [v]
-                  (transform/implies
-                    (implies/equiv
-                      (equiv/transitive
-                        (equiv/combine
-                          equiv/distribute equiv/reflexive)
-                        (equiv/symmetric equiv/associate)))))))))
-        (letTyping/exists [v]
-          (letTyping/exists [r]
-            (letTyping/base v tRead))))
-      (transform/trans
-        (transform/inside [r]
+                      equiv/distribute equiv/reflexive)
+                    (equiv/symmetric equiv/associate))))))
+          (letTyping/exists [v]
+            (letTyping/base null tRead))
           (transform/inside [v]
             (transform/trans
               (transform/implies
@@ -571,49 +286,267 @@
                           (implies/equiv equiv/commute))
                         (implies/reflexive))
                       (implies/equiv (equiv/symmetric equiv/associate))))))
-              (transform/gen-exists v))))
-        (transform/rem-unused)))
+              (transform/gen-exists v))))))
+    (transform/rem-unused)
+    <- clsmap-cxt-unique-objset-implies-same-class CM-B-OS SOC
+    <- clsmap-cxt-unique-objset-implies-least-nonnull CM-B-OS LNN
+    <- capmap`size-total SZ-G
+    <- capmap`size-total SZ-G1P
+    <- capmap`join-implies-leq G+M2=G1 G<=G1 M2<=G1
+    <- capmap`leq-implies-size-le G<=G1 (capmap`size/+ SZ-G) SZ-G1P LE
+    <- ge-succ-implies-succ LE _ E
+    <- capmap`size-respects-eq SZ-G1P capmap`eq/ E SZ-G1
+    <- before-read/unique/2 _ (capmap`size/+ SZ-G) MI-G=X
+      CM-CM CM2PM CML FML S+F+X=>M2 cap2frac/read G^M2 G+M2=G1 M-M2=M3
+      XX=>Out SOC LNN %{=>}% _ T2PF _ B=>Pi1
+      _ M3=>Pi3 _ G1=>Pi4 MI-G1=X TRANS.
+
+% 2s
+
+- : reftyping-ok/read/unique CM-CM CM2PM
+    (clsmap-result/expr CM-B (targets-capmap/unique G^M)
+      (clsmap-cxt-reftype/unique _ CM-B-OS _ wf-unique-targets/2) _) XX=>Out
+    (reftyping-helper/read/base CML FML
+      (make-tgts-and-caps/unique S+F+X=>M2 MI-G=X G^M2
+        (G+M2=G1:capmap`join _ M2 G1)
+        (M-M2=M3:capmap-split M M2 M3))
+      (consider-ftype/shared (JOIN:capmap`join G1 M3 M4) _)) %{=>}% _ _ _
+    TRANS (result2output/shared T2PF B=>Pi1 M=>Pi)
+    (letTyping/exists [r]
+      (letTyping/base r
+        (tTrans
+          (transform/trans3
+            (transform/implies
+              (implies/equiv equiv/roll2))
+            (transform/skolem)
+            (transform/inside [v]
+              (transform/implies
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/combine
+                      equiv/distribute equiv/reflexive)
+                    (equiv/symmetric equiv/associate))))))
+          (letTyping/exists [v]
+            (letTyping/base null tRead))
+          (transform/inside [v]
+            (transform/implies
+              (implies/trans10
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/equiv equiv/commute)))
+                (implies/combine
+                  (repack-fldperm v)
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/equiv (equiv/symmetric equiv/associate))))
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/equiv equiv/roll2))
+                (implies/equiv equiv/associate)
+                (implies/combine
+                  (implies/chain-implication)
+                  (implies/reflexive))
+                (implies/equiv equiv/roll2)
+                (implies/combine
+                  (implies/trans
+                    (implies/scale (DUP v))
+                    (implies/equiv equiv/distribute))
+                  (implies/reflexive))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine
+                  (DIS v)
+                  (implies/trans5
+                    (implies/equiv equiv/associate)
+                    (implies/combine
+                      (implies/linear-modus-ponens)
+                      (implies/reflexive))
+                    (implies/equiv equiv/associate)
+                    (implies/combine
+                      (implies/equiv EQV)
+                      (implies/reflexive))
+                    (implies/equiv equiv/commute)))
+                (implies/equiv equiv/roll2)))))))
+    (transform/rem-unused)
+    <- clsmap-cxt-unique-objset-implies-same-class CM-B-OS SOC
+    <- clsmap-cxt-unique-objset-implies-least-nonnull CM-B-OS LNN
+    <- capmap`size-total SZ-G
+    <- before-read/unique/2 _ (capmap`size/+ SZ-G) MI-G=X
+      CM-CM CM2PM CML FML S+F+X=>M2 cap2frac/read G^M2 G+M2=G1 M-M2=M3
+      XX=>Out SOC LNN %{=>}% _ T2PF _ B=>Pi1
+      Pi3 M3=>Pi3 Pi4 G1=>Pi4 MI-G1=X TRANS
+    <- sharedperm-can-be-duplicated* T2PF DUP
+    <- can-scale-from-shared T2PF DIS
+    <- capmap-split-implies-leq M-M2=M3 M2<=M M3<=M
+    <- capmap`leq-reflexive _ G<=G
+    <- capmap`disjoint-respects-geq G^M G<=G M3<=M G^M3
+    <- capmap-split-implies-disjoint-join M-M2=M3 M2^M3 M2+M3=M
+    <- capmap`join-preserves-disjoint* G^M3 M2^M3 G+M2=G1 G1^M3
+    <- capmap-split-implies-permission-combine-converse
+      (capmap-split/ G1^M3 JOIN) G1=>Pi4 M3=>Pi3 _ M=>Pi EQV.
+
+% 1s
+
+- : reftyping-ok/read/unique CM-CM CM2PM
+    (clsmap-result/expr CM-B _
+      (clsmap-cxt-reftype/unique _ CM-B-OS _ wf-unique-targets/1) CM-B-M) XX=>Out
+    (reftyping-helper/read/base CML FML
+      (make-tgts-and-caps/unique S+F+X=>M2 MI-G=X G^M2
+        capmap`join/L
+        (M-M2=M3:capmap-split M M2 M3))
+      (consider-ftype/shared (M2+M3=M4:capmap`join M2 M3 M4) _)) %{=>}% _ _ _
+    TRANS (result2output/shared T2PF B=>Pi1 M4=>Pi)
+    (letTyping/exists [r]
+      (letTyping/base r
+        (tTrans
+          (transform/trans3
+            (transform/implies (implies/equiv equiv/roll2))
+            (transform/skolem)
+            (transform/inside [v]
+              (transform/implies
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/combine
+                      equiv/distribute equiv/reflexive)
+                    (equiv/symmetric equiv/associate))))))
+          (letTyping/exists [v]
+            (letTyping/base null tRead))
+          (transform/inside [v]
+            (transform/implies
+              (implies/trans10
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/equiv equiv/commute)))
+                (implies/combine
+                  (repack-fldperm v)
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/equiv (equiv/symmetric equiv/associate))))
+                (implies/combine
+                  (implies/reflexive)
+                  (implies/equiv equiv/roll2))
+                (implies/equiv equiv/associate)
+                (implies/combine
+                  (implies/chain-implication)
+                  (implies/reflexive))
+                (implies/equiv equiv/roll2)
+                (implies/combine
+                  (implies/trans
+                    (implies/scale (DUP v))
+                    (implies/equiv equiv/distribute))
+                  (implies/reflexive))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine
+                  (DIS v)
+                  (implies/trans5
+                    (implies/equiv equiv/associate)
+                    (implies/combine
+                      (implies/linear-modus-ponens)
+                      (implies/reflexive))
+                    (implies/equiv equiv/associate)
+                    (implies/combine
+                      (implies/equiv EQV)
+                      (implies/reflexive))
+                    (implies/equiv equiv/commute)))
+                (implies/equiv equiv/roll2)))))))
+    (transform/rem-unused)
+    <- clsmap-cxt-unique-objset-implies-same-class CM-B-OS SOC
+    <- clsmap-cxt-unique-objset-implies-least-nonnull CM-B-OS LNN
+    <- set`size-total S-SZ
+    <- before-read/unique/1 CM-B-M CM-CM CM2PM CML FML
+      S+F+X=>M2 cap2frac/read M-M2=M3 XX=>Out SOC LNN (set`size/+ S-SZ) _ T2PF _ B=>Pi1
+      _ M1=>Pi3 _ M2=>Pi4 MX-M' TRANS
+    <- sharedperm-can-be-duplicated* T2PF DUP
+    <- can-scale-from-shared T2PF DIS
+    <- capmap-split-implies-permission-combine-converse
+      M-M2=M3 M2=>Pi4 M1=>Pi3 _ M=>Pi EQV
+    <- capmap-split-implies-disjoint-join M-M2=M3 M2^M3 M2+M3=M
+    <- capmap`join-unique M2+M3=M M2+M3=M4 capmap`eq/ capmap`eq/ M=M4
+    <- capmap2perm-respects-eq M=>Pi clsmap`eq/ predmap`eq/ cxt`eq/
+      M=M4 permission`eq/ M4=>Pi.
+
+% 12
+
+- : reftyping-ok/read/unique CM-CM CM2PM
+    (clsmap-result/expr CM-B _
+      (clsmap-cxt-reftype/unique _ CM-B-OS _ wf-unique-targets/1) CM-B-M) XX=>Out
+    (reftyping-helper/read/base CML FML
+      (make-tgts-and-caps/unique S+F+X=>M2 _ G^M2
+        capmap`join/L
+        (M-M2=M3:capmap-split M M2 M3))
+      (consider-ftype/unique)) %{=>}% _ _ _
+    TRANS (result2output/unique/2 SZ-M T2PF ([_] set2cond/0) B=>Pi1
+      M3=>Pi3 M2=>Pi2 MI-M2=X cap2frac/read)
+    (letTyping/exists [r]
+      (letTyping/base r
+        (tTrans
+          (transform/trans3
+            (transform/implies
+              (implies/equiv (equiv/roll2)))
+            (transform/skolem)
+            (transform/inside [v]
+              (transform/implies
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/combine
+                      equiv/distribute equiv/reflexive)
+                    (equiv/symmetric equiv/associate))))))
+          (letTyping/exists [v]
+            (letTyping/base null tRead))
+          (transform/inside [v]
+            (transform/trans
+              (transform/implies
+                (implies/trans3
+                  (implies/equiv
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute)))
+                  (implies/equiv
+                    (equiv/transitive
+                      (equiv/combine
+                        (equiv/reflexive)
+                        (equiv/combine
+                          (equiv/reflexive)
+                          (equiv/commute)))
+                      (equiv/roll3)))
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/trans5
+                      (implies/combine
+                        (repack-fldperm v)
+                        (implies/reflexive))
+                      (implies/equiv equiv/roll2)
+                      (implies/combine
+                        (implies/reflexive)
+                        (implies/trans
+                          (implies/equiv equiv/associate)
+                          (implies/combine
+                            (implies/chain-implication)
+                            (implies/reflexive))))
+                      (implies/combine
+                        (implies/trans3
+                          (implies/equiv (equiv/symmetric equiv/identity))
+                          (implies/combine
+                            (implies/reflexive)
+                            (implies/trans4
+                              (implies/empty2true)
+                              (implies/nonlinear bimplies/objequal-reflexive)
+                              (implies/equiv (equiv/symmetric equiv/identity))
+                              (implies/cond-intro)))
+                          (implies/equiv equiv/commute))
+                        (implies/reflexive))
+                      (implies/equiv (equiv/symmetric equiv/associate))))))
+              (transform/gen-exists v))))))
+    (transform/rem-unused)
+    <- clsmap-cxt-unique-objset-implies-same-class CM-B-OS SOC
+    <- clsmap-cxt-unique-objset-implies-least-nonnull CM-B-OS LNN
     <- set`size-total SZ
     <- set+nat2capmap-preserves-size S+F+X=>M2 (set`size/+ SZ) SZ-M
     <- before-read/unique/1 CM-B-M CM-CM CM2PM CML FML
       S+F+X=>M2 cap2frac/read M-M2=M3 XX=>Out SOC LNN (set`size/+ SZ) _ T2PF _ B=>Pi1
       _ M3=>Pi3 _ M2=>Pi2 MI-M2=X TRANS.
 
-%worlds () (reftyping-ok/read/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total {} (reftyping-ok/read/unique _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem reftyping-ok/read
-  : forall* {CM} {PM} {W} {FM} {G1} {V1} {B} {M0} {M1} {M2}
-    {G2} {NN} {A} {FC} {C} {E} {F} {Out} {Pi}
-    forall {G0} {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-V: clsmap-result CM (result/expr (reftype/ nn/yes C G0) (env/ B M0))}
-    {XX2I: env2input CM PM V1 Pi}
-    {XX2O: result2output CM PM (result/expr (reftype/ nn/yes C G0) (env/ B M0)) Out}
-    {TYPE: typing W Pi E Out}
-    {CML: clsmap`lookup CM C FM}
-    {FML: fldmap`lookup FM F (ty/ NN A FC)}
-    {MG: make-tgts-and-caps M0 G0 F cap/read G1 M1}
-    {CF: consider-ftype G1 M1 A G2 M2}
-    exists {Out2}
-    {XX2O: result2output CM PM (result/expr (reftype/ NN FC G2) (env/ B M2)) Out2}
-    {TYP: typing W Pi (read E F) Out2}
-    true.
-
-- : reftyping-ok/read targets/shared CM-CM CM2PM
-    _ XX2I XX2O TYPE CML FML MG CF _ XX2Ox TYP
-    <- reftyping-ok/read/shared
-      CM-CM CM2PM XX2I XX2O TYPE CML FML MG cap2frac/read CF _ XX2Ox TYP.
-
-- : reftyping-ok/read (targets/unique S G) CM-CM CM2PM
-    (clsmap-result/expr _ (targets-capmap/unique DJ)
-      (clsmap-cxt-reftype/unique _ CM-B-S _ WF-G) CM-B-M)
-    XX2I XX2O TYPE CML FML MG CF _ XX2Ox TYP
-    <- clsmap-cxt-unique-objset-implies-same-class CM-B-S SOC
-    <- clsmap-cxt-unique-objset-implies-least-nonnull CM-B-S LNN
-    <- reftyping-ok/read/unique WF-G SOC LNN CM-CM CM2PM DJ CM-B-M XX2O
-      TYPE CML FML MG CF _ XX2Ox TYP.
-
-%worlds () (reftyping-ok/read _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total {} (reftyping-ok/read _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (reftyping-ok/read/unique _ _ _ _ _ _ _ _ _ _ _ _).
+%total (K) (reftyping-ok/read/unique _ _ K _ _ _ _ _ _ _ _ _).
