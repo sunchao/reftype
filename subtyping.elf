@@ -50,26 +50,20 @@ result`eq/ : result`eq R R.
 
 
 
-
-%%% Given a set of targets for a receiver and a field ID, creates a set of
-%%% result targets, and possible output effects.
-%%% TODO: refactor this!
-
 make-tgts-and-caps : capmap -> targets -> nat -> cap -> targets -> capmap -> type.
 
 %%% When the result is shared, we can claim back the encumbered capabilities.
-make-tgts-and-caps/shared
-  : make-tgts-and-caps M0 targets/shared _ X
-    (targets/unique set/0 (capmap/1 shared-tgt X)) M1
-    <- capmap-split M0 (capmap/1 shared-tgt X) M1.
+make-tgts-and-caps/shared :
+    capmap-split M0 (capmap/1 shared-tgt X) M1 ->
+ make-tgts-and-caps M0 targets/shared _ X
+   (targets/unique set/0 (capmap/1 shared-tgt X)) M1.
 
-make-tgts-and-caps/unique
-  : set+nat2capmap OS F X M2
-    -> capmap-min-cap M1 X
-    -> capmap`disjoint M1 M2
-    -> capmap`join M1 M2 M
-    -> capmap-split M0 M2 M3
-    -> make-tgts-and-caps M0 (targets/unique OS M1) F X (targets/unique set/0 M) M3.
+make-tgts-and-caps/unique :
+    set+nat2capmap S F X M2 ->
+    capmap-min M1 X ->
+    capmap-split M M1 M2 ->
+    capmap-split M0 M2 M3 ->
+  make-tgts-and-caps M0 (targets/unique S M1) F X (targets/unique set/0 M) M3.
 
 
 % Consider field annotation, and returns either the input unique
@@ -78,10 +72,9 @@ make-tgts-and-caps/unique
 
 consider-ftype : targets -> capmap -> annot -> targets -> capmap -> type.
 
-consider-ftype/shared
-  : consider-ftype (targets/unique set/0 M) M0 annot/shared targets/shared M1
-    <- capmap`disjoint M M0
-    <- capmap`join M M0 M1.
+consider-ftype/shared :
+    capmap-split M1 M M0 ->
+  consider-ftype (targets/unique set/0 M) M0 annot/shared targets/shared M1.
 
 consider-ftype/unique : consider-ftype G M annot/unique G M.
 
@@ -121,14 +114,10 @@ ty2reftype/borrow
 
 reftype2ty : reftype -> ty -> type.
 
-reftype2ty/shared
-  : reftype2ty (reftype/ NN C targets/shared)
-    (ty/ NN annot/shared C).
+reftype2ty/shared : reftype2ty (reftype/ NN C targets/shared) (ty/ NN annot/shared C).
 
 %% TODO: maybe annot/borrow more making sense?
-reftype2ty/unique
-  : reftype2ty (reftype/ NN C (targets/unique _ _))
-    (ty/ NN annot/unique C).
+reftype2ty/unique : reftype2ty (reftype/ NN C (targets/unique _ _)) (ty/ NN annot/unique C).
 
 % reftype2ty/null : reftype2ty reftype/null ty/null.
 
@@ -192,13 +181,13 @@ cxt-remove-unique : cxt -> set -> cxt -> type.
 
 cxt-remove-unique/0 : cxt-remove-unique B set/0 B.
 
-cxt-remove-unique/U
-  : cxt-remove-unique B0 S' B1
-    -> cxt`lookup B1 N (cxt-info/ O (ty/ NN annot/unique C))
-    -> cxt`update B1 N (cxt-info/ O (ty/ NN annot/borrow C)) B2
-    -> set`not-member S' N
-    -> set`add S' N S
-    -> cxt-remove-unique B0 S B2.
+cxt-remove-unique/U :
+    cxt-remove-unique B0 S' B1 ->
+    cxt`lookup B1 N (cxt-info/ O (ty/ NN annot/unique C)) ->
+    cxt`update B1 N (cxt-info/ O (ty/ NN annot/borrow C)) B2 ->
+    set`not-member S' N ->
+    set`add S' N S ->
+  cxt-remove-unique B0 S B2.
 
 
 
@@ -211,12 +200,12 @@ cxt-remove-unique/U
 
 sub-annot-cap : targets -> env -> set -> annot -> env -> type.
 
-sub-annot-cap/consume
-  : set+set2capmap OS S cap/write M2
-    -> capmap-split M0 M2 M3
-    -> capmap-min-cap M1 cap/write
-    -> cxt-remove-unique B0 OS B1
-    -> sub-annot-cap (targets/unique OS M1) (env/ B0 M0) S A (env/ B1 M3).
+sub-annot-cap/consume :
+    set+set2capmap OS S cap/write M2 ->
+    capmap-split M0 M2 M3 ->
+    capmap-min M1 cap/write ->
+    cxt-remove-unique B0 OS B1 ->
+  sub-annot-cap (targets/unique OS M1) (env/ B0 M0) S A (env/ B1 M3).
 
 sub-annot-cap/shared2shared : sub-annot-cap targets/shared V _ annot/shared V.
 
@@ -230,31 +219,38 @@ sub-annot-cap/shared2shared : sub-annot-cap targets/shared V _ annot/shared V.
 
 subtype : clsmap -> reftype -> env -> ty -> env -> type.
 
-subtype/ : subtype CM (reftype/ NN1 C1 GS) VI (ty/ NN2 A2 C2) VO
-           <- nat`eq C1 C2
-           <- sub-nonnull NN1 NN2
-           <- clsmap`lookup CM C1 FM
-           <- fldmap`domain FM FS
-           <- sub-annot-cap GS VI FS A2 VO.
+subtype/ :
+    nat`eq C1 C2 ->
+    sub-nonnull NN1 NN2 ->
+    clsmap`lookup CM C1 FM ->
+    fldmap`domain FM FS ->
+    sub-annot-cap GS VI FS A2 VO ->
+  subtype CM (reftype/ NN1 C1 GS) VI (ty/ NN2 A2 C2) VO.
 
 subtype/null : subtype _ reftype/null V ty/null V.
 
 subtype/maynull : subtype _ reftype/null V (ty/ nn/may _ _) V.
 
 
+%%% Theorems
+
 %theorem make-tgts-and-caps-implies-min-cap
   : forall* {M0} {G0} {F} {X} {M} {M1}
     forall {MG: make-tgts-and-caps M0 G0 F X (targets/unique set/0 M) M1}
-    exists {MC-M=X: capmap-min-cap M X}
+    exists {MC-M=X: capmap-min M X}
     true.
 
 - : make-tgts-and-caps-implies-min-cap (make-tgts-and-caps/shared _)
-    (capmap-min-cap/U capmap-min-cap/0 MI capmap`update/0 capmap`fresh/0)
+    (capmap-min/U capmap-min/0 MI capmap`update/0 capmap`fresh/0)
     <- cap/write-is-upper-bound _ MI.
 
 - : make-tgts-and-caps-implies-min-cap
-    (make-tgts-and-caps/unique OS+X=M2 MC-M1=X M1^M2 M1+M2=M M0-M2=M3) MC-M=X
-    <- set+nat2capmap-implies-min-cap OS+X=M2 MC-M2=X
+    (make-tgts-and-caps/unique (S+X=M2:set+nat2capmap S F Xx M2)
+      (MC-M1=X:capmap-min M1 Xx)
+      (M=M1+M2:capmap-split M M1 M2)
+      (M0-M2=M3:capmap-split M0 M2 M3)) MC-M=X
+    <- capmap-split-implies-disjoint-join M=M1+M2 _ M1+M2=M
+    <- set+nat2capmap-implies-min-cap S+X=M2 MC-M2=X
     <- capmap-join-preserves-min-cap MC-M1=X MC-M2=X M1+M2=M MC-M=X.
 
 %worlds (objvar) (make-tgts-and-caps-implies-min-cap _ _).
