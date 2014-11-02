@@ -3,25 +3,25 @@
 %%% Definitions
 
 
-cxt-remove-consume : cxt -> set -> cxt -> type.
+% cxt-remove-consume : cxt -> set -> cxt -> type.
 
-cxt-remove-consume/0 : cxt-remove-consume cxt/0 _ cxt/0.
+% cxt-remove-consume/0 : cxt-remove-consume cxt/0 _ cxt/0.
 
-cxt-remove-consume/U
-  : cxt-remove-consume B S' B'
-    -> cxt`lookup B' N (cxt-info/ O (ty/ NN annot/unique C))
-    -> cxt`update B' N (cxt-info/ O (ty/ NN annot/borrow C)) B''
-    -> set`not-member S' N
-    -> set`add S' N S
-    -> cxt-remove-consume B S B''.
+% cxt-remove-consume/U
+%   : cxt-remove-consume B S' B'
+%     -> cxt`lookup B' N (cxt-info/ O (ty/ NN annot/unique C))
+%     -> cxt`update B' N (cxt-info/ O (ty/ NN annot/borrow C)) B''
+%     -> set`not-member S' N
+%     -> set`add S' N S
+%     -> cxt-remove-consume B S B''.
 
 
-env-remove-consume : env -> capmap -> env -> type.
+% env-remove-consume : env -> capmap -> env -> type.
 
-env-remove-consume/
-  : cxt-remove-consume B M B'
-    -> capmap-split M0 M1 M2
-    -> env-remove-consume (env/ B M0) M1 (env/ B' M2).
+% env-remove-consume/
+%   : cxt-remove-consume B M B'
+%     -> capmap-split M0 M1 M2
+%     -> env-remove-consume (env/ B M0) M1 (env/ B' M2).
 
 
 
@@ -30,15 +30,15 @@ env-remove-consume/
 reftyping : nat -> clsmap -> methmap -> env -> term K -> result K -> type.
 
 letRefTyping : nat -> clsmap -> methmap -> expr-result ->
-    expr -> expr-result -> type.
+    (object -> expr) -> expr-result -> type.
 
-letRefTyping/base :
-    reftyping N CM MM V E R ->
-  letRefTyping N CM MM (result/expr RT V) E R.
+letRefTyping/base : {O:object}
+    reftyping N CM MM V (F O) R ->
+  letRefTyping N CM MM (result/expr RT V) F R.
 
 letRefTyping/exists :
-    ({x} letRefTyping N CM MM (V x) E (R x)) ->
-  letRefTyping N CM MM (result/exists [x] (V x)) E (result/exists [x] (V x)).
+    ({x} letRefTyping N CM MM (V x) F (R x)) ->
+  letRefTyping N CM MM (result/exists [x] (V x)) F (result/exists [x] (V x)).
 
 
 %{
@@ -96,10 +96,10 @@ letRefTyping/exists :
 
 %%% Checking Literals
 
-% reftyping/lit
-%   : Reftyping _ _ _ B (lit O) (result/expr RT no-effect)
-%     <- cxt`lookup-obj B O N T
-%     <- ty2reftype N T RT.
+reftyping/lit :
+    cxt`lookup-obj B O N T ->
+    ty2reftype N T RT ->
+  reftyping _ _ _ (env/ B M) (lit O) (result/expr RT (env/ B M)).
 
 
 %%% Type Rules with Direct Effect
@@ -160,21 +160,71 @@ reftyping/read :
 %     -> reftyping-helper/write/2 CM G T Rslt3 Rslt4
 %     -> reftyping N CM MM V1 (write E1 F E2) Rslt4.
 
-% reftyping/write
-%   : reftyping N CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
-%     -> clsmap`lookup CM C FM
-%     -> fldmap`lookup FM F (ty/ NN A FC)
-%     -> make-tgts-and-caps M0 G0 F cap/write G1 M1 % wrong: can't release yet
-%     -> reftyping N CM MM (env/ B0 M1) E2 (result/expr RT V2)
-%     -> subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3)
-%     -> consider-ftype G1 M3 A G2 M4
-%     -> reftyping N CM MM V1 (write E1 F E2)
-%       (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
+reftyping/write
+  : reftyping N CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
+    -> clsmap`lookup CM C FM
+    -> fldmap`lookup FM F (ty/ NN A FC)
+    -> make-tgts-and-caps M0 G0 F cap/write G1 M1 % wrong: can't release yet
+    -> reftyping N CM MM (env/ B0 M1) E2 (result/expr RT V2)
+    -> subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3)
+    -> consider-ftype G1 M3 A G2 M4
+    -> reftyping N CM MM V1 (write E1 F E2)
+      (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
 
 
 %%% Type Rules with Indirect Effects
 
-%% should NOT use reftype2ty
+
+%%% ============================= LET ================================ %%%
+
+%%% For let, we have two approaches
+%%% 1. change the context to map to reftype, instead of ty. So, the variable x
+%%% is mapped to the reftype from checking E. But, whenever consume something,
+%%% we need to trace down to the "root" of each binding. This approach is a bit
+%%% complicated.
+
+%%% 2. suppose x is bound to (reftype/unique S G), we remove field capabilities for
+%%% all objects in S. For instance, if S = {a, b}, and in M we have (a.f,W),
+%%% (a.g, R), (b.f, R), then as result, we remove these from M, and add (x.f, R) to it.
+%%% In other words, we compute the most conservative capabilities we can get for x.
+%%% During the life time of x, all objects in S are not allowed to use, until x is being
+%%% released out of scope.
+
+%%% Currently, we use the second approach, since it's easier to implement.
+%%% In the future, we can come back here and switch to the first approach.
+
+
+% reftyping-helper/let : expr-result -> expr-result -> type.
+
+% reftyping-helper/let/base/unique :
+%     clsmap`lookup CM C FM ->
+%     fldmap`domain FM FS ->
+%     set+set2capmap S FS cap/write M1 ->
+%     cxt-remove-unique B S B' ->
+%     capmap-split M0 M1 M2 ->
+%     nat+set2capmap N FS cap/write M3 ->
+%     capmap`join M2 M3 M4 ->
+%     ({x} cxt`update B' N (cxt-info/ x (reftype/ NN C (targets/unique S M))) (BF x)) ->
+%   reftyping-helper/let (result/expr (reftype/ NN C (targets/unique S M)) (env/ B0 M0))
+%     (result/exists [x] (result/expr (reftype/ NN C (targets/unique S M)) (env/ (BF x) M4))).
+
+% reftyping-helper/let/base/shared :
+%     reftyping-helper/let (result/expr (reftype/ NN C targets/shared) (env/ B0 M0))
+%   (result/exists [x] (result/expr (reftype/ NN C targets/shared) (env/ (BF x) M0))).
+
+% reftyping-helper/let/exists :
+%     ({x} reftyping-helper/let (Rin x) (Rout x)) ->
+%   reftyping-helper/let (result/exists [x] (Rin x)) (result/exists [x] (Rout x)).
+
+
+% %%% TODO: add substitution.
+
+% reftyping/let :
+%     reftyping N CM MM B E Rslt ->
+%     reftyping-helper/let Rslt Rslt2 ->
+%     letRefTyping (s N) CM MM Rslt2 F Rslt3 ->
+%   reftyping N CM MM B (let E F) Rslt3.
+
 
 % reftyping/let
 %    : reftyping N CM MM B E (result/expr (reftype/ NN C GS) XX1)

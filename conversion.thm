@@ -63,6 +63,17 @@
 %trustme %total { } (reftyping-ok/expr/L2 _ _ _ _).
 
 
+%theorem subtype-no-effect-on-capmap2perm
+  : forall* {CM} {PM} {B0} {M} {Pi} {RT} {M0} {M1} {T} {B1}
+    forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
+    {SUB: subtype CM RT (env/ B0 M0) T (env/ B1 M1)}
+    exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
+    true.
+
+%worlds (objvar) (subtype-no-effect-on-capmap2perm _ _ _).
+%trustme %total { } (subtype-no-effect-on-capmap2perm _ _ _).
+
+
 %theorem reftyping-helper-implies-read-result-format
   : forall* {CM} {F} {Rslt} {Rslt2}
     forall {RTYP-HELPER: reftyping-helper/read CM Rslt F Rslt2}
@@ -82,25 +93,177 @@
 %total (K) (reftyping-helper-implies-read-result-format K _).
 
 
+
+% %theorem reftyping-ok/expr/let
+%   : forall* {N} {W} {CM} {PM} {MM} {Rslt} {Out} {F} {Rslt2}
+%     forall {WF-CM: wf-clsmap CM}
+%     {CM-CM: clsmap-clsmap CM CM}
+%     {CM2PM: clsmap2predmap CM PM}
+%     {CM-Rslt: clsmap-result CM Rslt}
+%     {LRTYP: letRefTyping N CM MM Rslt F Rslt2}
+%     {Rslt=>Out1: result2output CM PM Rslt Out}
+%     exists {Out2} {Rslt2=>Out2: result2output CM PM Rslt2 Out2}
+%     {LTYP: letTyping W Out F Out2}
+%     true.
+
+% - : reftyping-ok/expr/let WF-CM CM-CM CM2PM
+%     (clsmap-result/expr CM-B G-M
+%       (clsmap-cxt-reftype/unique CML CM-B-OS CM-B-G wf-unique-targets/1) CM-B-M)
+%     (letRefTyping/base O (RTYP:reftyping N CM MM _ _ R2))
+%     (result2output/unique/1 _ _ T2PF ([x] S=>GF x)
+%       (B=>PiB:cxt2perm CM PM B PiB) (M=>PiM:capmap2perm CM PM B M PiM))
+%   %{=>}% _ R2=>Out2'
+%     (letTyping/exists [x]
+%       (letTyping/base x
+%         (tTrans
+%           (transform/implies
+%             (implies/equiv
+%               (equiv/transitive4
+%                 (equiv/roll2)
+%                 (equiv/combine equiv/reflexive equiv/roll2)
+%                 (equiv/associate)
+%                 (equiv/combine equiv/reflexive (equiv/combine PiB<=>PiB' PiM<=>PiM')))))
+%           (letTyping/base null (TYPk))
+%           (TRANS))))
+%     <- reftyping-ok/expr WF-CM CM-CM CM2PM (clsmap-env/ CM-B CM-B-M)
+%       (RTYP) %{=>}% _ _ (env2input/ (B=>PiB':cxt2perm CM PM B PiB')
+%         (M=>PiM':capmap2perm CM PM B M PiM')) R2=>Out2 TYP
+%     <- cxt2perm-equiv B=>PiB B=>PiB' clsmap`eq/ predmap`eq/ cxt`eq/ PiB<=>PiB'
+%     <- capmap2perm-equiv M=>PiM M=>PiM' clsmap`eq/ predmap`eq/
+%       cxt`eq/ capmap`eq/ PiM<=>PiM'
+%     <- typing-frame* TYP (envadd/exists [_] (envadd/expr)) TYP'.
+
 %theorem reftyping-ok/expr
-  : forall* {CM} {PM} {MM} {W} {E} {N} {R} {ENV}
+  : forall* {CM} {PM} {MM} {W} {E} {N} {R} {V}
     forall {WF-CM: wf-clsmap CM}
     {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {CM-B-ENV: clsmap-env CM ENV}
-    {RTYP: reftyping N CM MM ENV E R}
-    exists {Pi} {Out} {XX2I: env2input CM PM ENV Pi}
+    {CM-B-V: clsmap-env CM V}
+    {RTYP: reftyping N CM MM V E R}
+    exists {Pi} {Out} {XX2I: env2input CM PM V Pi}
     {XX2O: result2output CM PM R Out}
     {TYP: typing W Pi E Out}
     true.
 
+- : reftyping-ok/expr WF-CM CM-CM CM2PM (clsmap-env/ CM-B CM-M)
+    (reftyping/lit
+      (cxt`lookup-obj/ (BL:cxt`lookup B N (cxt-info/ O _))) ty2reftype/unique) _ _
+    (env2input/ B=>PiB M=>PiM)
+    (result2output/unique/1 (set`size/+ set`size/0) capmap`size/0
+      T2PF ([_] (set2cond/U set2cond/0 set`update/0 set`not-member/0 BL)) B=>PiB M=>PiM)
+    (tTrans2
+      (tObjLoc)
+      (transform/trans
+        (transform/implies
+          (implies/trans
+            (implies/combine
+              (implies/trans6
+                (implies/equiv PiB<=>PiF+PiBP)
+                (implies/combine
+                  (implies/trans
+                    (implies/combine (DUP O) implies/reflexive)
+                    (implies/equiv (equiv/symmetric equiv/associate)))
+                  (implies/reflexive))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine implies/reflexive
+                  (implies/equiv (equiv/symmetric PiB<=>PiF+PiBP)))
+                (implies/combine
+                  (implies/trans
+                    (implies/equiv (equiv/symmetric equiv/identity))
+                    (implies/combine implies/reflexive (gen-objequal-self-cond _)))
+                  (implies/reflexive))
+                (implies/equiv equiv/commute))
+              (implies/reflexive))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))))
+        (transform/gen-exists _)))
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B PiB B=>PiB
+    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-M PiM M=>PiM
+    <- cxt`lookup-implies-fresh-update BL BP BF BU
+    <- cxt2perm/U-inversion B=>PiB BF BU PiBP BP=>PiBP _
+      (ty2perm2/unique CML PML _ AP T2PF) PiB<=>PiF+PiBP
+    <- can-duplicate-borrow T2PF DUP.
+
+- : reftyping-ok/expr WF-CM CM-CM CM2PM (clsmap-env/ CM-B CM-M)
+    (reftyping/lit
+      (cxt`lookup-obj/ (BL:cxt`lookup B N (cxt-info/ O _))) ty2reftype/borrow) _ _
+    (env2input/ B=>PiB M=>PiM)
+    (result2output/unique/1 (set`size/+ set`size/0) capmap`size/0
+      T2PF ([_] (set2cond/U set2cond/0 set`update/0 set`not-member/0 BL)) B=>PiB M=>PiM)
+    (tTrans2
+      (tObjLoc)
+      (transform/trans
+        (transform/implies
+          (implies/trans
+            (implies/combine
+              (implies/trans6
+                (implies/equiv PiB<=>PiF+PiBP)
+                (implies/combine (DUP O) (implies/reflexive))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine implies/reflexive
+                  (implies/equiv (equiv/symmetric PiB<=>PiF+PiBP)))
+                (implies/combine
+                  (implies/trans
+                    (implies/equiv (equiv/symmetric equiv/identity))
+                    (implies/combine implies/reflexive (gen-objequal-self-cond _)))
+                  (implies/reflexive))
+                (implies/equiv equiv/commute))
+              (implies/reflexive))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))))
+        (transform/gen-exists _)))
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B PiB B=>PiB
+    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-M PiM M=>PiM
+    <- cxt`lookup-implies-fresh-update BL BP BF BU
+    <- cxt2perm/U-inversion B=>PiB BF BU PiBP BP=>PiBP _
+      (ty2perm2/borrow T2PF) PiB<=>PiF+PiBP
+    <- can-duplicate-borrow T2PF DUP.
+
+- : reftyping-ok/expr WF-CM CM-CM CM2PM (clsmap-env/ CM-B CM-M)
+    (reftyping/lit
+      (cxt`lookup-obj/ (BL:cxt`lookup B N (cxt-info/ O _))) ty2reftype/shared) _ _
+    (env2input/ B=>PiB M=>PiM)
+    (result2output/shared T2PF B=>PiB M=>PiM)
+    (tTrans2
+      (tObjLoc)
+      (transform/trans
+        (transform/implies
+          (implies/trans
+            (implies/combine
+              (implies/trans5
+                (implies/equiv (PiB<=>PiF+PiBP))
+                (implies/combine (DUP O) (implies/reflexive))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine implies/reflexive
+                  (implies/equiv (equiv/symmetric (PiB<=>PiF+PiBP))))
+                (implies/equiv equiv/commute))
+              (implies/reflexive))
+            (implies/equiv (equiv/symmetric equiv/associate))))
+        (transform/gen-exists _)))
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B PiB B=>PiB
+    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-M PiM M=>PiM
+    <- cxt`lookup-implies-fresh-update BL BP BF BU
+    <- cxt2perm/U-inversion B=>PiB BF BU PiBP BP=>PiBP _
+      (ty2perm2/shared T2PF) PiB<=>PiF+PiBP
+    <- can-duplicate-shared T2PF DUP.
+
 - : reftyping-ok/expr WF-CM (CM-CM:clsmap-clsmap CM CM)
-    CM2PM CM-ENV (reftyping/read RTYP-E RTYP-HELPER) Pi Out ENV=>Pi R2=>Out2
+    CM2PM CM-V (reftyping/read RTYP-E RTYP-HELPER) Pi Out V=>Pi R2=>Out2
     (tTrans2 (tRead1 (tTrans2 (TYP-E) (TRANS)) LTYP) TRANS2)
-    <- reftyping-ok/expr WF-CM CM-CM CM2PM CM-ENV RTYP-E _ _ ENV=>Pi R=>Out TYP-E
-    <- reftyping-implies-clsmap-result CM-CM CM-ENV RTYP-E CM-R
+    <- reftyping-ok/expr WF-CM CM-CM CM2PM CM-V RTYP-E _ _ V=>Pi R=>Out TYP-E
+    <- reftyping-implies-clsmap-result CM-CM CM-V RTYP-E CM-R
     <- reftyping-ok/read CM-CM CM2PM CM-R R=>Out RTYP-HELPER _ _ _
       TRANS R2=>Out2 LTYP TRANS2.
+
+% - : reftyping-ok/expr WF-CM CM-CM CM2PM CM-V
+%     (reftyping/let RTYP-E RTYP-HELPER LRTYP-F) Pi Out3 V=>Pi R3=>Out3 TYP
+%     <- reftyping-ok/expr WF-CM CM-CM CM2PM CM-V RTYP-E Pi Out1 V=>Pi R1=>Out1 TYP-E
+%     <- reftyping-implies-clsmap-result CM-CM CM-V RTYP-E CM-R1.
+
 
 %%% IDEA:
 %%% After checking E1, we get a permission output like the following:
@@ -109,48 +272,48 @@
 %%% Then, subtype ensures that we have enough permission to be consumed,
 %%% we can then check the "write".
 
-% - : reftyping-ok/expr WF-CM CM-CM CM2PM CM-ENV
-%     (reftyping/write
-%       (RTYP-E1:reftyping N CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0)))
-%       (CML:clsmap`lookup CM C FM) FML
-%       (MG:make-tgts-and-caps M0 G0 F cap/write (targets/unique set/0 M) M1)
-%       (RTYP-E2:reftyping N CM MM (env/ B0 M1) E2 (result/expr RT (env/ B1 M2)))
-%       (SUB:subtype CM RT (env/ B1 M2) (ty/ NN A FC) (env/ B2 M3))
-%       (CF:consider-ftype _ M3 A G2 M4))
-%     %{=>}% Pi _ ENV=>Pi R3=>Out3
-%     (tTrans2
-%       (tWrite1
-%         (tTrans2
-%           ((TYP-E1))
-%           (transform/trans
-%             (TRANS-1)
-%             (transform/inside [x]
-%               (transform/implies
-%                 (implies/combine
-%                   (implies/equiv (PiB0'<=>PiB0))
-%                   (implies/reflexive))))))
-%         (letTyping/exists [x]
-%           (letTyping/base x
-%             (TYP x))))
-%       (transform/rem-unused))
-%     <- reftyping-ok/expr WF-CM CM-CM CM2PM CM-ENV RTYP-E1 Pi Out1 ENV=>Pi R1=>Out1 TYP-E1
-%     <- reftyping-implies-clsmap-result CM-CM CM-ENV RTYP-E1 CM-R1
-%     <- make-tgts-and-caps-consistent WF-CM CML FML CM-R1 MG CM-B0-M1 G1-M1
-%     <- make-tgts-and-caps-implies-min-cap MG MC-M=W
-%     <- clsmap-result/expr-implies-clsmap-cxt CM-R1 CM-B0
-%     <- reftyping-ok/expr WF-CM CM-CM CM2PM (clsmap-env/ CM-B0 CM-B0-M1) RTYP-E2 _ Out2
-%       (env2input/ (B0=>PiB0:cxt2perm CM PM B0 PiB0)
-%         (B0+M1=>Pi2:capmap2perm CM PM B0 M1 Pi2)) R2=>Out2 TYP-E2
-%     <- reftyping-implies-clsmap-result CM-CM (clsmap-env/ CM-B0 CM-B0-M1) RTYP-E2 CM-R2
-%     <- before-read CM-CM CM2PM CML FML R1=>Out1 MG cap2frac/write CM-R1 %{=>}%
-%       PiB0' _ Pi2' _ T2PF B0=>PiB0' B0+R-FMT TRANS-1
-%     <- reftyping-preserves-capmap2perm RTYP-E2 B0+M1=>Pi2 B1+M1=>Pi2
-%     <- subtype-no-effect-on-capmap2perm B1+M1=>Pi2 SUB B2+M1=>Pi2
-%     <- reftyping-ok/expr/L2 RTYP-E2 SUB B0+R-FMT R-FMT
-%     <- make-before-write-format WF-CM CM2PM CM-R2 SUB R2=>Out2 _ TRANS-2 BW-FMT
-%     <- do-write B2+M1=>Pi2 R-FMT SUB T2PF
-%       (tTrans2 TYP-E2 TRANS-2) BW-FMT CF %{=>}% _ TYP R3=>Out3
-%     <- cxt2perm-equiv B0=>PiB0' B0=>PiB0 clsmap`eq/ predmap`eq/ cxt`eq/ PiB0'<=>PiB0.
+- : reftyping-ok/expr WF-CM CM-CM CM2PM CM-ENV
+    (reftyping/write
+      (RTYP-E1:reftyping N CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0)))
+      (CML:clsmap`lookup CM C FM) FML
+      (MG:make-tgts-and-caps M0 G0 F cap/write (targets/unique set/0 M) M1)
+      (RTYP-E2:reftyping N CM MM (env/ B0 M1) E2 (result/expr RT (env/ B1 M2)))
+      (SUB:subtype CM RT (env/ B1 M2) (ty/ NN A FC) (env/ B2 M3))
+      (CF:consider-ftype _ M3 A G2 M4))
+    %{=>}% Pi _ ENV=>Pi R3=>Out3
+    (tTrans2
+      (tWrite1
+        (tTrans2
+          ((TYP-E1))
+          (transform/trans
+            (TRANS-1)
+            (transform/inside [x]
+              (transform/implies
+                (implies/combine
+                  (implies/equiv (PiB0'<=>PiB0))
+                  (implies/reflexive))))))
+        (letTyping/exists [x]
+          (letTyping/base x
+            (TYP x))))
+      (transform/rem-unused))
+    <- reftyping-ok/expr WF-CM CM-CM CM2PM CM-ENV RTYP-E1 Pi Out1 ENV=>Pi R1=>Out1 TYP-E1
+    <- reftyping-implies-clsmap-result CM-CM CM-ENV RTYP-E1 CM-R1
+    <- make-tgts-and-caps-consistent WF-CM CML FML CM-R1 MG CM-B0-M1 G1-M1
+    <- make-tgts-and-caps-implies-min-cap MG MC-M=W
+    <- clsmap-result/expr-implies-clsmap-cxt CM-R1 CM-B0
+    <- reftyping-ok/expr WF-CM CM-CM CM2PM (clsmap-env/ CM-B0 CM-B0-M1) RTYP-E2 _ Out2
+      (env2input/ (B0=>PiB0:cxt2perm CM PM B0 PiB0)
+        (B0+M1=>Pi2:capmap2perm CM PM B0 M1 Pi2)) R2=>Out2 TYP-E2
+    <- reftyping-implies-clsmap-result CM-CM (clsmap-env/ CM-B0 CM-B0-M1) RTYP-E2 CM-R2
+    <- before-read CM-CM CM2PM CML FML R1=>Out1 MG cap2frac/write CM-R1 %{=>}%
+      PiB0' _ Pi2' _ T2PF B0=>PiB0' B0+R-FMT TRANS-1
+    <- reftyping-preserves-capmap2perm RTYP-E2 B0+M1=>Pi2 B1+M1=>Pi2
+    <- subtype-no-effect-on-capmap2perm B1+M1=>Pi2 SUB B2+M1=>Pi2
+    <- reftyping-ok/expr/L2 RTYP-E2 SUB B0+R-FMT R-FMT
+    <- make-before-write-format WF-CM CM2PM CM-R2 SUB R2=>Out2 _ TRANS-2 BW-FMT
+    <- do-write B2+M1=>Pi2 R-FMT SUB T2PF
+      (tTrans2 TYP-E2 TRANS-2) BW-FMT CF %{=>}% _ TYP R3=>Out3
+    <- cxt2perm-equiv B0=>PiB0' B0=>PiB0 clsmap`eq/ predmap`eq/ cxt`eq/ PiB0'<=>PiB0.
 
 %worlds () (reftyping-ok/expr _ _ _ _ _ _ _ _ _ _).
 %total (T) (reftyping-ok/expr _ _ _ _ T _ _ _ _ _).
