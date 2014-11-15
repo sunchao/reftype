@@ -32,20 +32,21 @@ capmap-max/U : capmap-max* X1 M X4
 
 capmap-same-domain : capmap -> capmap -> type.
 
-capmap-same-domain/
-  : capmap`domain M1 S
-    -> capmap`domain M2 S
-    -> capmap-same-domain M1 M2.
+capmap-same-domain/ :
+    capmap`domain M1 S ->
+    capmap`domain M2 S ->
+  capmap-same-domain M1 M2.
 
 
 %%% Capmap leq with same domain
 
 capmap-vleq : capmap -> capmap -> type.
 
-capmap-vleq/ : capmap`domain M1 S
-               -> capmap`domain M2 S
-               -> capmap`leq M1 M2
-               -> capmap-vleq M1 M2.
+capmap-vleq/ :
+    capmap`domain M1 S ->
+    capmap`domain M2 S ->
+    capmap`leq M1 M2 ->
+  capmap-vleq M1 M2.
 
 
 
@@ -53,9 +54,10 @@ capmap-vleq/ : capmap`domain M1 S
 
 capmap-split : capmap -> capmap -> capmap -> type.
 
-capmap-split/ : capmap`disjoint M1 M2
-                -> capmap`join M1 M2 M
-                -> capmap-split M M1 M2.
+capmap-split/ :
+    capmap`disjoint M1 M2 ->
+    capmap`join M1 M2 M ->
+  capmap-split M M1 M2.
 
 
 %%% Capmap Trans
@@ -64,12 +66,13 @@ set+nat2set : set -> nat -> set -> type.
 
 set+nat2set/0 : set+nat2set set/0 _ set/0.
 
-set+nat2set/U : set+nat2set S' F Q'
-                -> pair2nat (pair/ N F) K
-                -> set`not-member S' N
-                -> set`add S' N S
-                -> set`add Q' K Q
-                -> set+nat2set S F Q.
+set+nat2set/U :
+    set+nat2set S' F Q' ->
+    pair2nat (pair/ N F) K ->
+    set`not-member S' N ->
+    set`add S' N S ->
+    set`add Q' K Q ->
+  set+nat2set S F Q.
 
 
 set+nat2capmap : set -> nat -> cap -> capmap -> type.
@@ -694,6 +697,19 @@ Now, MP could be {a.f:R, b.f:W, a.g:W, b.g:W}, so MFP doesn't exist for this cas
 %total { } (capmap-partition-implies-split _ _).
 
 
+%theorem capmap-split-respects-eq
+  : forall* {M1} {M1P} {M2} {M2P} {M3} {M3P}
+    forall {SP: capmap-split M1 M2 M3}
+    {M1=M1P: capmap`eq M1 M1P}
+    {M2=M2P: capmap`eq M2 M2P}
+    {M3=M3P: capmap`eq M3 M3P}
+    exists {SP: capmap-split M1P M2P M3P}
+    true.
+
+%worlds () (capmap-split-respects-eq _ _ _ _ _).
+%trustme %total { } (capmap-split-respects-eq _ _ _ _ _).
+
+
 %theorem capmap-split-implies-disjoint-join
   : forall* {M} {M1} {M2}
     forall {SP: capmap-split M M1 M2}
@@ -729,6 +745,15 @@ Now, MP could be {a.f:R, b.f:W, a.g:W, b.g:W}, so MFP doesn't exist for this cas
 
 %worlds () (capmap-split-implies-leq _ _ _).
 %trustme %total { } (capmap-split-implies-leq _ _ _).
+
+
+%theorem capmap-split-on-empty
+  : forall {M}
+    exists {M-0=M: capmap-split M capmap/0 M}
+    true.
+
+%worlds () (capmap-split-on-empty _ _).
+%trustme %total { } (capmap-split-on-empty _ _).
 
 
 %theorem set+nat2set-preserves-fresh
@@ -1682,3 +1707,107 @@ Now, MP could be {a.f:R, b.f:W, a.g:W, b.g:W}, so MFP doesn't exist for this cas
   (not-member-nat+map2map-implies-disjoint/L _ _ _ _ _ _ _ _ _).
 %total (P PP) (not-member-nat+map2map-implies-disjoint P _ _ _)
   (not-member-nat+map2map-implies-disjoint/L PP _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2capmap-nat-ne-implies-disjoint
+  : forall* {N1} {N2} {M} {MO1} {MO2} {X}
+    forall {N1+M=MO1: nat+set2capmap N1 M X MO1}
+    {N2+M=MO2: nat+set2capmap N2 M X MO2}
+    {N1<>N2: nat`ne N1 N2}
+    exists {MO1^MO2: capmap`disjoint MO1 MO2}
+    true.
+
+- : nat+set2capmap-nat-ne-implies-disjoint nat+set2capmap/0 _ _ capmap`disjoint/L.
+
+%theorem nat+set2capmap-nat-ne-implies-disjoint/L
+  : forall* {N1} {N2} {F} {M} {MO} {K} {X}
+    forall {N1+M=MO: nat+set2capmap N1 M X MO}
+    {N1<>N2: nat`ne N1 N2}
+    {N2+F=K: pair2nat (pair/ N2 F) K}
+    exists {K!<MO: capmap`fresh MO K}
+    true.
+
+- : nat+set2capmap-nat-ne-implies-disjoint/L nat+set2capmap/0 _ _ capmap`fresh/0.
+
+- : nat+set2capmap-nat-ne-implies-disjoint/L
+    (nat+set2capmap/U N1+MP=MOP N1+F1=K1 F1!<MP MP+F1=M MOP+K1=MO)
+    (N1<>N2:nat`ne N1 N2) N2+F=K K!<MO
+    <- nat+set2capmap-nat-ne-implies-disjoint/L N1+MP=MOP N1<>N2 N2+F=K K!<MOP
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2) N1+F1=K1 N2+F=K K1<>K
+    <- nat`ne-symmetric K1<>K K<>K1
+    <- capmap`update-preserves-fresh K!<MOP MOP+K1=MO K<>K1 K!<MO.
+
+%worlds () (nat+set2capmap-nat-ne-implies-disjoint/L _ _ _ _).
+%total (P) (nat+set2capmap-nat-ne-implies-disjoint/L P _ _ _).
+
+- : nat+set2capmap-nat-ne-implies-disjoint
+    (nat+set2capmap/U N1+MP=MO1P N1+F=K1 F!<MP MP+F=M MO1P+K1=MO1) N2+M=MO2
+    (N1<>N2: nat`ne N1 N2) MO1^MO2
+    <- nat+set2capmap/U-inversion N2+M=MO2 F!<MP MP+F=M
+    %{=>}% MO2P N2+MP=MO2P K2 N2+F=K2 MO2P+K2=MO2
+    <- nat+set2capmap-nat-ne-implies-disjoint N1+MP=MO1P N2+MP=MO2P N1<>N2 MO1P^MO2P
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2)
+      N1+F=K1 N2+F=K2 (K1<>K2:nat`ne K1 K2)
+    <- nat+set2capmap-nat-ne-implies-disjoint/L N1+MP=MO1P N1<>N2 N2+F=K2 K2!<MO1P
+    <- nat`ne-symmetric N1<>N2 N2<>N1
+    <- nat+set2capmap-nat-ne-implies-disjoint/L N2+MP=MO2P N2<>N1 N1+F=K1 K1!<MO2P
+    <- capmap`update-preserves-fresh K1!<MO2P MO2P+K2=MO2 K1<>K2 K1!<MO2
+    <- capmap`fresh-update-preserves-disjoint MO1P^MO2P K2!<MO1P MO2P+K2=MO2 MO1P^MO2
+    <- capmap`disjoint-symmetric MO1P^MO2 MO2^MO1P
+    <- capmap`fresh-update-preserves-disjoint MO2^MO1P K1!<MO2 MO1P+K1=MO1 MO2^MO1
+    <- capmap`disjoint-symmetric MO2^MO1 MO1^MO2.
+
+%worlds () (nat+set2capmap-nat-ne-implies-disjoint _ _ _ _).
+%total (P) (nat+set2capmap-nat-ne-implies-disjoint P _ _ _).
+
+
+%theorem not-member-nat+set2capmap-implies-disjoint
+  : forall* {S} {N} {MF} {MP1} {MP2} {X}
+    forall {SP+MF=MP1: set+set2capmap S MF X MP1}
+    {N+MF=MP2: nat+set2capmap N MF X MP2}
+    {N!<S: set`not-member S N}
+    exists {MP1^MP2: capmap`disjoint MP1 MP2}
+    true.
+
+%theorem not-member-nat+set2capmap-implies-disjoint/L
+  : forall* {S} {SP} {N} {NP} {MF} {MP1P} {MP2P} {MP2} {MP1} {B} {X}
+    forall {SP+MF=MP1P: set+set2capmap SP MF X MP1P}
+    {NP+MF=MP2P: nat+set2capmap NP MF X MP2P}
+    {NP!<SP: set`not-member SP NP}
+    {SP+NP=S: set`add SP NP S}
+    {MP1P+MP2P=MP1: capmap`join MP1P MP2P MP1}
+    {N+MF=MP2: nat+set2capmap N MF X MP2}
+    {N!<S: set`not-member S N}
+    {N=NP?: nat`eq? N NP B}
+    exists {MP1^MP2: capmap`disjoint MP1 MP2}
+    true.
+
+- : not-member-nat+set2capmap-implies-disjoint/L
+    SP+MF=MP1P NP+MF=MP2P NP!<SP SP+NP=S MP1P+MP2P=MP1
+    N+MF=MP2 N!<S (nat`eq?/no (N<>NP:nat`ne N NP)) MP1^MP2
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- not-member-nat+set2capmap-implies-disjoint SP+MF=MP1P N+MF=MP2 N!<SP MP1P^MP2
+    <- nat`ne-symmetric N<>NP NP<>N
+    <- nat+set2capmap-nat-ne-implies-disjoint NP+MF=MP2P N+MF=MP2 NP<>N MP2P^MP2
+    <- capmap`join-preserves-disjoint* MP1P^MP2 MP2P^MP2 MP1P+MP2P=MP1 MP1^MP2.
+
+- : not-member-nat+set2capmap-implies-disjoint/L
+    _ _ _ SP+N=S _ _ N!<S nat`eq?/yes MP1^MP2
+    <- set`add-implies-member SP+N=S N<-S
+    <- set`member-not-member-contradiction N<-S N!<S V
+    <- capmap`false-implies-disjoint V MP1^MP2.
+
+- : not-member-nat+set2capmap-implies-disjoint set+set2capmap/0
+    N+MF=MP2 set`not-member/0 capmap`disjoint/L.
+
+- : not-member-nat+set2capmap-implies-disjoint
+    (set+set2capmap/U SP+MF=MP1P NP+MF=MP2P NP!<SP SP+NP=S MP1P+MP2P=MP1)
+    N+MF=MP2 N!<S MP1+MP2=MP
+    <- nat`eq?-total N=NP?
+    <- not-member-nat+set2capmap-implies-disjoint/L SP+MF=MP1P NP+MF=MP2P
+      NP!<SP SP+NP=S MP1P+MP2P=MP1 N+MF=MP2 N!<S N=NP? MP1+MP2=MP.
+
+%worlds () (not-member-nat+set2capmap-implies-disjoint _ _ _ _)
+  (not-member-nat+set2capmap-implies-disjoint/L _ _ _ _ _ _ _ _ _).
+%total (P PP) (not-member-nat+set2capmap-implies-disjoint P _ _ _)
+  (not-member-nat+set2capmap-implies-disjoint/L PP _ _ _ _ _ _ _ _).

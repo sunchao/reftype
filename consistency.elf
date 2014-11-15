@@ -57,12 +57,13 @@ clsmap-ty/null : clsmap-ty CM ty/null.
 
 clsmap-methty : clsmap -> methty -> type.
 
-clsmap-methty/base : clsmap-methty CM (methty/base T)
-                     <- clsmap-ty CM T.
+clsmap-methty/base :
+    clsmap-ty CM T -> clsmap-methty CM (methty/base T).
 
-clsmap-methty/args : clsmap-methty CM (methty/arg T _ A)
-                     <- clsmap-ty CM T
-                     <- clsmap-methty CM A.
+clsmap-methty/args :
+    clsmap-methty CM A ->
+    clsmap-ty CM T ->
+  clsmap-methty CM (methty/arg T _ A).
 
 
 %%% Consistency between a class map and a field map.
@@ -72,9 +73,10 @@ clsmap-fldmap : clsmap -> fldmap -> type.
 
 clsmap-fldmap/0 : clsmap-fldmap _ fldmap/0.
 
-clsmap-fldmap/+ : clsmap-fldmap CM (fldmap/+ _ T FM)
-                  <- clsmap-ty CM T
-                  <- clsmap-fldmap CM FM.
+clsmap-fldmap/+ :
+    clsmap-fldmap CM FM ->
+    clsmap-ty CM T ->
+  clsmap-fldmap CM (fldmap/+ _ T FM).
 
 
 %%% Well-formedness of a class map
@@ -84,12 +86,12 @@ clsmap-clsmap : clsmap -> clsmap -> type.
 
 clsmap-clsmap/0 : clsmap-clsmap _ clsmap`map/0.
 
-clsmap-clsmap/+ : clsmap-clsmap CM0 (clsmap`map/+ C FM CM)
-                  <- clsmap`lookup CM0 C FM
-                  <- clsmap-fldmap CM0 FM
-                  <- clsmap`shift C CM CMS
-                  <- clsmap-clsmap CM0 CMS.
-
+clsmap-clsmap/+ :
+    clsmap-clsmap CM0 CMS ->
+    clsmap`shift C CM CMS ->
+    clsmap-fldmap CM0 FM ->
+    clsmap`lookup CM0 C FM ->
+  clsmap-clsmap CM0 (clsmap`map/+ C FM CM).
 
 %%% Consistency between a class map and a method map.
 %%% Check if a clsmap is consistent with a methmap
@@ -98,20 +100,19 @@ clsmap-methmap : clsmap -> methmap -> type.
 
 clsmap-methmap/0 : clsmap-methmap _ methmap`map/0.
 
-clsmap-methmap/meth
-  : clsmap-methmap CM (methmap`map/+ N MT MM)
-    <- clsmap`fresh CM N
-    <- clsmap-methty CM MT
-    <- methmap`shift N MM MMS
-    <- clsmap-methmap CM MMS.
+clsmap-methmap/meth :
+    clsmap-methmap CM MMS ->
+    methmap`shift N MM MMS ->
+    clsmap-methty CM MT ->
+    clsmap`fresh CM N ->
+  clsmap-methmap CM (methmap`map/+ N MT MM).
 
-clsmap-methmap/const
-  : clsmap-methmap CM
-    (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) _ MT) MM)
-    <- clsmap`lookup CM N _
-    <- clsmap-methty CM MT
-    <- methmap`shift N MM MMS
-    <- clsmap-methmap CM MMS.
+clsmap-methmap/const :
+    clsmap-methmap CM MMS ->
+    methmap`shift N MM MMS ->
+    clsmap-methty CM MT ->
+    clsmap`lookup CM N _ ->
+  clsmap-methmap CM (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) _ MT) MM).
 
 
 %%% Consistency between clsmap and explicit context.
@@ -192,13 +193,22 @@ clsmap-cxt-objset/U :
     set`add S' N S ->
   clsmap-cxt-objset CM B S.
 
+
+unique-or-borrow : annot -> type.
+
+unique-or-borrow/unique : unique-or-borrow annot/unique.
+
+unique-or-borrow/borrow : unique-or-borrow annot/borrow.
+
+
 clsmap-cxt-unique-objset : clsmap -> cxt -> nonnull -> nat -> set -> type.
 
 clsmap-cxt-unique-objset/0 : clsmap-cxt-unique-objset _ _ _ _ set/0.
 
 clsmap-cxt-unique-objset/U :
     clsmap-cxt-unique-objset CM B NN C S' ->
-    cxt`lookup B N (cxt-info/ _ (ty/ NN' annot/borrow C)) ->
+    cxt`lookup B N (cxt-info/ _ (ty/ NN' A C)) ->
+    unique-or-borrow A ->
     nonnull`leq NN NN' ->
     set`not-member S' N ->
     set`add S' N S ->
@@ -226,7 +236,9 @@ wf-unique-targets/2 : wf-unique-targets (targets/unique _ (capmap/+ _ _ _)).
 
 clsmap-cxt-reftype : clsmap -> cxt -> reftype -> type.
 
-clsmap-cxt-reftype/shared : clsmap-cxt-reftype _ _ (reftype/ _ _ targets/shared).
+clsmap-cxt-reftype/shared :
+    clsmap`lookup CM C _ ->
+  clsmap-cxt-reftype CM _ (reftype/ NN C targets/shared).
 
 clsmap-cxt-reftype/unique :
     clsmap`lookup CM C _ ->
@@ -1179,22 +1191,22 @@ clsmap-result/expr :
     {NM: set`not-member S' N}
     {AD: set`add S' N S}
     exists {CM-B-S': clsmap-cxt-unique-objset CM B NN C S'}
-    {O} {NN'} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' annot/borrow C))}
+    {O} {A} {NN'} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' A C))}
     {NN<=NN': nonnull`leq NN NN'}
     true.
 
 %theorem clsmap-cxt-unique-objset/U-inversion/L
-  : forall* {CM} {B} {S} {S'} {S1'} {N} {N1} {P} {O1} {NN1} {C1} {C} {NN}
+  : forall* {CM} {B} {S} {S'} {S1'} {N} {N1} {P} {O1} {NN1} {C1} {C} {NN} {A1}
     forall {CM-B-S: clsmap-cxt-unique-objset CM B NN C S1'}
     {NM1: set`not-member S1' N1}
     {AD1: set`add S1' N1 S}
-    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 annot/borrow C1))}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
     {NN<=NN1: nonnull`leq NN NN1}
     {NM: set`not-member S' N}
     {AD: set`add S' N S}
     {EQ?: nat`eq? N N1 P}
     exists {CM-B-S': clsmap-cxt-unique-objset CM B NN C S'}
-    {O} {NN'} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' annot/borrow C))}
+    {O} {A} {NN'} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN' A C))}
     {NN<=NN': nonnull`leq NN NN'}
     true.
 
@@ -1219,10 +1231,10 @@ clsmap-result/expr :
 %     <- clsmap-cxt-unique-objset/U-inversion/L CM-B-S0 F0 U0 BL0 LE
 %       F1 U1 E? CM-B-S1 _ _ _ BL1 LE1.
 
-%worlds (objvar) (clsmap-cxt-unique-objset/U-inversion _ _ _ _ _ _ _ _)
-	(clsmap-cxt-unique-objset/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _).
-%trustme %total (C0 C1) (clsmap-cxt-unique-objset/U-inversion C0 _ _ _ _ _ _ _)
-	(clsmap-cxt-unique-objset/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (clsmap-cxt-unique-objset/U-inversion _ _ _ _ _ _ _ _ _)
+	(clsmap-cxt-unique-objset/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (C0 C1) (clsmap-cxt-unique-objset/U-inversion C0 _ _ _ _ _ _ _ _)
+	(clsmap-cxt-unique-objset/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 % backward-compatibility ...
@@ -1364,6 +1376,59 @@ clsmap-result/expr :
 
 % %worlds (objvar) (nat+set2set-implies-clsmap-cxt-capmap _ _ _ _ _ _).
 % %total (T) (nat+set2set-implies-clsmap-cxt-capmap _ _ _ _ T _).
+
+
+%theorem nat+set2capmap-implies-clsmap-cxt-capmap*
+  : forall* {N} {FS} {X} {M} {CM} {C} {FM} {B} {O} {NN} {A} {FS0}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CML: clsmap`lookup CM C FM}
+    {FM-DM=FS: fldmap`domain FM FS0}
+    {FS<=FS0: set`leq FS FS0}
+    {N+FS=>M: nat+set2capmap N FS X M}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    exists {CM-B-M: clsmap-cxt-capmap CM B M}
+    true.
+
+- : nat+set2capmap-implies-clsmap-cxt-capmap*
+    _ CML FM-DM _ nat+set2capmap/0 BL clsmap-cxt-capmap/0.
+
+- : nat+set2capmap-implies-clsmap-cxt-capmap* CM-CM
+    CML FM-DM=FS0 (FS<=FS0:set`leq FS FS0)
+    (nat+set2capmap/U N+FS'=>M' N+F=>K F!<FS' FS'+F=FS M'+K+X=M)
+    BL (clsmap-cxt-capmap/U CM-B-M' N+F=>K BL CML FML K!<M' M'+K+X=M)
+    <- set`add-implies-member FS'+F=FS F<-FS
+    <- set`member-respects-leq F<-FS FS<=FS0 F<-FS0
+    <- fldmap`domain-preserves-lookup-converse F<-FS0 FM-DM=FS0 _ FML
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML CM-T
+    <- nat+set2capmap-preserves-fresh N+FS'=>M' F!<FS' N+F=>K K!<M'
+    <- set`add-implies-leq FS'+F=FS FS'<=FS
+    <- set`leq-transitive FS'<=FS FS<=FS0 FS'<=FS0
+    <- nat+set2capmap-implies-clsmap-cxt-capmap*
+      CM-CM CML FM-DM=FS0 FS'<=FS0 N+FS'=>M' BL CM-B-M'.
+
+%worlds (objvar) (nat+set2capmap-implies-clsmap-cxt-capmap* _ _ _ _ _ _ _).
+%total (A) (nat+set2capmap-implies-clsmap-cxt-capmap* _ _ _ _ A _ _).
+
+
+%theorem nat+set2capmap-implies-clsmap-cxt-capmap
+  : forall* {N} {FS} {X} {M} {CM} {C} {FM} {B} {O} {NN} {A}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CML: clsmap`lookup CM C FM}
+    {FM-DM=FS: fldmap`domain FM FS}
+    {N+FS=>M: nat+set2capmap N FS X M}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    exists {CM-B-M: clsmap-cxt-capmap CM B M}
+    true.
+
+- : nat+set2capmap-implies-clsmap-cxt-capmap CM-CM
+    CML FM-DM=FS N+FS=>M BL CM-B-M
+    <- set`leq-reflexive _ FS<=FS
+    <- nat+set2capmap-implies-clsmap-cxt-capmap* CM-CM
+      CML FM-DM=FS FS<=FS N+FS=>M BL CM-B-M.
+
+%worlds (objvar) (nat+set2capmap-implies-clsmap-cxt-capmap _ _ _ _ _ _).
+%total { } (nat+set2capmap-implies-clsmap-cxt-capmap _ _ _ _ _ _).
 
 
 %theorem false-implies-clsmap-cxt-objset

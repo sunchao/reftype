@@ -27,18 +27,43 @@
 
 %%% Type Checking Rules
 
+
 reftyping : nat -> clsmap -> methmap -> env -> term K -> result K -> type.
 
 letRefTyping : nat -> clsmap -> methmap -> expr-result ->
     (object -> expr) -> expr-result -> type.
 
-letRefTyping/base : {O:object}
-    reftyping N CM MM V (F O) R ->
-  letRefTyping N CM MM (result/expr RT V) F R.
+
+%%% TODO:
+%%% What if the minimum capability of M1 is not write? If the capability is read,
+%%% then it means you only cannot consume the object. Then, what the context and capmap
+%%% look like? We cannot make x unique anymore.
+letRefTyping/base/unique :
+    clsmap`lookup CM C FM ->
+    fldmap`domain FM FS ->
+    set+set2capmap S FS cap/write M2 ->
+    cxt-remove-unique B0 S B1 ->
+    cxt`fresh B1 N ->
+    ({x} cxt`update B1 N (cxt-info/ x (ty/ NN annot/unique C)) (B2 x)) ->
+    capmap-split M0 M2 M4 ->
+    nat+set2capmap N FS cap/write M3 ->
+%    capmap`join M3 M4 M5 ->
+    capmap-split M5 M3 M4 ->
+    capmap-min M1 cap/write ->
+    ({x} reftyping N CM MM (env/ (B2 x) M5) (F x) (R x)) ->
+  letRefTyping N CM MM (result/expr (reftype/ NN C (targets/unique S M1)) (env/ B0 M0))
+    F (result/exists [x] (R x)).
+
+letRefTyping/base/shared :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} reftyping N CM MM (env/ (B1 x) M0) (F x) (R x)) ->
+  letRefTyping N CM MM (result/expr (reftype/ NN C targets/shared) (env/ B0 M0))
+    F (result/exists [x] (R x)).
 
 letRefTyping/exists :
     ({x} letRefTyping N CM MM (V x) F (R x)) ->
-  letRefTyping N CM MM (result/exists [x] (V x)) F (result/exists [x] (V x)).
+  letRefTyping N CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
 
 
 %{
@@ -194,36 +219,12 @@ reftyping/write
 %%% In the future, we can come back here and switch to the first approach.
 
 
-% reftyping-helper/let : expr-result -> expr-result -> type.
-
-% reftyping-helper/let/base/unique :
-%     clsmap`lookup CM C FM ->
-%     fldmap`domain FM FS ->
-%     set+set2capmap S FS cap/write M1 ->
-%     cxt-remove-unique B S B' ->
-%     capmap-split M0 M1 M2 ->
-%     nat+set2capmap N FS cap/write M3 ->
-%     capmap`join M2 M3 M4 ->
-%     ({x} cxt`update B' N (cxt-info/ x (reftype/ NN C (targets/unique S M))) (BF x)) ->
-%   reftyping-helper/let (result/expr (reftype/ NN C (targets/unique S M)) (env/ B0 M0))
-%     (result/exists [x] (result/expr (reftype/ NN C (targets/unique S M)) (env/ (BF x) M4))).
-
-% reftyping-helper/let/base/shared :
-%     reftyping-helper/let (result/expr (reftype/ NN C targets/shared) (env/ B0 M0))
-%   (result/exists [x] (result/expr (reftype/ NN C targets/shared) (env/ (BF x) M0))).
-
-% reftyping-helper/let/exists :
-%     ({x} reftyping-helper/let (Rin x) (Rout x)) ->
-%   reftyping-helper/let (result/exists [x] (Rin x)) (result/exists [x] (Rout x)).
-
-
 % %%% TODO: add substitution.
 
-% reftyping/let :
-%     reftyping N CM MM B E Rslt ->
-%     reftyping-helper/let Rslt Rslt2 ->
-%     letRefTyping (s N) CM MM Rslt2 F Rslt3 ->
-%   reftyping N CM MM B (let E F) Rslt3.
+reftyping/let :
+    reftyping N CM MM B E Rslt ->
+    letRefTyping N CM MM Rslt F Rslt2 ->
+  reftyping N CM MM B (let E F) Rslt2.
 
 
 % reftyping/let
