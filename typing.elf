@@ -28,71 +28,17 @@
 %%% Type Checking Rules
 
 
-reftyping : nat -> clsmap -> methmap -> env -> term K -> result K -> type.
+reftyping : clsmap -> methmap -> env -> term K -> result K -> type.
 
-letRefTyping : nat -> clsmap -> methmap -> expr-result ->
-    (object -> expr) -> expr-result -> type.
+letRefTyping : clsmap -> methmap -> expr-result -> (object -> expr) -> expr-result -> type.
 
 
 cxt-add : cxt -> cxt-info -> cxt -> type.
 
 cxt-add/ :
-    cxt`size B0 N ->
-    cxt`update B0 N CI B1 ->
-  cxt-add B0 CI B1.
-
-%theorem cxt-add-implies-fresh-update
-  : forall* {CI} {B1} {N}
-    forall {B0} {CA: cxt-add B0 CI B1}
-    {SZ: cxt`size B0 N}
-    exists {FS: cxt`fresh B0 N}
-    true.
-
-%theorem cxt-add-implies-fresh-update
-  : forall* {CI} {B1} {N}
-    forall {B0} {CA: cxt-add B0 CI B1}
-    {BL: cxt`lookup B1 N CIP}
-    exists {FS: cxt`fresh B0 N}
-    true.
-
-- : cxt-add-implies-fresh-update cxt/0 _ cxt`size/0 cxt`fresh/0.
-
-- : cxt-add-implies-fresh-update
-    (cxt/+ _ _ B0) (cxt-add/ (cxt`size/+ (SZ-B0':cxt`size B0 N'))
-                     (cxt`update/< (P:nat`plus (s M1) (s N') M2)))
-    (cxt`size/+ (SZ-B0:cxt`size B0 N)) (cxt`fresh/< GT)
-    <- cxt`size-unique SZ-B0' SZ-B0 cxt`eq/ N'=N
-    <- nat`plus-implies-gt P nat`eq/ GT1
-    <- nat`succ-preserves-eq N'=N EQ
-    <- nat`gt-respects-eq GT1 nat`eq/ EQ GT.
-
-- : cxt-add-implies-fresh-update
-    (cxt/+ _ _ B0) (cxt-add/ (cxt`size/+ (SZ-B0':cxt`size B0 N'))
-                     (cxt`update/= nat`eq/))
-    (cxt`size/+ (SZ-B0:cxt`size B0 N)) FS.
-    <- cxt`size-unique SZ-B0' SZ-B0 cxt`eq/ N'=N
-    <- nat`succ-preserves-eq N'=N EQ
-    <- cxt`fresh-lookup-not-equal 
-    <- cxt`lookup-
-
-
-%worlds () (cxt-add-implies-fresh-update _ _ _ _).
-%total { } (cxt-add-implies-fresh-update _ _ _ _).
-
-
- _ cxt`size/0 cxt`fresh/0.
-
-
-%theorem cxt-add-implies-fresh-update
-  : forall* {B0} {CI} {B1} {N}
-    forall {CA: cxt-add B0 CI B1}
-    {SZ: cxt`size B0 N}
-    exists {FS: cxt`fresh B0 N}
-    {UD: cxt`update B0 N CI B1}
-    true.
-
-- : cxt-add-implies-fresh-update
-    (cxt-add/ B0-SZ B0+N=B1) B0-SZ' N!<B0 B0+N=B1.
+    cxt`fresh B0 N ->
+    cxt`update B0 N (cxt-info/ O T) B1 ->
+  cxt-add B0 (cxt-info/ O T) B1.
 
 
 %%% TODO:
@@ -110,20 +56,20 @@ letRefTyping/base/unique :
     nat+set2capmap N FS cap/write M3 ->
     capmap-split M5 M3 M4 ->
     capmap-min M1 cap/write ->
-    ({x} reftyping N CM MM (env/ (B2 x) M5) (F x) (R x)) ->
-  letRefTyping N CM MM (result/expr (reftype/ NN C (targets/unique S M1)) (env/ B0 M0))
+    ({x} reftyping CM MM (env/ (B2 x) M5) (F x) (R x)) ->
+  letRefTyping CM MM (result/expr (reftype/ NN C (targets/unique S M1)) (env/ B0 M0))
     F (result/exists [x] (R x)).
 
 letRefTyping/base/shared :
     cxt`fresh B0 N ->
     ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-    ({x} reftyping N CM MM (env/ (B1 x) M0) (F x) (R x)) ->
-  letRefTyping N CM MM (result/expr (reftype/ NN C targets/shared) (env/ B0 M0))
+    ({x} reftyping CM MM (env/ (B1 x) M0) (F x) (R x)) ->
+  letRefTyping CM MM (result/expr (reftype/ NN C targets/shared) (env/ B0 M0))
     F (result/exists [x] (R x)).
 
 letRefTyping/exists :
-    ({x} letRefTyping N CM MM (V x) F (R x)) ->
-  letRefTyping N CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
+    ({x} letRefTyping CM MM (V x) F (R x)) ->
+  letRefTyping CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
 
 
 %{
@@ -184,7 +130,7 @@ letRefTyping/exists :
 reftyping/lit :
     cxt`lookup-obj B O N T ->
     ty2reftype N T RT ->
-  reftyping _ _ _ (env/ B M) (lit O) (result/expr RT (env/ B M)).
+  reftyping _ _ (env/ B M) (lit O) (result/expr RT (env/ B M)).
 
 
 %%% Type Rules with Direct Effect
@@ -206,9 +152,9 @@ reftyping-helper/read/exists :
   reftyping-helper/read CM (result/exists In) F (result/exists Rslt).
 
 reftyping/read :
-    reftyping N CM MM V E Rslt ->
+    reftyping CM MM V E Rslt ->
     reftyping-helper/read CM Rslt F Rslt2 ->
-  reftyping N CM MM V (read E F) Rslt2.
+  reftyping CM MM V (read E F) Rslt2.
 
 
 %%% ========================== WRITE ============================== %%%
@@ -246,14 +192,14 @@ reftyping/read :
 %     -> reftyping N CM MM V1 (write E1 F E2) Rslt4.
 
 reftyping/write
-  : reftyping N CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
+  : reftyping CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
     -> clsmap`lookup CM C FM
     -> fldmap`lookup FM F (ty/ NN A FC)
     -> make-tgts-and-caps M0 G0 F cap/write G1 M1 % wrong: can't release yet
-    -> reftyping N CM MM (env/ B0 M1) E2 (result/expr RT V2)
+    -> reftyping CM MM (env/ B0 M1) E2 (result/expr RT V2)
     -> subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3)
     -> consider-ftype G1 M3 A G2 M4
-    -> reftyping N CM MM V1 (write E1 F E2)
+    -> reftyping CM MM V1 (write E1 F E2)
       (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
 
 
@@ -282,9 +228,9 @@ reftyping/write
 % %%% TODO: add substitution.
 
 reftyping/let :
-    reftyping N CM MM B E Rslt ->
-    letRefTyping N CM MM Rslt F Rslt2 ->
-  reftyping N CM MM B (let E F) Rslt2.
+    reftyping CM MM B E Rslt ->
+    letRefTyping CM MM Rslt F Rslt2 ->
+  reftyping CM MM B (let E F) Rslt2.
 
 
 % reftyping/let
@@ -551,3 +497,47 @@ reftyping/const
 
 % %worlds () (reftyping-respects-eq _ _ _ _ _ _ _ _).
 % %total {} (reftyping-respects-eq _ _ _ _ _ _ _ _).
+
+
+%theorem cxt-add-total
+  : forall* {B0} {CI}
+    exists {B1} {ADD: cxt-add B0 CI B1}
+    true.
+
+- : cxt-add-total _ (cxt-add/ F A)
+    <- cxt`fresh-total F
+    <- cxt`update-total A.
+
+%worlds () (cxt-add-total _ _).
+%total { } (cxt-add-total _ _).
+
+
+%theorem unwrap-cxt-add/L
+  : forall* {B} {N}
+    forall {F: object -> cxt`fresh B N}
+    exists {F: cxt`fresh B N}
+    true.
+
+- : unwrap-cxt-add/L ([_] cxt`fresh/0) cxt`fresh/0.
+
+- : unwrap-cxt-add/L ([x] cxt`fresh/> (FSF x) P) (cxt`fresh/> FS P)
+    <- unwrap-cxt-add/L FSF FS.
+
+- : unwrap-cxt-add/L ([x] cxt`fresh/< GT) (cxt`fresh/< GT).
+
+%worlds (objvar) (unwrap-cxt-add/L _ _).
+%total (FF) (unwrap-cxt-add/L FF _).
+
+
+%theorem unwrap-cxt-add
+  : forall* {B0} {B1: object -> cxt} {T}
+    forall {A: {x:object} cxt-add B0 (cxt-info/ x T) (B1 x)}
+    exists {N} {F: cxt`fresh B0 N}
+    {U: {x:object} cxt`update B0 N (cxt-info/ x T) (B1 x)}
+    true.
+
+- : unwrap-cxt-add ([x:object] cxt-add/ (FF x) (A x)) _ F A
+    <- unwrap-cxt-add/L FF F.
+
+%worlds (objvar) (unwrap-cxt-add _ _ _ _).
+%total { } (unwrap-cxt-add _ _ _ _).
