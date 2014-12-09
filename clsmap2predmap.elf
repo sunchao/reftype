@@ -56,10 +56,9 @@ ty2perm/
 
 %% converting a fldmap to a permission
 
-fldmap2conj
-  : clsmap -> predmap -> fldmap -> (object -> formula) -> predmap -> type.
+fldmap2conj : clsmap -> predmap -> fldmap -> (object -> permission) -> predmap -> type.
 
-fldmap2conj/0 : fldmap2conj CM PM fldmap/0 ([o] t) PM.
+fldmap2conj/0 : fldmap2conj CM PM fldmap/0 ([_] empty) PM.
 
 fldmap2conj/null
   : fldmap2conj CM PMin (fldmap/+ F ty/null FM) ([o] G o) PMout
@@ -67,9 +66,8 @@ fldmap2conj/null
     <- fldmap2conj CM PMin FM' ([o] G o) PMout.
 
 fldmap2conj/in
-  : fldmap2conj CM PMin
-    (fldmap/+ F (ty/ NN A C) FM)
-    ([r] conj (nested ((fldperm F PF) CP r) r all) (G r)) PMout
+  : fldmap2conj CM PMin (fldmap/+ F (ty/ NN A C) FM)
+    ([r] combine ((fldperm F PF) CP r) (G r)) PMout
     <- predmap`lookup PMin C CP
     <- fldmap`shift F FM FM'
     <- annot2perm A ([o] AF o)
@@ -77,9 +75,8 @@ fldmap2conj/in
     <- fldmap2conj CM PMin FM' ([r] G r) PMout.
 
 fldmap2conj/out
-  : fldmap2conj CM PMin
-    (fldmap/+ F (ty/ NN A C) FM)
-    ([r] conj (nested ((fldperm F PF) (conj2pred CJ) r) r all) (G r)) PMout
+  : fldmap2conj CM PMin (fldmap/+ F (ty/ NN A C) FM)
+    ([r] combine ((fldperm F PF) (conj2pred CJ) r) (G r)) PMout
     <- predmap`fresh PMin C
     <- clsmap`lookup CM C KM
     <- fldmap`shift F FM FM'
@@ -286,8 +283,7 @@ clsmap2predmap/out
     <- ({f} fldmap2conj-implies-predmap-leq (F2CF f) (PME<=PMF f))
     <- ({f} predmap`leq-transitive (PMin<=PME f) (PME<=PMF f) (PMin<=PMF f))
     <- fldmap2conj-implies-predmap-leq F2C PMF<=PMout
-    <- predmap`leq-transitive
-      (PMin<=PMF (conj2pred CJ)) PMF<=PMout PMin<=PMout.
+    <- predmap`leq-transitive (PMin<=PMF (conj2pred CJ)) PMF<=PMout PMin<=PMout.
 
 %worlds (predvar | objvar | fracvar) (fldmap2conj-implies-predmap-leq _ _).
 %total (F2C) (fldmap2conj-implies-predmap-leq F2C _).
@@ -313,8 +309,7 @@ clsmap2predmap/out
     <- ({f} fldmap2conj-implies-predmap-leq (F2CF f) (PME<=PMF f))
     <- ({f} predmap`leq-transitive (PMin<=PME f) (PME<=PMF f) (PMin<=PMF f))
     <- clsmap2predmap-implies-predmap-leq CM2PM PMF<=PMout
-    <- predmap`leq-transitive
-      (PMin<=PMF (conj2pred CJ)) PMF<=PMout PMin<=PMout.
+    <- predmap`leq-transitive (PMin<=PMF (conj2pred CJ)) PMF<=PMout PMin<=PMout.
 
 %worlds (predvar | objvar | fracvar) (clsmap2predmap-implies-predmap-leq _ _).
 %total (CM2PM) (clsmap2predmap-implies-predmap-leq CM2PM _).
@@ -987,8 +982,7 @@ clsmap-predmap/+
             {CM-LP: clsmap`lookup CM C KM} {MD: predmap`domain? PMin C B}
     exists  {PMout} {G} {Q} {DM: predmap`domain PMout Q}
             {LEQ: set`leq Q S}
-            {F2C: fldmap2conj CM PMin
-                  (fldmap`map/+ F (ty/ NN A C) FM) ([r] G r) PMout}
+            {F2C: fldmap2conj CM PMin (fldmap`map/+ F (ty/ NN A C) FM) ([r] G r) PMout}
     true.
 
 - : fldmap2conj-total/L1 _ _ fldmap`size/0
@@ -1541,7 +1535,7 @@ the nesting fact about F from the predicate. }%
     {A2AF: annot2perm A AF}
     {NN2PF: nn2perm NN AF PF}
     {PM-L: predmap`lookup PM C CP}
-    {IMP: {o} implies (unitperm (nonlinear (G o)))
+    {IMP: {o} implies (unitperm (nonlinear (nested (G o) o all)))
         (unitperm
             (nonlinear
               (nested ((fldperm F PF) CP o) o all)))}
@@ -1556,26 +1550,19 @@ the nesting fact about F from the predicate. }%
 
 - : fldperm-can-lookup/L (fldmap2conj/in _ FNN2P A2AF _ PM-L)
      (fldmap`lookup/= nat`eq/) _ _ _ A2AF FNN2P PM-L
-    ([o] implies/trans3
+    ([o] implies/trans4
+      (implies/nonlinear bimplies/nested/separate)
       (implies/conj2combine)
-      (implies/combine
-        (implies/reflexive)
-        (implies/trans
-	      (implies/nonlinear bimplies/tt)
-	      (implies/true2empty)))
+      (implies/combine implies/reflexive implies/nonlinear2empty)
       (implies/equiv equiv/identity)).
 
 - : fldperm-can-lookup/L (fldmap2conj/in FM2G _ _ FM-SH _)
     (fldmap`lookup/> FM-L P) AF PF CP A2AF FNN2P PM-L
     ([o] implies/trans4
+      (implies/nonlinear bimplies/nested/separate)
       (implies/conj2combine)
-      (implies/combine
-        (implies/trans
-	      (implies/nonlinear bimplies/tt)
-	      (implies/true2empty))
-        (I o))
-      (implies/equiv equiv/commute)
-      (implies/equiv equiv/identity))
+      (implies/combine implies/nonlinear2empty (I o))
+      (implies/equiv (equiv/transitive equiv/commute equiv/identity)))
     <- nat`plus-swap-succ P P'
     <- nat`plus-commutative P' P''
     <- fldmap`shift-preserves-lookup* FM-L FM-SH P'' FM-L'
@@ -1947,4 +1934,3 @@ the nesting fact about F from the predicate. }%
 
 %worlds (objvar) (nonnull-leq-implies-permission-equiv _ _ _ _ _).
 %total { } (nonnull-leq-implies-permission-equiv _ _ _ _ _).
-
