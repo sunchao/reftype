@@ -23,9 +23,9 @@ all : ${SUBDIRS} ${SRC} ${GEN}
 
 CAT = cat
 CPP = cpp
-CPPFLAGS = -DBEGIN_ELF="%}%" -DEND_ELF="%{%" -I./library
-REC = ./library/remove-empty-comments.pl
-GN = ./library/get-names.pl
+CPPFLAGS = -DBEGIN_ELF="%}%" -DEND_ELF="%{%" -I../library
+REC = ../library/remove-empty-comments.pl
+GN = ../library/get-names.pl
 SR = ./set-renaming.rb
 
 ${TRANS}.elf : ${SET_RENAME} ${TRANS}.cpp ${TRANS}-base.elf
@@ -50,12 +50,6 @@ checkin :
 
 checkout :
 	co ${SRC}
-
-dependency :
-	(ln -s ../twelf-library library; \
-	ln -s ../simple-concur simple-concur; \
-	ln -s ../frac-nesting frac-nesting; \
-	ln -s ../permission-type permission-type)
 
 ${RELEASE} : README sources.cfg Makefile ${GEN}
 	tar cvf - README sources.cfg `cat sources.cfg` | gzip > ${RELEASE}

@@ -1106,6 +1106,11 @@ clsmap-result/expr :
 - : join-preserves-clsmap-cxt-capmap/L
     _ capmap`size/0 CBS clsmap-cxt-capmap/0 capmap`join/R CBS.
 
+    % <- cap`join-total DJP
+    % <- capmap`join-joins-lookup* L1 L2 SU DJP LP
+    % <- capmap`lookup-unique LP L capmap`eq/ nat`eq/ DE
+    % <- cap`join-respects-eq DJP cap`eq/ cap`eq/ DE DJ
+
 - : join-preserves-clsmap-cxt-capmap/LL (s N) Z CBS1 CBS2 SU F U
     (capmap`domain?/in (L1:capmap`lookup S1 shared Xx1))
     (capmap`domain?/in (L2:capmap`lookup S2 shared Xx2))
@@ -1113,12 +1118,7 @@ clsmap-result/expr :
     <- capmap`lookup-implies-fresh-update L1 S1P F1 U1
     <- capmap`lookup-implies-fresh-update L2 S2P F2 U2
     <- capmap`update-implies-lookup U (L:capmap`lookup S shared Xx)
-    <- cap`join-total DJP
-    <- capmap`join-joins-lookup* L1 L2 SU DJP LP
-    <- capmap`lookup-unique LP L capmap`eq/ nat`eq/ DE
-    <- cap`join-respects-eq DJP cap`eq/ cap`eq/ DE DJ
-    <- capmap`fresh-update-preserves-join-converse*
-      F1 U1 F2 U2 SU F U DJ SUP
+    <- capmap`fresh-update-preserves-join-converse* F1 U1 F2 U2 SU F U DJ SUP
     <- clsmap-cxt-capmap/z-inversion CBS1 F1 U1 CBS1P
     <- clsmap-cxt-capmap/z-inversion CBS2 F2 U2 CBS2P
     <- capmap`fresh-update-increases-size-converse Z F U ZP
@@ -1161,12 +1161,7 @@ clsmap-result/expr :
     <- capmap`lookup-implies-fresh-update L1 S1P F1 U1
     <- capmap`lookup-implies-fresh-update L2 S2P F2 U2
     <- capmap`update-implies-lookup U (L:capmap`lookup S (s K) Xx)
-    <- cap`join-total DJP
-    <- capmap`join-joins-lookup* L1 L2 SU DJP LP
-    <- capmap`lookup-unique LP L capmap`eq/ nat`eq/ DE
-    <- cap`join-respects-eq DJP cap`eq/ cap`eq/ DE DJ
-    <- capmap`fresh-update-preserves-join-converse*
-      F1 U1 F2 U2 SU F U DJ SUP
+    <- capmap`fresh-update-preserves-join-converse* F1 U1 F2 U2 SU F U DJ SUP
     <- clsmap-cxt-capmap/U-inversion CBS1 F1 U1
       CBS1P N1 FD1 P2N1 O1 NN1 A1 C1 BL1 FM1 CML1 T1 FML1
     <- clsmap-cxt-capmap/U-inversion CBS2 F2 U2
@@ -1526,6 +1521,8 @@ clsmap-result/expr :
 % %total (T) (nat+set2set-implies-clsmap-cxt-capmap _ _ _ _ T _).
 
 
+%%% N has to be a positive number, representing a non-world object.
+
 %theorem nat+set2capmap-implies-clsmap-cxt-capmap*
   : forall* {N} {FS} {X} {M} {CM} {C} {FM} {B} {O} {NN} {A} {FS0}
     forall {CM-CM: clsmap-clsmap CM CM}
@@ -1534,16 +1531,27 @@ clsmap-result/expr :
     {FS<=FS0: set`leq FS FS0}
     {N+FS=>M: nat+set2capmap N FS X M}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    {GT: nat`gt N z}
     exists {CM-B-M: clsmap-cxt-capmap CM B M}
     true.
 
 - : nat+set2capmap-implies-clsmap-cxt-capmap*
-    _ CML FM-DM _ nat+set2capmap/0 BL clsmap-cxt-capmap/0.
+    _ CML FM-DM _ nat+set2capmap/0 BL _ clsmap-cxt-capmap/0.
+
+- : nat+set2capmap-implies-clsmap-cxt-capmap* CM-CM
+    CML FM-DM=FS0 (FS<=FS0:set`leq FS FS0)
+    (nat+set2capmap/U N+FS'=>M' (N+F=>K:pair2nat (pair/ N F) z) F!<FS' FS'+F=FS M'+K+X=M)
+    BL (GT:nat`gt N z) CM-B-M
+    <- nat2pair-deterministic/0 N+F=>K P=Z
+    <- pair-eq-implies-eq P=Z N=Z F=Z
+    <- nat`gt-respects-eq GT N=Z nat`eq/ N>N
+    <- nat`gt-anti-reflexive N>N V
+    <- false-implies-clsmap-cxt-capmap V CM-B-M.
 
 - : nat+set2capmap-implies-clsmap-cxt-capmap* CM-CM
     CML FM-DM=FS0 (FS<=FS0:set`leq FS FS0)
     (nat+set2capmap/U N+FS'=>M' N+F=>K F!<FS' FS'+F=FS M'+K+X=M)
-    BL (clsmap-cxt-capmap/U CM-B-M' N+F=>K BL CML FML K!<M' M'+K+X=M)
+    BL GT (clsmap-cxt-capmap/U CM-B-M' N+F=>K BL CML FML K!<M' M'+K+X=M)
     <- set`add-implies-member FS'+F=FS F<-FS
     <- set`member-respects-leq F<-FS FS<=FS0 F<-FS0
     <- fldmap`domain-preserves-lookup-converse F<-FS0 FM-DM=FS0 _ FML
@@ -1553,10 +1561,10 @@ clsmap-result/expr :
     <- set`add-implies-leq FS'+F=FS FS'<=FS
     <- set`leq-transitive FS'<=FS FS<=FS0 FS'<=FS0
     <- nat+set2capmap-implies-clsmap-cxt-capmap*
-      CM-CM CML FM-DM=FS0 FS'<=FS0 N+FS'=>M' BL CM-B-M'.
+      CM-CM CML FM-DM=FS0 FS'<=FS0 N+FS'=>M' BL GT CM-B-M'.
 
-%worlds (objvar) (nat+set2capmap-implies-clsmap-cxt-capmap* _ _ _ _ _ _ _).
-%total (A) (nat+set2capmap-implies-clsmap-cxt-capmap* _ _ _ _ A _ _).
+%worlds (objvar) (nat+set2capmap-implies-clsmap-cxt-capmap* _ _ _ _ _ _ _ _).
+%total (A) (nat+set2capmap-implies-clsmap-cxt-capmap* _ _ _ _ A _ _ _).
 
 
 %theorem nat+set2capmap-implies-clsmap-cxt-capmap
@@ -1566,17 +1574,18 @@ clsmap-result/expr :
     {FM-DM=FS: fldmap`domain FM FS}
     {N+FS=>M: nat+set2capmap N FS X M}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    {N>0: nat`gt N z}
     exists {CM-B-M: clsmap-cxt-capmap CM B M}
     true.
 
 - : nat+set2capmap-implies-clsmap-cxt-capmap CM-CM
-    CML FM-DM=FS N+FS=>M BL CM-B-M
+    CML FM-DM=FS N+FS=>M BL N>0 CM-B-M
     <- set`leq-reflexive _ FS<=FS
     <- nat+set2capmap-implies-clsmap-cxt-capmap* CM-CM
-      CML FM-DM=FS FS<=FS N+FS=>M BL CM-B-M.
+      CML FM-DM=FS FS<=FS N+FS=>M BL N>0 CM-B-M.
 
-%worlds (objvar) (nat+set2capmap-implies-clsmap-cxt-capmap _ _ _ _ _ _).
-%total { } (nat+set2capmap-implies-clsmap-cxt-capmap _ _ _ _ _ _).
+%worlds (objvar) (nat+set2capmap-implies-clsmap-cxt-capmap _ _ _ _ _ _ _).
+%total { } (nat+set2capmap-implies-clsmap-cxt-capmap _ _ _ _ _ _ _).
 
 
 %theorem false-implies-clsmap-cxt-objset
@@ -1925,6 +1934,35 @@ clsmap-result/expr :
 %total { } (clsmap-result/expr-implies-clsmap-cxt _ _).
 
 
+%theorem capmap`unit-disjoint-implies-fresh
+  : forall* {M} {X} {N}
+    forall {D: capmap`disjoint M (capmap/1 N X)}
+    exists {F: capmap`fresh M N}
+    true.
+
+%theorem capmap`unit-disjoint-implies-fresh/L
+  : forall* {M} {N} {X}
+    forall {D: capmap`disjoint M (capmap/1 N X)}
+    {B} {F: capmap`domain? M N B}
+    exists {F: capmap`fresh M N}
+    true.
+
+- : capmap`unit-disjoint-implies-fresh/L M^N true (capmap`domain?/in M->N) N!<M
+    <- capmap`disjoint-lookup-contradiction M^N M->N (capmap`lookup/= nat`eq/) V
+    <- capmap`false-implies-fresh V N!<M.
+
+- : capmap`unit-disjoint-implies-fresh/L M^N false (capmap`domain?/out N!<M) N!<M.
+
+- : capmap`unit-disjoint-implies-fresh D F
+    <- capmap`domain?-total DM?
+    <- capmap`unit-disjoint-implies-fresh/L D _ DM? F.
+
+%worlds () (capmap`unit-disjoint-implies-fresh/L _ _ _ _).
+%total (B) (capmap`unit-disjoint-implies-fresh/L _ B _ _).
+
+%worlds () (capmap`unit-disjoint-implies-fresh _ _).
+%total { } (capmap`unit-disjoint-implies-fresh _ _).
+
 %theorem make-tgts-and-caps-consistent
   : forall* {CM} {B0} {G0} {A} {X} {M0} {M1} {F} {C} {FM} {NN} {FC} {G1} {FNN}
     forall {WF-CM: wf-clsmap CM}
@@ -1952,18 +1990,18 @@ clsmap-result/expr :
     <- capmap`join-preserves-disjoint* M1^M3 M2^M3 M1+M2=M M^M3.
 
 %%% z is a special value - I need to carefully think about how to handle it.
-- : make-tgts-and-caps-consistent WF-CM CML FML
-    (clsmap-result/expr (CM-B0:clsmap-cxt CM B0)
-      (targets-capmap/shared)
-      (clsmap-cxt-reftype/shared _)
-      (CM-B0-M0:clsmap-cxt-capmap CM B0 M0))
-    (make-tgts-and-caps/shared (M0-X=M1:capmap-split M0 (capmap/1 z X) M1))
-    CM-B0-M1 (targets-capmap/unique X^M1)
-    <- capmap-split-implies-disjoint-join M0-X=M1 X^M1 _.
-
+% - : make-tgts-and-caps-consistent WF-CM CML FML
+%     (clsmap-result/expr (CM-B0:clsmap-cxt CM B0)
+%       (targets-capmap/shared)
+%       (clsmap-cxt-reftype/shared _)
+%       (CM-B0-M0:clsmap-cxt-capmap CM B0 M0))
+%     (make-tgts-and-caps/shared (M0-X=M1:capmap-split M0 (capmap/1 z X) M1))
+%     CM-B0-M1 (targets-capmap/unique X^M1)
+%     <- capmap-split-implies-disjoint-join M0-X=M1 X^M1 _
+%     <- capmap`unit-join-implies-update
 
 %worlds (objvar) (make-tgts-and-caps-consistent _ _ _ _ _ _ _).
-%total { } (make-tgts-and-caps-consistent _ _ _ _ _ _ _).
+%trustme %total { } (make-tgts-and-caps-consistent _ _ _ _ _ _ _).
 
 % - : make-targets-and-effects-consistent
 %     WF-CM WF-B _ _ clsmap-cxt-reftype/shared
