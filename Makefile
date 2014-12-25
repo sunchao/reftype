@@ -3,14 +3,14 @@
 SUBDIRS = library permission-type frac-nesting simple-concur
 META = Makefile sources.cfg
 GEN = clsmap.elf methmap.elf fldmap.elf predmap.elf \
-	efxmap.elf efx.elf cxt.elf
+	capmap.elf cap.elf cxt.elf
 HELP = clsmap-base.elf methmap-base.elf fldmap-base.elf predmap-base.elf \
-	efxmap-base.elf efx-base.elf cxt-base.elf
+	capmap-base.elf cap-base.elf cxt-base.elf
 HAND = utils.elf reftype.elf effects.elf consistency.elf \
 	subst.elf subtyping.elf typing.elf clsmap2predmap.elf \
 	conversion.elf conversion.thm
 CSRC = clsmap.cpp methmap.cpp fldmap.cpp predmap.cpp \
-	efxmap.cpp efx.cpp cxt.cpp
+	capmap.cpp cap.cpp cxt.cpp
 TRANS = set2efxmap
 SET_RENAME = set-renamings
 
