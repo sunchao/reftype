@@ -3,43 +3,12 @@
 %%% Definitions
 
 
-% cxt-remove-consume : cxt -> set -> cxt -> type.
-
-% cxt-remove-consume/0 : cxt-remove-consume cxt/0 _ cxt/0.
-
-% cxt-remove-consume/U
-%   : cxt-remove-consume B S' B'
-%     -> cxt`lookup B' N (cxt-info/ O (ty/ NN annot/unique C))
-%     -> cxt`update B' N (cxt-info/ O (ty/ NN annot/borrow C)) B''
-%     -> set`not-member S' N
-%     -> set`add S' N S
-%     -> cxt-remove-consume B S B''.
-
-
-% env-remove-consume : env -> capmap -> env -> type.
-
-% env-remove-consume/
-%   : cxt-remove-consume B M B'
-%     -> capmap-split M0 M1 M2
-%     -> env-remove-consume (env/ B M0) M1 (env/ B' M2).
-
-
-
 %%% Type Checking Rules
 
 
 reftyping : clsmap -> methmap -> env -> term K -> result K -> type.
 
 letRefTyping : clsmap -> methmap -> expr-result -> (object -> expr) -> expr-result -> type.
-
-
-cxt-add : cxt -> cxt-info -> cxt -> type.
-
-cxt-add/ :
-    cxt`fresh B0 N ->
-    cxt`update B0 N (cxt-info/ O T) B1 ->
-  cxt-add B0 (cxt-info/ O T) B1.
-
 
 %%% TODO:
 %%% What if the minimum capability of M1 is not write? If the capability is read,
@@ -161,48 +130,48 @@ reftyping/read :
 
 %%% ========================== WRITE ============================== %%%
 
-% reftyping-helper/write : clsmap -> expr-result -> nat -> targets -> ty -> expr-result -> type.
+reftyping-helper/write : clsmap -> expr-result -> nat -> targets -> ty -> expr-result -> type.
 
-% reftyping-helper/write/base :
-%     clsmap`lookup CM C FM ->
-%     fldmap`lookup FM F (ty/ NN A FC) ->
-%     make-tgts-and-caps M0 G0 F cap/read G1 M1 ->
-%   reftyping-helper/write CM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0)) F
-%     G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ B0 M1)).
+reftyping-helper/write/base :
+    clsmap`lookup CM C FM ->
+    fldmap`lookup FM F (ty/ NN A FC) ->
+    make-tgts-and-caps M0 G0 F cap/read G1 M1 ->
+  reftyping-helper/write CM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0)) F
+    G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ B0 M1)).
 
-% reftyping-helper/write/exists :
-%     ({v} reftyping-helper/write CM (In v) F G T (Rslt v)) ->
-%   reftyping-helper/write CM (result/exists In) F G T (result/exists Rslt).
+reftyping-helper/write/exists :
+    ({v} reftyping-helper/write CM (In v) F G T (Rslt v)) ->
+  reftyping-helper/write CM (result/exists In) F G T (result/exists Rslt).
 
-% reftyping-helper/write/2 : clsmap -> targets -> ty -> expr-result -> expr-result -> type.
+reftyping-helper/write/2 : clsmap -> targets -> ty -> expr-result -> expr-result -> type.
 
-% reftyping-helper/write/2/base :
-%     subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3) ->
-%     consider-ftype G1 M3 A G2 M4 ->
-%   reftyping-helper/write/2 CM G1 (ty/ NN A FC) (result/expr RT V2)
-%         (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
+reftyping-helper/write/2/base :
+    subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3) ->
+    consider-ftype G1 M3 A G2 M4 ->
+  reftyping-helper/write/2 CM G1 (ty/ NN A FC) (result/expr RT V2)
+        (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
 
-% reftyping-helper/write/2/exists :
-%     ({x} reftyping-helper/write/2 CM G T (R x) (R2 x)) ->
-%   reftyping-helper/write/2 CM G T (result/exists [x] (R x)) (result/exists [x] (R2 x)).
-
-% reftyping/write
-%   : reftyping N CM MM V1 E1 Rslt1
-%     -> reftyping-helper/write CM Rslt1 F G T Rslt2
-%     -> letRefTyping N CM MM Rslt2 E2 Rslt3
-%     -> reftyping-helper/write/2 CM G T Rslt3 Rslt4
-%     -> reftyping N CM MM V1 (write E1 F E2) Rslt4.
+reftyping-helper/write/2/exists :
+    ({x} reftyping-helper/write/2 CM G T (R x) (R2 x)) ->
+  reftyping-helper/write/2 CM G T (result/exists [x] (R x)) (result/exists [x] (R2 x)).
 
 reftyping/write
-  : reftyping CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
-    -> clsmap`lookup CM C FM
-    -> fldmap`lookup FM F (ty/ NN A FC)
-    -> make-tgts-and-caps M0 G0 F cap/write G1 M1 % wrong: can't release yet
-    -> reftyping CM MM (env/ B0 M1) E2 (result/expr RT V2)
-    -> subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3)
-    -> consider-ftype G1 M3 A G2 M4
-    -> reftyping CM MM V1 (write E1 F E2)
-      (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
+  : reftyping CM MM V1 E1 Rslt1 ->
+    reftyping-helper/write CM Rslt1 F G T Rslt2 ->
+    letRefTyping CM MM Rslt2 E2 Rslt3 ->
+    reftyping-helper/write/2 CM G T Rslt3 Rslt4 ->
+  reftyping CM MM V1 (write E1 F E2) Rslt4.
+
+% reftyping/write
+%   : reftyping CM MM V1 E1 (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
+%     -> clsmap`lookup CM C FM
+%     -> fldmap`lookup FM F (ty/ NN A FC)
+%     -> make-tgts-and-caps M0 G0 F cap/write G1 M1 % wrong: can't release yet
+%     -> reftyping CM MM (env/ B0 M1) E2 (result/expr RT V2)
+%     -> subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3)
+%     -> consider-ftype G1 M3 A G2 M4
+%     -> reftyping CM MM V1 (write E1 F E2)
+%       (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
 
 
 %%% Type Rules with Indirect Effects
@@ -499,47 +468,3 @@ reftyping/const
 
 % %worlds () (reftyping-respects-eq _ _ _ _ _ _ _ _).
 % %total {} (reftyping-respects-eq _ _ _ _ _ _ _ _).
-
-
-%theorem cxt-add-total
-  : forall* {B0} {CI}
-    exists {B1} {ADD: cxt-add B0 CI B1}
-    true.
-
-- : cxt-add-total _ (cxt-add/ F A)
-    <- cxt`fresh-total F
-    <- cxt`update-total A.
-
-%worlds () (cxt-add-total _ _).
-%total { } (cxt-add-total _ _).
-
-
-%theorem unwrap-cxt-add/L
-  : forall* {B} {N}
-    forall {F: object -> cxt`fresh B N}
-    exists {F: cxt`fresh B N}
-    true.
-
-- : unwrap-cxt-add/L ([_] cxt`fresh/0) cxt`fresh/0.
-
-- : unwrap-cxt-add/L ([x] cxt`fresh/> (FSF x) P) (cxt`fresh/> FS P)
-    <- unwrap-cxt-add/L FSF FS.
-
-- : unwrap-cxt-add/L ([x] cxt`fresh/< GT) (cxt`fresh/< GT).
-
-%worlds (objvar) (unwrap-cxt-add/L _ _).
-%total (FF) (unwrap-cxt-add/L FF _).
-
-
-%theorem unwrap-cxt-add
-  : forall* {B0} {B1: object -> cxt} {T}
-    forall {A: {x:object} cxt-add B0 (cxt-info/ x T) (B1 x)}
-    exists {N} {F: cxt`fresh B0 N}
-    {U: {x:object} cxt`update B0 N (cxt-info/ x T) (B1 x)}
-    true.
-
-- : unwrap-cxt-add ([x:object] cxt-add/ (FF x) (A x)) _ F A
-    <- unwrap-cxt-add/L FF F.
-
-%worlds (objvar) (unwrap-cxt-add _ _ _ _).
-%total { } (unwrap-cxt-add _ _ _ _).
