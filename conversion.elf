@@ -670,7 +670,7 @@ methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
     <- fldmap`domain-unique DM1 DM2 FME SE
     <- fldmap2perm-equiv FM=>Pi1 FM=>Pi2 PME OE FME SE EQV.
 
-%worlds () (fldmap2perm2-equiv _ _ _ _ _ _).
+%worlds (objvar) (fldmap2perm2-equiv _ _ _ _ _ _).
 %total { } (fldmap2perm2-equiv _ _ _ _ _ _).
 
 
@@ -690,6 +690,96 @@ methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
 
 %worlds (objvar) (ty2perm2-respects-eq _ _ _ _ _ _).
 %total { } (ty2perm2-respects-eq _ _ _ _ _ _).
+
+
+%theorem ty2perm2-implies/L/unique
+  : forall* {Pi1: object -> permission} {Pi2} {CP1} {CP2} {PF1} {PF2}
+    forall {FEQ: {o} permission`eq (Pi1 o) (Pi2 o)}
+    {PEQ: predicate`eq CP1 CP2} {PF-EQ: {x} equiv (PF1 x) (PF2 x)}
+    exists
+    {IMP1: {x} implies
+           (combine (Pi1 x)
+             (unitperm (conditional (objequal x null) empty
+                         (unitperm (encumbered (PF1 x)
+                                     (combine (allperm x) (one-predcall CP1 x)))))))
+           (combine (Pi2 x)
+             (unitperm (conditional (objequal x null) empty
+                         (unitperm (encumbered (PF2 x)
+                                     (combine (allperm x) (one-predcall CP2 x)))))))}
+    {IMP2: {x} implies
+           (combine (Pi2 x)
+             (unitperm (conditional (objequal x null) empty
+                         (unitperm (encumbered (PF2 x)
+                                     (combine (allperm x) (one-predcall CP2 x)))))))
+           (combine (Pi1 x)
+             (unitperm (conditional (objequal x null) empty
+                         (unitperm (encumbered (PF1 x)
+                                     (combine (allperm x) (one-predcall CP1 x)))))))}
+    true.
+
+- : ty2perm2-implies/L/unique
+     ([_] permission`eq/) predicate`eq/ ([x] EQV x)
+    ([x] implies/combine (implies/reflexive)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (implies/equiv-encumbered (EQV x) equiv/reflexive)))
+    ([x] implies/combine (implies/reflexive)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (implies/equiv-encumbered (equiv/symmetric (EQV x)) equiv/reflexive))).
+
+%worlds (objvar) (ty2perm2-implies/L/unique _ _ _ _ _).
+%total  {} (ty2perm2-implies/L/unique _ _ _ _ _).
+
+
+%theorem ty2perm2-implies
+  : forall* {CM1} {CM2} {PM1} {PM2} {T1} {T2} {PF1} {PF2}
+    forall {T12PF1: ty2perm2 CM1 PM1 T1 PF1}
+    {T22PF2: ty2perm2 CM2 PM2 T2 PF2}
+    {E: clsmap`eq CM1 CM2} {E: predmap`eq PM1 PM2} {EQ: ty`eq T1 T2}
+    exists {IMP: {o} implies (PF1 o) (PF2 o)}
+    {IMP: {o} implies (PF2 o) (PF1 o)}
+    true.
+
+- : ty2perm2-implies
+    (ty2perm2/unique CML1 PML1 ([x] FM=>PF1 x) T=>Pi1)
+    (ty2perm2/unique CML2 PML2 ([x] FM=>PF2 x) T=>Pi2)
+    (CM-EQ:clsmap`eq CM1 CM2) (PM-EQ:predmap`eq PM1 PM2) T-EQ IMP1 IMP2
+    <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
+    <- clsmap`lookup-unique CML1 CML2 CM-EQ C-EQ FM-EQ
+    <- predmap`lookup-unique PML1 PML2 PM-EQ C-EQ CP-EQ
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+    <- ty2perm-deterministic T=>Pi1 T=>Pi2 PM-EQ T-EQ2 PF-EQ
+    <- ({x} fldmap2perm2-equiv (FM=>PF1 x) (FM=>PF2 x) PM-EQ object`eq/ FM-EQ (EQV x))
+    <- ty2perm2-implies/L/unique PF-EQ CP-EQ EQV IMP1 IMP2.
+
+- : ty2perm2-implies
+    (ty2perm2/borrow T2PF1) (ty2perm2/borrow T2PF2)
+    CM-EQ PM-EQ T-EQ ([x] implies/equiv (EQV x))
+    ([x] implies/equiv (equiv/symmetric (EQV x)))
+    <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+    <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
+    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
+
+- : ty2perm2-implies
+    (ty2perm2/shared T2PF1) (ty2perm2/shared T2PF2)
+    CM-EQ PM-EQ T-EQ ([x] implies/equiv (EQV x))
+    ([x] implies/equiv (equiv/symmetric (EQV x)))
+    <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+    <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
+    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
+
+- : ty2perm2-implies ty2perm2/null ty2perm2/null _ _ _ ([_] implies/reflexive)
+    ([_] implies/reflexive).
+
+%worlds (objvar) (ty2perm2-implies _ _ _ _ _ _ _).
+%total { } (ty2perm2-implies _ _ _ _ _ _ _).
 
 
 %theorem clsmap-lookup-implies-ty2perm2*
@@ -827,28 +917,30 @@ methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
   (cxt2perm/U-inversion/L R0 _ _ _ _ _ _ _ _ _ _ _).
 
 
-%theorem cxt2perm-equiv
+%theorem cxt2perm-implies
   : forall* {CM} {CM'} {PM} {PM'} {B} {B'} {Pi} {Pi'}
     forall {B=>Pi: cxt2perm CM PM B Pi}
     {B=>Pi': cxt2perm CM' PM' B' Pi'}
     {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'} {BE: cxt`eq B B'}
-    exists {PiE: permission`equiv Pi Pi'}
+    exists {IMP: implies Pi Pi'} {IMP: implies Pi' Pi}
     true.
 
-- : cxt2perm-equiv cxt2perm/0 cxt2perm/0 _ _ _ equiv/reflexive.
+- : cxt2perm-implies cxt2perm/0 cxt2perm/0 _ _ _ implies/reflexive implies/reflexive.
 
-- : cxt2perm-equiv (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
+- : cxt2perm-implies (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
                      (R0:ty2perm2 CM0 PM0 T PF0)) B2P CME PME BE
-    (equiv/transitive (equiv/combine PFEQV EQV2)
-      (equiv/symmetric EQV1))
+    (implies/trans
+      (implies/combine (IMP1 O) (IMP3))
+      (implies/equiv (equiv/symmetric EQV1)))
+    (implies/trans
+      (implies/equiv EQV1)
+      (implies/combine (IMP2 O) (IMP4)))
     <- cxt2perm/U-inversion B2P F0 U0 _ B2P1 _ (R1:ty2perm2 CM1 PM1 T PF1) EQV1
-    <- cxt2perm-equiv B2P0 B2P1 CME PME cxt`eq/ EQV2
-    <- ty2perm2-unique R0 R1 CME PME ty`eq/ PFE
-    <- permission`apply-object-preserves-eq PFE (object`eq/:object`eq O O) PFEQ
-    <- permission`eq-implies-equiv PFEQ PFEQV.
+    <- cxt2perm-implies B2P0 B2P1 CME PME cxt`eq/ IMP3 IMP4
+    <- ty2perm2-implies R0 R1 CME PME ty`eq/ IMP1 IMP2.
 
-%worlds (objvar) (cxt2perm-equiv _ _ _ _ _ _).
-%total (T) (cxt2perm-equiv T _ _ _ _ _).
+%worlds (objvar) (cxt2perm-implies _ _ _ _ _ _ _).
+%total (T) (cxt2perm-implies T _ _ _ _ _ _).
 
 
 %theorem cxt2perm-lookup-not-shared-can-duplicate
@@ -1631,37 +1723,25 @@ methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
 %trustme %total { } (reftyping-preserves-capmap2perm _ _ _).
 
 
-%theorem env2input-equiv
+%theorem env2input-implies
   : forall* {CM} {PM} {V1} {V2} {Pi1} {Pi2}
     forall {V1=>Pi1: env2input CM PM V1 Pi1}
     {V2=>Pi2: env2input CM PM V2 Pi2}
     {V1=V2: env`eq V1 V2}
-    exists {EQV: equiv Pi1 Pi2}
+    exists {IMP: implies Pi1 Pi2} {IMP: implies Pi2 Pi1}
     true.
 
-- : env2input-equiv
+- : env2input-implies
     (env2input/ B1=>PiB1 M1=>PiM1)
     (env2input/ B2=>PiB2 M2=>PiM2) env`eq/
-    (equiv/combine PiB1<=>PiB2 PiM1<=>PiM2)
-    <- cxt2perm-equiv B1=>PiB1 B2=>PiB2 clsmap`eq/ predmap`eq/ cxt`eq/ PiB1<=>PiB2
+    (implies/combine IMP1 (implies/equiv PiM1<=>PiM2))
+    (implies/combine IMP2 (implies/equiv (equiv/symmetric PiM1<=>PiM2)))
+    <- cxt2perm-implies B1=>PiB1 B2=>PiB2 clsmap`eq/ predmap`eq/ cxt`eq/ IMP1 IMP2
     <- capmap2perm-equiv M1=>PiM1 M2=>PiM2 clsmap`eq/ predmap`eq/
       cxt`eq/ capmap`eq/ PiM1<=>PiM2.
 
-%worlds (objvar) (env2input-equiv _ _ _ _).
-%total { } (env2input-equiv _ _ _ _).
-
-
-% %theorem capmap`leq-partition
-%   : forall* {M1} {M} {S}
-%     forall {LEQ: capmap`leq M1 M}
-%     {DM: capmap`domain M1 S}
-%     exists {M2} {M3} {DJ: capmap`disjoint M2 M3}
-%     {J: capmap`join M2 M3 M}
-%     {DM: capmap`domain M2 S}
-%     true.
-
-% %worlds (objvar) (capmap`leq-partition _ _ _ _ _ _ _).
-% %total { } (capmap`leq-partition _ _ _ _ _ _ _).
+%worlds (objvar) (env2input-implies _ _ _ _ _).
+%total { } (env2input-implies _ _ _ _ _).
 
 
 %theorem result2output-respects-eq
