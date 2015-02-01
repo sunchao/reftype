@@ -5,8 +5,6 @@
 
 reftyping : clsmap -> methmap -> env -> term K -> result K -> type.
 
-letRefTyping : clsmap -> methmap -> expr-result -> (object -> term K) -> result K -> type.
-
 %{
 TODO:
 What if the minimum capability of M1 is not write? If the capability is read,
@@ -17,6 +15,10 @@ For unique G in "let x = G in ...", we take away capabilities for G, and add x
 as a unique parameter in the environment. After x is out of the scope, those unique
 capabilties should be returned to G, but this is a future work.
 }%
+
+%{
+
+letRefTyping : clsmap -> methmap -> expr-result -> (object -> term K) -> result K -> type.
 
 letRefTyping/base/unique :
     clsmap`lookup CM C FM ->
@@ -44,8 +46,37 @@ letRefTyping/base/shared :
 letRefTyping/exists :
     ({x} letRefTyping CM MM (V x) F (R x)) ->
   letRefTyping CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
+}%
 
 
+letRefTyping : clsmap -> methmap -> expr-result -> (object -> term K) -> 
+
+letRefTyping/base/unique :
+    clsmap`lookup CM C FM ->
+    fldmap`domain FM FS ->
+    set+set2capmap S FS cap/write M2 ->
+    cxt-remove-unique B0 S B1 ->
+    cxt`fresh B1 (s N) ->
+    ({x} cxt`update B1 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B2 x)) ->
+    capmap-split M0 M2 M4 ->
+    nat+set2capmap (s N) FS cap/write M3 ->
+    capmap-split M5 M3 M4 ->
+    capmap-min M1 cap/write ->
+    ({x} reftyping CM MM (env/ (B2 x) M5) (F x) (R x)) ->
+  letRefTyping CM MM (result/expr (reftype/ NN C (targets/unique S M1)) (env/ B0 M0))
+    F (result/exists [x] (R x)).
+
+letRefTyping/base/shared :
+    clsmap`lookup CM C _ ->
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} reftyping CM MM (env/ (B1 x) M0) (F x) (R x)) ->
+  letRefTyping CM MM (result/expr (reftype/ NN C targets/shared) (env/ B0 M0))
+    F (result/exists [x] (R x)).
+
+letRefTyping/exists :
+    ({x} letRefTyping CM MM (V x) F (R x)) ->
+  letRefTyping CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
 
 %%% Checking Literals
 
@@ -159,6 +190,7 @@ disallow "duplicated" cap while checking method call effects.
 }%
 
 
+%{
 reftyping/args : clsmap -> methmap -> env -> args -> args-result -> type.
 
 reftyping/args/0 : reftyping/args _ _ V args/0 (result/args/0 V).
@@ -167,6 +199,7 @@ reftyping/args/+ :
     reftyping CM MM V1 E (result/expr RT V2) ->
     reftyping/args CM MM V2 A ARslt ->
   reftyping CM MM V (args/+ E A) (result/args/+ RT ARslt).
+}%
 
 
 %%% Call Typing
@@ -192,6 +225,7 @@ reclaimed after they are not needed after the method call checking. This is
 also needed for checking tLet.
 }%
 
+%{
 callRefTyping : clsmap -> args-result -> methty -> expr-result -> type.
 
 reftyping/call :
@@ -200,6 +234,7 @@ reftyping/call :
     reftyping/args CM MM B V A ARslt ->
     callRefTyping CM AR MT Rslt ->
   reftyping CM MM V (call M A) Rslt.
+}%
 
 
 %{
