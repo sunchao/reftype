@@ -1,19 +1,23 @@
 %%% Type judgments for conservative type system based on FP.
 
-%%% Definitions
-
 
 %%% Type Checking Rules
 
-
 reftyping : clsmap -> methmap -> env -> term K -> result K -> type.
 
-letRefTyping : clsmap -> methmap -> expr-result -> (object -> expr) -> expr-result -> type.
+letRefTyping : clsmap -> methmap -> expr-result -> (object -> term K) -> result K -> type.
 
-%%% TODO:
-%%% What if the minimum capability of M1 is not write? If the capability is read,
-%%% then it means you only cannot consume the object. Then, what the context and capmap
-%%% look like? We cannot make x unique anymore.
+%{
+TODO:
+What if the minimum capability of M1 is not write? If the capability is read,
+then it means you only cannot consume the object. Then, what the context and capmap
+look like? We cannot make x unique anymore.
+
+For unique G in "let x = G in ...", we take away capabilities for G, and add x
+as a unique parameter in the environment. After x is out of the scope, those unique
+capabilties should be returned to G, but this is a future work.
+}%
+
 letRefTyping/base/unique :
     clsmap`lookup CM C FM ->
     fldmap`domain FM FS ->
@@ -42,58 +46,6 @@ letRefTyping/exists :
   letRefTyping CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
 
 
-%{
- Type checking arguments
-
- One issue we need to consider is aliasing between unique arguments.
- For instance, if a method is annotated as "reads a.f, writes b.f", and
- a and b are aliases to each other, then we cannot check the call.
-
- Given this situation doesn't occur very often, here we just simply
- disallow "duplicated" cap while checking method call effects.
-}%
-
-% reftyping/args : nat -> clsmap -> methmap ->
-% 	cxt -> effects -> args -> args-result -> type.
-
-% reftyping/args/0 : reftyping/args _ _ _ _ XX args/0 (result/args/0 XX).
-
-% reftyping/args/+
-%   : reftyping/args N CM MM B XX1 (args/+ E A) (result/args/+ RT AO)
-%     <- effects`join XX1 XX2 XX
-%     <- reftyping N CM MM B E (result/expr RT XX2)
-%     <- reftyping/args N CM MM B XX A AO.
-
-
-%%% Call Typing
-
-% ref-calltyping : clsmap -> effects ->
-% 	args-result -> methty -> expr-result -> type.
-
-% ref-calltyping/call/unique
-%   : ref-calltyping CM XX1 (result/args/0 XX0)
-%     (methty/base (ty/ NN annot/unique C))
-%     (result/expr (reftype/ NN C (targets/unique set/0 set/0)) XX)
-%     <- effects`disjoint XX0 XX1
-%     <- effects`join XX0 XX1 XX01
-%     <- effects`join XX01 (effects/ efxmap/0 set/0 set/0) XX.
-
-% ref-calltyping/call/shared
-%   : ref-calltyping CM XX1 (result/args/0 XX0)
-%     (methty/base (ty/ NN annot/shared C))
-%     (result/expr (reftype/ NN C targets/shared) XX)
-%     <- effects`disjoint XX0 XX1
-%     <- effects`join XX0 XX1 XX01
-%     <- effects`join XX01 (effects/ efxmap/0 set/0 set/0) XX.
-
-% ref-calltyping/args
-%   : ref-calltyping CM XX0 (result/args/+ RT A0)
-%     (methty/arg T XMd MT) (result/expr ART XX)
-%     <- subtype CM RT T XMd XX1
-%     <- effects`disjoint XX0 XX1
-%     <- effects`join XX0 XX1 XX01
-%     <- ref-calltyping CM XX01 A0 MT (result/expr ART XX).
-
 
 %%% Checking Literals
 
@@ -105,7 +57,7 @@ reftyping/lit :
 
 %%% Type Rules with Direct Effect
 
-%%% ========================== READ ============================== %%%
+%%% Reading a field
 
 targets-capmap : targets -> capmap -> type.
 
@@ -137,7 +89,7 @@ reftyping/read :
   reftyping CM MM V (read E F) Rslt2.
 
 
-%%% ========================== WRITE ============================== %%%
+%%% Writing a field
 
 reftyping-helper/write : clsmap -> methmap -> expr-result -> nat -> expr ->
     targets -> ty -> expr-result -> type.
@@ -165,23 +117,25 @@ reftyping/write
 %%% Type Rules with Indirect Effects
 
 
-%%% ============================= LET ================================ %%%
+%%% Let
 
-%%% For let, we have two approaches
-%%% 1. change the context to map to reftype, instead of ty. So, the variable x
-%%% is mapped to the reftype from checking E. But, whenever consume something,
-%%% we need to trace down to the "root" of each binding. This approach is a bit
-%%% complicated.
+%{
+For let, we have two approaches
+1. change the context to map to reftype, instead of ty. So, the variable x
+is mapped to the reftype from checking E. But, whenever consume something,
+we need to trace down to the "root" of each binding. This approach is a bit
+complicated.
 
-%%% 2. suppose x is bound to (reftype/unique S G), we remove field capabilities for
-%%% all objects in S. For instance, if S = {a, b}, and in M we have (a.f,W),
-%%% (a.g, R), (b.f, R), then as result, we remove these from M, and add (x.f, R) to it.
-%%% In other words, we compute the most conservative capabilities we can get for x.
-%%% During the life time of x, all objects in S are not allowed to use, until x is being
-%%% released out of scope.
+2. suppose x is bound to (reftype/unique S G), we remove field capabilities for
+all objects in S. For instance, if S = {a, b}, and in M we have (a.f,W),
+(a.g, R), (b.f, R), then as result, we remove these from M, and add (x.f, R) to it.
+In other words, we compute the most conservative capabilities we can get for x.
+During the life time of x, all objects in S are not allowed to use, until x is being
+released out of scope.
 
-%%% Currently, we use the second approach, since it's easier to implement.
-%%% In the future, we can come back here and switch to the first approach.
+Currently, we use the second approach, since it's easier to implement.
+In the future, we can come back here and switch to the first approach.
+}%
 
 
 % %%% TODO: add substitution.
@@ -190,6 +144,75 @@ reftyping/let :
     reftyping CM MM B E Rslt ->
     letRefTyping CM MM Rslt F Rslt2 ->
   reftyping CM MM B (let E F) Rslt2.
+
+%%% Method Calls
+
+%{
+Type checking arguments
+
+One issue we need to consider is aliasing between unique arguments.
+For instance, if a method is annotated as "reads a.f, writes b.f", and
+a and b are aliases to each other, then we cannot check the call.
+
+Given this situation doesn't occur very often, here we just simply
+disallow "duplicated" cap while checking method call effects.
+}%
+
+
+reftyping/args : clsmap -> methmap -> env -> args -> args-result -> type.
+
+reftyping/args/0 : reftyping/args _ _ V args/0 (result/args/0 V).
+
+reftyping/args/+ :
+    reftyping CM MM V1 E (result/expr RT V2) ->
+    reftyping/args CM MM V2 A ARslt ->
+  reftyping CM MM V (args/+ E A) (result/args/+ RT ARslt).
+
+
+%%% Call Typing
+
+%{
+How to check method call:
+1. Check arguments, given an input type context and capability set.
+   For each argument, type checking will yield a corresponding
+   result reftype, and produce a output capability set. After checking all
+   arguments, we get a output (unchanged) type context, and a set of
+   remaining capabilities.
+2. Check method type using the result/args and remaining capability set.
+   For each formal parameter, check it against the reftype generated from
+   the corresponding actual parameter in step 1. During the process, some
+   capabilities may be reclaimed (for instance, unique to borrowed).
+
+Note that both step 1 and 2 may modify the context and capability set (step 1
+will only weaken the condition, while step 2 will only strengthen the
+condition).
+
+To make the rule interesting, we should need to prove that capabilities can be
+reclaimed after they are not needed after the method call checking. This is
+also needed for checking tLet.
+}%
+
+callRefTyping : clsmap -> args-result -> methty -> expr-result -> type.
+
+reftyping/call :
+    clsmap`fresh CM M ->
+    methmap`lookup MM M MT ->
+    reftyping/args CM MM B V A ARslt ->
+    callRefTyping CM AR MT Rslt ->
+  reftyping CM MM V (call M A) Rslt.
+
+
+%{
+reftyping/const
+  : clsmap`lookup CM C FM
+    -> fldmap`domain FM S
+    -> methmap`lookup MM C (methty/arg _ _ _ MT)
+    -> reftyping/args CM MM B no-effect A AO
+    -> callRefTyping CM no-effect AO MT (result/expr RT XX)
+    -> reftyping CM MM B (call C (args/+ (alloc C S set/0) A)) (result/expr RT XX).
+}%
+
+
 
 %{
 reftyping/if
@@ -237,30 +260,6 @@ reftyping/while
 %   : reftyping L1 CM MM B E (result/expr RT XX) L2
 %     -> reftyping L2 CM MM B A R L3
 %     -> reftyping L1 CM MM B (args/+ E A) (result/args/+ (result/expr RT XX) R) L3.
-
-
-%%% Method Calls
-
-%{
-reftyping/call
-  : clsmap`fresh CM M
-    -> methmap`lookup MM M MT
-    -> reftyping/args CM MM B no-effect A AR
-    -> ref-calltyping CM no-effect AR MT R
-    -> reftyping CM MM B (call M A) R.
-}%
-
-
-%{
-reftyping/const
-  : clsmap`lookup CM C FM
-    -> fldmap`domain FM S
-    -> methmap`lookup MM C (methty/arg _ _ _ MT)
-    -> reftyping/args CM MM B no-effect A AO
-    -> ref-calltyping CM no-effect AO MT (result/expr RT XX)
-    -> reftyping CM MM B (call C (args/+ (alloc C S set/0) A)) (result/expr RT XX).
-}%
-
 
 
 %%% Method Typing
