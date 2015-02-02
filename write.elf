@@ -39,8 +39,8 @@ set-all-permissions/U :
     set-all-permissions PM B C S' Pi ->
     set`not-member S' N ->
     set`add S' N S ->
-    cxt`lookup B N (cxt-info/ O (ty/ NN _ C)) ->
-    ty2perm PM (ty/ NN annot/unique C) PF ->
+    cxt`lookup B N (cxt-info/ O (ty/ _ _ C)) ->
+    ty2perm PM (ty/ nn/may annot/unique C) PF ->
   set-all-permissions PM B C S ((PF O) , Pi).
 
 
@@ -276,18 +276,6 @@ before-write-format/expr :
 
 %worlds (objvar) (set-all-permissions-respects-eq _ _ _ _ _).
 %total { } (set-all-permissions-respects-eq _ _ _ _ _).
-
-
-%theorem set-all-permissions-equiv
-  : forall* {PM} {S} {S'} {Pi} {Pi'} {B} {C}
-    forall {SAP: set-all-permissions PM B C S Pi}
-    {SAP: set-all-permissions PM B C S' Pi'}
-    {SE: set`eq S S'}
-    exists {EQV: equiv Pi Pi'}
-    true.
-
-%worlds (objvar) (set-all-permissions-equiv _ _ _ _).
-%trustme %total { } (set-all-permissions-equiv _ _ _ _).
 
 
 %theorem restore-object-permission/L1
@@ -566,39 +554,16 @@ before-write-format/expr :
 
 
 %theorem restore-object-permission/L3
-  : forall* {PM} {C} {CP} {Pi} {NN} {PF3}
+  : forall* {PM} {C} {CP} {Pi} {PF3}
     forall {O} {PML: predmap`lookup PM C CP}
     {EQ: {x} equiv (PF3 x) (Pi x)}
-    exists {PF4} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF4}
-    {IMP: implies (combine (encumbered-fldperm O Pi CP)
-                    (unitperm (conditional (objequal O null) empty (PF3 O))))
-          (PF4 O)}
+    exists {IMP: implies (combine (encumbered-fldperm O Pi CP)
+                           (unitperm (conditional (objequal O null) empty (PF3 O))))
+                 (unitperm (conditional (objequal O null) empty
+                             (combine (allperm O) (one-predcall CP O))))}
     true.
 
-% - : restore-object-permission/L3 O PML EQV _
-%     (ty2perm/ PML nn2perm/yes annot2perm/unique)
-%     (implies/trans3
-%       (implies/combine
-%         (implies/trans
-%           (implies/combine implies/duplicate implies/reflexive)
-%           (implies/equiv (equiv/symmetric equiv/associate)))
-%         (implies/reflexive))
-%       (implies/equiv (equiv/symmetric equiv/associate))
-%       (implies/combine implies/reflexive
-%         (implies/trans3
-%           (implies/equiv
-%             (equiv/transitive equiv/commute equiv/associate))
-%           (implies/combine
-%             (implies/trans4
-%               (implies/equiv equiv/commute)
-%               (implies/combine implies/reflexive implies/cond-neg)
-%               (implies/cond-elim)
-%               (implies/equiv (EQV O)))
-%             (implies/reflexive))
-%           (implies/linear-modus-ponens)))).
-
-- : restore-object-permission/L3 O PML EQV _
-    (ty2perm/ PML _ annot2perm/unique)
+- : restore-object-permission/L3 O PML EQV
     (implies/trans
       (implies/cond-factor)
       (implies/cond-inner
@@ -610,8 +575,37 @@ before-write-format/expr :
           (implies/combine (implies/equiv (EQV O)) implies/reflexive)
           (implies/linear-modus-ponens)))).
 
-%worlds (objvar) (restore-object-permission/L3 _ _ _ _ _ _).
-%trustme %total { } (restore-object-permission/L3 _ _ _ _ _ _).
+%worlds (objvar) (restore-object-permission/L3 _ _ _ _).
+%total { } (restore-object-permission/L3 _ _ _ _).
+
+
+%theorem restore-object-permission/F
+  : forall* {PM} {B} {S} {C} {Pi} {Pi2}
+    forall {V:void}
+    exists {Pi3} {IMP: implies (Pi2 , Pi) Pi3}
+    {SAP: set-all-permissions PM B C S Pi3}
+    true.
+
+%worlds (objvar) (restore-object-permission/F _ _ _ _).
+%total { } (restore-object-permission/F _ _ _ _).
+
+
+%theorem restore-object-permission/L
+  : forall* {O1} {O0} {X1}
+    forall {OE: object`eq O1 O0}
+    exists {EQV3:equiv
+                  (unitperm
+                    (conditional (objequal O1 null) empty
+                      (combine (allperm O1) (one-predcall X1 O1))))
+                  (unitperm
+                    (conditional (objequal O0 null) empty
+                      (combine (allperm O0) (one-predcall X1 O0))))}
+    true.
+
+- : restore-object-permission/L object`eq/ equiv/reflexive.
+
+%worlds (objvar) (restore-object-permission/L _ _).
+%total { } (restore-object-permission/L _ _).
 
 
 %theorem restore-object-permission
@@ -627,17 +621,6 @@ before-write-format/expr :
     exists {Pi3} {IMP: implies (Pi2 , Pi) Pi3}
     {SAP: set-all-permissions PM B C S Pi3}
     true.
-
-%theorem restore-object-permission/F
-  : forall* {PM} {B} {S} {C} {Pi} {Pi2}
-    forall {V:void}
-    exists {Pi3} {IMP: implies (Pi2 , Pi) Pi3}
-    {SAP: set-all-permissions PM B C S Pi3}
-    true.
-
-%worlds (objvar) (restore-object-permission/F _ _ _ _).
-%total { } (restore-object-permission/F _ _ _ _).
-
 
 - : restore-object-permission _ _ _ _ _ make-encumbered/0 S+FS+X=>M2 M2=>Pi2 _
     (implies/trans (implies/combine (implies/equiv EQV) implies/reflexive)
@@ -682,11 +665,12 @@ before-write-format/expr :
           (implies/combine
             (implies/trans
               (implies/equiv equiv/commute)
-              (KKK))
+              (IMP2))
             (implies/reflexive))))
       (implies/equiv equiv/roll2)
-      (implies/combine (implies/equiv (EQV3)) (IMP)))
-    (set-all-permissions/U S'-Pi3 N!<S' S'+N=S (BL1') T2PF2)
+      (implies/combine (implies/equiv EQV3) IMP))
+    (set-all-permissions/U S'-Pi3 N!<S' S'+N=S BL1'
+      (ty2perm/ PML2 nn2perm/may annot2perm/unique))
     <- same-class/U-inversion SOC N!<S' S'+N=S O0 NN0 A0 (SOC':same-class B SP C)
       (BL0:cxt`lookup B _ (cxt-info/ O0 (ty/ NN0 A0 C)))
     <- set+set2capmap/U-inversion
@@ -710,12 +694,11 @@ before-write-format/expr :
     <- ({x} fldmap2perm-unique (MF1F' x)
          (MF1 x) predmap`eq/ object`eq/ fldmap`eq/ FSE (PEQ x))
     <- ({x} permission`eq-implies-equiv (PEQ x) (PEQV x))
-    <- restore-object-permission/L3 O1 PML PEQV _ T2PF IMP2
+    <- restore-object-permission/L3 O1 PML PEQV IMP2
     <- cxt`lookup-respects-eq BL1 cxt`eq/ nat`eq/ CIE' BL1'
-    <- ty-preserves-eq NNE annot`eq/ CE TE2
-    <- ty`eq-symmetric TE2 TE2P
-    <- ty2perm-respects-eq T2PF predmap`eq/ TE2P ([_] permission`eq/) (T2PF2:ty2perm _ _ PF)
-    <- equiv-respects-object-eq PF OEP EQV3.
+    <- nat`eq-symmetric CE CE2
+    <- predmap`lookup-respects-eq PML predmap`eq/ CE2 predicate`eq/ PML2
+    <- restore-object-permission/L OEP EQV3.
 
 %worlds (objvar) (restore-object-permission _ _ _ _ _ _ _ _ _ _ _).
 %total (C) (restore-object-permission _ _ _ _ _ C _ _ _ _ _).
@@ -785,10 +768,116 @@ before-write-format/expr :
 %total { } (set-all-permissions-implies/L2 _ _ _).
 
 
+set-all-permissions* : predmap -> cxt -> nat -> set -> permission -> type.
+
+set-all-permissions*/0 : set-all-permissions* _ _ _ set/0 empty.
+
+set-all-permissions*/U :
+    set-all-permissions* PM B C S' Pi ->
+    set`not-member S' N ->
+    set`add S' N S ->
+    cxt`lookup B N (cxt-info/ O (ty/ NN _ C)) ->
+    ty2perm PM (ty/ NN annot/unique C) PF ->
+  set-all-permissions* PM B C S ((PF O) , Pi).
+
+
+%theorem set-all-permissions*-equiv
+  : forall* {PM} {S} {S'} {Pi} {Pi'} {B} {C}
+    forall {SAP: set-all-permissions* PM B C S Pi}
+    {SAP: set-all-permissions* PM B C S' Pi'}
+    {SE: set`eq S S'}
+    exists {EQV: equiv Pi Pi'}
+    true.
+
+%worlds (objvar) (set-all-permissions*-equiv _ _ _ _).
+%trustme %total { } (set-all-permissions*-equiv _ _ _ _).
+
+
+%theorem cxt-remove-unique-preserves-set-all-permissions
+  : forall* {B0} {B1} {PM} {C} {S} {Pi} {S1}
+    forall {SAP: set-all-permissions PM B0 C S Pi}
+    {R: cxt-remove-unique B0 S1 B1}
+    exists {SAP: set-all-permissions PM B1 C S Pi}
+    true.
+
+- : cxt-remove-unique-preserves-set-all-permissions
+    set-all-permissions/0 _ set-all-permissions/0.
+
+- : cxt-remove-unique-preserves-set-all-permissions
+    (set-all-permissions/U SAP F U BL
+      (ty2perm/ PML nn2perm/may annot2perm/unique)) R
+    (set-all-permissions/U SAP' F U BL' (ty2perm/ PML nn2perm/may annot2perm/unique))
+    <- cxt-remove-unique-preserves-set-all-permissions SAP R SAP'
+    <- cxt-remove-unique-preserves-lookup-info BL R _ BL'.
+
+%worlds (objvar) (cxt-remove-unique-preserves-set-all-permissions _ _ _).
+%total (S) (cxt-remove-unique-preserves-set-all-permissions S _ _).
+
+
+%theorem set-all-permissions-implies/L3/L
+  : forall* {PM} {C} {PF}
+    forall {T2PF: ty2perm PM (ty/ nn/may annot/unique C) PF}
+    exists {PF2} {T2PF2: ty2perm PM (ty/ nn/yes annot/unique C) PF2}
+    {IMP: {x} implies (combine (unitperm (nonlinear (neg (objequal x null)))) (PF x)) (PF2 x)}
+    true.
+
+- : set-all-permissions-implies/L3/L
+    (ty2perm/ PML nn2perm/may A2P) _ (ty2perm/ PML nn2perm/yes A2P)
+    ([x] implies/trans3
+      (implies/combine implies/duplicate implies/cond-neg)
+      (implies/equiv (equiv/symmetric equiv/associate))
+      (implies/combine implies/reflexive implies/cond-elim)).
+
+%worlds (objvar) (set-all-permissions-implies/L3/L _ _ _ _).
+%total { } (set-all-permissions-implies/L3/L _ _ _ _).
+
+
+%theorem set-all-permissions-implies/L3
+  : forall* {CM} {PM} {B0} {B1} {C} {S} {Pi1} {Pi2} {S1}
+    forall {B0-S=B1: cxt-remove-unique B0 S1 B1}
+    {B1=>Pi: cxt2perm CM PM B1 Pi1}
+    {SAP: set-all-permissions PM B0 C S Pi2}
+    exists {Pi3} {SAP*: set-all-permissions* PM B0 C S Pi3}
+    {IMP: implies (Pi1 , Pi2) (Pi1 , Pi3)}
+    true.
+
+- : set-all-permissions-implies/L3 _ B=>Pi
+    set-all-permissions/0 _ set-all-permissions*/0 implies/reflexive.
+
+- : set-all-permissions-implies/L3 (B0-S=B1:cxt-remove-unique B0 S B1) B1=>Pi1
+    (set-all-permissions/U SAP F U
+      (BL:cxt`lookup B0 _ (cxt-info/ _ (ty/ nn/may _ _))) T2PF)
+    _ (set-all-permissions*/U SAP' F U BL T2PF)
+    (implies/trans3
+      (implies/equiv equiv/roll2)
+      (implies/combine implies/reflexive IMP)
+      (implies/equiv equiv/roll2))
+    <- set-all-permissions-implies/L3 B0-S=B1 B1=>Pi1 SAP _ SAP' IMP.
+
+- : set-all-permissions-implies/L3 (B0-S=B1:cxt-remove-unique B0 S B1) B1=>Pi1
+    (set-all-permissions/U SAP F U
+      (BL0:cxt`lookup B0 _ (cxt-info/ _ (ty/ nn/yes _ _))) T2PF)
+    _ (set-all-permissions*/U SAP' F U BL0 T2PF2)
+    (implies/trans6
+      (implies/combine IMP3 implies/reflexive)
+      (implies/equiv (equiv/symmetric equiv/associate))
+      (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+      (implies/equiv equiv/associate)
+      (implies/combine (IMP2 _) IMP)
+      (implies/equiv equiv/roll2))
+    <- set-all-permissions-implies/L3 B0-S=B1 B1=>Pi1 SAP _ SAP' IMP
+    <- set-all-permissions-implies/L3/L T2PF _ T2PF2 IMP2
+    <- cxt-remove-unique-preserves-lookup-info BL0 B0-S=B1 _ BL1
+    <- cxt2perm-duplicate-notnull-info B1=>Pi1 BL1 IMP3.
+
+%worlds (objvar) (set-all-permissions-implies/L3 _ _ _ _ _ _).
+%total (SAP) (set-all-permissions-implies/L3 _ _ SAP _ _ _).
+
+
 %theorem set-all-permissions-implies
   : forall* {S} {Pi} {GF} {O} {B} {PM} {C} {NN}
     forall {N} {SZ: set`size S (s N)}
-    {SAP: set-all-permissions PM B C S Pi}
+    {SAP: set-all-permissions* PM B C S Pi}
     {S=>G: set2cond B O S GF}
     {LNN: least-nonnull B S NN}
     exists {PF} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
@@ -796,7 +885,7 @@ before-write-format/expr :
     true.
 
 - : set-all-permissions-implies z SZ
-    (set-all-permissions/U (S=>Pi:set-all-permissions PM B C S' Pi)
+    (set-all-permissions*/U (S=>Pi:set-all-permissions* PM B C S' Pi)
       (F:set`not-member _ N) U
       (BL:cxt`lookup B N (cxt-info/ O (ty/ NN1 A C))) T2PF) S=>GF
     (MN-NN:least-nonnull B S NN) _ (T2PF2:ty2perm _ _ PF) _
@@ -843,7 +932,7 @@ before-write-format/expr :
       (implies/cond-pull))
     <- set`not-member-update-increases-size-converse SZ F U SZ'
     <- set`size-zero-implies-empty SZ' S=0
-    <- set-all-permissions-equiv S=>Pi set-all-permissions/0 S=0 EQV
+    <- set-all-permissions*-equiv S=>Pi set-all-permissions*/0 S=0 EQV
     <- set2cond/U-inversion S=>GF F U _ S'=>GF' O2 T2 BL2 BIMP _
     <- set2cond-implies S'=>GF' set2cond/0 object`eq/ S=0 BIMP2 _
     <- set`eq-symmetric S=0 E=S
@@ -858,7 +947,7 @@ before-write-format/expr :
     <- set-all-permissions-implies/L1 O2=O EQV2.
 
 - : set-all-permissions-implies (s N) SZ
-    (set-all-permissions/U S'=>Pi' N!<S'
+    (set-all-permissions*/U S'=>Pi' N!<S'
       S'+N=S (BL: cxt`lookup _ _ (cxt-info/ O _)) T2PF2)
     S=>GF MN-NN _ T2PF3 _
     (implies/trans6
@@ -913,9 +1002,9 @@ before-write-format/expr :
 
 %theorem set-all-permissions-implies*
   : forall* {PM} {S} {Pi} {GF} {O} {B} {NN} {C} {PF} {N}
-    forall {_: set`size S (s N)}
-    {_: set-all-permissions PM B C S Pi} {S=>G: set2cond B O S GF}
-    {_: least-nonnull B S NN} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
+    forall {SZ: set`size S (s N)}
+    {SAP: set-all-permissions* PM B C S Pi} {S=>G: set2cond B O S GF}
+    {LNN: least-nonnull B S NN} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     exists {Pi2} {_: implies (GF , Pi) (PF O , Pi2)}
     true.
 
@@ -935,7 +1024,7 @@ before-write-format/expr :
 %theorem make-before-write-format/L1*
   : forall* {PM} {B} {S} {C} {Pi} {NN} {GF} {PF}
     forall {N} {SZ: set`size S N}
-    {SAP: set-all-permissions PM B C S Pi}
+    {SAP: set-all-permissions* PM B C S Pi}
     {FLN: least-nonnull B S NN}
     {G=>GF: {x} set2cond B x S (GF x)}
     {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
@@ -946,7 +1035,7 @@ before-write-format/expr :
           (combine (PF x) (Pi2 x o))}
     true.
 
-- : make-before-write-format/L1* z _ set-all-permissions/0
+- : make-before-write-format/L1* z _ set-all-permissions*/0
     least-nonnull/0 ([_] set2cond/0) (T2PF:ty2perm _ _ PF) _
     ([x][o] implies/trans4
       (implies/combine
@@ -996,7 +1085,7 @@ before-write-format/expr :
 
 %theorem make-before-write-format/L1
   : forall* {PM} {B} {S} {C} {Pi} {NN} {GF} {PF}
-    forall {SAP: set-all-permissions PM B C S Pi}
+    forall {SAP: set-all-permissions* PM B C S Pi}
     {FLN: least-nonnull B S NN}
     {G=>GF: {x} set2cond B x S (GF x)}
     {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
@@ -1071,7 +1160,7 @@ before-write-format/expr :
         (transform/inside [r]
           (transform/trans
             (transform/implies
-              (implies/trans6 % PiB0 , G , Q (ECUMB PiM1 , PiM0)
+              (implies/trans7 % PiB0 , G , Q (ECUMB PiM1 , PiM0)
                 (implies/combine
                   (EQV)
                   (implies/combine implies/reflexive % GF
@@ -1092,6 +1181,21 @@ before-write-format/expr :
                     (equiv/associate)
                     (equiv/combine equiv/reflexive equiv/roll2)
                     (equiv/associate)))
+                (implies/trans7
+                  (implies/equiv (equiv/symmetric equiv/associate))
+                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                  (implies/equiv equiv/associate)
+                  (implies/combine
+                    (implies/trans5
+                      (implies/equiv equiv/commute)
+                      (implies/equiv equiv/associate)
+                      (implies/combine (IMP2) implies/reflexive)
+                      (implies/equiv (equiv/symmetric equiv/associate))
+                      (implies/equiv equiv/commute))
+                    (implies/reflexive))
+                  (implies/equiv (equiv/symmetric equiv/associate))
+                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                  (implies/equiv equiv/associate))
                 (implies/combine (IMP o r) implies/reflexive)
                 (implies/equiv
                   (equiv/transitive5
@@ -1114,7 +1218,8 @@ before-write-format/expr :
     <- cxt-unique-objset-implies-least-nonnull CM-B0-S FLN
     <- restore-object-permission SOC CM2PM CML DM-FM=FS SZ-FS B0-ME S+FS=>M2 B0+M2=>PiM2
       PiS PiM2+Pi<=>PiS B0-S-PiS
-    <- make-before-write-format/L1 B0-S-PiS FLN B0+S=>GF T2PF _ IMP
+    <- set-all-permissions-implies/L3 B0-S=B1 B1=>PiB1 B0-S-PiS PiS* B0-S-PiS* IMP2
+    <- make-before-write-format/L1 B0-S-PiS* FLN B0+S=>GF T2PF _ IMP
     <- capmap-min-unique MI-M1=X MI-M1=W cap`eq/ capmap`eq/ (X=W:cap`eq Xx cap/write)
     <- cap2frac-unique X=>Q cap2frac/write X=W Q=ONE
     <- make-before-write-format/L2 Q=ONE EQV2.
@@ -1139,7 +1244,7 @@ before-write-format/expr :
     (transform/inside [x]
       (transform/trans
         (transform/implies
-          (implies/trans7
+          (implies/trans8
             (implies/combine (EQV)
               (implies/combine implies/reflexive
                 (implies/combine implies/reflexive (implies/equiv PiM0<=>PiM2+PiM3))))
@@ -1155,6 +1260,19 @@ before-write-format/expr :
                 (equiv/combine equiv/reflexive equiv/roll3)
                 (equiv/associate)
                 (equiv/combine equiv/commute equiv/reflexive)))
+            (implies/trans5
+              (implies/equiv (equiv/symmetric equiv/associate))
+              (implies/combine implies/reflexive (implies/equiv equiv/associate))
+              (implies/combine implies/reflexive
+                (implies/combine
+                  (implies/trans3
+                    (implies/equiv equiv/commute)
+                    (IMP1)
+                    (implies/equiv equiv/commute))
+                  (implies/reflexive)))
+              (implies/combine implies/reflexive
+                (implies/equiv (equiv/symmetric equiv/associate)))
+              (implies/equiv (equiv/associate)))
             (implies/combine
               (implies/trans
                 (IMP2 x)
@@ -1183,7 +1301,8 @@ before-write-format/expr :
     <- cxt-unique-objset-implies-least-nonnull CM-B0-S FLN
     <- restore-object-permission SOC CM2PM CML DM-FM=FS SZ-FS B0-ME S+FS=>M2 B0+M2=>PiM2
       PiS PiM2+Pi<=>PiS S-PiS
-    <- ({x} set-all-permissions-implies _ SZ-S S-PiS (B0+S=>GF x) FLN _
+    <- set-all-permissions-implies/L3 B0-S=B1 B1=>PiB1 S-PiS PiS* S-PiS* IMP1
+    <- ({x} set-all-permissions-implies _ SZ-S S-PiS* (B0+S=>GF x) FLN _
          (ty2perm/ (PMLP x) (NN2P:nn2perm _ _ PF) A2P) _ (IMP2 x))
     <- predmap`no-variable-lookup PMLP CP2 PML2 PEQ
     <- make-before-write-format/L3 PF PEQ EQV2.
