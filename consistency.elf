@@ -903,6 +903,88 @@ clsmap-result/expr :
 %total (CM-M) (cxt-fresh-update-preserves-clsmap-cxt-capmap CM-M _ _ _).
 
 
+%theorem cxt-fresh-update-preserves-cxt-unique-objset
+  : forall* {B0} {B1} {S} {NN} {C} {CI} {N}
+    forall {B0-S: cxt-unique-objset B0 NN C S}
+    {F: cxt`fresh B0 N}
+    {U: cxt`update B0 N CI B1}
+    exists {B1-S: cxt-unique-objset B1 NN C S}
+    true.
+
+%theorem cxt-fresh-update-preserves-cxt-unique-objset/F
+  : forall* {B1} {S} {NN} {C}
+    forall {F: void}
+    exists {B1-S: cxt-unique-objset B1 NN C S}
+    true.
+
+
+%theorem cxt-fresh-update-preserves-cxt-unique-objset/L
+  : forall* {B0} {B1} {S} {NN} {C} {CI} {N} {S'} {O} {NN'} {A} {N0} {K}
+    forall {B0-S: cxt-unique-objset B0 NN C S'}
+    {B0-L: cxt`lookup B0 (s N) (cxt-info/ O (ty/ NN' A C))}
+    {UA: unique-or-borrow A}
+    {NN-LEQ: nonnull`leq NN NN'}
+    {FS: set`not-member S' (s N)}
+    {UD: set`add S' (s N) S}
+    {F: cxt`fresh B0 N0}
+    {U: cxt`update B0 N0 CI B1}
+    {EQ?: nat`eq? (s N) N0 K}
+    exists {B1-S: cxt-unique-objset B1 NN C S}
+    true.
+
+- : cxt-fresh-update-preserves-cxt-unique-objset/L B0-S' B0-L
+    UA NN<=NN' N!<S' (S'+N=S:set`add S' (s N) S) N0!<B0 B0+N=B1 nat`eq?/yes B1-S
+    <- cxt`fresh-lookup-not-equal N0!<B0 B0-L NE
+    <- nat`ne-anti-reflexive NE V
+    <- cxt-fresh-update-preserves-cxt-unique-objset/F V B1-S.
+
+- : cxt-fresh-update-preserves-cxt-unique-objset/L B0-S' B0-L
+    UA NN<=NN' N!<S' (S'+N=S:set`add S' (s N) S) N0!<B0 B0+N=B1
+    (nat`eq?/no (NE: nat`ne (s N) N0))
+    (cxt-unique-objset/U B1-S' B1-L UA NN<=NN' N!<S' S'+N=S)
+    <- cxt`update-preserves-lookup B0-L B0+N=B1 NE B1-L
+    <- cxt-fresh-update-preserves-cxt-unique-objset B0-S' N0!<B0 B0+N=B1 B1-S'.
+
+
+- : cxt-fresh-update-preserves-cxt-unique-objset
+    cxt-unique-objset/0 _ _ cxt-unique-objset/0.
+
+- : cxt-fresh-update-preserves-cxt-unique-objset
+    (cxt-unique-objset/U B0-S' B0-L UA NN-LEQ FS UD) FS1 UD1 B1-S
+    <- nat`eq?-total EQ?
+    <- cxt-fresh-update-preserves-cxt-unique-objset/L B0-S' B0-L UA NN-LEQ FS UD FS1 UD1
+      EQ? B1-S.
+
+%worlds (objvar) (cxt-fresh-update-preserves-cxt-unique-objset/F _ _).
+%total { } (cxt-fresh-update-preserves-cxt-unique-objset/F _ _).
+
+%worlds (objvar) (cxt-fresh-update-preserves-cxt-unique-objset _ _ _ _)
+   (cxt-fresh-update-preserves-cxt-unique-objset/L _ _ _ _ _ _ _ _ _ _).
+%total (A B) (cxt-fresh-update-preserves-cxt-unique-objset A _ _ _)
+   (cxt-fresh-update-preserves-cxt-unique-objset/L B _ _ _ _ _ _ _ _ _).
+
+
+%theorem cxt-fresh-update-preserves-clsmap-cxt-reftype
+  : forall* {CM} {B0} {RT} {B1} {N} {CI}
+    forall {CM-B0-RT: clsmap-cxt-reftype CM B0 RT}
+    {F: cxt`fresh B0 N}
+    {U: cxt`update B0 N CI B1}
+    exists {CM-B1-RT: clsmap-cxt-reftype CM B1 RT}
+    true.
+
+- : cxt-fresh-update-preserves-clsmap-cxt-reftype
+    (clsmap-cxt-reftype/unique CML B0-OS CM-B0-M WF)
+    N!<B0 B0+N=B1 (clsmap-cxt-reftype/unique CML B1-OS CM-B1-M WF)
+    <- cxt-fresh-update-preserves-clsmap-cxt-capmap CM-B0-M N!<B0 B0+N=B1 CM-B1-M
+    <- cxt-fresh-update-preserves-cxt-unique-objset B0-OS N!<B0 B0+N=B1 B1-OS.
+
+- : cxt-fresh-update-preserves-clsmap-cxt-reftype
+    (clsmap-cxt-reftype/shared CML) _ _ (clsmap-cxt-reftype/shared CML).
+
+%worlds (objvar) (cxt-fresh-update-preserves-clsmap-cxt-reftype _ _ _ _).
+%total { } (cxt-fresh-update-preserves-clsmap-cxt-reftype _ _ _ _).
+
+
 %theorem clsmap-cxt-objset-respects-eq
   : forall* {B1} {B2} {CM1} {CM2} {S1} {S2}
     forall {CM1-B1-S1: clsmap-cxt-objset CM1 B1 S1}
@@ -1948,6 +2030,17 @@ clsmap-result/expr :
 %total { } (subtype-preserves-clsmap-cxt-reftype _ _ _).
 
 
+%theorem reftyping/args-preserves-clsmap-cxt-reftype
+  : forall* {CM} {MM} {B0} {B1} {RT} {A} {M0} {MT} {RT1} {M1}
+    forall {CM-B0-RT: clsmap-cxt-reftype CM B0 RT}
+    {RTYP-A: reftyping/args CM MM (env/ B0 M0) A MT (result/expr RT1 (env/ B1 M1))}
+    exists {CM-B1-RT: clsmap-cxt-reftype CM B1 RT}
+    true.
+
+%worlds (objvar) (reftyping/args-preserves-clsmap-cxt-reftype _ _ _).
+%trustme %total { } (reftyping/args-preserves-clsmap-cxt-reftype _ _ _).
+
+
 %theorem reftyping-preserves-clsmap-cxt-reftype
   : forall* {CM} {MM} {E} {B0} {B1} {RT} {RT1} {M0} {M1}
     forall {CM-B0-RT: clsmap-cxt-reftype CM B0 RT}
@@ -1967,6 +2060,9 @@ clsmap-result/expr :
     <- reftyping-preserves-clsmap-cxt-reftype CM-B0-RT RTYP-E1 CM-B1-RT
     <- reftyping-preserves-clsmap-cxt-reftype CM-B1-RT RTYP-E2 CM-B2-RT
     <- subtype-preserves-clsmap-cxt-reftype CM-B2-RT SUB CM-B3-RT.
+
+- : reftyping-preserves-clsmap-cxt-reftype CM-B0-RT (reftyping/call _ _ RTYP-A) CM-B1-RT
+    <- reftyping/args-preserves-clsmap-cxt-reftype CM-B0-RT RTYP-A CM-B1-RT.
 
 %worlds (objvar) (reftyping-preserves-clsmap-cxt-reftype _ _ _).
 %total (T) (reftyping-preserves-clsmap-cxt-reftype _ T _).
