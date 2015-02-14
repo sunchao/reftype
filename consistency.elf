@@ -2087,6 +2087,39 @@ clsmap-result/expr :
   (reftyping-helper/args-preserves-clsmap-cxt-reftype _ V _).
 
 
+%theorem ty2reftype-implies-clsmap-cxt-reftype
+  : forall* {CM} {T} {RT} {N} {B} {BP}
+    forall {CM-T: clsmap-ty CM T}
+    {T=>RT: ty2reftype (s N) T RT}
+    {BU: {x} cxt`update B (s N) (cxt-info/ x T) (BP x)}
+    exists {CM-B-RT: {x} clsmap-cxt-reftype CM (BP x) RT}
+    true.
+
+- : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
+    ty2reftype/unique ([x] BU x)
+    ([x] clsmap-cxt-reftype/unique CML
+      (cxt-unique-objset/U cxt-unique-objset/0
+        (BL x) unique-or-borrow/unique (nonnull`leq/= nonnull`eq/) set`not-member/0
+        (set`update/0))
+      clsmap-cxt-capmap/0 (wf-unique-targets/1))
+    <- ({x} cxt`update-implies-lookup (BU x) (BL x)).
+
+- : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
+    ty2reftype/borrow ([x] BU x)
+    ([x] clsmap-cxt-reftype/unique CML
+      (cxt-unique-objset/U cxt-unique-objset/0
+        (BL x) unique-or-borrow/borrow (nonnull`leq/= nonnull`eq/) set`not-member/0
+        (set`update/0))
+      clsmap-cxt-capmap/0 (wf-unique-targets/1))
+    <- ({x} cxt`update-implies-lookup (BU x) (BL x)).
+
+- : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
+    ty2reftype/shared _ ([_] clsmap-cxt-reftype/shared CML).
+
+%worlds (objvar) (ty2reftype-implies-clsmap-cxt-reftype _ _ _ _).
+%total { } (ty2reftype-implies-clsmap-cxt-reftype _ _ _ _).
+
+
 %{
  This theorem says if a term in our language can be type checked, then
  the resultput (especially for unique resultput) must be in a good format.
@@ -2095,6 +2128,7 @@ clsmap-result/expr :
 %theorem reftyping-implies-clsmap-result
   : forall* {CM} {MM} {ENV} {E: expr} {R}
     forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
     {CM-ENV: clsmap-env CM ENV}
     {TYP: reftyping CM MM ENV E R}
     exists {CM-Rslt: clsmap-result CM R}
@@ -2126,6 +2160,7 @@ clsmap-result/expr :
 %theorem reftyping-implies-clsmap-result/let
   : forall* {CM} {MM} {Rslt} {K} {F: object -> term K} {Rslt2: result K}
     forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
     {CM-Rslt: clsmap-result CM Rslt}
     {RTYP-LET: letRefTyping CM MM Rslt F Rslt2}
     exists {CM-Rslt2: clsmap-result CM Rslt2}
@@ -2134,16 +2169,68 @@ clsmap-result/expr :
 %theorem reftyping-implies-clsmap-result/write
   : forall* {CM} {MM} {F} {E} {Rslt2} {G} {T} {Rslt1}
     forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
     {CM-Rslt1: clsmap-result CM Rslt1}
     {RTYP-W: reftyping-helper/write CM MM Rslt1 F E G T Rslt2}
     exists {CM-Rslt2: clsmap-result CM Rslt2}
     true.
 
-- : reftyping-implies-clsmap-result/write CM-CM (clsmap-result/exists [x] (CM-Rslt1 x))
-    (reftyping-helper/write/exists [x] (RTYP-H x)) (clsmap-result/exists [x] (CM-Rslt2 x))
-    <- ({x} reftyping-implies-clsmap-result/write CM-CM (CM-Rslt1 x) (RTYP-H x) (CM-Rslt2 x)).
+%theorem reftyping-implies-clsmap-result/args
+  : forall* {CM} {MM} {V} {A} {MT} {Rslt}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM-V: clsmap-env CM V}
+    {CM-MT: clsmap-methty CM MT}
+    {RTYP-ARGS: reftyping/args CM MM V A MT Rslt}
+    exists {CM-Rslt: clsmap-result CM Rslt}
+    true.
 
-- : reftyping-implies-clsmap-result/write CM-CM CM-R1
+%theorem reftyping-helper/args-implies-clsmap-result
+  : forall* {CM} {MM} {Rslt} {T} {M} {A} {MT} {Rslt2}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM-Rslt: clsmap-result CM Rslt}
+    {CM-MT: clsmap-methty CM MT}
+    {RTYP-A: reftyping-helper/args CM MM Rslt T M A MT Rslt2}
+    exists {CM-Rslt2: clsmap-result CM Rslt2}
+    true.
+
+- : reftyping-helper/args-implies-clsmap-result CM-CM CM-MM
+    (clsmap-result/expr CM-B0 CM-B0-RT CM-B0-M) CM-MT
+    (reftyping-helper/args/base SUB RTYP-A) CM-Rslt
+    <- subtype-consistent (clsmap-env/ CM-B0 CM-B0-M) SUB CM-V1
+    <- reftyping-implies-clsmap-result/args CM-CM CM-MM CM-V1
+      CM-MT RTYP-A CM-Rslt.
+
+- : reftyping-helper/args-implies-clsmap-result CM-CM CM-MM
+    (clsmap-result/exists [x] CM-Rslt x) CM-MT
+    (reftyping-helper/args/exists ([x] RTYP-A x)) (clsmap-result/exists [x] CM-Rslt2 x)
+    <- ({x} reftyping-helper/args-implies-clsmap-result CM-CM CM-MM
+         (CM-Rslt x) CM-MT (RTYP-A x) (CM-Rslt2 x)).
+
+- : reftyping-implies-clsmap-result/args CM-CM CM-MM
+    (clsmap-env/ (CM-B:clsmap-cxt CM B0) (CM-B0-M:clsmap-cxt-capmap CM B0 M0))
+    (clsmap-methty/base CM-T)
+    (reftyping/args/0 FS ([x] UD x) T=>RT)
+    (clsmap-result/exists [x]
+      (clsmap-result/expr (clsmap-cxt/U CM-B CM-T FS (UD x)) (CM-B-RT x) (CM-B1-M x)))
+    <- ty2reftype-implies-clsmap-cxt-reftype CM-T T=>RT UD CM-B-RT
+    <- ({x} cxt-fresh-update-preserves-clsmap-cxt-capmap CM-B0-M FS (UD x) (CM-B1-M x)).
+
+- : reftyping-implies-clsmap-result/args CM-CM CM-MM
+    (clsmap-env/ CM-B CM-B-M) (clsmap-methty/args CM-MT CM-T)
+    (reftyping/args/+ RTYP-E RTYP-A) CM-Rslt1
+    <- reftyping-implies-clsmap-result CM-CM CM-MM (clsmap-env/ CM-B CM-B-M)
+      RTYP-E CM-Rslt
+    <- reftyping-helper/args-implies-clsmap-result CM-CM CM-MM CM-Rslt
+      CM-MT RTYP-A CM-Rslt1.
+
+- : reftyping-implies-clsmap-result/write CM-CM CM-MM (clsmap-result/exists [x] (CM-Rslt1 x))
+    (reftyping-helper/write/exists [x] (RTYP-H x)) (clsmap-result/exists [x] (CM-Rslt2 x))
+    <- ({x} reftyping-implies-clsmap-result/write CM-CM CM-MM
+         (CM-Rslt1 x) (RTYP-H x) (CM-Rslt2 x)).
+
+- : reftyping-implies-clsmap-result/write CM-CM CM-MM CM-R1
     (reftyping-helper/write/base CML FML
       (MG:make-tgts-and-caps M0 G0 F _ G1 M1)
       (RTYP-E2:reftyping CM MM (env/ B0 M1) E (result/expr RT (env/ B1 M2)))
@@ -2152,7 +2239,7 @@ clsmap-result/expr :
     <- clsmap-result/expr-implies-clsmap-cxt CM-R1 CM-B0
     <- make-tgts-and-caps-consistent CM-CM CML FML CM-R1 MG
       (clsmap-result/expr _ CM-B0-RT (CM-B0-M1:clsmap-cxt-capmap CM B0 M1))
-    <- reftyping-implies-clsmap-result CM-CM (clsmap-env/ CM-B0 CM-B0-M1) RTYP-E2
+    <- reftyping-implies-clsmap-result CM-CM CM-MM (clsmap-env/ CM-B0 CM-B0-M1) RTYP-E2
       (clsmap-result/expr CM-B1 _ CM-B1-M2)
     <- subtype-consistent (clsmap-env/ CM-B1 CM-B1-M2)
       SUB (clsmap-env/ CM-B2 (CM-B2-M3:clsmap-cxt-capmap CM B2 M3))
@@ -2160,7 +2247,7 @@ clsmap-result/expr :
     <- subtype-preserves-clsmap-cxt-reftype CM-B1-RT SUB CM-B2-RT
     <- consider-ftype-consistent (clsmap-result/expr CM-B2 CM-B2-RT CM-B2-M3) CF CM-R2.
 
-- : reftyping-implies-clsmap-result/let CM-CM
+- : reftyping-implies-clsmap-result/let CM-CM CM-MM
     (clsmap-result/expr (CM-B0:clsmap-cxt CM B0) _ CM-B0-M0)
     (letRefTyping/base/unique CML FM-DM S+FS=>M2
       (B0-S=B1:cxt-remove-unique B0 S B1) N!<B1
@@ -2182,11 +2269,11 @@ clsmap-result/expr :
          N!<B1 (B1+N=B2 x) (CM-B2-M4 x))
     <- ({x} join-preserves-clsmap-cxt-capmap (CM-B2-M3 x) (CM-B2-M4 x)
          M3+M4=M5 (CM-B2-M5 x))
-    <- ({x:object} reftyping-implies-clsmap-result CM-CM
+    <- ({x:object} reftyping-implies-clsmap-result CM-CM CM-MM
          (clsmap-env/ (clsmap-cxt/U CM-B1 (clsmap-ty/ CML) N!<B1 (B1+N=B2 x))
            (CM-B2-M5 x)) (RTYP-F x) (CM-Rslt2 x)).
 
-- : reftyping-implies-clsmap-result/let CM-CM
+- : reftyping-implies-clsmap-result/let CM-CM CM-MM
     (clsmap-result/expr (CM-B0:clsmap-cxt CM B0) _ CM-B0-M0)
     (letRefTyping/base/shared CML N!<B0
       (B0+N=B1:{x} cxt`update _ (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x))
@@ -2194,37 +2281,38 @@ clsmap-result/expr :
     (clsmap-result/exists [x] (CM-Rslt2 x))
     <- ({x} cxt-fresh-update-preserves-clsmap-cxt-capmap CM-B0-M0
          N!<B0 (B0+N=B1 x) (CM-B1-M0 x))
-    <- ({x:object} reftyping-implies-clsmap-result CM-CM
+    <- ({x:object} reftyping-implies-clsmap-result CM-CM CM-MM
          (clsmap-env/ (clsmap-cxt/U CM-B0 (clsmap-ty/ CML) N!<B0 (B0+N=B1 x))
            (CM-B1-M0 x)) (RTYP-F x) (CM-Rslt2 x)).
 
-- : reftyping-implies-clsmap-result/let CM-CM
+- : reftyping-implies-clsmap-result/let CM-CM CM-MM
     (clsmap-result/exists [x] (CM-Rslt x))
     (letRefTyping/exists [x] (LTYP x))
     (clsmap-result/exists [x] (CM-Rslt2 x))
-    <- ({x} reftyping-implies-clsmap-result/let CM-CM (CM-Rslt x) (LTYP x) (CM-Rslt2 x)).
+    <- ({x} reftyping-implies-clsmap-result/let
+         CM-CM CM-MM (CM-Rslt x) (LTYP x) (CM-Rslt2 x)).
 
 
 %%% cases for the main theorem
 
-- : reftyping-implies-clsmap-result CM-CM CM-V
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-V
     (reftyping/read RTYP-E RTYP-HELPER-F) CM-Rslt2
-    <- reftyping-implies-clsmap-result CM-CM CM-V RTYP-E CM-Rslt
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-V RTYP-E CM-Rslt
     <- reftyping-implies-clsmap-result/read CM-CM CM-Rslt RTYP-HELPER-F CM-Rslt2.
 
-- : reftyping-implies-clsmap-result CM-CM CM-V
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-V
     (reftyping/let RTYP-E LTYP) CM-Rslt2
-    <- reftyping-implies-clsmap-result CM-CM CM-V RTYP-E CM-Rslt
-    <- reftyping-implies-clsmap-result/let CM-CM CM-Rslt LTYP CM-Rslt2.
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-V RTYP-E CM-Rslt
+    <- reftyping-implies-clsmap-result/let CM-CM CM-MM CM-Rslt LTYP CM-Rslt2.
 
-- : reftyping-implies-clsmap-result CM-CM (clsmap-env/ CM-B CM-B-M)
+- : reftyping-implies-clsmap-result CM-CM CM-MM (clsmap-env/ CM-B CM-B-M)
     (reftyping/lit BL0 ty2reftype/shared)
     (clsmap-result/expr CM-B
       (clsmap-cxt-reftype/shared CML) CM-B-M)
     <- cxt`lookup-obj-implies-lookup BL0 BL
     <- cxt-lookup-implies-clsmap-ty CM-B BL (clsmap-ty/ CML).
 
-- : reftyping-implies-clsmap-result CM-CM (clsmap-env/ CM-B CM-B-M)
+- : reftyping-implies-clsmap-result CM-CM CM-MM (clsmap-env/ CM-B CM-B-M)
     (reftyping/lit BL0 ty2reftype/unique)
     (clsmap-result/expr CM-B
       (clsmap-cxt-reftype/unique CML
@@ -2234,7 +2322,7 @@ clsmap-result/expr :
     <- cxt`lookup-obj-implies-lookup BL0 BL
     <- cxt-lookup-implies-clsmap-ty CM-B BL (clsmap-ty/ CML).
 
-- : reftyping-implies-clsmap-result CM-CM (clsmap-env/ CM-B CM-B-M)
+- : reftyping-implies-clsmap-result CM-CM CM-MM (clsmap-env/ CM-B CM-B-M)
     (reftyping/lit BL0 ty2reftype/borrow)
     (clsmap-result/expr CM-B
       (clsmap-cxt-reftype/unique CML
@@ -2244,14 +2332,23 @@ clsmap-result/expr :
     <- cxt`lookup-obj-implies-lookup BL0 BL
     <- cxt-lookup-implies-clsmap-ty CM-B BL (clsmap-ty/ CML).
 
-- : reftyping-implies-clsmap-result CM-CM CM-V
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-V
     (reftyping/write RTYP-E1 RTYP-H) CM-Rslt2
-    <- reftyping-implies-clsmap-result CM-CM CM-V RTYP-E1 CM-Rslt
-    <- reftyping-implies-clsmap-result/write CM-CM CM-Rslt RTYP-H CM-Rslt2.
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-V RTYP-E1 CM-Rslt
+    <- reftyping-implies-clsmap-result/write CM-CM CM-MM CM-Rslt RTYP-H CM-Rslt2.
 
-%worlds (objvar) (reftyping-implies-clsmap-result _ _ _ _)
-  (reftyping-implies-clsmap-result/let _ _ _ _)
-  (reftyping-implies-clsmap-result/write _ _ _ _).
-%total (T T1 T2) (reftyping-implies-clsmap-result _ _ T _)
-  (reftyping-implies-clsmap-result/let _ _ T1 _)
-  (reftyping-implies-clsmap-result/write _ _ T2 _).
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-V
+    (reftyping/call FS MM-L RTYP-A) CM-Rslt
+    <- lookup-implies-clsmap-methty CM-MM MM-L CM-MT
+    <- reftyping-implies-clsmap-result/args CM-CM CM-MM CM-V CM-MT RTYP-A CM-Rslt.
+
+%worlds (objvar) (reftyping-implies-clsmap-result _ _ _ _ _)
+  (reftyping-implies-clsmap-result/let _ _ _ _ _)
+  (reftyping-implies-clsmap-result/write _ _ _ _ _)
+  (reftyping-implies-clsmap-result/args _ _ _ _ _ _)
+  (reftyping-helper/args-implies-clsmap-result _ _ _ _ _ _).
+%total (T T1 T2 T3 T4) (reftyping-implies-clsmap-result _ _ _ T _)
+  (reftyping-implies-clsmap-result/let _ _ _ T1 _)
+  (reftyping-implies-clsmap-result/write _ _ _ T2 _)
+  (reftyping-implies-clsmap-result/args _ _ _ _ T3 _)
+  (reftyping-helper/args-implies-clsmap-result _ _ _ _ T4 _).
