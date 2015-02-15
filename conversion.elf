@@ -13,6 +13,9 @@
     (unitperm (conditional (objequal O null) empty
                 (unitperm (precise-exists O F PF)))).
 
+%abbrev obj-not-null : object -> permission
+  = ([r] unitperm (nonlinear (neg (objequal r null)))).
+
 
 %%% ======================= Definitions =======================================
 
@@ -244,9 +247,97 @@ result2output/unique/2 :
                   (combine (unitperm (encumbered (scale Q (PF r)) Pi_M2)) Pi_M1))))))).
 
 
+%%% Convert a method type to a proctype
+
+declared-capmap2perm : clsmap -> predmap -> nat -> capmap -> (object -> permission) -> type.
+
+declared-capmap2perm/0 : declared-capmap2perm _ _ _ capmap/0 ([_] empty).
+
+declared-capmap2perm/U :
+    declared-capmap2perm CM PM C M' ([x] Pi2 x) ->
+    create-fldperm CM PM C F PF ->
+    cap2frac X Q ->
+    capmap`fresh M' F ->
+    capmap`update M' F X M ->
+  declared-capmap2perm CM PM C M
+    ([x] combine (unitperm (conditional (objequal x null) empty
+      (scale-fldperm Q x F PF))) (Pi2 x)).
+
+
+argtype2perm : clsmap -> predmap -> ty -> capmap -> (object -> permission) -> type.
+
+argtype2perm/unique :
+    ty2perm PM (ty/ NN annot/unique C) PF ->
+  argtype2perm CM PM (ty/ NN annot/unique C) _ ([x] PF x).
+
+argtype2perm/shared :
+    ty2perm PM (ty/ NN annot/shared C) PF ->
+  argtype2perm CM PM (ty/ NN annot/shared C) _ ([x] PF x).
+
+argtype2perm/unique :
+    declared-capmap2perm CM PM C M PF ->
+  argtype2perm CM PM (ty/ NN annot/borrow C) M ([x] PF x).
+
+
+methty2proctype* : clsmap -> predmap -> permission -> methty -> proctype -> type.
+
+methty2proctype/base :
+    ty2perm PM T PF ->
+  methty2proctype* _ PM Pi (methty/base T)
+    (proctype/base Pi (output/exists [r] (output/expr r ((PF r))))).
+
+methty2proctype/arg :
+    argtype2perm CM PM T M PF ->
+    ({x} methty2proctype* CM PM ((PF x) , Pi) MT (PTF x)) ->
+  methty2proctype* CM PM Pi (methty/arg T M MT) (proctype/arg PTF).
+
+%abbrev methty2proctype = [CM][PM][MT][PT] methty2proctype* CM PM empty MT PT.
+
+
+%%% Convert a constructor type to a proctype
+consty2proctype* : clsmap -> fldmap -> predmap -> permission
+    -> methty -> (object -> proctype) -> type.
+
+consty2proctype/base :
+    fldmap`domain FM S ->
+    ({x} allocFields x S (OS x)) ->
+    ty2perm PM T PF ->
+  consty2proctype* _ FM PM Pi (methty/base T)
+    ([x] proctype/base
+      (combine Pi (combine (obj-not-null x) (OS x)))
+      (output/exists [r] (output/expr r (PF r)))).
+
+consty2proctype/arg :
+    argtype2perm CM PM T M PF ->
+    ({o} consty2proctype* CM FM PM ((PF o) , Pi) CT ([t] PTF t o)) ->
+  consty2proctype* CM FM PM Pi (methty/arg T M CT) ([t] proctype/arg (PTF t)).
+
+%abbrev consty2proctype = [CM][FM][PM][MT][PTF] consty2proctype* CM FM PM empty MT PTF.
+
+
 %%% Convert a method map into a progtype.
 
 methmap2progtype : clsmap -> predmap -> methmap -> progtype -> type.
+
+methmap2progtype/0 : methmap2progtype _ _ methmap/0 progtype`map/0.
+
+methmap2progtype/U/c :
+    methmap2progtype CM PM MM' W' ->
+    clsmap`lookup CM C FM ->
+    consty2proctype CM FM PM CT PTF ->
+    methmap`fresh MM' N ->
+    methmap`update MM' N (methty/arg (ty/ nn/yes annot/unique C) capmap/0 CT) MM ->
+    progtype`update W' N (proctype/arg PTF) W ->
+  methmap2progtype CM PM MM W.
+
+methmap2progtype/U/m :
+    methmap2progtype CM PM MM' W' ->
+    clsmap`fresh CM N ->
+    methty2proctype CM PM MT PT ->
+    methmap`fresh MM' N ->
+    methmap`update MM' N MT MM ->
+    progtype`update W' N PT W ->
+  methmap2progtype CM PM MM W.
 
 
 
