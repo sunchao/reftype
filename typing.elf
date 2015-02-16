@@ -5,6 +5,97 @@
 
 reftyping : clsmap -> methmap -> env -> term K -> result K -> type.
 
+
+%%% Checking Literals
+
+reftyping/lit :
+    cxt`lookup-obj B O (s N) T ->
+    ty2reftype (s N) T RT ->
+  reftyping _ _ (env/ B M) (lit O) (result/expr RT (env/ B M)).
+
+
+%%% Type Rules with Direct Effect
+
+%%% Reading a field
+
+targets-capmap : targets -> capmap -> type.
+
+targets-capmap/shared : targets-capmap targets/shared _.
+
+targets-capmap/unique :
+    capmap`disjoint M1 M2 ->
+  targets-capmap (targets/unique _ M1) M2.
+
+
+readRefTyping : clsmap -> expr-result -> nat -> expr-result -> type.
+
+readRefTyping/base :
+    clsmap`lookup CM C FM ->
+    fldmap`lookup FM F (ty/ NN A FC) ->
+    make-tgts-and-caps M0 G0 F cap/read G1 M1 ->
+    consider-ftype G1 M1 A G2 M2 ->
+    targets-capmap G0 M0 ->
+  readRefTyping CM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0)) F
+    (result/expr (reftype/ NN FC G2) (env/ B0 M2)).
+
+readRefTyping/exists :
+    ({v} readRefTyping CM (In v) F (Rslt v)) ->
+  readRefTyping CM (result/exists In) F (result/exists Rslt).
+
+reftyping/read :
+    reftyping CM MM V E Rslt ->
+    readRefTyping CM Rslt F Rslt2 ->
+  reftyping CM MM V (read E F) Rslt2.
+
+
+%%% Writing a field
+
+writeRefTyping : clsmap -> methmap -> expr-result -> nat -> expr ->
+    targets -> ty -> expr-result -> type.
+
+writeRefTyping/base :
+    clsmap`lookup CM C FM ->
+    fldmap`lookup FM F (ty/ NN A FC) ->
+    make-tgts-and-caps M0 G0 F cap/write G1 M1 ->
+    reftyping CM MM (env/ B0 M1) E (result/expr RT V2) ->
+    subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3) ->
+    consider-ftype G1 M3 A G2 M4 ->
+  writeRefTyping CM MM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
+    F E G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
+
+writeRefTyping/exists :
+    ({v} writeRefTyping CM MM (In v) F E G T (Rslt v)) ->
+  writeRefTyping CM MM (result/exists In) F E G T (result/exists Rslt).
+
+reftyping/write
+  : reftyping CM MM V1 E1 Rslt1 ->
+    writeRefTyping CM MM Rslt1 F E2 G T Rslt2 ->
+  reftyping CM MM V1 (write E1 F E2) Rslt2.
+
+
+%%% Type Rules with Indirect Effects
+
+
+%%% Let
+
+%{
+For let, we have two approaches
+1. change the context to map to reftype, instead of ty. So, the variable x
+is mapped to the reftype from checking E. But, whenever consume something,
+we need to trace down to the "root" of each binding. This approach is a bit
+complicated.
+
+2. suppose x is bound to (reftype/unique S G), we remove field capabilities for
+all objects in S. For instance, if S = {a, b}, and in M we have (a.f,W),
+(a.g, R), (b.f, R), then as result, we remove these from M, and add (x.f, R) to it.
+In other words, we compute the most conservative capabilities we can get for x.
+During the life time of x, all objects in S are not allowed to use, until x is being
+released out of scope.
+
+Currently, we use the second approach, since it's easier to implement.
+In the future, we can come back here and switch to the first approach.
+}%
+
 %{
 TODO:
 What if the minimum capability of M1 is not write? If the capability is read,
@@ -47,97 +138,6 @@ letRefTyping/exists :
   letRefTyping CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
 
 
-%%% Checking Literals
-
-reftyping/lit :
-    cxt`lookup-obj B O (s N) T ->
-    ty2reftype (s N) T RT ->
-  reftyping _ _ (env/ B M) (lit O) (result/expr RT (env/ B M)).
-
-
-%%% Type Rules with Direct Effect
-
-%%% Reading a field
-
-targets-capmap : targets -> capmap -> type.
-
-targets-capmap/shared : targets-capmap targets/shared _.
-
-targets-capmap/unique :
-    capmap`disjoint M1 M2 ->
-  targets-capmap (targets/unique _ M1) M2.
-
-
-reftyping-helper/read : clsmap -> expr-result -> nat -> expr-result -> type.
-
-reftyping-helper/read/base :
-    clsmap`lookup CM C FM ->
-    fldmap`lookup FM F (ty/ NN A FC) ->
-    make-tgts-and-caps M0 G0 F cap/read G1 M1 ->
-    consider-ftype G1 M1 A G2 M2 ->
-    targets-capmap G0 M0 ->
-  reftyping-helper/read CM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0)) F
-    (result/expr (reftype/ NN FC G2) (env/ B0 M2)).
-
-reftyping-helper/read/exists :
-    ({v} reftyping-helper/read CM (In v) F (Rslt v)) ->
-  reftyping-helper/read CM (result/exists In) F (result/exists Rslt).
-
-reftyping/read :
-    reftyping CM MM V E Rslt ->
-    reftyping-helper/read CM Rslt F Rslt2 ->
-  reftyping CM MM V (read E F) Rslt2.
-
-
-%%% Writing a field
-
-reftyping-helper/write : clsmap -> methmap -> expr-result -> nat -> expr ->
-    targets -> ty -> expr-result -> type.
-
-reftyping-helper/write/base :
-    clsmap`lookup CM C FM ->
-    fldmap`lookup FM F (ty/ NN A FC) ->
-    make-tgts-and-caps M0 G0 F cap/write G1 M1 ->
-    reftyping CM MM (env/ B0 M1) E (result/expr RT V2) ->
-    subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3) ->
-    consider-ftype G1 M3 A G2 M4 ->
-  reftyping-helper/write CM MM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
-    F E G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
-
-reftyping-helper/write/exists :
-    ({v} reftyping-helper/write CM MM (In v) F E G T (Rslt v)) ->
-  reftyping-helper/write CM MM (result/exists In) F E G T (result/exists Rslt).
-
-reftyping/write
-  : reftyping CM MM V1 E1 Rslt1 ->
-    reftyping-helper/write CM MM Rslt1 F E2 G T Rslt2 ->
-  reftyping CM MM V1 (write E1 F E2) Rslt2.
-
-
-%%% Type Rules with Indirect Effects
-
-
-%%% Let
-
-%{
-For let, we have two approaches
-1. change the context to map to reftype, instead of ty. So, the variable x
-is mapped to the reftype from checking E. But, whenever consume something,
-we need to trace down to the "root" of each binding. This approach is a bit
-complicated.
-
-2. suppose x is bound to (reftype/unique S G), we remove field capabilities for
-all objects in S. For instance, if S = {a, b}, and in M we have (a.f,W),
-(a.g, R), (b.f, R), then as result, we remove these from M, and add (x.f, R) to it.
-In other words, we compute the most conservative capabilities we can get for x.
-During the life time of x, all objects in S are not allowed to use, until x is being
-released out of scope.
-
-Currently, we use the second approach, since it's easier to implement.
-In the future, we can come back here and switch to the first approach.
-}%
-
-
 % %%% TODO: add substitution.
 
 reftyping/let :
@@ -158,34 +158,32 @@ Given this situation doesn't occur very often, here we just simply
 disallow "duplicated" cap while checking method call effects.
 }%
 
+argsRefTyping : clsmap -> methmap -> env -> args -> methty -> expr-result -> type.
 
-reftyping/args : clsmap -> methmap -> env -> args -> methty -> expr-result -> type.
-
-
-reftyping-helper/args : clsmap -> methmap -> expr-result -> ty -> capmap ->
+argsRefTyping-helper : clsmap -> methmap -> expr-result -> ty -> capmap ->
     args -> methty -> expr-result -> type.
 
-reftyping-helper/args/base :
+argsRefTyping-helper/base :
     subtype CM RT V1 T V2 ->
-    reftyping/args CM MM V2 A MT Rslt ->
-  reftyping-helper/args CM MM (result/expr RT V1) T M A MT Rslt.
+    argsRefTyping CM MM V2 A MT Rslt ->
+  argsRefTyping-helper CM MM (result/expr RT V1) T M A MT Rslt.
 
-reftyping-helper/args/exists :
-    ({x} reftyping-helper/args CM MM (Rslt1 x) T M A MT (Rslt2 x)) ->
-  reftyping-helper/args CM MM (result/exists [x] Rslt1 x) T M A MT (result/exists [x] Rslt2 x).
+argsRefTyping-helper/exists :
+    ({x} argsRefTyping-helper CM MM (Rslt1 x) T M A MT (Rslt2 x)) ->
+  argsRefTyping-helper CM MM (result/exists [x] Rslt1 x) T M A MT (result/exists [x] Rslt2 x).
 
 
-reftyping/args/0 :
+argsRefTyping/0 :
     cxt`fresh B0 (s N) ->
     ({x} cxt`update B0 (s N) (cxt-info/ x T) (B1 x)) ->
     ty2reftype (s N) T RT ->
-  reftyping/args _ _ (env/ B0 M) args/0 (methty/base T)
+  argsRefTyping _ _ (env/ B0 M) args/0 (methty/base T)
     (result/exists [x] (result/expr RT (env/ (B1 x) M))).
 
-reftyping/args/+ :
+argsRefTyping/+ :
     reftyping CM MM V E Rslt1 ->
-    reftyping-helper/args CM MM Rslt1 T M A MT Rslt2 ->
-  reftyping/args CM MM V (args/+ E A) (methty/arg T M MT) Rslt2.
+    argsRefTyping-helper CM MM Rslt1 T M A MT Rslt2 ->
+  argsRefTyping CM MM V (args/+ E A) (methty/arg T M MT) Rslt2.
 
 
 %{
@@ -209,12 +207,10 @@ reclaimed after they are not needed after the method call checking. This is
 also needed for checking tLet.
 }%
 
-callRefTyping : clsmap -> env -> args-result -> methty -> result K -> type.
-
 reftyping/call :
     clsmap`fresh CM M ->
     methmap`lookup MM M MT ->
-    reftyping/args CM MM V A MT Rslt ->
+    argsRefTyping CM MM V A MT Rslt ->
   reftyping CM MM V (call M A) Rslt.
 
 
