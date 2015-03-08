@@ -3,7 +3,7 @@
 
 %%% Type Checking Rules
 
-reftyping : clsmap -> methmap -> env -> term K -> result K -> type.
+reftyping : clsmap -> methmap -> cxt -> env -> term K -> result K -> type.
 
 
 %%% Checking Literals
@@ -11,13 +11,7 @@ reftyping : clsmap -> methmap -> env -> term K -> result K -> type.
 reftyping/lit :
     cxt`lookup-obj B O (s N) T ->
     ty2reftype (s N) T RT ->
-  reftyping _ _ (env/ B M) (lit O) (result/expr RT (env/ B M)).
-
-
-subRefTyping :
-    reftyping CM MM V E (result/expr RT V') ->
-    subtype CM RT V' T V'' ->
-  reftyping CM MM V E (result/expr RT' V'').
+  reftyping _ _ B V (lit O) (result/expr RT V).
 
 
 %%% Type Rules with Direct Effect
@@ -41,42 +35,42 @@ readRefTyping/base :
     make-tgts-and-caps M0 G0 F cap/read G1 M1 ->
     consider-ftype G1 M1 A G2 M2 ->
     targets-capmap G0 M0 ->
-  readRefTyping CM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0)) F
-    (result/expr (reftype/ NN FC G2) (env/ B0 M2)).
+  readRefTyping CM (result/expr (reftype/ nn/yes C G0) (env/ U M0)) F
+    (result/expr (reftype/ NN FC G2) (env/ U M2)).
 
 readRefTyping/exists :
     ({v} readRefTyping CM (In v) F (Rslt v)) ->
   readRefTyping CM (result/exists In) F (result/exists Rslt).
 
 reftyping/read :
-    reftyping CM MM V E Rslt ->
+    reftyping CM MM B V E Rslt ->
     readRefTyping CM Rslt F Rslt2 ->
-  reftyping CM MM V (read E F) Rslt2.
+  reftyping CM MM B V (read E F) Rslt2.
 
 
 %%% Writing a field
 
-writeRefTyping : clsmap -> methmap -> expr-result -> nat -> expr ->
+writeRefTyping : clsmap -> methmap -> cxt -> expr-result -> nat -> expr ->
     targets -> ty -> expr-result -> type.
 
 writeRefTyping/base :
     clsmap`lookup CM C FM ->
     fldmap`lookup FM F (ty/ NN A FC) ->
     make-tgts-and-caps M0 G0 F cap/write G1 M1 ->
-    reftyping CM MM (env/ B0 M1) E (result/expr RT V2) ->
-    subtype CM RT V2 (ty/ NN A FC) (env/ B2 M3) ->
+    reftyping CM MM B (env/ U0 M1) E (result/expr RT V2) ->
+    subtype CM RT V2 (ty/ NN A FC) (env/ U1 M3) ->
     consider-ftype G1 M3 A G2 M4 ->
-  writeRefTyping CM MM (result/expr (reftype/ nn/yes C G0) (env/ B0 M0))
-    F E G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ B2 M4)).
+  writeRefTyping CM MM B (result/expr (reftype/ nn/yes C G0) (env/ U0 M0))
+    F E G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ U1 M4)).
 
 writeRefTyping/exists :
-    ({v} writeRefTyping CM MM (In v) F E G T (Rslt v)) ->
-  writeRefTyping CM MM (result/exists In) F E G T (result/exists Rslt).
+    ({v} writeRefTyping CM MM B (In v) F E G T (Rslt v)) ->
+  writeRefTyping CM MM B (result/exists In) F E G T (result/exists Rslt).
 
 reftyping/write
-  : reftyping CM MM V1 E1 Rslt1 ->
-    writeRefTyping CM MM Rslt1 F E2 G T Rslt2 ->
-  reftyping CM MM V1 (write E1 F E2) Rslt2.
+  : reftyping CM MM B V1 E1 Rslt1 ->
+    writeRefTyping CM MM B Rslt1 F E2 G T Rslt2 ->
+  reftyping CM MM B V1 (write E1 F E2) Rslt2.
 
 
 %%% Type Rules with Indirect Effects
@@ -114,6 +108,7 @@ capabilties should be returned to G, but this is a future work.
 }%
 
 
+%{
 update-cxt : clsmap -> env -> ty -> (object -> env) -> type.
 
 update-cxt/unique :
@@ -131,42 +126,45 @@ update-cxt/shared :
   update-cxt CM (env/ B0 M0) (ty/ NN annot/shared C) ([x] env/ (B1 x) M0).
 
 
-letRefTyping : clsmap -> methmap -> expr-result -> (object -> term K) -> result K -> type.
+}%
+
+letRefTyping : clsmap -> methmap -> cxt ->
+    expr-result -> (object -> term K) -> result K -> type.
 
 letRefTyping/base/unique :
     clsmap`lookup CM C FM ->
     fldmap`domain FM FS ->
     set+set2capmap S FS cap/write M2 ->
-    cxt-remove-unique B0 S B1 ->
-    cxt`fresh B1 (s N) ->
-    ({x} cxt`update B1 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B2 x)) ->
+    set`remove U0 S U1 ->
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
     capmap-split M0 M2 M4 ->
     nat+set2capmap (s N) FS cap/write M3 ->
     capmap-split M5 M3 M4 ->
     capmap-min M1 cap/write ->
-    ({x} reftyping CM MM (env/ (B2 x) M5) (F x) (R x)) ->
-  letRefTyping CM MM (result/expr (reftype/ NN C (targets/unique S M1)) (env/ B0 M0))
+    ({x} reftyping CM MM (B1 x) (env/ U1 M5) (F x) (R x)) ->
+  letRefTyping CM MM B0 (result/expr (reftype/ NN C (targets/unique S M1)) (env/ U0 M0))
     F (result/exists [x] (R x)).
 
 letRefTyping/base/shared :
     clsmap`lookup CM C FM ->
     cxt`fresh B0 (s N) ->
     ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-    ({x} reftyping CM MM (env/ (B1 x) M0) (F x) (R x)) ->
-  letRefTyping CM MM (result/expr (reftype/ NN C targets/shared) (env/ B0 M0))
+    ({x} reftyping CM MM (B1 x) V (F x) (R x)) ->
+  letRefTyping CM MM B0 (result/expr (reftype/ NN C targets/shared) V)
     F (result/exists [x] (R x)).
 
 letRefTyping/exists :
-    ({x} letRefTyping CM MM (V x) F (R x)) ->
-  letRefTyping CM MM (result/exists [x] (V x)) F (result/exists [x] (R x)).
+    ({x} letRefTyping CM MM B (V x) F (R x)) ->
+  letRefTyping CM MM B (result/exists [x] (V x)) F (result/exists [x] (R x)).
 
 
 % %%% TODO: add substitution.
 
 reftyping/let :
-    reftyping CM MM B E Rslt1 ->
-    letRefTyping CM MM Rslt1 F Rslt2 ->
-  reftyping CM MM B (let E F) Rslt2.
+    reftyping CM MM B V E Rslt1 ->
+    letRefTyping CM MM B Rslt1 F Rslt2 ->
+  reftyping CM MM B V (let E F) Rslt2.
 
 %%% Method Calls
 
@@ -181,6 +179,7 @@ Given this situation doesn't occur very often, here we just simply
 disallow "duplicated" cap while checking method call effects.
 }%
 
+%{
 argsRefTyping : clsmap -> methmap -> env -> args -> methty -> args-result -> type.
 
 argsRefTyping-helper : clsmap -> methmap -> expr-result -> ty -> capmap ->
@@ -203,6 +202,7 @@ argsRefTyping/+ :
     argsRefTyping-helper CM MM Rslt T M A MT ARslt ->
   argsRefTyping CM MM V (args/+ E A) (methty/arg T M MT) ARslt.
 
+}%
 
 %{
 How to check method call:
@@ -225,6 +225,7 @@ reclaimed after they are not needed after the method call checking. This is
 also needed for checking tLet.
 }%
 
+%{
 reclaim-capabilities : capmap -> set -> capmap -> capmap -> capmap -> type.
 
 reclaim-capabilities/ :
@@ -271,6 +272,8 @@ reftyping/call :
     argsRefTyping CM MM V A MT ARslt ->
     callRefTyping CM MM capmap/0 ARslt MT Rslt ->
   reftyping CM MM V (call M A) Rslt.
+
+}%
 
 %{
 reftyping/const : clsmap`lookup CM C FM ->

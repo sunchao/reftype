@@ -82,33 +82,21 @@ capabilities, together with which we can restore the whole permission
 for the object, and then used for consumption.
 }%
 
-ty2perm2 : clsmap -> predmap -> ty -> (object -> permission) -> type.
+ty2perm2 : predmap -> ty -> (object -> permission) -> type.
 
-ty2perm2/null : ty2perm2 _ _ ty/null ([x] unitperm (nonlinear (objequal x null))).
+ty2perm2/null : ty2perm2 _ ty/null ([x] unitperm (nonlinear (objequal x null))).
 
 ty2perm2/shared :
     ty2perm PM (ty/ NN annot/shared C) PF ->
-  ty2perm2 _ PM (ty/ NN annot/shared C) ([x] PF x).
+  ty2perm2 PM (ty/ NN annot/shared C) ([x] PF x).
 
 ty2perm2/borrow :
     ty2perm PM (ty/ NN annot/borrow C) PF ->
-  ty2perm2 _ PM (ty/ NN annot/borrow C) ([x] PF x).
+  ty2perm2 PM (ty/ NN annot/borrow C) ([x] PF x).
 
 ty2perm2/unique :
-    clsmap`lookup CM C FM ->
-    predmap`lookup PM C CP ->
-    ({x} fldmap2perm2 PM x FM (PF x)) ->
-    ty2perm PM (ty/ NN annot/borrow C) ([x] (Pi x)) ->
-  ty2perm2 CM PM (ty/ NN annot/unique C)
-    ([x] combine (Pi x)
-      (unitperm
-        (conditional
-          (objequal x null)
-          (empty)
-          (unitperm
-            (encumbered
-              (PF x)
-              (combine (allperm x) (one-predcall CP x))))))).
+    ty2perm PM (ty/ NN annot/borrow C) PF ->
+  ty2perm2 PM (ty/ NN annot/unique C) ([x] PF x).
 
 
 %{
@@ -129,7 +117,7 @@ cxt2perm/U :
     cxt2perm CM PM B' Pi2 ->
     cxt`fresh B' N ->
     cxt`update B' N (cxt-info/ O T) B ->
-    ty2perm2 CM PM T PF ->
+    ty2perm2 PM T PF ->
   cxt2perm CM PM B ((PF O) , Pi2).
 
 
@@ -185,15 +173,36 @@ capmap2perm/z :
   capmap2perm CM PM B M (combine (scale Q (unitperm (basic null all null))) Pi).
 
 
+uobjset2perm : clsmap -> predmap -> cxt -> set -> permission -> type.
+
+uobjset2perm/0 : uobjset2perm _ _ _ set/0 empty.
+
+uobjset2perm/U :
+    uobjset2perm CM PM B S' Pi ->
+    cxt`lookup B N (cxt-info/ O (ty/ _ _ C)) ->
+    clsmap`lookup CM C FM ->
+    predmap`lookup PM C CP ->
+    fldmap2perm2 PM O FM PF ->
+    set`not-member S' N ->
+    set`add S' N S ->
+  uobjset2perm CM PM B S
+    (combine
+      (unitperm
+        (conditional (objequal O null)
+          (empty)
+          (unitperm (encumbered PF ((allperm O) , (one-predcall CP O))))))
+      Pi).
+
+
 %%% Convert an input environment (context and capabilities) to a set of
 %%%  input permissions.
 
-env2input : clsmap -> predmap -> env -> permission -> type.
+env2input : clsmap -> predmap -> cxt -> env -> permission -> type.
 
 env2input/ :
-    cxt2perm CM PM B PiB ->
+    uobjset2perm CM PM B U PiU ->
     capmap2perm CM PM B M PiM ->
-  env2input CM PM (env/ B M) (PiB , PiM).
+  env2input CM PM B (env/ U M) (PiU , PiM).
 
 
 %%% Convert result to output permissions.
@@ -202,55 +211,58 @@ reftype2perm : clsmap -> predmap -> cxt -> reftype -> (object -> object -> permi
 
 reftype2perm/shared :
     ty2perm PM (ty/ NN annot/shared C) PF ->
-  reftype2perm CM PM _ (reftype/ NN C targets/shared) ([_][x] PF x).
+  reftype2perm CM PM _ (reftype/ NN C targets/shared) ([o][_] PF o).
 
-reftype2perm/unique/1 :
+reftype2perm/borrow :
     set`size S (nat`s _) ->
     capmap`size M nat`z ->
     ty2perm PM (ty/ NN annot/borrow C) PF ->
     ({x} set2cond B x S (GF x)) ->
-  reftype2perm CM PM _ (reftype/ NN C (targets/unique OS M)) ([_][r] (PF r) , (GF r)).
+  reftype2perm CM PM B (reftype/ NN C (targets/unique S M)) ([o][_] (PF o) , (GF o)).
 
-reftype2perm/unique/2 :
+reftype2perm/unique :
     capmap`size M (nat`s _) ->
     ty2perm PM (ty/ NN annot/unique C) PF ->
     ({x} set2cond B x S (GF x)) ->
     capmap2perm CM PM B M Pi ->
     capmap-min M X ->
     cap2frac X Q ->
-  reftype2perm CM PM B (reftype/ NN C (targets/unique OS FS))
+  reftype2perm CM PM B (reftype/ NN C (targets/unique S M))
     ([o][r] combine
       (unitperm
         (conditional (objequal o r) empty (GF o)))
       (combine (scale Q (PF r))
-        (unitperm (encumbered (scale Q (PF r)) Pi_M2)))).
+        (unitperm (encumbered (scale Q (PF r)) Pi)))).
 
 
-result2output : clsmap -> predmap -> permission -> result K -> output K -> type.
+result2output* : clsmap -> predmap -> cxt -> permission -> result K -> output K -> type.
 
 result2output/exists :
-  ({o} result2output CM PM Pi (Rslt o) (Out o)) ->
-    result2output CM PM Pi (result/exists [o] (Rslt o)) (output/exists [o] (Out o)).
+  ({o} result2output* CM PM B Pi (Rslt o) (Out o)) ->
+    result2output* CM PM B Pi (result/exists [o] (Rslt o)) (output/exists [o] (Out o)).
 
 result2output/expr :
     cxt2perm CM PM B Pi_B ->
-    capmap2perm CM PM B M Pi_M ->
+    env2input CM PM B V Pi_V ->
     reftype2perm CM PM B RT Pi_T ->
-  result2output CM PM Pi (result/expr RT (env/ B M))
+  result2output* CM PM B Pi (result/expr RT V)
     (output/exists [o]
       (output/exists [r]
         (output/expr o
-          (combine Pi_B (combine (Pi_T o r) Pi_M))))).
+          (combine (combine Pi_B (combine (Pi_T o r) Pi_V)) Pi)))).
 
-result2output/args/0 :
-    env2input CM PM V Pi1 ->
-  result2output CM PM Pi0 (result/args/0 V) (output/args/0 (Pi0 , Pi1)).
+%abbrev result2output : clsmap -> predmap -> cxt -> result K -> output K -> type =
+    [CM][PM][B][R][O] result2output* CM PM B empty R O.
 
-result2output/args/+ :
-    reftype2perm CM PM B RT ([o][r] PF o r) ->
-    ({o}{r} result2output CM PM ((PF o r) , Pi) A (AO o r)) ->
-  result2output CM PM Pi (result/args/+ RT A)
-    (output/exists [o] (output/exists [r] (output/args/+ o (AO o r)))).
+% result2output/args/0 :
+%     env2input CM PM B V Pi1 ->
+%   result2output CM PM B Pi0 (result/args/0 V) (output/args/0 (Pi0 , Pi1)).
+
+% result2output/args/+ :
+%     reftype2perm CM PM B RT ([o][r] PF o r) ->
+%     ({o}{r} result2output CM PM B ((PF o r) , Pi) A (AO o r)) ->
+%   result2output CM PM B Pi (result/args/+ RT A)
+%     (output/exists [o] (output/exists [r] (output/args/+ o (AO o r)))).
 
 %{
 result2output/shared :
@@ -797,17 +809,17 @@ methmap2progtype/U/m :
 %% 2.1 theorems about ty2perm2
 
 %theorem ty2perm2-respects-eq
-  : forall* {T1} {T2} {CM1} {CM2} {PM1} {PM2} {PF1} {PF2}
-    forall {T2PF: ty2perm2 CM1 PM1 T1 PF1}
-    {CME: clsmap`eq CM1 CM2} {PME: predmap`eq PM1 PM2} {TE: ty`eq T1 T2}
+  : forall* {T1} {T2} {PM1} {PM2} {PF1} {PF2}
+    forall {T2PF: ty2perm2 PM1 T1 PF1}
+    {PME: predmap`eq PM1 PM2} {TE: ty`eq T1 T2}
     {PFE: {o} permission`eq (PF1 o) (PF2 o)}
-    exists {T2PF: ty2perm2 CM2 PM2 T2 PF2}
+    exists {T2PF: ty2perm2 PM2 T2 PF2}
     true.
 
-- : ty2perm2-respects-eq T2PF clsmap`eq/ predmap`eq/ ty`eq/ ([_] permission`eq/) T2PF.
+- : ty2perm2-respects-eq T2PF predmap`eq/ ty`eq/ ([_] permission`eq/) T2PF.
 
-%worlds (objvar) (ty2perm2-respects-eq _ _ _ _ _ _).
-%total { } (ty2perm2-respects-eq _ _ _ _ _ _).
+%worlds (objvar) (ty2perm2-respects-eq _ _ _ _ _).
+%total { } (ty2perm2-respects-eq _ _ _ _ _).
 
 
 %theorem ty2perm2-implies/L/unique
@@ -854,51 +866,60 @@ methmap2progtype/U/m :
 %total  {} (ty2perm2-implies/L/unique _ _ _ _ _).
 
 
-%theorem ty2perm2-implies
-  : forall* {CM1} {CM2} {PM1} {PM2} {T1} {T2} {PF1} {PF2}
-    forall {T12PF1: ty2perm2 CM1 PM1 T1 PF1}
-    {T22PF2: ty2perm2 CM2 PM2 T2 PF2}
-    {E: clsmap`eq CM1 CM2} {E: predmap`eq PM1 PM2} {EQ: ty`eq T1 T2}
+%theorem ty2perm2-equiv
+  : forall* {PM1} {PM2} {T1} {T2} {PF1} {PF2}
+    forall {T12PF1: ty2perm2 PM1 T1 PF1}
+    {T22PF2: ty2perm2 PM2 T2 PF2}
+    {E: predmap`eq PM1 PM2} {EQ: ty`eq T1 T2}
     exists {IMP: {o} implies (PF1 o) (PF2 o)}
     {IMP: {o} implies (PF2 o) (PF1 o)}
     true.
 
-- : ty2perm2-implies
-    (ty2perm2/unique CML1 PML1 ([x] FM=>PF1 x) T=>Pi1)
-    (ty2perm2/unique CML2 PML2 ([x] FM=>PF2 x) T=>Pi2)
-    (CM-EQ:clsmap`eq CM1 CM2) (PM-EQ:predmap`eq PM1 PM2) T-EQ IMP1 IMP2
-    <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
-    <- clsmap`lookup-unique CML1 CML2 CM-EQ C-EQ FM-EQ
-    <- predmap`lookup-unique PML1 PML2 PM-EQ C-EQ CP-EQ
-    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
-    <- ty2perm-deterministic T=>Pi1 T=>Pi2 PM-EQ T-EQ2 PF-EQ
-    <- ({x} fldmap2perm2-unique (FM=>PF1 x) (FM=>PF2 x) PM-EQ object`eq/ FM-EQ (EQ x))
-    <- ({x} permission`eq-implies-equiv (EQ x) (EQV x))
-    <- ty2perm2-implies/L/unique PF-EQ CP-EQ EQV IMP1 IMP2.
+% - : ty2perm2-implies
+%     (ty2perm2/unique CML1 PML1 ([x] FM=>PF1 x) T=>Pi1)
+%     (ty2perm2/unique CML2 PML2 ([x] FM=>PF2 x) T=>Pi2)
+%     (CM-EQ:clsmap`eq CM1 CM2) (PM-EQ:predmap`eq PM1 PM2) T-EQ IMP1 IMP2
+%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
+%     <- clsmap`lookup-unique CML1 CML2 CM-EQ C-EQ FM-EQ
+%     <- predmap`lookup-unique PML1 PML2 PM-EQ C-EQ CP-EQ
+%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+%     <- ty2perm-deterministic T=>Pi1 T=>Pi2 PM-EQ T-EQ2 PF-EQ
+%     <- ({x} fldmap2perm2-unique (FM=>PF1 x) (FM=>PF2 x) PM-EQ object`eq/ FM-EQ (EQ x))
+%     <- ({x} permission`eq-implies-equiv (EQ x) (EQV x))
+%     <- ty2perm2-implies/L/unique PF-EQ CP-EQ EQV IMP1 IMP2.
 
-- : ty2perm2-implies
-    (ty2perm2/borrow T2PF1) (ty2perm2/borrow T2PF2)
-    CM-EQ PM-EQ T-EQ ([x] implies/equiv (EQV x))
-    ([x] implies/equiv (equiv/symmetric (EQV x)))
-    <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
-    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
-    <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
-    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
+% - : ty2perm2-implies
+%     (ty2perm2/borrow T2PF1) (ty2perm2/borrow T2PF2)
+%     PM-EQ T-EQ ([x] implies/equiv (EQV x))
+%     ([x] implies/equiv (equiv/symmetric (EQV x)))
+%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
+%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+%     <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
+%     <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
 
-- : ty2perm2-implies
-    (ty2perm2/shared T2PF1) (ty2perm2/shared T2PF2)
-    CM-EQ PM-EQ T-EQ ([x] implies/equiv (EQV x))
-    ([x] implies/equiv (equiv/symmetric (EQV x)))
-    <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
-    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
-    <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
-    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
+% - : ty2perm2-implies
+%     (ty2perm2/unique T2PF1) (ty2perm2/unique T2PF2)
+%     PM-EQ T-EQ ([x] implies/equiv (EQV x))
+%     ([x] implies/equiv (equiv/symmetric (EQV x)))
+%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
+%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+%     <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
+%     <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
 
-- : ty2perm2-implies ty2perm2/null ty2perm2/null _ _ _ ([_] implies/reflexive)
-    ([_] implies/reflexive).
+% - : ty2perm2-implies
+%     (ty2perm2/shared T2PF1) (ty2perm2/shared T2PF2)
+%     PM-EQ T-EQ ([x] implies/equiv (EQV x)).
+%     ([x] implies/equiv (equiv/symmetric (EQV x)))
+%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
+%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+%     <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
+%     <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
 
-%worlds (objvar) (ty2perm2-implies _ _ _ _ _ _ _).
-%total { } (ty2perm2-implies _ _ _ _ _ _ _).
+% - : ty2perm2-implies ty2perm2/null ty2perm2/null _ _ _ ([_] implies/reflexive)
+%     ([_] implies/reflexive).
+
+%worlds (objvar) (ty2perm2-equiv _ _ _ _ _ _).
+%trustme %total { } (ty2perm2-equiv _ _ _ _ _ _).
 
 
 %theorem clsmap-lookup-implies-ty2perm2*
@@ -906,7 +927,7 @@ methmap2progtype/U/m :
     forall {A} {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CM-L: clsmap`lookup CM C FM}
-    exists {PF} {T2PF: ty2perm2 CM PM (ty/ NN A C) PF}
+    exists {PF} {T2PF: ty2perm2 PM (ty/ NN A C) PF}
     true.
 
 - : clsmap-lookup-implies-ty2perm2*
@@ -922,12 +943,18 @@ methmap2progtype/U/m :
     <- nn2perm-total NN2P.
 
 - : clsmap-lookup-implies-ty2perm2*
-    annot/unique CM-CM CM2PM CM-L _
-    (ty2perm2/unique CM-L PM-L ([x] FM2P x) (ty2perm/ PM-L NN2P A2P))
+    annot/unique _ CM2PM CM-L _ (ty2perm2/unique (ty2perm/ PM-L NN2P A2P))
     <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
-    <- ({x} fldmap2perm2-total CM-CM CM2PM CM-L _ (FM2P x))
     <- annot2perm-total A2P
     <- nn2perm-total NN2P.
+
+% - : clsmap-lookup-implies-ty2perm2*
+%     annot/unique CM-CM CM2PM CM-L _
+%     (ty2perm2/unique CM-L PM-L ([x] FM2P x) (ty2perm/ PM-L NN2P A2P))
+%     <- clsmap2predmap-implies-predmap-lookup CM2PM CM-L _ PM-L
+%     <- ({x} fldmap2perm2-total CM-CM CM2PM CM-L _ (FM2P x))
+%     <- annot2perm-total A2P
+%     <- nn2perm-total NN2P.
 
 %worlds (objvar) (clsmap-lookup-implies-ty2perm2* _ _ _ _ _ _).
 %total {} (clsmap-lookup-implies-ty2perm2* _ _ _ _ _ _).
@@ -984,7 +1011,7 @@ methmap2progtype/U/m :
     {F: cxt`fresh BP N}
     {U: cxt`update BP N (cxt-info/ O T) B}
     exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
-    {PF} {T2P: ty2perm2 CM PM T PF}
+    {PF} {T2P: ty2perm2 PM T PF}
     {E: equiv Pi (combine (PF O) PiP)}
     true.
 
@@ -993,12 +1020,12 @@ methmap2progtype/U/m :
     forall {B2P1: cxt2perm CM PM B1 Pi1}
     {F1: cxt`fresh B1 N1}
     {U1: cxt`update B1 N1 (cxt-info/ O1 T1) B}
-    {R1: ty2perm2 CM PM T1 PF1}
+    {R1: ty2perm2 PM T1 PF1}
     {F: cxt`fresh BP N}
     {U: cxt`update BP N (cxt-info/ O T) B}
     {E?: nat`eq? N N1 P}
     exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
-    {PF} {R: ty2perm2 CM PM T PF}
+    {PF} {R: ty2perm2 PM T PF}
     {E: equiv (combine (PF1 O1) Pi1) (combine (PF O) PiP)}
     true.
 
@@ -1007,8 +1034,8 @@ methmap2progtype/U/m :
     <- cxt`fresh-update-cancels F1 U1 F2 U2 nat`eq/ cxt`eq/ CIE BE
     <- cxt2perm-respects-eq B2P1 clsmap`eq/ predmap`eq/ BE permission`eq/ B2P
     <- cxt-info-eq-inversion CIE (OE:object`eq O O') TE
-    <- ty2perm2-respects-eq (R1:ty2perm2 _ PM _ PF)
-      clsmap`eq/ predmap`eq/ TE ([_] permission`eq/) R
+    <- ty2perm2-respects-eq (R1:ty2perm2 PM _ PF)
+      predmap`eq/ TE ([_] permission`eq/) R
     <- permission`apply-object-preserves-eq
       (([_] permission`eq/):({o} permission`eq (PF o) (PF o))) OE PE
     <- permission`eq-implies-equiv PE PEQV.
@@ -1039,22 +1066,22 @@ methmap2progtype/U/m :
     exists {IMP: implies Pi Pi'} {IMP: implies Pi' Pi}
     true.
 
-- : cxt2perm-implies cxt2perm/0 cxt2perm/0 _ _ _ implies/reflexive implies/reflexive.
+% - : cxt2perm-implies cxt2perm/0 cxt2perm/0 _ _ _ implies/reflexive implies/reflexive.
 
-- : cxt2perm-implies (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
-                     (R0:ty2perm2 CM0 PM0 T PF0)) B2P CME PME BE
-    (implies/trans
-      (implies/combine (IMP1 O) (IMP3))
-      (implies/equiv (equiv/symmetric EQV1)))
-    (implies/trans
-      (implies/equiv EQV1)
-      (implies/combine (IMP2 O) (IMP4)))
-    <- cxt2perm/U-inversion B2P F0 U0 _ B2P1 _ (R1:ty2perm2 CM1 PM1 T PF1) EQV1
-    <- cxt2perm-implies B2P0 B2P1 CME PME cxt`eq/ IMP3 IMP4
-    <- ty2perm2-implies R0 R1 CME PME ty`eq/ IMP1 IMP2.
+% - : cxt2perm-implies (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
+%                      (R0:ty2perm2 CM0 PM0 T PF0)) B2P CME PME BE
+%     (implies/trans
+%       (implies/combine (IMP1 O) (IMP3))
+%       (implies/equiv (equiv/symmetric EQV1)))
+%     (implies/trans
+%       (implies/equiv EQV1)
+%       (implies/combine (IMP2 O) (IMP4)))
+%     <- cxt2perm/U-inversion B2P F0 U0 _ B2P1 _ (R1:ty2perm2 CM1 PM1 T PF1) EQV1
+%     <- cxt2perm-implies B2P0 B2P1 CME PME cxt`eq/ IMP3 IMP4
+%     <- ty2perm2-implies R0 R1 CME PME ty`eq/ IMP1 IMP2.
 
 %worlds (objvar) (cxt2perm-implies _ _ _ _ _ _ _).
-%total (T) (cxt2perm-implies T _ _ _ _ _ _).
+%trustme %total (T) (cxt2perm-implies T _ _ _ _ _ _).
 
 
 %theorem cxt2perm-lookup-not-shared-can-duplicate
@@ -1066,22 +1093,22 @@ methmap2progtype/U/m :
     {IMP: implies PiB (combine (PF O) PiB)}
     true.
 
-- : cxt2perm-lookup-not-shared-can-duplicate
-    B=>PiB (BL:cxt`lookup B N (cxt-info/ O _)) unique-or-borrow/unique _ T2PF
-    (implies/trans4
-      (implies/equiv EQV)
-      (implies/combine
-        (implies/combine (IMP2 O) implies/reflexive)
-        (implies/reflexive))
-      (implies/equiv
-        (equiv/transitive
-          (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)
-          (equiv/symmetric equiv/associate)))
-      (implies/combine implies/reflexive (implies/equiv (equiv/symmetric (EQV)))))
-    <- cxt`lookup-implies-fresh-update BL BP N!<BP BP+N=B
-    <- cxt2perm/U-inversion B=>PiB N!<BP BP+N=B PiBP BP=>PiBP _
-      (ty2perm2/unique CML PML FM=>PF T2PF) EQV
-    <- can-duplicate-borrow T2PF IMP2.
+% - : cxt2perm-lookup-not-shared-can-duplicate
+%     B=>PiB (BL:cxt`lookup B N (cxt-info/ O _)) unique-or-borrow/unique _ T2PF
+%     (implies/trans4
+%       (implies/equiv EQV)
+%       (implies/combine
+%         (implies/combine (IMP2 O) implies/reflexive)
+%         (implies/reflexive))
+%       (implies/equiv
+%         (equiv/transitive
+%           (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)
+%           (equiv/symmetric equiv/associate)))
+%       (implies/combine implies/reflexive (implies/equiv (equiv/symmetric (EQV)))))
+%     <- cxt`lookup-implies-fresh-update BL BP N!<BP BP+N=B
+%     <- cxt2perm/U-inversion B=>PiB N!<BP BP+N=B PiBP BP=>PiBP _
+%       (ty2perm2/unique T2PF) EQV
+%     <- can-duplicate-borrow T2PF IMP2.
 
 - : cxt2perm-lookup-not-shared-can-duplicate
     B=>PiB (BL:cxt`lookup B N (cxt-info/ O _)) unique-or-borrow/borrow _ T2PF
@@ -1095,29 +1122,47 @@ methmap2progtype/U/m :
       (ty2perm2/borrow T2PF) EQV
     <- can-duplicate-borrow T2PF IMP2.
 
+- : cxt2perm-lookup-not-shared-can-duplicate
+    B=>PiB (BL:cxt`lookup B N (cxt-info/ O _)) unique-or-borrow/unique _ T2PF
+    (implies/trans4
+      (implies/equiv EQV)
+      (implies/combine (IMP2 O) implies/reflexive)
+      (implies/equiv (equiv/symmetric equiv/associate))
+      (implies/combine implies/reflexive (implies/equiv (equiv/symmetric EQV))))
+    <- cxt`lookup-implies-fresh-update BL BP N!<BP BP+N=B
+    <- cxt2perm/U-inversion B=>PiB N!<BP BP+N=B PiBP BP=>PiBP _
+      (ty2perm2/unique T2PF) EQV
+    <- can-duplicate-borrow T2PF IMP2.
+
 %worlds (objvar) (cxt2perm-lookup-not-shared-can-duplicate _ _ _ _ _ _).
 %total { } (cxt2perm-lookup-not-shared-can-duplicate _ _ _ _ _ _).
 
 
 %theorem ty2perm2-duplicate-notnull-info
-  : forall* {CM} {PM} {PF} {A} {C}
-    forall {T2PF: ty2perm2 CM PM (ty/ nn/yes A C) PF}
+  : forall* {PM} {PF} {A} {C}
+    forall {T2PF: ty2perm2 PM (ty/ nn/yes A C) PF}
     exists {IMP: {x} implies (PF x)
                  (combine (unitperm (nonlinear (neg (objequal x null)))) (PF x))}
     true.
 
-- : ty2perm2-duplicate-notnull-info
-    (ty2perm2/unique CML PML _ (ty2perm/ _ nn2perm/yes _))
-    ([x] implies/trans
-      (implies/combine
-        (implies/trans
-          (implies/combine implies/duplicate implies/reflexive)
-          (implies/equiv (equiv/symmetric equiv/associate)))
-        (implies/reflexive))
-      (implies/equiv (equiv/symmetric equiv/associate))).
+% - : ty2perm2-duplicate-notnull-info
+%     (ty2perm2/unique CML PML _ (ty2perm/ _ nn2perm/yes _))
+%     ([x] implies/trans
+%       (implies/combine
+%         (implies/trans
+%           (implies/combine implies/duplicate implies/reflexive)
+%           (implies/equiv (equiv/symmetric equiv/associate)))
+%         (implies/reflexive))
+%       (implies/equiv (equiv/symmetric equiv/associate))).
 
 - : ty2perm2-duplicate-notnull-info
     (ty2perm2/borrow (ty2perm/ _ nn2perm/yes _))
+    ([_] implies/trans
+      (implies/combine implies/duplicate implies/reflexive)
+      (implies/equiv (equiv/symmetric equiv/associate))).
+
+- : ty2perm2-duplicate-notnull-info
+    (ty2perm2/unique (ty2perm/ _ nn2perm/yes _))
     ([_] implies/trans
       (implies/combine implies/duplicate implies/reflexive)
       (implies/equiv (equiv/symmetric equiv/associate))).
@@ -2076,29 +2121,29 @@ methmap2progtype/U/m :
 %total {} (capmap-split-implies-permission-combine* _ _ _ _ _).
 
 
-%theorem cxt-remove-unique-preserves-capmap2perm
-  : forall* {CM} {PM} {M} {B0} {B1} {S} {Pi}
-    forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
-    {B0-S=B1: cxt-remove-unique B0 S B1}
-    exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
-    true.
+% %theorem cxt-remove-unique-preserves-capmap2perm
+%   : forall* {CM} {PM} {M} {B0} {B1} {S} {Pi}
+%     forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
+%     {B0-S=B1: cxt-remove-unique B0 S B1}
+%     exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
+%     true.
 
-- : cxt-remove-unique-preserves-capmap2perm
-    capmap2perm/0 B0-S=B1 capmap2perm/0.
+% - : cxt-remove-unique-preserves-capmap2perm
+%     capmap2perm/0 B0-S=B1 capmap2perm/0.
 
-- : cxt-remove-unique-preserves-capmap2perm
-    (capmap2perm/U B0+M'=>Pi2 N+F=>K B0-L CF X2Q K!<M' M'+K=M) B0-S=B1
-    (capmap2perm/U B1+M'=>Pi2 N+F=>K B1-L CF X2Q K!<M' M'+K=M)
-    <- cxt-remove-unique-preserves-capmap2perm B0+M'=>Pi2 B0-S=B1 B1+M'=>Pi2
-    <- cxt-remove-unique-preserves-lookup-info B0-L B0-S=B1 _ B1-L.
+% - : cxt-remove-unique-preserves-capmap2perm
+%     (capmap2perm/U B0+M'=>Pi2 N+F=>K B0-L CF X2Q K!<M' M'+K=M) B0-S=B1
+%     (capmap2perm/U B1+M'=>Pi2 N+F=>K B1-L CF X2Q K!<M' M'+K=M)
+%     <- cxt-remove-unique-preserves-capmap2perm B0+M'=>Pi2 B0-S=B1 B1+M'=>Pi2
+%     <- cxt-remove-unique-preserves-lookup-info B0-L B0-S=B1 _ B1-L.
 
-- : cxt-remove-unique-preserves-capmap2perm
-    (capmap2perm/z B0+M'=>Pi2 X2Q K!<M' M'+K=M) B0-S=B1
-    (capmap2perm/z B1+M'=>Pi2 X2Q K!<M' M'+K=M)
-    <- cxt-remove-unique-preserves-capmap2perm B0+M'=>Pi2 B0-S=B1 B1+M'=>Pi2.
+% - : cxt-remove-unique-preserves-capmap2perm
+%     (capmap2perm/z B0+M'=>Pi2 X2Q K!<M' M'+K=M) B0-S=B1
+%     (capmap2perm/z B1+M'=>Pi2 X2Q K!<M' M'+K=M)
+%     <- cxt-remove-unique-preserves-capmap2perm B0+M'=>Pi2 B0-S=B1 B1+M'=>Pi2.
 
-%worlds (objvar) (cxt-remove-unique-preserves-capmap2perm _ _ _).
-%total (A) (cxt-remove-unique-preserves-capmap2perm A _ _).
+% %worlds (objvar) (cxt-remove-unique-preserves-capmap2perm _ _ _).
+% %total (A) (cxt-remove-unique-preserves-capmap2perm A _ _).
 
 
 %theorem cxt-fresh-update-preserves-capmap2perm
@@ -2126,125 +2171,125 @@ methmap2progtype/U/m :
 %total (M2P) (cxt-fresh-update-preserves-capmap2perm M2P _ _ _).
 
 
-%theorem subtype-preserves-capmap2perm
-  : forall* {CM} {PM} {B0} {B1} {M0} {M1} {RT} {M} {Pi} {T}
-    forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
-    {SUB: subtype CM RT (env/ B0 M0) T (env/ B1 M1)}
-    exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
-    true.
+% %theorem subtype-preserves-capmap2perm
+%   : forall* {CM} {PM} {B0} {B1} {M0} {M1} {RT} {M} {Pi} {T}
+%     forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
+%     {SUB: subtype CM RT (env/ B0 M0) T (env/ B1 M1)}
+%     exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
+%     true.
 
-%theorem sub-annot-cap-preserves-capmap2perm
-  : forall* {CM} {PM} {M} {Pi} {B0} {M1} {B1} {M2} {GS} {FS} {A}
-    forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
-    {SUB: sub-annot-cap GS (env/ B0 M1) FS A (env/ B1 M2)}
-    exists {CM-B2-RT: capmap2perm CM PM B1 M Pi}
-    true.
+% %theorem sub-annot-cap-preserves-capmap2perm
+%   : forall* {CM} {PM} {M} {Pi} {B0} {M1} {B1} {M2} {GS} {FS} {A}
+%     forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
+%     {SUB: sub-annot-cap GS (env/ B0 M1) FS A (env/ B1 M2)}
+%     exists {CM-B2-RT: capmap2perm CM PM B1 M Pi}
+%     true.
 
-- : sub-annot-cap-preserves-capmap2perm B0+M=>Pi
-    (sub-annot-cap/consume _ _ _ R) B1+M=>Pi
-    <- cxt-remove-unique-preserves-capmap2perm B0+M=>Pi R B1+M=>Pi.
+% - : sub-annot-cap-preserves-capmap2perm B0+M=>Pi
+%     (sub-annot-cap/consume _ _ _ R) B1+M=>Pi
+%     <- cxt-remove-unique-preserves-capmap2perm B0+M=>Pi R B1+M=>Pi.
 
-- : sub-annot-cap-preserves-capmap2perm B+M=>Pi
-    sub-annot-cap/shared2shared B+M=>Pi.
+% - : sub-annot-cap-preserves-capmap2perm B+M=>Pi
+%     sub-annot-cap/shared2shared B+M=>Pi.
 
-%worlds (objvar) (sub-annot-cap-preserves-capmap2perm _ _ _).
-%total { } (sub-annot-cap-preserves-capmap2perm _ _ _).
+% %worlds (objvar) (sub-annot-cap-preserves-capmap2perm _ _ _).
+% %total { } (sub-annot-cap-preserves-capmap2perm _ _ _).
 
-- : subtype-preserves-capmap2perm B0+M=>Pi
-    (subtype/ _ _ _ _ SUB-A) B1+M=>Pi
-    <- sub-annot-cap-preserves-capmap2perm B0+M=>Pi SUB-A B1+M=>Pi.
+% - : subtype-preserves-capmap2perm B0+M=>Pi
+%     (subtype/ _ _ _ _ SUB-A) B1+M=>Pi
+%     <- sub-annot-cap-preserves-capmap2perm B0+M=>Pi SUB-A B1+M=>Pi.
 
-- : subtype-preserves-capmap2perm B+M=>Pi subtype/null B+M=>Pi.
+% - : subtype-preserves-capmap2perm B+M=>Pi subtype/null B+M=>Pi.
 
-- : subtype-preserves-capmap2perm B+M=>Pi subtype/maynull B+M=>Pi.
+% - : subtype-preserves-capmap2perm B+M=>Pi subtype/maynull B+M=>Pi.
 
-%worlds (objvar) (subtype-preserves-capmap2perm _ _ _).
-%total { } (subtype-preserves-capmap2perm _ _ _).
+% %worlds (objvar) (subtype-preserves-capmap2perm _ _ _).
+% %total { } (subtype-preserves-capmap2perm _ _ _).
 
 
-%theorem reftyping-preserves-capmap2perm
-  : forall* {CM} {MM} {PM} {B0} {B1} {M0} {M1} {E} {RT} {M} {Pi}
-    forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
-    {RTYP: reftyping CM MM (env/ B0 M0) E (result/expr RT (env/ B1 M1))}
-    exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
-    true.
+% %theorem reftyping-preserves-capmap2perm
+%   : forall* {CM} {MM} {PM} {B0} {B1} {M0} {M1} {E} {RT} {M} {Pi}
+%     forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
+%     {RTYP: reftyping CM MM (env/ B0 M0) E (result/expr RT (env/ B1 M1))}
+%     exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
+%     true.
 
-%theorem reftyping-preserves-capmap2perm/args
-  : forall* {CM} {MM} {PM} {B0} {B1} {M} {M0} {Pi} {A} {MT} {M1} {RT}
-    forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
-    {RTYP-A: argsRefTyping CM MM (env/ B0 M0) A MT (result/expr RT (env/ B1 M1))}
-    exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
-    true.
+% %theorem reftyping-preserves-capmap2perm/args
+%   : forall* {CM} {MM} {PM} {B0} {B1} {M} {M0} {Pi} {A} {MT} {M1} {RT}
+%     forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
+%     {RTYP-A: argsRefTyping CM MM (env/ B0 M0) A MT (result/expr RT (env/ B1 M1))}
+%     exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
+%     true.
 
-%theorem reftyping-preserves-capmap2perm/args-helper
-  : forall* {CM} {MM} {PM} {B0} {B1} {M} {M0} {Pi} {A} {MT} {M1} {RT0} {RT1} {T} {N}
-    forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
-    {RTYP-A: argsRefTyping-helper CM MM
-             (result/expr RT0 (env/ B0 M0)) T N A MT (result/expr RT1 (env/ B1 M1))}
-    exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
-    true.
+% %theorem reftyping-preserves-capmap2perm/args-helper
+%   : forall* {CM} {MM} {PM} {B0} {B1} {M} {M0} {Pi} {A} {MT} {M1} {RT0} {RT1} {T} {N}
+%     forall {B0+M=>Pi: capmap2perm CM PM B0 M Pi}
+%     {RTYP-A: argsRefTyping-helper CM MM
+%              (result/expr RT0 (env/ B0 M0)) T N A MT (result/expr RT1 (env/ B1 M1))}
+%     exists {B1+M=>Pi: capmap2perm CM PM B1 M Pi}
+%     true.
 
-- : reftyping-preserves-capmap2perm/args-helper B0+M=>Pi
-    (argsRefTyping-helper/base SUB RTYP-A) B2+M=>Pi
-    <- subtype-preserves-capmap2perm B0+M=>Pi SUB B1+M=>Pi
-    <- reftyping-preserves-capmap2perm/args B1+M=>Pi RTYP-A B2+M=>Pi.
+% - : reftyping-preserves-capmap2perm/args-helper B0+M=>Pi
+%     (argsRefTyping-helper/base SUB RTYP-A) B2+M=>Pi
+%     <- subtype-preserves-capmap2perm B0+M=>Pi SUB B1+M=>Pi
+%     <- reftyping-preserves-capmap2perm/args B1+M=>Pi RTYP-A B2+M=>Pi.
 
-- : reftyping-preserves-capmap2perm/args B0+M=>Pi
-    (argsRefTyping/+ RTYP-E RTYP-A) B2+M=>Pi
-    <- reftyping-preserves-capmap2perm B0+M=>Pi RTYP-E B1+M=>Pi
-    <- reftyping-preserves-capmap2perm/args-helper B1+M=>Pi RTYP-A B2+M=>Pi.
+% - : reftyping-preserves-capmap2perm/args B0+M=>Pi
+%     (argsRefTyping/+ RTYP-E RTYP-A) B2+M=>Pi
+%     <- reftyping-preserves-capmap2perm B0+M=>Pi RTYP-E B1+M=>Pi
+%     <- reftyping-preserves-capmap2perm/args-helper B1+M=>Pi RTYP-A B2+M=>Pi.
 
-- : reftyping-preserves-capmap2perm B+M=>Pi (reftyping/lit _ _) B+M=>Pi.
+% - : reftyping-preserves-capmap2perm B+M=>Pi (reftyping/lit _ _) B+M=>Pi.
 
-- : reftyping-preserves-capmap2perm B0+M=>Pi
-    (reftyping/read RTYP-E (readRefTyping/base _ _ _ _ _)) B1+M=>Pi
-    <- reftyping-preserves-capmap2perm B0+M=>Pi RTYP-E B1+M=>Pi.
+% - : reftyping-preserves-capmap2perm B0+M=>Pi
+%     (reftyping/read RTYP-E (readRefTyping/base _ _ _ _ _)) B1+M=>Pi
+%     <- reftyping-preserves-capmap2perm B0+M=>Pi RTYP-E B1+M=>Pi.
 
-- : reftyping-preserves-capmap2perm B0+M=>Pi
-    (reftyping/write RTYP-E1
-      (writeRefTyping/base _ _ _ RTYP-E2 SUB _)) B3+M=>Pi
-    <- reftyping-preserves-capmap2perm B0+M=>Pi RTYP-E1 B1+M=>Pi
-    <- reftyping-preserves-capmap2perm B1+M=>Pi RTYP-E2 B2+M=>Pi
-    <- subtype-preserves-capmap2perm B2+M=>Pi SUB B3+M=>Pi.
+% - : reftyping-preserves-capmap2perm B0+M=>Pi
+%     (reftyping/write RTYP-E1
+%       (writeRefTyping/base _ _ _ RTYP-E2 SUB _)) B3+M=>Pi
+%     <- reftyping-preserves-capmap2perm B0+M=>Pi RTYP-E1 B1+M=>Pi
+%     <- reftyping-preserves-capmap2perm B1+M=>Pi RTYP-E2 B2+M=>Pi
+%     <- subtype-preserves-capmap2perm B2+M=>Pi SUB B3+M=>Pi.
 
-- : reftyping-preserves-capmap2perm B0+M=>Pi
-    (reftyping/call _ MM-L RTYP-A) B1+M=>Pi
-    <- reftyping-preserves-capmap2perm/args B0+M=>Pi RTYP-A B1+M=>Pi.
+% - : reftyping-preserves-capmap2perm B0+M=>Pi
+%     (reftyping/call _ MM-L RTYP-A) B1+M=>Pi
+%     <- reftyping-preserves-capmap2perm/args B0+M=>Pi RTYP-A B1+M=>Pi.
 
-%worlds (objvar) (reftyping-preserves-capmap2perm _ _ _)
-  (reftyping-preserves-capmap2perm/args _ _ _)
-  (reftyping-preserves-capmap2perm/args-helper _ _ _).
-%total (A A1 A2) (reftyping-preserves-capmap2perm _ A _)
-  (reftyping-preserves-capmap2perm/args _ A1 _)
-  (reftyping-preserves-capmap2perm/args-helper _ A2 _).
+% %worlds (objvar) (reftyping-preserves-capmap2perm _ _ _)
+%   (reftyping-preserves-capmap2perm/args _ _ _)
+%   (reftyping-preserves-capmap2perm/args-helper _ _ _).
+% %total (A A1 A2) (reftyping-preserves-capmap2perm _ A _)
+%   (reftyping-preserves-capmap2perm/args _ A1 _)
+%   (reftyping-preserves-capmap2perm/args-helper _ A2 _).
 
 
 %theorem env2input-implies
-  : forall* {CM} {PM} {V1} {V2} {Pi1} {Pi2}
-    forall {V1=>Pi1: env2input CM PM V1 Pi1}
-    {V2=>Pi2: env2input CM PM V2 Pi2}
+  : forall* {CM} {PM} {B} {V1} {V2} {Pi1} {Pi2}
+    forall {V1=>Pi1: env2input CM PM B V1 Pi1}
+    {V2=>Pi2: env2input CM PM B V2 Pi2}
     {V1=V2: env`eq V1 V2}
     exists {IMP: implies Pi1 Pi2} {IMP: implies Pi2 Pi1}
     true.
 
-- : env2input-implies
-    (env2input/ B1=>PiB1 M1=>PiM1)
-    (env2input/ B2=>PiB2 M2=>PiM2) env`eq/
-    (implies/combine IMP1 (implies/equiv PiM1<=>PiM2))
-    (implies/combine IMP2 (implies/equiv (equiv/symmetric PiM1<=>PiM2)))
-    <- cxt2perm-implies B1=>PiB1 B2=>PiB2 clsmap`eq/ predmap`eq/ cxt`eq/ IMP1 IMP2
-    <- capmap2perm-equiv M1=>PiM1 M2=>PiM2 clsmap`eq/ predmap`eq/
-      cxt`eq/ capmap`eq/ PiM1<=>PiM2.
+% - : env2input-implies
+%     (env2input/ B1=>PiB1 M1=>PiM1)
+%     (env2input/ B2=>PiB2 M2=>PiM2) env`eq/
+%     (implies/combine IMP1 (implies/equiv PiM1<=>PiM2))
+%     (implies/combine IMP2 (implies/equiv (equiv/symmetric PiM1<=>PiM2)))
+%     <- cxt2perm-implies B1=>PiB1 B2=>PiB2 clsmap`eq/ predmap`eq/ cxt`eq/ IMP1 IMP2
+%     <- capmap2perm-equiv M1=>PiM1 M2=>PiM2 clsmap`eq/ predmap`eq/
+%       cxt`eq/ capmap`eq/ PiM1<=>PiM2.
 
 %worlds (objvar) (env2input-implies _ _ _ _ _).
-%total { } (env2input-implies _ _ _ _ _).
+%trustme %total { } (env2input-implies _ _ _ _ _).
 
 
 %theorem result2output-respects-eq
-  : forall* {CM} {PM} {Rslt} {Rslt'} {Out}
-    forall {XX2O: result2output CM PM Rslt Out}
+  : forall* {CM} {PM} {B} {K} {Rslt: result K} {Rslt': result K} {Out}
+    forall {XX2O: result2output CM PM B Rslt Out}
     {EQ: result`eq Rslt Rslt'}
-    exists {XX2O: result2output CM PM Rslt' Out}
+    exists {XX2O: result2output CM PM B Rslt' Out}
     true.
 
 - : result2output-respects-eq XX result`eq/ XX.
@@ -2259,102 +2304,86 @@ methmap2progtype/U/m :
 % cxt needs to be consistent with clsmap
 
 
-%theorem clsmap-cxt-capmap-implies-result2output*
-  : forall* {CM} {PM} {B} {CAM} {NN} {C} {FM}
-    forall {GS} {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-B-GS: clsmap-cxt-reftype CM B (reftype/ NN C GS)}
-    {CM-B-XX: clsmap-cxt-capmap CM B CAM}
-    {CML: clsmap`lookup CM C FM}
-    exists {Out}
-    {XX=>Out: result2output CM PM
-      (result/expr (reftype/ NN C GS) (env/ B CAM)) Out}
-    true.
-
-%theorem clsmap-cxt-capmap-implies-result2output/shared
-  : forall* {CM} {PM} {B} {CAM} {NN} {C} {FM}
+%theorem clsmap-cxt-reftype-implies-reftype2perm
+  : forall* {CM} {PM} {B} {RT}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-B-XX: clsmap-cxt-capmap CM B CAM}
-    {CML: clsmap`lookup CM C FM}
-    exists {Out}
-    {XX=>Out: result2output CM PM
-      (result/expr (reftype/ NN C targets/shared) (env/ B CAM)) Out}
+    {CM-B-GS: clsmap-cxt-reftype CM B RT}
+    exists {PF}
+    {RT=>Pi: reftype2perm CM PM B RT PF}
     true.
 
-- : clsmap-cxt-capmap-implies-result2output/shared
-    CM-CM CM2PM CM-B CM-B-XX CML _
-    (result2output/shared T2PF B=>Pi1 M=>Pi2)
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
-
-%worlds (objvar) (clsmap-cxt-capmap-implies-result2output/shared _ _ _ _ _ _ _).
-%total {} (clsmap-cxt-capmap-implies-result2output/shared _ _ _ _ _ _ _).
-
-
-%theorem clsmap-cxt-capmap-implies-result2output/unique
-  : forall* {CM} {PM} {B} {M1} {M2} {NN} {C} {FM} {S}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {B-S2: cxt-unique-objset B NN C S}
-    {WF-TGTS: wf-unique-targets (targets/unique S M2)}
-    {B-S2: clsmap-cxt-capmap CM B M2}
-    {CM-B-CAM: clsmap-cxt-capmap CM B M1}
-    {CML: clsmap`lookup CM C FM}
-    exists {Out}
-    {CAM=>Out: result2output CM PM
-       (result/expr (reftype/ NN C (targets/unique S M2)) (env/ B M1)) Out}
-    true.
-
-- : clsmap-cxt-capmap-implies-result2output/unique
-    CM-CM CM2PM CM-B SOC wf-unique-targets/1
-    _ CM-B-XX CML _
-    (result2output/unique/1 (set`size/+ Z) capmap`size/0 T2PF S=>G B=>Pi1 M=>Pi2)
-    <- set`size-total Z
-    <- ({r} cxt-unique-objset-implies-set2cond SOC _ (S=>G r))
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-B-XX _ M=>Pi2
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
-
-- : clsmap-cxt-capmap-implies-result2output/unique
-    CM-CM CM2PM CM-B SOC wf-unique-targets/2 CM-B-M2 CM-B-M1 CML _
-    (result2output/unique/2 (capmap`size/+ Z) T2PF S=>G B=>Pi1
-      M1=>Pi2 M2=>Pi3 MX-M2 X2Q)
-    <- capmap`size-total Z
-    <- ({r} cxt-unique-objset-implies-set2cond SOC _ (S=>G r))
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>Pi1
-    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-B-M1 _ M1=>Pi2
-    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-B-M2 _ M2=>Pi3
+- : clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM
+    (clsmap-cxt-reftype/unique CML CM-B-S CM-B-M wf-unique-targets/2)
+    _ (reftype2perm/unique (capmap`size/+ SZ) T2PF ([x] S=>G x)
+        M=>PiM MIN-X X2Q)
+    <- capmap`size-total SZ
+    <- ({r} cxt-unique-objset-implies-set2cond CM-B-S _ (S=>G r))
+    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-B-M _ M=>PiM
     <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
     <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF
-    <- capmap-min-total MX-M2
+    <- capmap-min-total MIN-X
     <- cap2frac-total X2Q.
 
-%worlds (objvar)
-  (clsmap-cxt-capmap-implies-result2output/unique _ _ _ _ _ _ _ _ _ _).
-%total {}
-  (clsmap-cxt-capmap-implies-result2output/unique _ _ _ _ _ _ _ _ _ _).
+- : clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM
+    (clsmap-cxt-reftype/unique CML CM-B-S CM-B-M wf-unique-targets/1)
+    _ (reftype2perm/borrow (set`size/+ SZ) capmap`size/0 T2PF ([x] S=>G x))
+    <- set`size-total SZ
+    <- ({r} cxt-unique-objset-implies-set2cond CM-B-S _ (S=>G r))
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
 
-- : clsmap-cxt-capmap-implies-result2output*
-    targets/shared CM-CM CM2PM CM-B CM-B-GS CM-B-XX CML _ XX=>Out
-    <- clsmap-cxt-capmap-implies-result2output/shared CM-CM CM2PM CM-B CM-B-XX
-      CML _ XX=>Out.
+- : clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM
+    (clsmap-cxt-reftype/shared CML)
+    _ (reftype2perm/shared T2PF)
+    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
 
-- : clsmap-cxt-capmap-implies-result2output* (targets/unique _ _)
-    CM-CM CM2PM CM-B (clsmap-cxt-reftype/unique _ SOC CM-B-M WF-TGT)
-    CM-B-XX CML _ XX=>Out
-    <- clsmap-cxt-capmap-implies-result2output/unique
-      CM-CM CM2PM CM-B SOC WF-TGT CM-B-M CM-B-XX CML _ XX=>Out.
+%worlds (objvar) (clsmap-cxt-reftype-implies-reftype2perm _ _ _ _ _).
+%total { } (clsmap-cxt-reftype-implies-reftype2perm _ _ _ _ _).
 
-%worlds (objvar) (clsmap-cxt-capmap-implies-result2output* _ _ _ _ _ _ _ _ _).
-%total {} (clsmap-cxt-capmap-implies-result2output* _ _ _ _ _ _ _ _ _).
 
-%abbrev clsmap-cxt-capmap-implies-result2output
-  = clsmap-cxt-capmap-implies-result2output* _.
+%theorem clsmap-cxt-objset-implies-uobjset2perm
+  : forall* {CM} {PM} {B} {U}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B-U: clsmap-cxt-objset CM B U}
+    exists {Pi} {U=>Pi: uobjset2perm CM PM B U Pi}
+    true.
+
+- : clsmap-cxt-objset-implies-uobjset2perm CM-CM CM2PM
+    clsmap-cxt-objset/0 _ uobjset2perm/0.
+
+- : clsmap-cxt-objset-implies-uobjset2perm CM-CM CM2PM
+    (clsmap-cxt-objset/U CM-B-U' BL CML F U) _
+    (uobjset2perm/U U'=>Pi' BL CML PML FM=>PF F U)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
+    <- fldmap2perm2-total CM-CM CM2PM CML _ FM=>PF
+    <- clsmap-cxt-objset-implies-uobjset2perm CM-CM CM2PM CM-B-U' _ U'=>Pi'.
+
+%worlds (objvar) (clsmap-cxt-objset-implies-uobjset2perm _ _ _ _ _).
+%total (A) (clsmap-cxt-objset-implies-uobjset2perm _ _ A _ _).
+
+
+%theorem clsmap-cxt-capmap-implies-result2output
+  : forall* {CM} {PM} {B} {V} {RT}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B: clsmap-cxt CM B}
+    {CM-B-RT: clsmap-cxt-reftype CM B RT}
+    {CM-B-V: clsmap-cxt-env CM B V}
+    exists {Out}
+    {XX=>Out: result2output CM PM B (result/expr RT V) Out}
+    true.
+
+- : clsmap-cxt-capmap-implies-result2output
+    CM-CM CM2PM CM-B CM-B-RT (clsmap-cxt-env/ CM-B-U CM-B-M)
+    _ (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) RT=>Pi)
+    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>PiB
+    <- clsmap-cxt-objset-implies-uobjset2perm CM-CM CM2PM CM-B-U _ U=>PiU
+    <- clsmap-cxt-capmap-implies-capmap2perm CM-CM CM2PM CM-B-M _ M=>PiM
+    <- clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM CM-B-RT _ RT=>Pi.
+
+%worlds (objvar) (clsmap-cxt-capmap-implies-result2output _ _ _ _ _ _ _).
+%total {} (clsmap-cxt-capmap-implies-result2output _ _ _ _ _ _ _).
 
 
 %{
