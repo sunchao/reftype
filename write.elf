@@ -1,34 +1,5 @@
 %%% The following two definitions should only be used in this file.
 
-%abbrev encumbered-fldperm : object -> (object -> permission) -> clspred -> permission
-    = [O] [PF] [CP] (unitperm
-                      (conditional
-                        (objequal O null)
-                        (empty)
-                        (unitperm
-                          (encumbered
-                            (PF O)
-                            (combine
-                              (allperm O)
-                              (one-predcall CP O)))))).
-
-
-make-encumbered : clsmap -> predmap -> cxt -> set -> permission -> type.
-
-make-encumbered/0 : make-encumbered _ _ _ set/0 empty.
-
-make-encumbered/U :
-    make-encumbered CM PM B S' Pi2 ->
-    cxt`lookup B N (cxt-info/ O (ty/ NN _ C)) ->
-    clsmap`lookup CM C FM ->
-    predmap`lookup PM C CP ->
-    fldmap`domain FM FS ->
-    ({x} fldmap2perm PM x FM FS (PF x)) ->
-    set`not-member S' N ->
-    set`add S' N S ->
-  make-encumbered CM PM B S ((encumbered-fldperm O PF CP) , Pi2).
-
-
 %%% all permissions for objects in the set.
 
 set-all-permissions : predmap -> cxt -> nat -> set -> permission -> type.
@@ -46,220 +17,36 @@ set-all-permissions/U :
 
 %%% A few theorems about make-encumbered
 
-%theorem false-implies-make-encumbered
-  : forall* {CM} {PM} {B} {S} {Pi}
-    forall {V:void} exists {MF: make-encumbered CM PM B S Pi}
+%theorem make-encumbered-intro
+  : forall* {CM} {PM} {B} {U0} {U1} {S} {PiU0}
+    forall {S<=U0: set`leq S U0}
+    {U0-S=U1: set`remove U0 S U1}
+    {U0=>PiU0: make-encumbered CM PM B U0 PiU0}
+    exists {PiS} {PiU1}
+    {S=>PiS: make-encumbered CM PM B S PiS}
+    {U1=>PiU1: make-encumbered CM PM B U1 PiU1}
+    {EQV: equiv PiU0 (PiS , PiU1)}
     true.
 
-%worlds (objvar) (false-implies-make-encumbered _ _).
-%total { } (false-implies-make-encumbered _ _).
-
-
-%theorem make-encumbered-respects-eq
-  : forall* {PM1} {PM2} {CM1} {CM2} {B1} {B2} {S1} {S2} {Pi1} {Pi2}
-    forall {MFP1: make-encumbered CM1 PM1 B1 S1 Pi1}
-    {CME: clsmap`eq CM1 CM2}
-    {PME: predmap`eq PM1 PM2}
-    {BE: cxt`eq B1 B2} {SE: set`eq S1 S2}
-    {PE: permission`eq Pi1 Pi2}
-    exists {MFP2: make-encumbered CM2 PM2 B2 S2 Pi2}
-    true.
-
-- : make-encumbered-respects-eq MFP clsmap`eq/ predmap`eq/ cxt`eq/ set`eq/
-    permission`eq/ MFP.
-
-%worlds (objvar) (make-encumbered-respects-eq _ _ _ _ _ _ _).
-%total {} (make-encumbered-respects-eq _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered/U-inversion
-  : forall* {CM} {PM} {B} {S} {Pi} {SP} {N}
-    forall {MF: make-encumbered CM PM B S Pi}
-    {NM: set`not-member SP N}
-    {UD: set`add SP N S}
-    exists {Pi1} {MFP: make-encumbered CM PM B SP Pi1}
-    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {FM} {CML: clsmap`lookup CM C FM}
-    {CP} {PML: predmap`lookup PM C CP}
-    {FS} {DM: fldmap`domain FM FS}
-    {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
-    {EQV: equiv Pi ((encumbered-fldperm O PiP CP), Pi1)}
-    true.
-
-%theorem make-encumbered/U-inversion/L
-  : forall* {CM} {PM} {B} {S} {SP} {N} {S1} {Pi1} {N1} {O1} {NN1}
-    {A1} {C1} {FM1} {FS1} {PiP1} {P} {CP1}
-    forall {MF1: make-encumbered CM PM B S1 Pi1}
-    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
-    {CML1: clsmap`lookup CM C1 FM1}
-    {PML1: predmap`lookup PM C1 CP1}
-    {DM1: fldmap`domain FM1 FS1}
-    {MF11: {x} fldmap2perm PM x FM1 FS1 (PiP1 x)}
-    {NM1: set`not-member S1 N1}
-    {U1: set`add S1 N1 S}
-    {NM: set`not-member SP N}
-    {U: set`add SP N S}
-    {E?: nat`eq? N N1 P}
-    exists {Pi} {MFP: make-encumbered CM PM B SP Pi}
-    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {FM} {CML: clsmap`lookup CM C FM}
-    {CP} {PML: predmap`lookup PM C CP}
-    {FS} {DM: fldmap`domain FM FS}
-    {PiP} {MF1: {x} fldmap2perm PM x FM FS (PiP x)}
-    {EQV: equiv ((encumbered-fldperm O1 PiP1 CP1) , Pi1)
-          ((encumbered-fldperm O PiP CP) , Pi)}
-    true.
-
-- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1 F2 U2
-    nat`eq?/yes %{=>}% _ MF _ _ _ _ BL1 _ CML1 _ PML1 _ DM1 _ MFO1 equiv/reflexive
-    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ SE
-    <- make-encumbered-respects-eq MF1 clsmap`eq/ predmap`eq/ cxt`eq/ SE
-      permission`eq/ MF.
-
-- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1 F2 U2
-    (nat`eq?/no N<>N1) %{=>}%
-    _ (make-encumbered/U MF2 BL1 CML1 PML1 DM1 MFO1 F4 U4)
-    _ _ _ _ BL2 _ CML2 _ PML2 _ DM2 _ MFO2
-    (equiv/transitive
-      (equiv/combine equiv/reflexive EQV)
-      (equiv/roll2))
-    <- set`add-commutes-converse U2 U1 N<>N1 _ U4 U3
-    <- set`add-preserves-not-member-converse F2 U4 F3
-    <- set`add-preserves-not-member-converse F1 U3 F4
-    <- make-encumbered/U-inversion MF1 F3 U3 _ MF2 _ _ _ _ BL2 _ CML2 _ PML2 _ DM2
-      _ MFO2 EQV.
-
-- : make-encumbered/U-inversion (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1)
-    F2 U2 _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO EQV
-    <- nat`eq?-total E?
-    <- make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1
-      F2 U2 E? _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO EQV.
-
-%worlds (objvar) (make-encumbered/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (N N0) (make-encumbered/U-inversion N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered-implies
-  : forall* {CM} {PM} {B} {Q} {Pi} {CM'} {PM'} {B'} {Q'} {Pi'}
-    forall {MF: make-encumbered CM PM B Q Pi}
-    {MF': make-encumbered CM' PM' B' Q' Pi'}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
-    {BE: cxt`eq B B'} {QE: set`eq Q Q'}
-    exists {PE: implies Pi Pi'} {PE': implies Pi' Pi}
-    true.
-
-%theorem make-encumbered-implies/L
-  : forall* {PF1} {PF2} {CP1} {CP2}
-    forall {O1} {O2}
-    {EQ: object`eq O1 O2}
-    {EQ: predicate`eq CP1 CP2}
-    {EQV: {x} equiv (PF1 x) (PF2 x)}
-    exists {IMP1: implies (encumbered-fldperm O1 PF1 CP1) (encumbered-fldperm O2 PF2 CP2)}
-    {IMP2: implies (encumbered-fldperm O2 PF2 CP2) (encumbered-fldperm O1 PF1 CP1)}
-    true.
-
-- : make-encumbered-implies/L O1 _ object`eq/ predicate`eq/ EQV
-    (implies/cond-inner
-      (bimplies/reflexive)
-      (bimplies/reflexive)
-      (implies/reflexive)
-      (implies/equiv-encumbered (EQV O1) equiv/reflexive))
-    (implies/cond-inner
-      (bimplies/reflexive)
-      (bimplies/reflexive)
-      (implies/reflexive)
-      (implies/equiv-encumbered (equiv/symmetric (EQV O1)) equiv/reflexive)).
-
-%worlds (objvar) (make-encumbered-implies/L _ _ _ _ _ _ _).
-%total { } (make-encumbered-implies/L _ _ _ _ _ _ _).
-
-- : make-encumbered-implies make-encumbered/0 make-encumbered/0 _ _ _ _
-    implies/reflexive implies/reflexive.
-
-- : make-encumbered-implies MF
-    (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1) CME PME BE SE
-    (implies/trans
-      (implies/equiv EQV)
-      (implies/combine I1 I3))
-    (implies/trans
-      (implies/combine I2 I4)
-      (implies/equiv (equiv/symmetric EQV)))
-    <- make-encumbered/U-inversion MF F1 U1 _ MF0 _ _ _ _ BL0
-      _ CML0 _ PML0 _ DM0 _ MFO0 EQV
-    <- cxt`lookup-unique BL0 BL1 BE nat`eq/ CIE
-    <- cxt-info-eq-inversion CIE OE TE
-    <- ty-eq-inversion TE NNE AE CE
-    <- clsmap`lookup-unique CML0 CML1 CME CE FME
-    <- predmap`lookup-unique PML0 PML1 PME CE CPE
-    <- fldmap`domain-unique DM0 DM1 FME FSE
-    <- ({x} fldmap2perm-unique (MFO0 x) (MFO1 x) PME object`eq/ FME FSE (PEQ x))
-    <- ({x} permission`eq-implies-equiv (PEQ x) (PEQV x))
-    <- make-encumbered-implies MF0 MF1 CME PME BE set`eq/ I3 I4
-    <- make-encumbered-implies/L _ _ OE CPE PEQV I1 I2.
-
-%worlds (objvar) (make-encumbered-implies _ _ _ _ _ _ _ _).
-%total (K) (make-encumbered-implies _ K _ _ _ _ _ _).
+%worlds (objvar) (make-encumbered-intro _ _ _ _ _ _ _ _).
+%trustme %total { } (make-encumbered-intro _ _ _ _ _ _ _ _).
 
 
 %%% A format before we checking write.
 
-before-write-format : clsmap -> predmap -> expr-result -> expr-output -> type.
+before-write-format : clsmap -> predmap -> cxt -> expr-result -> expr-output -> type.
 
 before-write-format/expr :
+    make-encumbered CM PM B U PiU ->
     cxt2perm CM PM B PiB ->
     capmap2perm CM PM B M PiM ->
     reftype2ty RT T ->
     ty2perm PM T ([x] PF x) ->
-  before-write-format CM PM (result/expr RT (env/ B M))
-      (output/exists [x] (output/expr x (combine PiB (combine (PF x) PiM)))).
+  before-write-format CM PM B (result/expr RT (env/ U M))
+      (output/exists [x] (output/expr x (combine PiU (combine PiB (combine (PF x) PiM))))).
 
 
 % cxt-remove-unique
-
-%%% TODO: add constraint on S, such that all elements should be in B.
-
-%theorem cxt-remove-unique-implies-make-encumbered
-  : forall* {CM} {PM} {B0} {B2} {S} {PiB0}
-    forall {B0-S=B2: cxt-remove-unique B0 S B2}
-    {B0=>PiB0: cxt2perm CM PM B0 PiB0}
-    exists {PiB1} {Pi}
-    {B2=>PiB1: cxt2perm CM PM B2 PiB1}
-    {ME: make-encumbered CM PM B0 S Pi}
-    {IMP: equiv PiB0 (PiB1 , Pi)}
-    true.
-
-- : cxt-remove-unique-implies-make-encumbered
-    (cxt-remove-unique/0) B=>PiB0 _ _ B=>PiB0 make-encumbered/0
-    (equiv/symmetric equiv/identity).
-
-- : cxt-remove-unique-implies-make-encumbered
-    (cxt-remove-unique/U/in B0-SP-B1
-      (B1-L: cxt`lookup B1 N (cxt-info/ O (ty/ _ annot/unique C)))
-      (B1+N=B2: cxt`update B1 N (cxt-info/ O (ty/ _ annot/borrow C)) B2)
-      (N!<SP:set`not-member SP N) SP+N=S)
-    (B0=>PiB0:cxt2perm CM PM B0 PiB0) _ _
-    (cxt2perm/U B1P=>PiB1P N!<B1P B1P+N=B2 (ty2perm2/borrow T2PF))
-    (make-encumbered/U ME-B0-SP=PiP B0-L CML PML DM FS=>PF N!<SP SP+N=S)
-    (equiv/transitive
-      (EQV)
-      (equiv/transitive4
-        (equiv/combine (EQV2) equiv/reflexive)
-        (equiv/combine
-          (equiv/transitive equiv/commute equiv/associate) equiv/reflexive)
-        (equiv/symmetric equiv/associate)
-        (equiv/combine equiv/commute equiv/reflexive)))
-    <- cxt-remove-unique-implies-make-encumbered B0-SP-B1 B0=>PiB0 PiB1 PiP B1=>PiB1
-      (ME-B0-SP=PiP:make-encumbered CM PM B0 SP PiP) EQV
-    <- cxt`lookup-implies-fresh-update B1-L B1P N!<B1P B1P+N+U=B1
-    <- cxt2perm/U-inversion B1=>PiB1 N!<B1P B1P+N+U=B1 PiB1P B1P=>PiB1P
-      _ (ty2perm2/unique CML PML ([x] fldmap2perm2/ DM (FS=>PF x)) T2PF) EQV2
-    <- cxt`update-overwrites B1P+N+U=B1 B1+N=B2 nat`eq/ B1P+N=B2
-    <- cxt-remove-unique-preserves-lookup-info-converse B1-L B0-SP-B1 _ B0-L.
-
-%worlds (objvar) (cxt-remove-unique-implies-make-encumbered _ _ _ _ _ _ _).
-%trustme %total (A) (cxt-remove-unique-implies-make-encumbered A _ _ _ _ _ _).
 
 
 %%% A few theorems about set-all-permissions
@@ -870,27 +657,6 @@ set-all-permissions*/U :
 %trustme %total { } (set-all-permissions*-equiv _ _ _ _).
 
 
-%theorem cxt-remove-unique-preserves-set-all-permissions
-  : forall* {B0} {B1} {PM} {C} {S} {Pi} {S1}
-    forall {SAP: set-all-permissions PM B0 C S Pi}
-    {R: cxt-remove-unique B0 S1 B1}
-    exists {SAP: set-all-permissions PM B1 C S Pi}
-    true.
-
-- : cxt-remove-unique-preserves-set-all-permissions
-    set-all-permissions/0 _ set-all-permissions/0.
-
-- : cxt-remove-unique-preserves-set-all-permissions
-    (set-all-permissions/U SAP F U BL
-      (ty2perm/ PML nn2perm/may annot2perm/unique)) R
-    (set-all-permissions/U SAP' F U BL' (ty2perm/ PML nn2perm/may annot2perm/unique))
-    <- cxt-remove-unique-preserves-set-all-permissions SAP R SAP'
-    <- cxt-remove-unique-preserves-lookup-info BL R _ BL'.
-
-%worlds (objvar) (cxt-remove-unique-preserves-set-all-permissions _ _ _).
-%total (S) (cxt-remove-unique-preserves-set-all-permissions S _ _).
-
-
 %theorem set-all-permissions-implies/L3/L
   : forall* {PM} {C} {PF}
     forall {T2PF: ty2perm PM (ty/ nn/may annot/unique C) PF}
@@ -910,18 +676,17 @@ set-all-permissions*/U :
 
 
 %theorem set-all-permissions-implies/L3
-  : forall* {CM} {PM} {B0} {B1} {C} {S} {Pi1} {Pi2} {S1}
-    forall {B0-S=B1: cxt-remove-unique B0 S1 B1}
-    {B1=>Pi: cxt2perm CM PM B1 Pi1}
-    {SAP: set-all-permissions PM B0 C S Pi2}
-    exists {Pi3} {SAP*: set-all-permissions* PM B0 C S Pi3}
+  : forall* {CM} {PM} {B} {C} {S} {Pi1} {Pi2}
+    forall {B=>Pi: cxt2perm CM PM B Pi1}
+    {SAP: set-all-permissions PM B C S Pi2}
+    exists {Pi3} {SAP*: set-all-permissions* PM B C S Pi3}
     {IMP: implies (Pi1 , Pi2) (Pi1 , Pi3)}
     true.
 
-- : set-all-permissions-implies/L3 _ B=>Pi
+- : set-all-permissions-implies/L3 B=>Pi
     set-all-permissions/0 _ set-all-permissions*/0 implies/reflexive.
 
-- : set-all-permissions-implies/L3 (B0-S=B1:cxt-remove-unique B0 S B1) B1=>Pi1
+- : set-all-permissions-implies/L3 B=>Pi1
     (set-all-permissions/U SAP F U
       (BL:cxt`lookup B0 _ (cxt-info/ _ (ty/ nn/may _ _))) T2PF)
     _ (set-all-permissions*/U SAP' F U BL T2PF)
@@ -929,9 +694,9 @@ set-all-permissions*/U :
       (implies/equiv equiv/roll2)
       (implies/combine implies/reflexive IMP)
       (implies/equiv equiv/roll2))
-    <- set-all-permissions-implies/L3 B0-S=B1 B1=>Pi1 SAP _ SAP' IMP.
+    <- set-all-permissions-implies/L3 B=>Pi1 SAP _ SAP' IMP.
 
-- : set-all-permissions-implies/L3 (B0-S=B1:cxt-remove-unique B0 S B1) B1=>Pi1
+- : set-all-permissions-implies/L3 B=>Pi1
     (set-all-permissions/U SAP F U
       (BL0:cxt`lookup B0 _ (cxt-info/ _ (ty/ nn/yes _ _))) T2PF)
     _ (set-all-permissions*/U SAP' F U BL0 T2PF2)
@@ -942,13 +707,12 @@ set-all-permissions*/U :
       (implies/equiv equiv/associate)
       (implies/combine (IMP2 _) IMP)
       (implies/equiv equiv/roll2))
-    <- set-all-permissions-implies/L3 B0-S=B1 B1=>Pi1 SAP _ SAP' IMP
+    <- set-all-permissions-implies/L3 B=>Pi1 SAP _ SAP' IMP
     <- set-all-permissions-implies/L3/L T2PF _ T2PF2 IMP2
-    <- cxt-remove-unique-preserves-lookup-info BL0 B0-S=B1 _ BL1
-    <- cxt2perm-duplicate-notnull-info B1=>Pi1 BL1 IMP3.
+    <- cxt2perm-duplicate-notnull-info B=>Pi1 BL0 IMP3.
 
-%worlds (objvar) (set-all-permissions-implies/L3 _ _ _ _ _ _).
-%total (SAP) (set-all-permissions-implies/L3 _ _ SAP _ _ _).
+%worlds (objvar) (set-all-permissions-implies/L3 _ _ _ _ _).
+%total (SAP) (set-all-permissions-implies/L3 _ SAP _ _ _).
 
 
 %theorem set-all-permissions-implies
@@ -1206,123 +970,67 @@ set-all-permissions*/U :
 %total { } (make-before-write-format/L3 _ _ _).
 
 
+%abbrev equiv-helper/1
+  : {o}{r} equiv (combine
+      (combine PiB
+        (combine
+          (combine (unitperm (conditional (objequal o r) empty (X2 o)))
+            (combine (scale (fraction/ Q) (X3 r))
+              (unitperm (encumbered (scale (fraction/ Q) (X3 r)) PiM1))))
+          (combine PiU0 PiM0)))
+      empty)
+    (combine (PiB , PiU0)
+      (combine (unitperm (conditional (objequal o r) empty (X2 o)))
+        (combine (scale (fraction/ Q) (X3 r))
+          (combine (unitperm (encumbered (scale (fraction/ Q) (X3 r)) PiM1)) PiM0))))
+    = ([o][r]
+        (equiv/transitive4
+          (equiv/identity)
+          (equiv/roll3)
+          (equiv/associate)
+          (equiv/combine
+            (equiv/commute)
+            (equiv/transitive
+              (equiv/symmetric equiv/associate)
+              (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate)))))).
+
+
 %%% V1 = (env/ B0 M0), V2 = (env/ B1 M3)
 %theorem make-before-write-format
-  : forall* {CM} {PM} {RT} {T} {V1} {V2} {Out0}
+  : forall* {CM} {PM} {RT} {T} {V1} {V2} {Out0} {B}
     forall {WF-CM: wf-clsmap CM}
     {CM2PM: clsmap2predmap CM PM}
-    {CM-B-RSLT: clsmap-result CM (result/expr RT V1)}
+    {CM-B-RSLT: clsmap-result CM B (result/expr RT V1)}
     {SUB: subtype CM RT V1 T V2}
-    {R=>Out: result2output CM PM (result/expr RT V1) Out0}
+    {R=>Out: result2output CM PM B (result/expr RT V1) Out0}
     exists {Out1}
     {TRANS: transform Out0 Out1}
-    {BR-FMT: before-write-format CM PM (result/expr RT V2) Out1}
+    {BR-FMT: before-write-format CM PM B (result/expr RT V2) Out1}
     true.
 
 - : make-before-write-format WF-CM CM2PM
-    (clsmap-result/expr _
-      (clsmap-cxt-reftype/unique _ CM-B0-S _ _) CM-B0-M0)
-    (subtype/ nat`eq/ NN-LEQ CML (DM-FM=FS:fldmap`domain FM FS)
-      (sub-annot-cap/consume (S+FS=>M2:set+set2capmap S FS _ M2)
-                (M0-M2=M3:capmap-split M0 M2 M3) (MI-M1=W:capmap-min M1 cap/write)
-                (B0-S=B1:cxt-remove-unique B0 S B1)))
-    (result2output/unique/2 SZ-M1 T2PF ([x] B0+S=>GF x)
-      (B0=>PiB0:cxt2perm CM PM B0 PiB0) (B0+M0=>PiM0:capmap2perm CM PM B0 M0 PiM0)
-      (B0+M1=>PiM1:capmap2perm CM PM B0 M1 PiM1)
-      (MI-M1=X:capmap-min M1 Xx)
-      (X=>Q:cap2frac Xx (fraction/ Q)))
-    %{=>}% _
-    (transform/inside [o]
-      (transform/trans
-        (transform/inside [r]
-          (transform/trans
-            (transform/implies
-              (implies/trans7 % PiB0 , G , Q (ECUMB PiM1 , PiM0)
-                (implies/combine
-                  (implies/equiv (EQV))
-                  (implies/combine implies/reflexive % GF
-                    (implies/combine (implies/equiv (EQV2 r)) % PF
-                      (implies/combine
-                        (implies/reflexive)
-                        (implies/equiv PiM0<=>PiM2+PiM3)))))
-                (implies/equiv
-                  (equiv/transitive4
-                    (equiv/symmetric equiv/associate)
-                    (equiv/roll6)
-                    (equiv/combine equiv/reflexive equiv/roll2)
-                    (equiv/associate)))
-                (implies/combine PiM2+Pi<=>PiS implies/reflexive)
-                (implies/equiv
-                  (equiv/transitive4
-                    (equiv/combine equiv/reflexive equiv/roll3)
-                    (equiv/associate)
-                    (equiv/combine equiv/reflexive equiv/roll2)
-                    (equiv/associate)))
-                (implies/trans7
-                  (implies/equiv (equiv/symmetric equiv/associate))
-                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
-                  (implies/equiv equiv/associate)
-                  (implies/combine
-                    (implies/trans5
-                      (implies/equiv equiv/commute)
-                      (implies/equiv equiv/associate)
-                      (implies/combine (IMP2) implies/reflexive)
-                      (implies/equiv (equiv/symmetric equiv/associate))
-                      (implies/equiv equiv/commute))
-                    (implies/reflexive))
-                  (implies/equiv (equiv/symmetric equiv/associate))
-                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
-                  (implies/equiv equiv/associate))
-                (implies/combine (IMP o r) implies/reflexive)
-                (implies/equiv
-                  (equiv/transitive5
-                    (equiv/combine equiv/commute equiv/reflexive)
-                    (equiv/symmetric equiv/associate)
-                    (equiv/combine equiv/reflexive equiv/roll3)
-                    (equiv/associate)
-                    (equiv/combine equiv/reflexive equiv/roll2))))))
-          (transform/drop))
-        (transform/rem-unused)))
-    (before-write-format/expr (B1=>PiB1:cxt2perm CM PM B1 PiB1)
-      (B1+M3=>PiM3:capmap2perm CM PM B1 M3 PiM3) reftype2ty/unique T2PF)
-    <- cxt-remove-unique-implies-make-encumbered B0-S=B1 B0=>PiB0 PiB1 Pi B1=>PiB1 B0-ME EQV
-    <- capmap-split-implies-permission-combine
-      M0-M2=M3 B0+M0=>PiM0 PiM2 PiM3 B0+M2=>PiM2 B0+M3=>PiM3 PiM0<=>PiM2+PiM3
-    <- cxt-remove-unique-preserves-capmap2perm B0+M3=>PiM3 B0-S=B1 B1+M3=>PiM3
-    <- wf-clsmap-lookup-implies-non-empty WF-CM CML _ SZ-FM
-    <- fldmap`domain-preserves-size SZ-FM DM-FM=FS SZ-FS
-    <- cxt-unique-objset-implies-same-class CM-B0-S SOC
-    <- cxt-unique-objset-implies-least-nonnull CM-B0-S FLN
-    <- restore-object-permission SOC CM2PM CML DM-FM=FS SZ-FS B0-ME S+FS=>M2 B0+M2=>PiM2
-      PiS PiM2+Pi<=>PiS B0-S-PiS
-    <- set-all-permissions-implies/L3 B0-S=B1 B1=>PiB1 B0-S-PiS PiS* B0-S-PiS* IMP2
-    <- make-before-write-format/L1 B0-S-PiS* FLN B0+S=>GF T2PF _ IMP
-    <- capmap-min-unique MI-M1=X MI-M1=W cap`eq/ capmap`eq/ (X=W:cap`eq Xx cap/write)
-    <- cap2frac-unique X=>Q cap2frac/write X=W Q=ONE
-    <- make-before-write-format/L2 Q=ONE EQV2.
-
-- : make-before-write-format _ _ CM-B-Rslt
-    (subtype/ nat`eq/ _ _ _  (sub-annot-cap/shared2shared))
-    (result2output/shared T2PF B=>PiB M=>PiM)
-    %{=>}% _
-    (transform/reflexive) (before-write-format/expr B=>PiB M=>PiM reftype2ty/shared T2PF).
-
-- : make-before-write-format WF-CM CM2PM
-    (clsmap-result/expr _
-      (clsmap-cxt-reftype/unique _ CM-B0-S _ _) CM-B0-M0)
+    (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B0-S _ _) _ CM-B0-M0)
     (subtype/ nat`eq/ NN-LEQ CML (DM-FM=FS:fldmap`domain FM FS)
       (sub-annot-cap/consume (S+FS=>M2:set+set2capmap S FS _ M2)
         (M0-M2=M3:capmap-split M0 M2 M3) MI-M1=W
-        (B0-S=B1:cxt-remove-unique B0 S B1)))
-    (result2output/unique/1 SZ-S SZ-M1 (ty2perm/ (PML:predmap`lookup PM _ CP) _ _)
-      ([x] B0+S=>GF x)
-      (B0=>PiB0:cxt2perm CM PM B0 PiB0) (B0+M0=>PiM0:capmap2perm CM PM B0 M0 PiM0))
-    %{=>}% _
+        S<=U0 (U0-S=U1:set`remove U0 S U1)))
+    (result2output/expr (B=>PiB:cxt2perm CM PM B PiB)
+      (env2input/ U0=>PiU0 (M0=>PiM0:capmap2perm CM PM B M0 PiM0))
+      (reftype2perm/borrow SZ-S capmap`size/0
+        (ty2perm/ PML _ annot2perm/borrow)
+        (S=>GF: {x} set2cond B x S (GF x)))) _
     (transform/inside [x]
-      (transform/trans
+      (transform/trans3
+        (transform/rem-unused)
         (transform/implies
-          (implies/trans8
-            (implies/combine (implies/equiv (EQV))
+          (implies/trans11
+            (implies/equiv
+              (equiv/transitive4
+                (equiv/identity)
+                (equiv/roll3)
+                (equiv/associate)
+                (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))
+            (implies/combine (implies/equiv (equiv/combine (EQV) equiv/reflexive))
               (implies/combine implies/reflexive
                 (implies/combine implies/reflexive (implies/equiv PiM0<=>PiM2+PiM3))))
             (implies/equiv (equiv/symmetric equiv/associate))
@@ -1331,6 +1039,17 @@ set-all-permissions*/U :
                 (equiv/roll5)
                 (equiv/combine equiv/reflexive equiv/roll2)
                 (equiv/associate)))
+            (implies/equiv
+              (equiv/transitive4
+                (equiv/associate)
+                (equiv/combine
+                  (equiv/transitive3
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/roll2)
+                    (equiv/associate))
+                  (equiv/reflexive))
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))
             (implies/combine (PiM2+Pi<=>PiS) implies/reflexive)
             (implies/equiv
               (equiv/transitive3
@@ -1350,6 +1069,17 @@ set-all-permissions*/U :
               (implies/combine implies/reflexive
                 (implies/equiv (equiv/symmetric equiv/associate)))
               (implies/equiv (equiv/associate)))
+            (implies/equiv
+              (equiv/transitive4
+                (equiv/combine equiv/reflexive equiv/roll3)
+                (equiv/associate)
+                (equiv/combine
+                  (equiv/transitive3
+                    (equiv/commute)
+                    (equiv/reorder)
+                    (equiv/commute))
+                  (equiv/reflexive))
+                (equiv/symmetric equiv/associate)))
             (implies/combine
               (implies/trans
                 (IMP2 x)
@@ -1358,31 +1088,165 @@ set-all-permissions*/U :
                   (implies/reflexive)))
               (implies/reflexive))
             (implies/equiv
-              (equiv/transitive5
+              (equiv/transitive8
                 (equiv/symmetric equiv/associate)
                 (equiv/roll4)
                 (equiv/combine equiv/reflexive equiv/roll2)
                 (equiv/associate)
-                (equiv/combine equiv/reflexive equiv/roll2)))))
-        (transform/drop)))
-    (before-write-format/expr (B1=>PiB1:cxt2perm CM PM B1 PiB1)
-      (B1+M3=>PiM3:capmap2perm CM PM B1 M3 PiM3) reftype2ty/unique
+                (equiv/combine equiv/reflexive equiv/roll2)
+                (equiv/combine equiv/commute equiv/reflexive)
+                (equiv/symmetric equiv/associate)
+                (equiv/transitive3
+                  (equiv/combine equiv/reflexive equiv/roll2)
+                  (equiv/associate)
+                  (equiv/combine equiv/reflexive
+                    (equiv/transitive
+                      (equiv/combine equiv/reflexive equiv/reorder)
+                      (equiv/reorder)))))))))
+      (transform/drop))
+    (before-write-format/expr U1=>PiU1 B=>PiB
+      (M3=>PiM3:capmap2perm CM PM B M3 PiM3) reftype2ty/unique
       (ty2perm/ PML2 NN2P A2P))
-    <- cxt-remove-unique-implies-make-encumbered B0-S=B1 B0=>PiB0 PiB1 Pi B1=>PiB1 B0-ME EQV
+    <- make-encumbered-intro S<=U0 U0-S=U1 U0=>PiU0 _ PiU1 S=>PiS U1=>PiU1 EQV
     <- capmap-split-implies-permission-combine
-      M0-M2=M3 B0+M0=>PiM0 PiM2 PiM3 B0+M2=>PiM2 B0+M3=>PiM3 PiM0<=>PiM2+PiM3
-    <- cxt-remove-unique-preserves-capmap2perm B0+M3=>PiM3 B0-S=B1 B1+M3=>PiM3
+      M0-M2=M3 M0=>PiM0 PiM2 PiM3 M2=>PiM2 M3=>PiM3 PiM0<=>PiM2+PiM3
     <- wf-clsmap-lookup-implies-non-empty WF-CM CML _ SZ-FM
     <- fldmap`domain-preserves-size SZ-FM DM-FM=FS SZ-FS
     <- cxt-unique-objset-implies-same-class CM-B0-S SOC
     <- cxt-unique-objset-implies-least-nonnull CM-B0-S FLN
-    <- restore-object-permission SOC CM2PM CML DM-FM=FS SZ-FS B0-ME S+FS=>M2 B0+M2=>PiM2
-      PiS PiM2+Pi<=>PiS S-PiS
-    <- set-all-permissions-implies/L3 B0-S=B1 B1=>PiB1 S-PiS PiS* S-PiS* IMP1
-    <- ({x} set-all-permissions-implies _ SZ-S S-PiS* (B0+S=>GF x) FLN _
+    <- restore-object-permission SOC CM2PM CML DM-FM=FS SZ-FS S=>PiS S+FS=>M2 M2=>PiM2
+      _ PiM2+Pi<=>PiS S-PiS
+    <- set-all-permissions-implies/L3 B=>PiB S-PiS PiS* S-PiS* IMP1
+    <- ({x} set-all-permissions-implies _ SZ-S S-PiS* (S=>GF x) FLN _
          (ty2perm/ (PMLP x) (NN2P:nn2perm _ _ PF) A2P) _ (IMP2 x))
     <- predmap`no-variable-lookup PMLP CP2 PML2 PEQ
     <- make-before-write-format/L3 PF PEQ EQV2.
+
+- : make-before-write-format WF-CM CM2PM
+    (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B-S _ _) _ CM-B-M0)
+    (subtype/ nat`eq/ NN-LEQ CML (DM-FM=FS:fldmap`domain FM FS)
+      (sub-annot-cap/consume (S+FS=>M2:set+set2capmap S FS _ M2)
+        (M0-M2=M3:capmap-split M0 M2 M3) (MI-M1=W:capmap-min M1 cap/write)
+        S<=U0 (U0-S=U1:set`remove U0 S U1)))
+    (result2output/expr (B=>PiB:cxt2perm CM PM B PiB)
+      (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+        (M0=>PiM0:capmap2perm CM PM B M0 PiM0))
+      (reftype2perm/unique SZ-M1
+        (T2PF:ty2perm PM _ ([x] PF x)) ([x] B+S=>GF x)
+      (M1=>PiM1:capmap2perm CM PM B M1 PiM1)
+      (MI-M1=X:capmap-min M1 Xx)
+      (X=>Q:cap2frac Xx (fraction/ Q)))) _
+    (transform/inside [o]
+      (transform/trans
+        (transform/inside [r]
+          (transform/trans
+            (transform/implies
+              (implies/trans11 % PiB0 , G , Q (ECUMB PiM1 , PiM0)
+                (implies/equiv
+                  (equiv/transitive4
+                    (equiv/identity)
+                    (equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine
+                      (equiv/commute)
+                      (equiv/transitive
+                        (equiv/symmetric equiv/associate)
+                        (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))))
+                (implies/combine
+                  (implies/equiv (equiv/combine equiv/reflexive (EQV)))
+                  (implies/combine implies/reflexive % GF
+                    (implies/combine (implies/equiv (EQV2 r)) % PF
+                      (implies/combine
+                        (implies/reflexive)
+                        (implies/equiv PiM0<=>PiM2+PiM3)))))
+                (implies/equiv
+                  (equiv/transitive4
+                    (equiv/symmetric equiv/associate)
+                    (equiv/roll6)
+                    (equiv/combine equiv/reflexive equiv/roll2)
+                    (equiv/associate)))
+                (implies/equiv
+                  (equiv/transitive
+                    (equiv/combine equiv/associate equiv/reflexive)
+                    (equiv/symmetric equiv/associate)))
+                (implies/combine PiM2+Pi<=>PiS implies/reflexive)
+                (implies/equiv
+                  (equiv/transitive4
+                    (equiv/combine equiv/reflexive equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/roll2)
+                    (equiv/associate)))
+                (implies/trans8
+                  (implies/equiv (equiv/symmetric equiv/associate))
+                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                  (implies/equiv equiv/associate)
+                  (implies/equiv
+                    (equiv/transitive
+                      (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)
+                      (equiv/associate)))
+                  (implies/combine
+                    (implies/trans5
+                      (implies/equiv equiv/commute)
+                      (implies/equiv equiv/associate)
+                      (implies/combine (IMP2) implies/reflexive)
+                      (implies/equiv (equiv/symmetric equiv/associate))
+                      (implies/equiv equiv/commute))
+                    (implies/reflexive))
+                  (implies/equiv (equiv/symmetric equiv/associate))
+                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                  (implies/equiv equiv/associate))
+                (implies/equiv
+                  (equiv/transitive3
+                    (equiv/combine
+                      (equiv/transitive
+                        (equiv/swap)
+                        (equiv/associate))
+                      (equiv/reflexive))
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/associate)))
+                (implies/combine (IMP o r) implies/reflexive)
+                (implies/equiv
+                  (equiv/transitive5
+                    (equiv/combine equiv/commute equiv/reflexive)
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/roll2)))
+                (implies/equiv
+                  (equiv/combine equiv/reflexive
+                    (equiv/symmetric equiv/associate))))))
+          (transform/drop))
+        (transform/rem-unused)))
+    (before-write-format/expr U1=>PiU1 B=>PiB
+      (M3=>PiM3:capmap2perm CM PM B M3 PiM3) reftype2ty/unique T2PF)
+    <- make-encumbered-intro S<=U0 U0-S=U1 U0=>PiU0 _ PiU1 S=>PiS U1=>PiU1 EQV
+    <- capmap-split-implies-permission-combine
+      M0-M2=M3 M0=>PiM0 PiM2 PiM3 M2=>PiM2 M3=>PiM3 PiM0<=>PiM2+PiM3
+    <- wf-clsmap-lookup-implies-non-empty WF-CM CML _ SZ-FM
+    <- fldmap`domain-preserves-size SZ-FM DM-FM=FS SZ-FS
+    <- cxt-unique-objset-implies-same-class CM-B-S SOC
+    <- cxt-unique-objset-implies-least-nonnull CM-B-S FLN
+    <- restore-object-permission SOC CM2PM CML DM-FM=FS SZ-FS S=>PiS S+FS=>M2 M2=>PiM2
+      PiS PiM2+Pi<=>PiS B-S-PiS
+    <- set-all-permissions-implies/L3 B=>PiB B-S-PiS PiS* B-S-PiS* IMP2
+    <- make-before-write-format/L1 B-S-PiS* FLN B+S=>GF T2PF _ IMP
+    <- capmap-min-unique MI-M1=X MI-M1=W cap`eq/ capmap`eq/ (X=W:cap`eq Xx cap/write)
+    <- cap2frac-unique X=>Q cap2frac/write X=W Q=ONE
+    <- make-before-write-format/L2 Q=ONE EQV2.
+
+- : make-before-write-format _ _ CM-B-Rslt
+    (subtype/ nat`eq/ _ _ _  (sub-annot-cap/shared2shared))
+    (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) (reftype2perm/shared T2PF)) _
+    (transform/inside [o]
+      (transform/trans
+        (transform/inside [r]
+          (transform/implies
+            (implies/equiv
+              (equiv/transitive
+                (equiv/identity)
+                (equiv/roll3)))))
+        (transform/rem-unused)))
+    (before-write-format/expr U=>PiU B=>PiB M=>PiM reftype2ty/shared T2PF).
 
 %worlds (objvar) (make-before-write-format _ _ _ _ _ _ _ _).
 %total (T) (make-before-write-format _ _ _ _ T _ _ _).
@@ -1418,37 +1282,38 @@ set-all-permissions*/U :
 %%% B0 is the output context for checking E1,
 
 %theorem do-write
-  : forall* {CM} {PM} {W} {RT} {B1} {B2} {M} {M1} {M2} {M3} {M4} {NN} {A} {FC}
-    {G2} {PiB0} {PiM} {PiM1} {PiM1'} {E2} {F} {PF} {Out}
-    forall {B2+M1=>Pi2: capmap2perm CM PM B2 M1 PiM1'}
-    {BF-READ-FMT: read-format CM PM B2 (targets/unique set/0 M) M1 PiM PiM1 (fraction/ one)}
-    {SUB: subtype CM RT (env/ B1 M2) (ty/ NN A FC) (env/ B2 M3)}
+  : forall* {CM} {PM} {W} {RT} {B} {U1} {U2} {M} {M1} {M2} {M3} {M4} {NN} {A} {FC}
+    {G2} {PiB} {PiM} {PiM1} {PiM1'} {E2} {F} {PF} {Out} {PiU0}
+    forall {B2+M1=>Pi2: capmap2perm CM PM B M1 PiM1'}
+    {BF-READ-FMT: read-format CM PM B (targets/unique set/0 M) M1 PiM PiM1 (fraction/ one)}
+    {SUB: subtype CM RT (env/ U1 M2) (ty/ NN A FC) (env/ U2 M3)}
     {T2PF: ty2perm PM (ty/ NN A FC) ([x] PF x)}
-    {TYP-E2: typing W (PiB0 , PiM1') E2 Out}
-    {BW-FMT: before-write-format CM PM (result/expr RT (env/ B2 M3)) Out}
+    {TYP-E2: typing W (PiB , (PiU0 , PiM1')) E2 Out}
+    {BW-FMT: before-write-format CM PM B (result/expr RT (env/ U2 M3)) Out}
     {CF: consider-ftype (targets/unique set/0 M) M3 A G2 M4}
     exists {Out1}
-    {TYP: {x} typing W (combine PiB0 (combine (ffperm (fraction/ one) x F PF)
-      (combine (unitperm (encumbered (ffperm (fraction/ one) x F PF) PiM)) PiM1)))
+    {TYP: {x} typing W (combine PiB (combine PiU0 (combine (ffperm (fraction/ one) x F PF)
+      (combine (unitperm (encumbered (ffperm (fraction/ one) x F PF) PiM)) PiM1))))
       (write (lit x) F E2) Out1}
-    {R=>Out1: result2output CM PM (result/expr (reftype/ NN FC G2) (env/ B2 M4)) Out1}
+    {R=>Out1: result2output CM PM B (result/expr (reftype/ NN FC G2) (env/ U2 M4)) Out1}
     true.
 
-- : do-write (B2+M1=>PiM1':capmap2perm CM PM B2 M1 PiM1')
+- : do-write (M1=>PiM1':capmap2perm CM PM B M1 PiM1')
     (read-format/ (SZ-M:capmap`size M (s _))
-      (B2+M1=>PiM1:capmap2perm CM PM B2 M1 PiM1)
-      (B2+M=>PiM:capmap2perm CM PM B2 M PiM)
+      (M1=>PiM1:capmap2perm CM PM B M1 PiM1)
+      (M=>PiM:capmap2perm CM PM B M PiM)
       (MC-M=X:capmap-min M Xx)
       (X=>Q))
-    SUB (T2PF:ty2perm PM _ ([x] PF x)) (TYP-E2:typing W (PiB0 , PiM1') E2 _)
-    (before-write-format/expr
-      (B2=>PiB2:cxt2perm CM PM B2 PiB2)
-      (B2+M3=>PiM3:capmap2perm CM PM B2 M3 PiM3) RT2T T2PF2)
-    (consider-ftype/shared (capmap-split/ M^M3 M+M3=M4)) %{=>}% _
+    SUB (T2PF) (TYP-E2:typing W (PiB , (PiU , PiM1')) E2 _)
+    (before-write-format/expr (U2=>PiU2:make-encumbered CM PM B U2 PiU2)
+      (B=>PiB:cxt2perm CM PM B PiB')
+      (M3=>PiM3:capmap2perm CM PM B M3 PiM3) RT2T T2PF2)
+    (consider-ftype/shared (capmap-split/ M^M3 M+M3=M4)) _
     ([x] tTrans
       (transform/implies
         (implies/equiv
-          (equiv/transitive5
+          (equiv/transitive7
+            (equiv/associate)
             (equiv/combine equiv/reflexive % piB0
               (equiv/combine equiv/reflexive equiv/commute)) % PF
             (equiv/roll3)
@@ -1458,7 +1323,8 @@ set-all-permissions*/U :
                 (equiv/commute)
                 (equiv/combine equiv/reflexive PiM1<=>PiM1'))
               (equiv/reflexive))
-            (equiv/commute))))
+            (equiv/commute)
+            (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate)))))
       (letTyping/base null
         (tWrite2 (TYP-E2' x)
           (letTyping/exists [o]
@@ -1467,7 +1333,9 @@ set-all-permissions*/U :
                 (transform/trans3
                   (transform/implies
                     (implies/equiv
-                      (equiv/symmetric equiv/associate)))
+                      (equiv/transitive
+                        (equiv/combine equiv/reflexive equiv/associate)
+                        (equiv/symmetric equiv/associate))))
                   (transform/skolem)
                   (transform/inside [o']
                     (transform/implies
@@ -1478,71 +1346,75 @@ set-all-permissions*/U :
                 (letTyping/exists [o']
                   (letTyping/base null
                     (tWrite: typing _ _ (write (lit x) F (lit o)) _)))
-                (transform/trans
-                  (transform/inside [o']
-                    (transform/trans
-                      (transform/implies
-                        (implies/trans
-                          (implies/equiv equiv/roll2)
-                          (implies/combine implies/reflexive
-                            (implies/trans7
-                              (implies/combine implies/reflexive
-                                (implies/equiv equiv/roll3))
-                              (implies/equiv equiv/associate)
-                              (implies/combine
-                                (implies/trans3
-                                  (implies/combine implies/reflexive
-                                    (implies/trans (IMP o) (DUP o)))
-                                  (implies/equiv equiv/associate)
-                                  (implies/equiv equiv/commute))
-                                (implies/reflexive))
-                              (implies/equiv (equiv/symmetric equiv/associate))
-                              (implies/combine implies/reflexive
-                                (implies/trans3
-                                  (implies/combine
-                                    (implies/pack o)
-                                    (implies/combine
-                                      (implies/equiv-encumbered
-                                        (equiv/one) (equiv/reflexive))
-                                      (implies/reflexive)))
-                                  (implies/equiv equiv/associate)
-                                  (implies/combine
-                                    (implies/linear-modus-ponens)
-                                    (implies/reflexive))))
-                              (implies/equiv equiv/roll3)
-                              (implies/combine implies/reflexive
+                (transform/inside [o']
+                  (transform/trans
+                    (transform/implies
+                      (implies/trans3
+                        (implies/equiv equiv/roll2)
+                        (implies/combine implies/reflexive
+                          (implies/trans7
+                            (implies/combine implies/reflexive
+                              (implies/equiv equiv/roll3))
+                            (implies/equiv equiv/associate)
+                            (implies/combine
+                              (implies/trans3
                                 (implies/combine implies/reflexive
-                                  (implies/equiv PiM+PiM3<=>PiM4)))))))
-                      (transform/drop)))
-                  (transform/rem-unused)))))))
+                                  (implies/trans (IMP o) (DUP o)))
+                                (implies/equiv equiv/associate)
+                                (implies/equiv equiv/commute))
+                              (implies/reflexive))
+                            (implies/equiv (equiv/symmetric equiv/associate))
+                            (implies/combine implies/reflexive
+                              (implies/trans3
+                                (implies/combine
+                                  (implies/pack o)
+                                  (implies/combine
+                                    (implies/equiv-encumbered
+                                      (equiv/one) (equiv/reflexive))
+                                    (implies/reflexive)))
+                                (implies/equiv equiv/associate)
+                                (implies/combine
+                                  (implies/linear-modus-ponens)
+                                  (implies/reflexive))))
+                            (implies/equiv equiv/roll3)
+                            (implies/combine implies/reflexive
+                              (implies/combine implies/reflexive
+                                (implies/equiv PiM+PiM3<=>PiM4)))))
+                        (implies/equiv
+                          (equiv/combine equiv/reflexive
+                            (equiv/transitive4
+                              (equiv/symmetric equiv/associate)
+                              (equiv/reorder)
+                              (equiv/combine equiv/reflexive equiv/reorder)
+                              (equiv/symmetric equiv/identity))))))
+                    (transform/drop))))))))
       (transform/reflexive))
-    (result2output/shared T2PF B2=>PiB2 B2+M4=>PiM4)
-    <- capmap2perm-equiv B2+M1=>PiM1 B2+M1=>PiM1' clsmap`eq/
+    (result2output/expr B=>PiB (env2input/ U2=>PiU2 M4=>PiM4) (reftype2perm/shared T2PF))
+    <- capmap2perm-equiv M1=>PiM1 M1=>PiM1' clsmap`eq/
       predmap`eq/ cxt`eq/ capmap`eq/ PiM1<=>PiM1'
     <- ({o:object} typing-frame* TYP-E2 (envadd/exists [x] envadd/expr) (TYP-E2' o))
     <- subtype-implies-ty2perm-leq* SUB RT2T T2PF2 T2PF IMP
     <- sharedperm-can-be-duplicated* T2PF DUP
     <- capmap-split-implies-permission-combine-converse
-      (capmap-split/ M^M3 M+M3=M4) B2+M=>PiM B2+M3=>PiM3 PiM4 B2+M4=>PiM4
-      PiM+PiM3<=>PiM4.
+      (capmap-split/ M^M3 M+M3=M4) M=>PiM M3=>PiM3 PiM4 M4=>PiM4 PiM+PiM3<=>PiM4.
 
-- : do-write (B2+M1=>PiM1':capmap2perm CM PM B2 M1 PiM1')
+- : do-write (M1=>PiM1':capmap2perm CM PM B M1 PiM1')
     (read-format/ (SZ-M:capmap`size M (s _))
-      (B2+M1=>PiM1:capmap2perm CM PM B2 M1 PiM1)
-      (B2+M=>PiM:capmap2perm CM PM B2 M PiM)
+      (M1=>PiM1:capmap2perm CM PM B M1 PiM1)
+      (M=>PiM:capmap2perm CM PM B M PiM)
       (MC-M=X:capmap-min M Xx)
       (X=>Q))
-    SUB (T2PF:ty2perm PM _ ([x] PF x)) (TYP-E2:typing W (PiB0 , PiM1') E2 _)
-    (before-write-format/expr
-      (B2=>PiB2:cxt2perm CM PM B2 PiB2)
-      (B2+M3=>PiM3:capmap2perm CM PM B2 M3 PiM3)
-      RT2T
-      T2PF2)
-    consider-ftype/unique %{=>}% _
+    SUB (T2PF:ty2perm PM _ ([x] PF x)) (TYP-E2:typing W (PiB , (PiU0 , PiM1')) E2 _)
+    (before-write-format/expr (U2=>PiU2: make-encumbered CM PM B U2 PiU2)
+      (B=>PiB)
+      (M3=>PiM3:capmap2perm CM PM B M3 PiM3)
+      RT2T T2PF2)
+    consider-ftype/unique _
     ([x] tTrans
       (transform/implies
         (implies/equiv
-          (equiv/transitive5
+          (equiv/transitive7
+            (equiv/associate)
             (equiv/combine equiv/reflexive % piB0
               (equiv/combine equiv/reflexive equiv/commute)) % PF
             (equiv/roll3)
@@ -1552,7 +1424,8 @@ set-all-permissions*/U :
                 (equiv/commute)
                 (equiv/combine equiv/reflexive PiM1<=>PiM1'))
               (equiv/reflexive))
-            (equiv/commute))))
+            (equiv/commute)
+            (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate)))))
       (letTyping/base null
         (tWrite2 (TYP-E2' x)
           (letTyping/exists [o]
@@ -1576,7 +1449,15 @@ set-all-permissions*/U :
                   (transform/inside [o']
                     (transform/trans
                       (transform/implies
-                        (implies/trans5
+                        (implies/trans7
+                          (implies/equiv
+                            (equiv/combine equiv/reflexive
+                              (equiv/combine equiv/reflexive
+                                (equiv/combine equiv/reflexive
+                                  (equiv/transitive
+                                    (equiv/reorder)
+                                    (equiv/combine equiv/reflexive
+                                      (equiv/reorder)))))))
                           (implies/combine
                             (implies/trans3
                               (implies/equiv (equiv/symmetric equiv/identity))
@@ -1614,13 +1495,21 @@ set-all-permissions*/U :
                                       (equiv/symmetric equiv/one)
                                       (equiv/reflexive))
                                     (implies/reflexive))))
-                              (implies/equiv (equiv/symmetric equiv/associate))))))
+                              (implies/equiv (equiv/symmetric equiv/associate))))
+                          (implies/equiv
+                            (equiv/combine equiv/reflexive
+                              (equiv/transitive
+                                (equiv/combine equiv/reflexive
+                                  (equiv/transitive
+                                    (equiv/combine equiv/reflexive equiv/associate)
+                                    (equiv/associate)))
+                                (equiv/symmetric equiv/identity))))))
                       (transform/drop)))
                   (transform/rem-unused)))))))
       (transform/inside [o] transform/gen-exists o))
-    (result2output/unique/2 SZ-M T2PF ([_] set2cond/0)
-      B2=>PiB2 B2+M3=>PiM3 B2+M=>PiM MC-M=X X=>Q)
-    <- capmap2perm-equiv B2+M1=>PiM1 B2+M1=>PiM1' clsmap`eq/
+    (result2output/expr B=>PiB (env2input/ U2=>PiU2 M3=>PiM3)
+      (reftype2perm/unique SZ-M T2PF ([_] set2cond/0) M=>PiM MC-M=X X=>Q))
+    <- capmap2perm-equiv M1=>PiM1 M1=>PiM1' clsmap`eq/
       predmap`eq/ cxt`eq/ capmap`eq/ PiM1<=>PiM1'
     <- ({o:object} typing-frame* TYP-E2 (envadd/exists [x] envadd/expr) (TYP-E2' o))
     <- subtype-implies-ty2perm-leq* SUB RT2T T2PF2 T2PF IMP.
