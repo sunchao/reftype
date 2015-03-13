@@ -9,48 +9,33 @@
 
 %%% A few lemmas
 
-%{
-This version is more complicated - Twelf will say that cxt`lookup will
-have variable in cxt-info.
+ty2perm3 : clsmap -> predmap -> ty -> (object -> permission) -> type.
 
-%theorem cxt-remove-unique-preserves-set2cond
-  : forall* {B0} {B1} {S} {GF} {S'}
-    forall {S=>GF: {x} set2cond B0 x S (GF x)}
-    {B0-S=B1: cxt-remove-unique B0 S' B1}
-    exists {S=>GF: {x} set2cond B1 x S (GF x)}
-    true.
+ty2perm3/null : ty2perm3 _ _ ty/null ([x] unitperm (nonlinear (objequal x null))).
 
-- : cxt-remove-unique-preserves-set2cond ([_] set2cond/0)
-    _ ([_] set2cond/0).
+ty2perm3/shared :
+    ty2perm PM (ty/ NN annot/shared C) PF ->
+ ty2perm3 _ PM (ty/ NN annot/shared C) ([x] PF x).
 
-- : cxt-remove-unique-preserves-set2cond
-    ([x] set2cond/U (B0+S'=>Pi x) S'+N=S N!<S' B0-L) B0-R=B1
-    ([x] set2cond/U (B1+S'=>Pi x) S'+N=S N!<S' B1-L)
-    <- cxt-remove-unique-preserves-set2cond B0+S'=>Pi B0-R=B1 B1+S'=>Pi
-    <- cxt-remove-unique-preserves-lookup-info B0-L B0-R=B1 _ B1-L.
+ty2perm3/borrow :
+    ty2perm PM (ty/ NN annot/borrow C) PF ->
+ ty2perm3 _ PM (ty/ NN annot/borrow C) ([x] PF x).
 
-%worlds (objvar) (cxt-remove-unique-preserves-set2cond _ _ _).
-%total (A) (cxt-remove-unique-preserves-set2cond A _ _).
-}%
-
-
-%theorem cxt-remove-unique-preserves-set2cond
-  : forall* {B0} {B1} {S} {GF} {S'} {O}
-    forall {S=>GF: set2cond B0 O S GF}
-    {B0-S=B1: cxt-remove-unique B0 S' B1}
-    exists {S=>GF: set2cond B1 O S GF}
-    true.
-
-- : cxt-remove-unique-preserves-set2cond set2cond/0 _ set2cond/0.
-
-- : cxt-remove-unique-preserves-set2cond
-    (set2cond/U (B0+S'=>Pi) S'+N=S N!<S' B0-L) B0-R=B1
-    (set2cond/U (B1+S'=>Pi) S'+N=S N!<S' B1-L)
-    <- cxt-remove-unique-preserves-set2cond B0+S'=>Pi B0-R=B1 B1+S'=>Pi
-    <- cxt-remove-unique-preserves-lookup-info B0-L B0-R=B1 _ B1-L.
-
-%worlds (objvar) (cxt-remove-unique-preserves-set2cond _ _ _).
-%total (A) (cxt-remove-unique-preserves-set2cond A _ _).
+ty2perm3/unique :
+   clsmap`lookup CM C FM ->
+   predmap`lookup PM C CP ->
+   ({x} fldmap2perm2 PM x FM (PF x)) ->
+   ty2perm PM (ty/ NN annot/borrow C) ([x] (Pi x)) ->
+ ty2perm3 CM PM (ty/ NN annot/unique C)
+   ([x] combine (Pi x)
+     (unitperm
+       (conditional
+         (objequal x null)
+         (empty)
+         (unitperm
+           (encumbered
+             (PF x)
+             (combine (allperm x) (one-predcall CP x))))))).
 
 
 %theorem letRefTyping-helper/base/unique/L1L
@@ -552,7 +537,7 @@ have variable in cxt-info.
     ([x] implies/trans9
       (implies/combine (GIMP1 x)
         (implies/trans
-          (implies/combine implies/reflexive Pi2=>E)
+          (implies/combine implies/reflexive (implies/equiv Pi2<=>E))
           (implies/equiv equiv/identity)))
       (implies/equiv equiv/commute)
       (implies/cond-push)
@@ -573,7 +558,8 @@ have variable in cxt-info.
           (implies/combine implies/reflexive
             (implies/trans3
               (implies/equiv (equiv/symmetric equiv/identity))
-              (implies/combine implies/reflexive E=>Pi2)
+              (implies/combine implies/reflexive
+                (implies/equiv (equiv/symmetric Pi2<=>E)))
               (add-encumber)))
           (implies/equiv (equiv/symmetric equiv/identity)))
         (implies/trans3
@@ -597,7 +583,8 @@ have variable in cxt-info.
                     (implies/reflexive)
                     (implies/trans3
                       (implies/equiv (equiv/symmetric equiv/identity))
-                      (implies/combine implies/reflexive (E=>Pi2))
+                      (implies/combine implies/reflexive
+                        (implies/equiv (equiv/symmetric (Pi2<=>E))))
                       (add-encumber)))))))
           (implies/equiv (equiv/transitive equiv/commute equiv/identity))
           (implies/equiv equiv/commute)))
@@ -620,8 +607,8 @@ have variable in cxt-info.
     <- fldmap`domain-unique FM1-DM FM-DM FM1=FM FS1=FS
     <- ({x} fldmap2perm-respects-eq (FS1=>Pi x) predmap`eq/ object`eq/ FM1=FM
          FS1=FS permission`eq/ (FS=>Pi x))
-    <- make-encumbered-implies ME-SP make-encumbered/0 clsmap`eq/ predmap`eq/
-      cxt`eq/ SP=E Pi2=>E E=>Pi2
+    <- make-encumbered-equiv ME-SP make-encumbered/0 clsmap`eq/ predmap`eq/
+      cxt`eq/ SP=E Pi2<=>E
     <- ({x} set2cond-implies (SP=>GFP x) set2cond/0 object`eq/ SP=E (GIMP3 x) (GIMP4 x))
     <- ({x} cxt`lookup-unique BL1 (BL2 x) cxt`eq/ nat`eq/ (CI1=CI2 x))
     <- ({x} cxt-info-eq-inversion (CI1=CI2 x) (O1=O2 x) TEQ)
@@ -737,7 +724,7 @@ have variable in cxt-info.
     {FM-DM: fldmap`domain FM FS}
     {ME: make-encumbered CM PM B S Pi}
     {S=>GF: {x} set2cond B x S (GF x)}
-    exists {PF2} {T2PF2: ty2perm2 CM PM (ty/ NN annot/unique C) PF2}
+    exists {PF2} {T2PF2: ty2perm3 CM PM (ty/ NN annot/unique C) PF2}
     {PF3} {FM2P2: {x} fldmap2perm2 PM x FM (PF3 x)}
     {IMP: {x} implies (combine (PF x) (combine (GF x) Pi))
           (combine (GF x)
@@ -750,7 +737,7 @@ have variable in cxt-info.
     (CML:clsmap`lookup CM C FM)
     (PML:predmap`lookup PM C CP)
     (FM-DM:fldmap`domain FM FS)
-    ME ([x] S=>GF x) _ (ty2perm2/unique CML PML ([x] FM=>PF x) T2PF)
+    ME ([x] S=>GF x) _ (ty2perm3/unique CML PML ([x] FM=>PF x) T2PF)
     _ FM=>PF
     ([x] implies/trans3
       (implies/combine (implies/reflexive) (IMP x))
@@ -964,7 +951,7 @@ have variable in cxt-info.
     {FML: fldmap`domain FM FS}
     {T2PF: ty2perm PM (ty/ NN annot/unique C) ([x] PF x)}
     exists {PF2} {PF3}
-    {T2PF: ty2perm2 CM PM (ty/ NN annot/unique C) ([x] PF2 x)}
+    {T2PF: ty2perm3 CM PM (ty/ NN annot/unique C) ([x] PF2 x)}
     {M2P: {x} fldmap2perm PM x FM FS (PF3 x)}
     {IMP: {x} implies (PF x) (combine (PF2 x)
        (unitperm (conditional (objequal x null) empty (PF3 x))))}
@@ -972,7 +959,7 @@ have variable in cxt-info.
 
 - : letRefTyping-helper/base/unique/L4L1 CM-CM CM2PM CML (FM-DM:fldmap`domain FM FS)
     (ty2perm/ PML nn2perm/yes annot2perm/unique) _ _
-    (ty2perm2/unique CML PML ([x] fldmap2perm2/ FM-DM (FS=>PF x))
+    (ty2perm3/unique CML PML ([x] fldmap2perm2/ FM-DM (FS=>PF x))
       (ty2perm/ PML nn2perm/yes annot2perm/borrow)) FS=>PF
      ([x:object] implies/trans6
       (implies/combine (implies/duplicate)
@@ -1068,7 +1055,7 @@ have variable in cxt-info.
 - : {FS=>PF: {x} fldmap2perm PM x FM FS (PF3 x)}
     letRefTyping-helper/base/unique/L4L1 CM-CM CM2PM CML (FM-DM:fldmap`domain FM FS)
     (ty2perm/ PML nn2perm/may annot2perm/unique) _ _
-    (ty2perm2/unique CML PML ([x] fldmap2perm2/ FM-DM (FS=>PF x))
+    (ty2perm3/unique CML PML ([x] fldmap2perm2/ FM-DM (FS=>PF x))
       (ty2perm/ PML nn2perm/may annot2perm/borrow)) FS=>PF
     ([x] implies/trans4
       (implies/cond-inner

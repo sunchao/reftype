@@ -128,6 +128,86 @@ update-cxt/shared :
 
 }%
 
+
+%%% Make sure the let variable is not in the result target (no leaking).
+
+not-in-capmap : nat -> capmap -> type.
+
+not-in-capmap/0 : not-in-capmap N capmap/0.
+
+not-in-capmap/U :
+    not-in-capmap N M' ->
+    nat2pair K (pair/ N' F) ->
+    nat`ne N N' ->
+    capmap`fresh M' K ->
+    capmap`update M' K X M ->
+  not-in-capmap N M.
+
+not-in-targets : nat -> targets -> type.
+
+not-in-targets/unique :
+    set`not-member S N ->
+    not-in-capmap N M ->
+  not-in-targets N (targets/unique S M).
+
+not-in-targets/shared : not-in-targets _ targets/shared.
+
+
+%%% Reclaim capabilities encumbered by the let variable.
+
+%{
+To reclaim the capabilities encumbered by the let variable N.
+First, for each pair (N, F) in `M2`, we remove it, and add back
+(N', F), for all N' in S. Second, we add `M1` to the result
+caps, only if none of the field for N has not been consumed.
+}%
+
+collect-matching-fields : nat -> capmap -> capmap -> type.
+
+collect-matching-fields/0 : collect-matching-fields _ capmap/0 capmap/0.
+
+collect-matching-fields/U/in :
+    collect-matching-fields N Min' Mout' ->
+    nat2pair K (pair/ N F) ->
+    capmap`fresh Min' K ->
+    capmap`update Min' K X Min ->
+    capmap`update Mout' F X Mout ->
+  collect-matching-fields N Min Mout.
+
+collect-matching-fields/U/out :
+    collect-matching-fields N Min' Mout ->
+    nat2pair K (pair/ N' _) ->
+    nat`ne N N' ->
+    capmap`fresh Min' K ->
+    capmap`update Min' K X Min ->
+  collect-matching-fields N Min Mout.
+
+
+reclaim-caps : nat -> set -> targets -> env -> env -> type.
+
+%%% The first case, if not all field capabilities for object N
+%%% are in the result capmap (in other words, some of them are consumed),
+%%% then we cannot restore any of the capabilities from M1, and we cannot
+%%% restore the encumbered permission for all objects in S.
+reclaim-caps/1 :
+    collect-matching-fields N M2 M3 ->
+    capmap`size M3 N1 ->
+    set`size FS N2 ->
+    nat`le N1 N2 ->
+    set+map2map S M3 M4 ->
+  reclaim-caps N FS (targets/unique S M1) (env/ U M2) (env/ U M4).
+
+reclaim-caps/2 :
+    collect-matching-fields N M2 M3 ->
+    capmap`size M3 N1 ->
+    set`size FS N1 ->
+    set+map2map S M3 M4 ->
+    capmap`join M4 M1 M5 ->
+    set`union S U U2 ->
+    set`remove U2 (set/1 N) U3 ->
+  reclaim-caps N FS (targets/unique S M1) (env/ U M2) (env/ U3 M5).
+
+
 letRefTyping : clsmap -> methmap -> cxt ->
     expr-result -> (object -> term K) -> result K -> type.
 
@@ -142,7 +222,9 @@ letRefTyping/base/unique :
     nat+set2capmap (s N) FS cap/write M3 ->
     capmap-split M5 M3 M4 ->
     capmap-min M1 cap/write ->
-    ({x} reftyping CM MM (B1 x) (env/ U1 M5) (F x) (R x)) ->
+    ({x} reftyping CM MM (B1 x) (env/ U1 M5) (F x) (result/expr (reftype/ NN1 C1 G1) V1)) ->
+    not-in-targets (s N) G1 ->
+    reclaim-caps (s N) S FS V1 V2 ->
   letRefTyping CM MM B0 (result/expr (reftype/ NN C (targets/unique S M1)) (env/ U0 M0))
     F (result/exists [x] (R x)).
 
@@ -154,9 +236,9 @@ letRefTyping/base/shared :
   letRefTyping CM MM B0 (result/expr (reftype/ NN C targets/shared) V)
     F (result/exists [x] (R x)).
 
-letRefTyping/exists :
-    ({x} letRefTyping CM MM B (V x) F (R x)) ->
-  letRefTyping CM MM B (result/exists [x] (V x)) F (result/exists [x] (R x)).
+% letRefTyping/exists :
+%     ({x} letRefTyping CM MM B (V x) F (R x)) ->
+%   letRefTyping CM MM B (result/exists [x] (V x)) F (result/exists [x] (R x)).
 
 
 % %%% TODO: add substitution.
