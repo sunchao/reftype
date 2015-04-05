@@ -1,19 +1,7 @@
 %%% Subtyping Rules
 
-%%% Definitions
 
-
-%%% Environment - a pair of context and capmap
-
-env : type.
-
-env/ : set -> capmap -> env.
-
-
-env`eq : env -> env -> type.
-
-env`eq/ : env`eq V V.
-
+%%% ======================= Abbreviations =====================================
 
 %% We use a special natural number z to represent the special
 %% shared target: world.all. There's a one-to-one mapping between
@@ -22,58 +10,55 @@ env`eq/ : env`eq V V.
 %abbrev shared-tgt : nat = nat`z.
 
 
-%%% Type Checking Result
+%%% ======================= Definitions =======================================
 
-result : kind -> type.
+%% Environment - a pair of unique objects and capabilities
 
-%abbrev expr-result = result exprk.
+env : type.
 
-%abbrev cond-result = result condk.
-
-%abbrev args-result = result argsk.
+env/ : set -> set -> env.
 
 
-result/expr : reftype -> env -> expr-result.
+env`eq : env -> env -> type.
 
-result/exists : (object -> result K) -> result K.
-
-result/cond : env -> cond-result.
-
-result/args/0 : env -> args-result.
-
-result/args/+ : reftype -> args-result -> args-result.
-
-
-result`eq : result K -> result K -> type.
-
-result`eq/ : result`eq R R.
+env`eq/ : env`eq V V.
 
 
 
-make-tgts-and-caps : capmap -> targets -> nat -> cap -> targets -> capmap -> type.
+%% Spliting a capability set into two subsets.
+
+capset-split : set -> set -> set -> type.
+
+capset-split/ :
+    set`disjoint S1 S2 ->
+    set`union S1 S2 S ->
+  capset-split S S1 S2.
+
+
+
+make-tgts-and-caps : set -> targets -> nat -> targets -> set -> type.
 
 %%% When the result is shared, we can claim back the encumbered capabilities.
 make-tgts-and-caps/shared :
-    capmap-split M0 (capmap/1 shared-tgt X) M1 ->
- make-tgts-and-caps M0 targets/shared _ X
-   (targets/unique set/0 (capmap/1 shared-tgt X)) M1.
+    capset-split M0 (set/1 shared-tgt) M1 ->
+ make-tgts-and-caps M0 targets/shared _
+   (targets/unique set/0 (set/1 shared-tgt)) M1.
 
 make-tgts-and-caps/unique :
-    set+nat2capmap S F X M2 ->
-    capmap-min M1 X ->
-    capmap-split M M1 M2 ->
-    capmap-split M0 M2 M3 ->
-  make-tgts-and-caps M0 (targets/unique S M1) F X (targets/unique set/0 M) M3.
+    set+nat2set S F M2 ->
+    capset-split M M1 M2 ->
+    capset-split M0 M2 M3 ->
+  make-tgts-and-caps M0 (targets/unique S M1) F (targets/unique set/0 M) M3.
 
 
 % Consider field annotation, and returns either the input unique
 % targets, or a shared targets. (no borrowed targets since field
 % cannot be borrowed).
 
-consider-ftype : targets -> capmap -> annot -> targets -> capmap -> type.
+consider-ftype : targets -> set -> annot -> targets -> set -> type.
 
 consider-ftype/shared :
-    capmap-split M1 M M0 ->
+    capset-split M1 M M0 ->
   consider-ftype (targets/unique set/0 M) M0 annot/shared targets/shared M1.
 
 consider-ftype/unique : consider-ftype G M annot/unique G M.
@@ -86,12 +71,10 @@ ty2reftype : nat -> ty -> reftype -> type.
 ty2reftype/shared : ty2reftype L (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
 
 ty2reftype/borrow : ty2reftype L (ty/ NN annot/borrow C)
-    (reftype/ NN C (targets/unique (set/1 L) capmap/0)).
+    (reftype/ NN C (targets/unique (set/1 L) set/0)).
 
 ty2reftype/unique : ty2reftype L (ty/ NN annot/unique C)
-    (reftype/ NN C (targets/unique (set/1 L) capmap/0)).
-
-% ty2reftype/null : ty2reftype _ ty/null reftype/null.
+    (reftype/ NN C (targets/unique (set/1 L) set/0)).
 
 
 reftype2ty : reftype -> ty -> type.
@@ -100,60 +83,6 @@ reftype2ty/shared : reftype2ty (reftype/ NN C targets/shared) (ty/ NN annot/shar
 
 %% TODO: maybe annot/borrow more making sense?
 reftype2ty/unique : reftype2ty (reftype/ NN C (targets/unique _ _)) (ty/ NN annot/unique C).
-
-% reftype2ty/null : reftype2ty reftype/null ty/null.
-
-
-% Compatible : whether (encumbered) targets are compatible
-% with the forthcoming effects.
-
-% compatible : clsmap -> cxt -> targets -> effects -> type.
-
-%{ this is rather restrictive: it means once we "hold on"
-a unique field from a shared object, we cannot have any
-effect on shared, until we release the unique field. For instance,
-  (if true a else s).u1 = s.u2 is not allowed. This is caused by
-the way we converting permissions - we make the result permission
-to be *encumbered* BOTH in permission for a and permission for s
-(shared permission). The fix is to replace the encumber permission
-for shared with a nesting fact, and then delay the encumber
-to later stage. However, at this time it turns out too much change
-is required, so we left it to be fixed later.
-
-Update: we need to restrict the occurrences of OS in effects too.
-In case we have expression: let x = a in (a.f = 3; x.f = 4; x)
-we would first convert the output of "x = a" into a certain format
-where "x.f" is already carved from the permissions. Thus, when
-checking "a.f = 3", we don't have permission for "a.f" since it's
-already in the encumbered part.
-
-We can get the permission for "a.f" by first using linear modus-ponens
-to restore the permission for "a.f" and then get the permission for
-"x.f" again when starting to check "x.f". However, this cannot
-be implemented in the current system.
-
-In order to implement this, we might need to change the way input
-permission is generated. Instead of requiring the permissions for
-"x", it should require the permissions where "x" will come from.
-In this way, we only do carving whenever needed. This may be done
-by binding "x" with all the targets & effects it came from, but this
-requires a big surgery on the current context definition.
-
-FUTURE WORK: fix compatible/shared.
-FUTURE WORK: better/less restrictive compatible/unique
-}%
-
-%{
-compatible/shared : set`not-member S shared-tgt
-                    -> compatible _ _ targets/shared (effects/ _ S Q).
-
-compatible/unique : capmap`domain M R
-                    -> set`disjoint FS R
-                    -> set`disjoint FS S
-                    -> objset2fldset CM B Q FS2
-                    -> set`disjoint FS FS2
-                    -> compatible CM B (targets/unique OS FS) (effects/ M S Q).
-}%
 
 
 % sub-annotation rule with side effects.
@@ -166,9 +95,8 @@ compatible/unique : capmap`domain M R
 sub-annot-cap : targets -> env -> set -> annot -> env -> type.
 
 sub-annot-cap/consume :
-    set+set2capmap S FS cap/write M2 ->
-    capmap-split M0 M2 M3 ->
-    capmap-min M1 cap/write ->
+    set+set2set S FS M2 ->
+    capset-split M0 M2 M3 ->
     set`leq S U0 ->
     set`remove U0 S U1 ->
   sub-annot-cap (targets/unique S M1) (env/ U0 M0) FS A (env/ U1 M3).
@@ -176,46 +104,91 @@ sub-annot-cap/consume :
 sub-annot-cap/shared2shared : sub-annot-cap targets/shared V _ annot/shared V.
 
 
-%abbrev sub-nonnull : nn -> nn -> type = [NN1][NN2] nonnull`leq NN2 NN1.
-
-%abbrev sub-annot : annot -> annot -> type = [A1][A2] annot`leq A2 A1.
-
-
 subtype : clsmap -> reftype -> env -> ty -> env -> type.
 
 subtype/ :
     nat`eq C1 C2 ->
-    sub-nonnull NN1 NN2 ->
+    nonnull`leq NN2 NN1 ->
     clsmap`lookup CM C1 FM ->
     fldmap`domain FM FS ->
-    sub-annot-cap GS VI FS A2 VO ->
-  subtype CM (reftype/ NN1 C1 GS) VI (ty/ NN2 A2 C2) VO.
+    sub-annot-cap G V1 FS A2 V2 ->
+  subtype CM (reftype/ NN1 C1 G) V1 (ty/ NN2 A2 C2) V2.
 
 subtype/null : subtype _ reftype/null V ty/null V.
 
 subtype/maynull : subtype _ reftype/null V (ty/ nn/may _ _) V.
 
 
-%%% Theorems
 
-%theorem make-tgts-and-caps-implies-min-cap
-  : forall* {M0} {G0} {F} {X} {M} {M1}
-    forall {MG: make-tgts-and-caps M0 G0 F X (targets/unique set/0 M) M1}
-    exists {MC-M=X: capmap-min M X}
+%%% ======================= Theorems =======================================
+
+
+%theorem capset-split-implies-disjoint-union
+  : forall* {CS} {CS1} {CS2}
+    forall {SP: capset-split CS CS1 CS2}
+    exists {CS1^CS2: set`disjoint CS1 CS2} {CS1+CS2=CS: set`union CS1 CS2 CS}
     true.
 
-- : make-tgts-and-caps-implies-min-cap (make-tgts-and-caps/shared _)
-    (capmap-min/U capmap-min/0 MI capmap`update/0 capmap`fresh/0)
-    <- cap/write-is-upper-bound _ MI.
+- : capset-split-implies-disjoint-union (capset-split/ D U) D U.
 
-- : make-tgts-and-caps-implies-min-cap
-    (make-tgts-and-caps/unique (S+X=M2:set+nat2capmap S F Xx M2)
-      (MC-M1=X:capmap-min M1 Xx)
-      (M=M1+M2:capmap-split M M1 M2)
-      (M0-M2=M3:capmap-split M0 M2 M3)) MC-M=X
-    <- capmap-split-implies-disjoint-join M=M1+M2 _ M1+M2=M
-    <- set+nat2capmap-implies-min-cap S+X=M2 MC-M2=X
-    <- capmap-join-preserves-min-cap MC-M1=X MC-M2=X M1+M2=M MC-M=X.
+%worlds (objvar) (capset-split-implies-disjoint-union _ _ _).
+%total { } (capset-split-implies-disjoint-union _ _ _).
 
-%worlds (objvar) (make-tgts-and-caps-implies-min-cap _ _).
-%total { } (make-tgts-and-caps-implies-min-cap _ _).
+
+%theorem capset-split-implies-leq
+  : forall* {CS} {CS1} {CS2}
+    forall {SP: capset-split CS CS1 CS2}
+    exists {CS1<=CS: set`leq CS1 CS} {CS2<=CS: set`leq CS2 CS}
+    true.
+
+- : capset-split-implies-leq (capset-split/ _ U) L1 L2
+    <- set`union-implies-leq U L1 L2.
+
+%worlds (objvar) (capset-split-implies-leq _ _ _).
+%total { } (capset-split-implies-leq _ _ _).
+
+
+%theorem capset-split-respects-eq
+  : forall* {M} {MP} {M1} {M1P} {M2} {M2P}
+    forall {M-M1=M2: capset-split M M1 M2}
+    {M=MP: set`eq M MP}
+    {M1=M1P: set`eq M1 M1P}
+    {M2=M2P: set`eq M2 M2P}
+    exists {M-M1=M2: capset-split MP M1P M2P}
+    true.
+
+%worlds () (capset-split-respects-eq _ _ _ _ _).
+%trustme %total { } (capset-split-respects-eq _ _ _ _ _).
+
+
+%theorem capset-split-unique
+  : forall* {M} {MP} {M1} {M1P} {M2} {M2P}
+    forall {M-M1=M2: capset-split M M1 M2}
+    {MP-M1P=M2P: capset-split MP M1P M2P}
+    {M=MP: set`eq M MP}
+    {M1=M1P: set`eq M1 M1P}
+    exists {M2=M2P: set`eq M2 M2P}
+    true.
+
+- : capset-split-unique (capset-split/ M1^M2 M1+M2=M)
+    (capset-split/ M1P^M2P M1P+M2P=MP) M=MP M1=M1P M2=M2P
+    <- set`union-commutative M1+M2=M M2+M1=M
+    <- set`union-commutative M1P+M2P=MP M2P+M1P=MP
+    <- set`disjoint-symmetric M1^M2 M2^M1
+    <- set`disjoint-symmetric M1P^M2P M2P^M1P
+    <- set`disjoint-union-implies-remove M2+M1=M M2^M1 M-M1=M2
+    <- set`disjoint-union-implies-remove M2P+M1P=MP M2P^M1P MP-M1P=M2P
+    <- set`remove-unique M-M1=M2 MP-M1P=M2P M=MP M1=M1P M2=M2P.
+
+%worlds () (capset-split-unique _ _ _ _ _).
+%total { } (capset-split-unique _ _ _ _ _).
+
+
+%theorem capset-split-empty
+  : forall* {M} {M1}
+    forall {M-E=M1: capset-split M set/0 M1}
+    exists {M1=M: set`eq M1 M}
+    true.
+
+%worlds () (capset-split-empty _ _).
+%trustme %total { } (capset-split-empty _ _).

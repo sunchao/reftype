@@ -930,3 +930,59 @@ Think about why let is so different from read, say
   a.f.g = 3
 versus
   let x = a.f in x.g = 3
+
+
+
+<2015-03-25 Wed>
+
+
+% Compatible : whether (encumbered) targets are compatible
+% with the forthcoming effects.
+
+% compatible : clsmap -> cxt -> targets -> effects -> type.
+
+%{ this is rather restrictive: it means once we "hold on"
+a unique field from a shared object, we cannot have any
+effect on shared, until we release the unique field. For instance,
+  (if true a else s).u1 = s.u2 is not allowed. This is caused by
+the way we converting permissions - we make the result permission
+to be *encumbered* BOTH in permission for a and permission for s
+(shared permission). The fix is to replace the encumber permission
+for shared with a nesting fact, and then delay the encumber
+to later stage. However, at this time it turns out too much change
+is required, so we left it to be fixed later.
+
+Update: we need to restrict the occurrences of OS in effects too.
+In case we have expression: let x = a in (a.f = 3; x.f = 4; x)
+we would first convert the output of "x = a" into a certain format
+where "x.f" is already carved from the permissions. Thus, when
+checking "a.f = 3", we don't have permission for "a.f" since it's
+already in the encumbered part.
+
+We can get the permission for "a.f" by first using linear modus-ponens
+to restore the permission for "a.f" and then get the permission for
+"x.f" again when starting to check "x.f". However, this cannot
+be implemented in the current system.
+
+In order to implement this, we might need to change the way input
+permission is generated. Instead of requiring the permissions for
+"x", it should require the permissions where "x" will come from.
+In this way, we only do carving whenever needed. This may be done
+by binding "x" with all the targets & effects it came from, but this
+requires a big surgery on the current context definition.
+
+FUTURE WORK: fix compatible/shared.
+FUTURE WORK: better/less restrictive compatible/unique
+}%
+
+%{
+compatible/shared : set`not-member S shared-tgt
+                    -> compatible _ _ targets/shared (effects/ _ S Q).
+
+compatible/unique : set`domain M R
+                    -> set`disjoint FS R
+                    -> set`disjoint FS S
+                    -> objset2fldset CM B Q FS2
+                    -> set`disjoint FS FS2
+                    -> compatible CM B (targets/unique OS FS) (effects/ M S Q).
+}%

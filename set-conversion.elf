@@ -1,0 +1,869 @@
+%%% Definitions
+
+%%% Extend a set of object IDs with a field ID.
+%%% As result, we get a set of field targets.
+
+set+nat2set : set -> nat -> set -> type.
+
+set+nat2set/0 : set+nat2set set/0 _ set/0.
+
+set+nat2set/U :
+    set+nat2set S' F Q' ->
+    pair2nat (pair/ N F) K ->
+    set`not-member S' N ->
+    set`add S' N S ->
+    set`add Q' K Q ->
+  set+nat2set S F Q.
+
+
+%%% Extend a object ID with a set of field IDs
+%%% As result, we get a set of field targets.
+
+nat+set2set : nat -> set -> set -> type.
+
+nat+set2set/0 : nat+set2set _ set/0 set/0.
+
+nat+set2set/U :
+    nat+set2set N S' Q' ->
+    pair2nat (pair/ N F) K ->
+    set`not-member S' F ->
+    set`add S' F S ->
+    set`add Q' K Q ->
+  nat+set2set N S Q.
+
+
+%%% Extend a set of objects IDs with a set of field IDs.
+%%% As result, we get a set of field targets.
+
+set+set2set : set -> set -> set -> type.
+
+set+set2set/0 : set+set2set set/0 _ set/0.
+
+set+set2set/U :
+    set+set2set S' FS Q0 ->
+    nat+set2set N FS Q1 ->
+    set`not-member S' N ->
+    set`add S' N S ->
+    set`union Q0 Q1 Q2 ->
+  set+set2set S FS Q2.
+
+
+%%% Theorems
+
+
+%%% Theorems about set+nat2set
+
+%theorem set+nat2set-total*
+  : forall {S} {F}
+    exists {Q} {S+N=>Q: set+nat2set S F Q}
+    true.
+
+%worlds () (set+nat2set-total* _ _ _ _).
+%trustme %total { } (set+nat2set-total* _ _ _ _).
+
+%abbrev set+nat2set-total = set+nat2set-total* _ _ _.
+
+
+%theorem set+nat2set-respects-eq
+  : forall* {S} {F} {S'} {F'} {Q} {Q'}
+    forall {T: set+nat2set S F Q}
+    {E: set`eq S S'} {E: nat`eq F F'} {E: set`eq Q Q'}
+    exists {T: set+nat2set S' F' Q'}
+    true.
+
+%worlds () (set+nat2set-respects-eq _ _ _ _ _).
+%trustme %total { } (set+nat2set-respects-eq _ _ _ _ _).
+
+
+%theorem set+nat2set/U-inversion
+  : forall* {N} {S} {S'} {M} {F}
+    forall {S+F=>M: set+nat2set S F M}
+    {N!<S': set`not-member S' N}
+    {S'+N=S: set`add S' N S}
+    exists {M'} {S'+F=>M': set+nat2set S' F M'}
+    {K} {N+F=>K: pair2nat (pair/ N F) K}
+    {M'+K+X=M: set`add M' K M}
+    true.
+
+%theorem set+nat2set/U-inversion/L
+  : forall* {N} {S} {M} {F} {B} {S0} {N0} {M0} {K0} {S'}
+    forall {S+F+X=>M: set+nat2set S0 F M0}
+    {N0!<S0: set`not-member S0 N0}
+    {S0+N0=S: set`add S0 N0 S}
+    {M0+K0+X=M: set`add M0 K0 M}
+    {N0+F=>K0: pair2nat (pair/ N0 F) K0}
+    {N!<S': set`not-member S' N}
+    {S'+N=S: set`add S' N S}
+    {EQ?: nat`eq? N N0 B}
+    exists {M'} {S'+F+X=>M': set+nat2set S' F M'}
+    {K} {N+F=>K: pair2nat (pair/ N F) K}
+    {M'+K+X=M: set`add M' K M}
+    true.
+
+- : set+nat2set/U-inversion/L NSS0 F0 U0 SU0 K2NF0 F1 U1
+    nat`eq?/yes _ NSS _ K2NF0 SU0
+    <- set`not-member-add-cancels F0 U0 F1 U1 nat`eq/ set`eq/ (S0=S:set`eq S0 S)
+    <- set+nat2set-respects-eq NSS0 S0=S nat`eq/ set`eq/ NSS.
+
+- : set+nat2set/U-inversion/L NSS0 F0 U0 SU0 K2NF0 F1 U1
+    (nat`eq?/no N<>N0) _ (set+nat2set/U NSS K2NF0 F4 U4 SU2) _ K2NF SU3
+    <- set`add-commutes-converse U1 U0 N<>N0 SP U4 U3
+    <- set`add-preserves-not-member-converse F1 U4 F3
+    <- set`add-preserves-not-member-converse F0 U3 F4
+    <- set+nat2set/U-inversion NSS0 F3 U3 _ NSS _ K2NF SU
+    <- pair2nat-preserves-ne* (natpair`ne/1 N<>N0) K2NF K2NF0 NE
+    <- set`update-commutes SU SU0 NE _ SU2 SU3.
+
+- : set+nat2set/U-inversion (set+nat2set/U NSS0 P2K0 F0 U0 SU0) F1 U1
+    _ NSS1 _ P2K1 SU1
+    <- nat`eq?-total E?
+    <- set+nat2set/U-inversion/L NSS0 F0 U0 SU0 P2K0 F1 U1 E? _ NSS1 _ P2K1 SU1.
+
+%worlds () (set+nat2set/U-inversion _ _ _ _ _ _ _ _)
+  (set+nat2set/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N N0) (set+nat2set/U-inversion N _ _ _ _ _ _ _)
+  (set+nat2set/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem set+nat2set-unique
+  : forall* {S} {F} {S'} {F'} {M} {M'}
+    forall {T: set+nat2set S F M}
+    {T: set+nat2set S' F' M'}
+    {E: set`eq S S'} {E: nat`eq F F'}
+    exists {E: set`eq M M'}
+    true.
+
+%worlds () (set+nat2set-unique _ _ _ _ _).
+%trustme %total { } (set+nat2set-unique _ _ _ _ _).
+
+
+%theorem set+nat2set-preserves-not-member
+  : forall* {S} {N} {F} {K} {Q}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {NM: set`not-member S N}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : set+nat2set-preserves-not-member set+nat2set/0
+    set`not-member/0 _ set`not-member/0.
+
+%theorem set+nat2set-preserves-not-member/L
+  : forall* {S} {N} {F} {K} {Q} {SP} {QP} {NP} {KP} {B}
+    forall {S+F=>Q: set+nat2set SP F QP}
+    {NP+F=>KP: pair2nat (pair/ NP F) KP}
+    {NMP: set`not-member SP NP}
+    {UP: set`add SP NP S}
+    {UQ: set`add QP KP Q}
+    {NM: set`not-member S N}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? N NP B}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : set+nat2set-preserves-not-member/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- set`add-implies-member UP MB
+    <- set`not-member-member-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- set`false-implies-not-member V NMQ.
+
+- : set+nat2set-preserves-not-member/L SP+F=>QP NP+F=>KP _
+    SP+NP=S QP+KP=Q N!<S N+F=>K (nat`eq?/no N<>NP) K!<Q
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- set+nat2set-preserves-not-member SP+F=>QP N!<SP N+F=>K K!<QP
+    <- pair2nat-preserves-ne* (natpair`ne/1 N<>NP) N+F=>K NP+F=>KP K<>KP
+    <- set`add-preserves-not-member K!<QP QP+KP=Q K<>KP K!<Q.
+
+- : set+nat2set-preserves-not-member
+    (set+nat2set/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- set+nat2set-preserves-not-member/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (set+nat2set-preserves-not-member _ _ _ _)
+	(set+nat2set-preserves-not-member/L _ _ _ _ _ _ _ _ _).
+%total (T1 T2) (set+nat2set-preserves-not-member T1 _ _ _)
+	(set+nat2set-preserves-not-member/L T2 _ _ _ _ _ _ _ _).
+
+
+%theorem set+nat2set-preserves-size
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {SZ: set`size S N}
+    exists {QZ: set`size Q N}
+    true.
+
+- : set+nat2set-preserves-size set+nat2set/0 set`size/0 set`size/0.
+
+- : set+nat2set-preserves-size
+    (set+nat2set/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-S SZ-Q
+    <- set`not-member-add-increases-size-converse SZ-S N!<S' S'+N=S SZ-S'
+    <- set+nat2set-preserves-size S'+F=>Q' SZ-S' SZ-Q'
+    <- set+nat2set-preserves-not-member S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- set`not-member-update-increases-size SZ-Q' K!<Q' Q'+K=Q SZ-Q.
+
+%worlds () (set+nat2set-preserves-size _ _ _).
+%total (N) (set+nat2set-preserves-size N _ _).
+
+
+%theorem set+nat2set-preserves-size-converse
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {QZ: set`size Q N}
+    exists {SZ: set`size S N}
+    true.
+
+- : set+nat2set-preserves-size-converse set+nat2set/0 set`size/0 set`size/0.
+
+- : set+nat2set-preserves-size-converse
+    (set+nat2set/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-Q SZ-S
+    <- set+nat2set-preserves-not-member S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- set`not-member-add-increases-size-converse SZ-Q K!<Q' Q'+K=Q SZ-Q'
+    <- set+nat2set-preserves-size-converse S'+F=>Q' SZ-Q' SZ-S'
+    <- set`not-member-add-increases-size SZ-S' N!<S' S'+N=S SZ-S.
+
+%worlds () (set+nat2set-preserves-size-converse _ _ _).
+%total (N) (set+nat2set-preserves-size-converse N _ _).
+
+
+%theorem set+nat2set-preserves-size
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {SZ: set`size S N}
+    exists {QZ: set`size Q N}
+    true.
+
+- : set+nat2set-preserves-size set+nat2set/0 set`size/0 set`size/0.
+
+- : set+nat2set-preserves-size
+    (set+nat2set/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-S SZ-Q
+    <- set`not-member-add-increases-size-converse SZ-S N!<S' S'+N=S SZ-S'
+    <- set+nat2set-preserves-size S'+F=>Q' SZ-S' SZ-Q'
+    <- set+nat2set-preserves-not-member S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- set`not-member-add-increases-size SZ-Q' K!<Q' Q'+K=Q SZ-Q.
+
+%worlds () (set+nat2set-preserves-size _ _ _).
+%total (N) (set+nat2set-preserves-size N _ _).
+
+
+%theorem set+nat2set-preserves-size-converse
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: set+nat2set S F Q}
+    {QZ: set`size Q N}
+    exists {SZ: set`size S N}
+    true.
+
+- : set+nat2set-preserves-size-converse set+nat2set/0 set`size/0 set`size/0.
+
+- : set+nat2set-preserves-size-converse
+    (set+nat2set/U S'+F=>Q' N+F=>K N!<S' S'+N=S Q'+K=Q) SZ-Q SZ-S
+    <- set+nat2set-preserves-not-member S'+F=>Q' N!<S' N+F=>K K!<Q'
+    <- set`not-member-add-increases-size-converse SZ-Q K!<Q' Q'+K=Q SZ-Q'
+    <- set+nat2set-preserves-size-converse S'+F=>Q' SZ-Q' SZ-S'
+    <- set`not-member-add-increases-size SZ-S' N!<S' S'+N=S SZ-S.
+
+%worlds () (set+nat2set-preserves-size-converse _ _ _).
+%total (N) (set+nat2set-preserves-size-converse N _ _).
+
+
+%%% Theorems about nat+set2set
+
+%theorem false-implies-nat+set2set
+  : forall* {N} {FS} {S} forall {F:void} exists {NSS: nat+set2set N FS S} true.
+
+%worlds () (false-implies-nat+set2set _ _).
+%total { } (false-implies-nat+set2set _ _).
+
+
+%theorem nat+set2set-respects-eq
+  : forall* {N} {N0} {FS} {FS0} {S} {S0}
+    forall {NSS: nat+set2set N FS S}
+    {E: nat`eq N N0} {E: set`eq FS FS0} {E: set`eq S S0}
+    exists {NSS0: nat+set2set N0 FS0 S0}
+    true.
+
+- : nat+set2set-respects-eq NSS nat`eq/ set`eq/ set`eq/ NSS.
+
+%worlds (objvar) (nat+set2set-respects-eq _ _ _ _ _).
+%total { } (nat+set2set-respects-eq _ _ _ _ _).
+
+
+%theorem nat+set2set-total*
+  : forall {N} {FS}
+    exists {S} {N+FS=>S: nat+set2set N FS S} true.
+
+%abbrev nat+set2set-total = nat+set2set-total* _ _ _.
+
+
+%theorem nat+set2set-total/L
+  : forall* {FS}
+    forall {K} {Z: set`size FS K} {N}
+    exists {S} {N+FS=>S: nat+set2set N FS S}
+    true.
+
+- : nat+set2set-total/L _ _ _ _ nat+set2set/0.
+
+- : nat+set2set-total/L _ Z _ _ (nat+set2set/U NSS1 P2N F A QA)
+    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) _ F A
+    <- set`not-member-add-increases-size-converse Z F A Z1
+    <- nat+set2set-total/L _ Z1 _ _ NSS1
+    <- pair2nat-total P2N
+    <- set`update-total QA.
+
+%worlds () (nat+set2set-total/L _ _ _ _ _).
+%total (N) (nat+set2set-total/L N _ _ _ _).
+
+- : nat+set2set-total NSS
+    <- set`size-total Z
+    <- nat+set2set-total/L _ Z _ _ NSS.
+
+%worlds () (nat+set2set-total* _ _ _ _).
+%total {} (nat+set2set-total* _ _ _ _).
+
+
+%theorem nat+set2set-preserves-not-member
+  : forall* {S} {N} {F} {K} {Q}
+    forall {S+F=>Q: nat+set2set N S Q}
+    {NM: set`not-member S F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : nat+set2set-preserves-not-member nat+set2set/0 set`not-member/0 _ set`not-member/0.
+
+%theorem nat+set2set-preserves-not-member/L
+  : forall* {S} {N} {F} {K} {Q} {SP} {QP} {FP} {KP} {B}
+    forall {S+F=>Q: nat+set2set N SP QP}
+    {NP+F=>KP: pair2nat (pair/ N FP) KP}
+    {NMP: set`not-member SP FP}
+    {UP: set`add SP FP S}
+    {UQ: set`add QP KP Q}
+    {NM: set`not-member S F}
+    {N+F=>K: pair2nat (pair/ N F) K}
+    {E?: nat`eq? F FP B}
+    exists {NM: set`not-member Q K}
+    true.
+
+- : nat+set2set-preserves-not-member/L _ _ _ UP _ NM _ nat`eq?/yes NMQ
+    <- set`add-implies-member UP MB
+    <- set`not-member-member-not-equal NM MB N<>N
+    <- nat`ne-anti-reflexive N<>N V
+    <- set`false-implies-not-member V NMQ.
+
+- : nat+set2set-preserves-not-member/L SP+F=>QP NP+F=>KP _
+    SP+NP=S QP+KP=Q N!<S N+F=>K (nat`eq?/no N<>NP) K!<Q
+    <- set`add-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- nat+set2set-preserves-not-member SP+F=>QP N!<SP N+F=>K K!<QP
+    <- pair2nat-preserves-ne* (natpair`ne/2 N<>NP) N+F=>K NP+F=>KP K<>KP
+    <- set`add-preserves-not-member K!<QP QP+KP=Q K<>KP K!<Q.
+
+- : nat+set2set-preserves-not-member
+    (nat+set2set/U SP+F=>QP NP+F=>KP NMP UP UQ) NM N+F=>K NMQ
+    <- nat`eq?-total E?
+    <- nat+set2set-preserves-not-member/L SP+F=>QP NP+F=>KP NMP UP UQ NM N+F=>K E? NMQ.
+
+%worlds () (nat+set2set-preserves-not-member _ _ _ _)
+	(nat+set2set-preserves-not-member/L _ _ _ _ _ _ _ _ _).
+%total (T1 T2) (nat+set2set-preserves-not-member T1 _ _ _)
+	(nat+set2set-preserves-not-member/L T2 _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2set-member-implies-nat2pair-member-converse
+  : forall* {N} {FS} {S} {K}
+    forall {A: nat+set2set N FS S}
+		{MB: set`member S K}
+    exists {F} {R: nat2pair K (pair/ N F)} {MB: set`member FS F}
+    true.
+
+%theorem nat+set2set-member-implies-nat2pair-member-converse/L
+  : forall* {N} {FS} {S} {K} {B} {FS'} {S'} {K'} {F'}
+    forall {A: nat+set2set N FS' S'}
+    {R: nat2pair K' (pair/ N F')}
+    {NM: set`not-member FS' F'}
+    {A: set`add FS' F' FS}
+    {A: set`add S' K' S}
+		{MB: set`member S K}
+    {E?: nat`eq? K' K B}
+		exists {F} {R: nat2pair K (pair/ N F)}
+    {MB: set`member FS F}
+    true.
+
+- : nat+set2set-member-implies-nat2pair-member-converse/L
+    N+FS'=>S' K'=>N+F' F'!<FS' FS'+F'=FS S'+K'=S K<-S nat`eq?/yes
+    _ K'=>N+F' F'<-FS
+    <- set`add-implies-member FS'+F'=FS F'<-FS.
+
+- : nat+set2set-member-implies-nat2pair-member-converse/L
+    N+FS'=>S' K'=>N+F' F'!<FS' FS'+F'=FS S'+K'=S K<-S (nat`eq?/no K'<>K)
+    _ K=>N+F F<-FS
+    <- nat`ne-symmetric K'<>K K<>K'
+    <- set`add-preserves-member-converse K<-S S'+K'=S K<>K' K<-S'
+    <- nat+set2set-member-implies-nat2pair-member-converse
+      N+FS'=>S' K<-S' _ K=>N+F F<-FS'
+    <- set`add-preserves-member F<-FS' FS'+F'=FS F<-FS.
+
+- : nat+set2set-member-implies-nat2pair-member-converse
+    (nat+set2set/U A0 P2N0 F0 U0 SU0) MB _ P2N MBF
+    <- nat`eq?-total E?
+    <- nat+set2set-member-implies-nat2pair-member-converse/L
+      A0 P2N0 F0 U0 SU0 MB E? _ P2N MBF.
+
+%worlds () (nat+set2set-member-implies-nat2pair-member-converse _ _ _ _ _)
+  (nat+set2set-member-implies-nat2pair-member-converse/L _ _ _ _ _ _ _ _ _ _).
+%total (A A0) (nat+set2set-member-implies-nat2pair-member-converse A _ _ _ _)
+  (nat+set2set-member-implies-nat2pair-member-converse/L A0 _ _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2set-preserves-size
+  : forall* {S} {N} {Q} {K}
+    forall {S+F=>Q: nat+set2set N S Q}
+    {SZ: set`size S K}
+    exists {QZ: set`size Q K}
+    true.
+
+- : nat+set2set-preserves-size nat+set2set/0 set`size/0 set`size/0.
+
+- : nat+set2set-preserves-size (nat+set2set/U T R F U QU) SZ SZQ
+    <- set`not-member-add-increases-size-converse SZ F U SZ'
+    <- nat+set2set-preserves-size T SZ' SZQ'
+    <- nat+set2set-preserves-not-member T F R QF
+    <- set`not-member-add-increases-size SZQ' QF QU SZQ.
+
+%worlds () (nat+set2set-preserves-size _ _ _).
+%total (N) (nat+set2set-preserves-size N _ _).
+
+
+%theorem nat+set2set-preserves-size-converse
+  : forall* {S} {F} {Q} {N}
+    forall {S+F=>Q: nat+set2set F S Q}
+    {QZ: set`size Q N}
+    exists {SZ: set`size S N}
+    true.
+
+- : nat+set2set-preserves-size-converse nat+set2set/0 set`size/0 set`size/0.
+
+- : nat+set2set-preserves-size-converse
+    (nat+set2set/U T R F U QU) SZQ SZ
+    <- nat+set2set-preserves-not-member T F R QF
+    <- set`not-member-add-increases-size-converse SZQ QF QU SZQ'
+    <- nat+set2set-preserves-size-converse T SZQ' SZ'
+    <- set`not-member-add-increases-size SZ' F U SZ.
+
+%worlds () (nat+set2set-preserves-size-converse _ _ _).
+%total (N) (nat+set2set-preserves-size-converse N _ _).
+
+
+%theorem nat+set2set/U-inversion
+  : forall* {N} {FS} {S} {FS'} {F}
+    forall {N+FS=>S: nat+set2set N FS S}
+    {NM: set`not-member FS' F}
+    {AD: set`add FS' F FS}
+    exists {S'} {N+FS'=>S': nat+set2set N FS' S'}
+    {K} {K=>NF: nat2pair K (pair/ N F)}
+    {S'+K=S: set`add S' K S}
+    true.
+
+%theorem nat+set2set/U-inversion/L
+  : forall* {N} {FS} {S} {FS'} {F} {B} {FS0} {F0} {S0} {K0}
+    forall {N+FS0=>S0: nat+set2set N FS0 S0}
+    {NM0: set`not-member FS0 F0}
+    {A0: set`add FS0 F0 FS}
+    {AS0: set`add S0 K0 S}
+    {K2NF0: nat2pair K0 (pair/ N F0)}
+    {NM: set`not-member FS' F}
+    {A: set`add FS' F FS}
+    {E?: nat`eq? F F0 B}
+    exists {S'} {N+FS'=>S': nat+set2set N FS' S'}
+    {K} {K2NF: nat2pair K (pair/ N F)}
+    {AS': set`add S' K S}
+    true.
+
+- : nat+set2set/U-inversion/L NSS0 F0 U0 SU0 K2NF0 F1 U1
+    nat`eq?/yes %{=>}% _ NSS _ K2NF0 SU0
+    <- set`not-member-add-cancels F0 U0 F1 U1 nat`eq/ set`eq/ (FS0=FS:set`eq FS0 FS)
+    <- nat+set2set-respects-eq NSS0 nat`eq/ FS0=FS set`eq/ NSS.
+
+- : nat+set2set/U-inversion/L NSS0 F0 U0 SU0 K2NF0 F1 U1
+    (nat`eq?/no (F<>F0)) %{=>}% _
+    (nat+set2set/U NSS K2NF0 F4 U4 SU2) _ K2NF SU3
+    <- set`add-commutes-converse U1 U0 F<>F0 SP U4 U3
+    <- set`add-preserves-not-member-converse F1 U4 F3
+    <- set`add-preserves-not-member-converse F0 U3 F4
+    <- nat+set2set/U-inversion NSS0 F3 U3 _ NSS _ K2NF SU
+    <- pair2nat-preserves-ne* (natpair`ne/2 F<>F0) K2NF K2NF0 NE
+    <- set`add-commutes SU SU0 NE _ SU2 SU3.
+
+- : nat+set2set/U-inversion (nat+set2set/U NSS0 P2K0 F0 U0 SU0) F1 U1
+    _ NSS1 _ P2K1 SU1
+    <- nat`eq?-total E?
+    <- nat+set2set/U-inversion/L NSS0 F0 U0 SU0 P2K0 F1 U1 E? _ NSS1 _ P2K1 SU1.
+
+%worlds () (nat+set2set/U-inversion _ _ _ _ _ _ _ _)
+  (nat+set2set/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N N0) (nat+set2set/U-inversion N _ _ _ _ _ _ _)
+  (nat+set2set/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2set-unique
+  : forall* {N} {FS} {N'} {FS'} {S} {S'}
+    forall {N+FS=>S: nat+set2set N FS S}
+    {N+FS=>S': nat+set2set N' FS' S'}
+    {NE: nat`eq N N'} {SE: set`eq FS FS'}
+    exists {SE: set`eq S S'}
+    true.
+
+- : nat+set2set-unique nat+set2set/0 nat+set2set/0 nat`eq/ set`eq/ set`eq/.
+
+- : nat+set2set-unique (nat+set2set/U TP0 R0 F0 U0 QU0) T1 NE1 SE QE
+    <- nat+set2set/U-inversion T1 F0 U0 _ TP1 _ R1 QU1
+    <- nat+set2set-unique TP0 TP1 NE1 set`eq/ QEP
+    <- pair2nat-unique R0 R1 natpair`eq/ NE
+    <- set`add-unique QU0 QU1 QEP NE QE.
+
+%worlds () (nat+set2set-unique _ _ _ _ _).
+%total (N) (nat+set2set-unique N _ _ _ _).
+
+
+%theorem nat+set2set/UP-inversion
+  : forall* {N} {FS} {S} {SP} {K}
+    forall {N+FS=>S: nat+set2set N FS S}
+    {NM: set`not-member SP K}
+    {A: set`add SP K S}
+    exists {FSP} {N+FSP=>SP: nat+set2set N FSP SP}
+    {F} {K=>N+F: nat2pair K (pair/ N F)}
+    {U: set`add FSP F FS}
+    true.
+
+- : nat+set2set/UP-inversion N+FS=>S K!<SP SP+K=S %{=>}%
+    _ N+FS'=>SP _ K=>N+F FS'+F=FS
+    <- set`add-implies-member SP+K=S K<-S
+    <- nat+set2set-member-implies-nat2pair-member-converse
+      N+FS=>S K<-S _ K=>N+F F<-FS
+    <- set`member-implies-not-member-add F<-FS FS' F!<FS' FS'+F=FS
+    <- nat+set2set/U-inversion N+FS=>S F!<FS' FS'+F=FS S' N+FS'=>S' K'
+      K'=>N+F S'+K'=S
+    <- pair2nat-unique K'=>N+F K=>N+F natpair`eq/ (K'=K:nat`eq K' K)
+    <- nat+set2set-preserves-not-member N+FS'=>S' F!<FS' K'=>N+F K'!<S'
+    <- set`not-member-add-cancels K'!<S' S'+K'=S K!<SP SP+K=S K'=K set`eq/ S'=SP
+    <- nat+set2set-respects-eq N+FS'=>S' nat`eq/ set`eq/ S'=SP N+FS'=>SP.
+
+%worlds () (nat+set2set/UP-inversion _ _ _ _ _ _ _ _).
+%total { } (nat+set2set/UP-inversion _ _ _ _ _ _ _ _).
+
+
+%%% Theorems about set+set2set
+
+%theorem set+set2set-respects-eq
+  : forall* {S} {FS} {Q} {S'} {FS'} {Q'}
+    forall {T: set+set2set S FS Q}
+    {SE: set`eq S S'} {FSE: set`eq FS FS'} {QE: set`eq Q Q'}
+    exists {T': set+set2set S' FS' Q'}
+    true.
+
+- : set+set2set-respects-eq T set`eq/ set`eq/ set`eq/ T.
+
+%worlds () (set+set2set-respects-eq _ _ _ _ _).
+%total {} (set+set2set-respects-eq _ _ _ _ _).
+
+
+%theorem set+set2set/U-inversion
+  : forall* {S} {S'} {FS} {N} {M}
+    forall {S+FS=>Q: set+set2set S FS M}
+    {NM: set`not-member S' N}
+    {A: set`add S' N S}
+    exists {M'} {M''} {S'+FS=>MP: set+set2set S' FS M'}
+    {N+FS=>R: nat+set2set N FS M''}
+    {U: set`union M' M'' M}
+    true.
+
+%worlds () (set+set2set/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total { } (set+set2set/U-inversion _ _ _ _ _ _ _ _).
+
+
+%theorem set+set2set-unique
+  : forall* {S} {FS} {M} {S'} {FS'} {M'}
+    forall {T: set+set2set S FS M}
+    {T': set+set2set S' FS' M'}
+    {SE: set`eq S S'} {FSE: set`eq FS FS'}
+    exists {ME: set`eq M M'}
+    true.
+
+- : set+set2set-unique set+set2set/0 set+set2set/0 set`eq/ set`eq/ set`eq/.
+
+- : set+set2set-unique (set+set2set/U TP0 NT0 F0 U0 MU0) T1 SE FSE ME
+    <- set+set2set/U-inversion T1 F0 U0 _ _ TP1 NT1 MU1
+    <- set+set2set-unique TP0 TP1 set`eq/ FSE MEP
+    <- nat+set2set-unique NT0 NT1 nat`eq/ FSE RE
+    <- set`union-unique MU0 MU1 MEP RE ME.
+
+%worlds () (set+set2set-unique _ _ _ _ _).
+%trustme %total (T) (set+set2set-unique T _ _ _ _).
+
+
+%theorem set+set2set-on-empty-set
+  : forall* {FS} exists {T: set+set2set set/0 FS set/0} true.
+
+- : set+set2set-on-empty-set set+set2set/0.
+
+%worlds () (set+set2set-on-empty-set _).
+%total {} (set+set2set-on-empty-set _).
+
+
+%theorem set+set2set-member-implies-nat2pair
+  : forall* {S} {FS} {S2} {K}
+    forall {S+FS=>S2: set+set2set S FS S2}
+    {L: set`member S2 K}
+    exists {N} {F} {L: set`member S N}
+    {L: set`member FS F}
+    {K=>NF: nat2pair K (pair/ N F)}
+    true.
+
+%theorem set+set2set-member-implies-nat2pair/L
+  : forall* {SP} {FS} {QP} {N0} {R} {S} {Q} {K} {B}
+    forall {SP+FS=>QP: set+set2set SP FS QP}
+    {N+FS=>R: nat+set2set N0 FS R}
+    {NM: set`not-member SP N0}
+    {AD: set`add SP N0 S}
+    {U: set`union QP R Q}
+    {MB: set`member Q K}
+    {MB?: set`member? R K B}
+    exists {N} {F} {MB: set`member S N}
+    {MB: set`member FS F}
+    {K=>NF: nat2pair K (pair/ N F)}
+    true.
+
+% - : set+set2set-member-implies-nat2pair/L
+%     SP+FS=>QP N0+FS=>R N0!<SP SP+N0=S QP+R=Q K<-Q (set`domain?/in K<-R)
+%     N0 _ N0<-S F<-FS K=>N0+F
+%     <- set`member-implies-fresh-update K<-R RP K!<RP RP+K=R
+%     <- nat+set2set/UP-inversion N0+FS=>R K!<RP RP+K=R FSP N0+FSP=>RP F K=>N0+F FSP+F=FS.
+%     <- set`add-implies-member SP+N0=S N0<-S
+%     <- set`add-implies-member FSP+F=FS F<-FS.
+
+% - : set+set2set-member-implies-nat2pair/L
+%     SP+FS=>QP N0+FS=>R N0!<SP SP+N0=S QP+R=Q K<-Q (set`domain?/out K!<R)
+%     _ _ N<-S F<-FS K=>N+F
+%     <- set`not-member-union-right-preserves-member-converse
+%       K<-Q K!<R QP+R=Q K<-QP
+%     <- set+set2set-member-implies-nat2pair SP+FS=>QP K<-QP _ _ N<-SP
+%       F<-FS K=>N+F
+%     <- set`add-preserves-member N<-SP SP+N0=S N<-S.
+
+% - : set+set2set-member-implies-nat2pair
+%     (set+set2set/U SP+FS=>QP N+FS=>R N!<SP SP+N=S QP+R=Q) K<-Q
+%     _ _ N<-S F<-FS K=>N+F
+%     <- set`domain?-total K<-R?
+%     <- set+set2set-member-implies-nat2pair/L SP+FS=>QP N+FS=>R N!<SP SP+N=S QP+R=Q
+%       K<-Q K<-R? _ _ N<-S F<-FS K=>N+F.
+
+%worlds () (set+set2set-member-implies-nat2pair _ _ _ _ _ _ _)
+	(set+set2set-member-implies-nat2pair/L _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total (A0 A1) (set+set2set-member-implies-nat2pair A0 _ _ _ _ _ _)
+	(set+set2set-member-implies-nat2pair/L A1 _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2set-nat-ne-implies-disjoint
+  : forall* {N1} {N2} {M} {MO1} {MO2}
+    forall {N1+M=MO1: nat+set2set N1 M MO1}
+    {N2+M=MO2: nat+set2set N2 M MO2}
+    {N1<>N2: nat`ne N1 N2}
+    exists {MO1^MO2: set`disjoint MO1 MO2}
+    true.
+
+- : nat+set2set-nat-ne-implies-disjoint nat+set2set/0 _ _ set`disjoint/L.
+
+%theorem nat+set2set-nat-ne-implies-disjoint/L
+  : forall* {N1} {N2} {F} {M} {MO} {K}
+    forall {N1+M=MO: nat+set2set N1 M MO}
+    {N1<>N2: nat`ne N1 N2}
+    {N2+F=K: pair2nat (pair/ N2 F) K}
+    exists {K!<MO: set`not-member MO K}
+    true.
+
+- : nat+set2set-nat-ne-implies-disjoint/L nat+set2set/0 _ _ set`not-member/0.
+
+- : nat+set2set-nat-ne-implies-disjoint/L
+    (nat+set2set/U N1+MP=MOP N1+F1=K1 F1!<MP MP+F1=M MOP+K1=MO)
+    (N1<>N2:nat`ne N1 N2) N2+F=K K!<MO
+    <- nat+set2set-nat-ne-implies-disjoint/L N1+MP=MOP N1<>N2 N2+F=K K!<MOP
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2) N1+F1=K1 N2+F=K K1<>K
+    <- nat`ne-symmetric K1<>K K<>K1
+    <- set`update-preserves-not-member K!<MOP MOP+K1=MO K<>K1 K!<MO.
+
+%worlds () (nat+set2set-nat-ne-implies-disjoint/L _ _ _ _).
+%total (P) (nat+set2set-nat-ne-implies-disjoint/L P _ _ _).
+
+- : nat+set2set-nat-ne-implies-disjoint
+    (nat+set2set/U N1+MP=MO1P N1+F=K1 F!<MP MP+F=M MO1P+K1=MO1) N2+M=MO2
+    (N1<>N2: nat`ne N1 N2) MO1^MO2
+    <- nat+set2set/U-inversion N2+M=MO2 F!<MP MP+F=M
+    %{=>}% MO2P N2+MP=MO2P K2 N2+F=K2 MO2P+K2=MO2
+    <- nat+set2set-nat-ne-implies-disjoint N1+MP=MO1P N2+MP=MO2P N1<>N2 MO1P^MO2P
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2)
+      N1+F=K1 N2+F=K2 (K1<>K2:nat`ne K1 K2)
+    <- nat+set2set-nat-ne-implies-disjoint/L N1+MP=MO1P N1<>N2 N2+F=K2 K2!<MO1P
+    <- nat`ne-symmetric N1<>N2 N2<>N1
+    <- nat+set2set-nat-ne-implies-disjoint/L N2+MP=MO2P N2<>N1 N1+F=K1 K1!<MO2P
+    <- set`update-preserves-not-member K1!<MO2P MO2P+K2=MO2 K1<>K2 K1!<MO2
+    <- set`not-member-update-preserves-disjoint MO1P^MO2P K2!<MO1P MO2P+K2=MO2 MO1P^MO2
+    <- set`disjoint-symmetric MO1P^MO2 MO2^MO1P
+    <- set`not-member-update-preserves-disjoint MO2^MO1P K1!<MO2 MO1P+K1=MO1 MO2^MO1
+    <- set`disjoint-symmetric MO2^MO1 MO1^MO2.
+
+%worlds () (nat+set2set-nat-ne-implies-disjoint _ _ _ _).
+%total (P) (nat+set2set-nat-ne-implies-disjoint P _ _ _).
+
+
+%theorem not-member-nat+set2set-implies-disjoint
+  : forall* {S} {N} {MF} {Q1} {Q2}
+    forall {SP+MF=Q1: set+set2set S MF Q1}
+    {N+MF=Q2: nat+set2set N MF Q2}
+    {N!<S: set`not-member S N}
+    exists {Q1^Q2: set`disjoint Q1 Q2}
+    true.
+
+%theorem not-member-nat+set2set-implies-disjoint/L
+  : forall* {S} {SP} {N} {NP} {MF} {Q1P} {Q2P} {Q2} {Q1} {B}
+    forall {SP+MF=Q1P: set+set2set SP MF Q1P}
+    {NP+MF=Q2P: nat+set2set NP MF Q2P}
+    {NP!<SP: set`not-member SP NP}
+    {SP+NP=S: set`add SP NP S}
+    {Q1P+Q2P=Q1: set`union Q1P Q2P Q1}
+    {N+MF=Q2: nat+set2set N MF Q2}
+    {N!<S: set`not-member S N}
+    {N=NP?: nat`eq? N NP B}
+    exists {Q1^Q2: set`disjoint Q1 Q2}
+    true.
+
+- : not-member-nat+set2set-implies-disjoint/L
+    SP+MF=Q1P NP+MF=Q2P NP!<SP SP+NP=S Q1P+Q2P=Q1
+    N+MF=Q2 N!<S (nat`eq?/no (N<>NP:nat`ne N NP)) Q1^Q2
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- not-member-nat+set2set-implies-disjoint SP+MF=Q1P N+MF=Q2 N!<SP Q1P^Q2
+    <- nat`ne-symmetric N<>NP NP<>N
+    <- nat+set2set-nat-ne-implies-disjoint NP+MF=Q2P N+MF=Q2 NP<>N Q2P^Q2
+    <- set`union-preserves-disjoint* Q1P^Q2 Q2P^Q2 Q1P+Q2P=Q1 Q1^Q2.
+
+- : not-member-nat+set2set-implies-disjoint/L
+    _ _ _ SP+N=S _ _ N!<S nat`eq?/yes Q1^Q2
+    <- set`add-implies-member SP+N=S N<-S
+    <- set`member-not-member-contradiction N<-S N!<S V
+    <- set`false-implies-disjoint V Q1^Q2.
+
+- : not-member-nat+set2set-implies-disjoint set+set2set/0
+    N+MF=Q2 set`not-member/0 set`disjoint/L.
+
+- : not-member-nat+set2set-implies-disjoint
+    (set+set2set/U SP+MF=Q1P NP+MF=Q2P NP!<SP SP+NP=S Q1P+Q2P=Q1)
+    N+MF=Q2 N!<S Q1+Q2=Q
+    <- nat`eq?-total N=NP?
+    <- not-member-nat+set2set-implies-disjoint/L SP+MF=Q1P NP+MF=Q2P
+      NP!<SP SP+NP=S Q1P+Q2P=Q1 N+MF=Q2 N!<S N=NP? Q1+Q2=Q.
+
+%worlds () (not-member-nat+set2set-implies-disjoint _ _ _ _)
+  (not-member-nat+set2set-implies-disjoint/L _ _ _ _ _ _ _ _ _).
+%total (P PP) (not-member-nat+set2set-implies-disjoint P _ _ _)
+  (not-member-nat+set2set-implies-disjoint/L PP _ _ _ _ _ _ _ _).
+
+
+%theorem nat+set2set-nat-ne-implies-disjoint
+  : forall* {N1} {N2} {M} {MO1} {MO2}
+    forall {N1+M=MO1: nat+set2set N1 M MO1}
+    {N2+M=MO2: nat+set2set N2 M MO2}
+    {N1<>N2: nat`ne N1 N2}
+    exists {MO1^MO2: set`disjoint MO1 MO2}
+    true.
+
+- : nat+set2set-nat-ne-implies-disjoint nat+set2set/0 _ _ set`disjoint/L.
+
+%theorem nat+set2set-nat-ne-implies-disjoint/L
+  : forall* {N1} {N2} {F} {M} {MO} {K}
+    forall {N1+M=MO: nat+set2set N1 M MO}
+    {N1<>N2: nat`ne N1 N2}
+    {N2+F=K: pair2nat (pair/ N2 F) K}
+    exists {K!<MO: set`not-member MO K}
+    true.
+
+- : nat+set2set-nat-ne-implies-disjoint/L nat+set2set/0 _ _ set`not-member/0.
+
+- : nat+set2set-nat-ne-implies-disjoint/L
+    (nat+set2set/U N1+Q=MOP N1+F1=K1 F1!<Q Q+F1=M MOP+K1=MO)
+    (N1<>N2:nat`ne N1 N2) N2+F=K K!<MO
+    <- nat+set2set-nat-ne-implies-disjoint/L N1+Q=MOP N1<>N2 N2+F=K K!<MOP
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2) N1+F1=K1 N2+F=K K1<>K
+    <- nat`ne-symmetric K1<>K K<>K1
+    <- set`update-preserves-not-member K!<MOP MOP+K1=MO K<>K1 K!<MO.
+
+%worlds () (nat+set2set-nat-ne-implies-disjoint/L _ _ _ _).
+%total (P) (nat+set2set-nat-ne-implies-disjoint/L P _ _ _).
+
+- : nat+set2set-nat-ne-implies-disjoint
+    (nat+set2set/U N1+Q=MO1P N1+F=K1 F!<Q Q+F=M MO1P+K1=MO1) N2+M=MO2
+    (N1<>N2: nat`ne N1 N2) MO1^MO2
+    <- nat+set2set/U-inversion N2+M=MO2 F!<Q Q+F=M
+    %{=>}% MO2P N2+Q=MO2P K2 N2+F=K2 MO2P+K2=MO2
+    <- nat+set2set-nat-ne-implies-disjoint N1+Q=MO1P N2+Q=MO2P N1<>N2 MO1P^MO2P
+    <- pair2nat-preserves-ne* (natpair`ne/1 N1<>N2)
+      N1+F=K1 N2+F=K2 (K1<>K2:nat`ne K1 K2)
+    <- nat+set2set-nat-ne-implies-disjoint/L N1+Q=MO1P N1<>N2 N2+F=K2 K2!<MO1P
+    <- nat`ne-symmetric N1<>N2 N2<>N1
+    <- nat+set2set-nat-ne-implies-disjoint/L N2+Q=MO2P N2<>N1 N1+F=K1 K1!<MO2P
+    <- set`update-preserves-not-member K1!<MO2P MO2P+K2=MO2 K1<>K2 K1!<MO2
+    <- set`not-member-update-preserves-disjoint MO1P^MO2P K2!<MO1P MO2P+K2=MO2 MO1P^MO2
+    <- set`disjoint-symmetric MO1P^MO2 MO2^MO1P
+    <- set`not-member-update-preserves-disjoint MO2^MO1P K1!<MO2 MO1P+K1=MO1 MO2^MO1
+    <- set`disjoint-symmetric MO2^MO1 MO1^MO2.
+
+%worlds () (nat+set2set-nat-ne-implies-disjoint _ _ _ _).
+%total (P) (nat+set2set-nat-ne-implies-disjoint P _ _ _).
+
+
+%theorem not-member-nat+set2set-implies-disjoint
+  : forall* {S} {N} {MF} {Q1} {Q2}
+    forall {SP+MF=Q1: set+set2set S MF Q1}
+    {N+MF=Q2: nat+set2set N MF Q2}
+    {N!<S: set`not-member S N}
+    exists {Q1^Q2: set`disjoint Q1 Q2}
+    true.
+
+%theorem not-member-nat+set2set-implies-disjoint/L
+  : forall* {S} {SP} {N} {NP} {MF} {Q1P} {Q2P} {Q2} {Q1} {B}
+    forall {SP+MF=Q1P: set+set2set SP MF Q1P}
+    {NP+MF=Q2P: nat+set2set NP MF Q2P}
+    {NP!<SP: set`not-member SP NP}
+    {SP+NP=S: set`add SP NP S}
+    {Q1P+Q2P=Q1: set`union Q1P Q2P Q1}
+    {N+MF=Q2: nat+set2set N MF Q2}
+    {N!<S: set`not-member S N}
+    {N=NP?: nat`eq? N NP B}
+    exists {Q1^Q2: set`disjoint Q1 Q2}
+    true.
+
+- : not-member-nat+set2set-implies-disjoint/L
+    SP+MF=Q1P NP+MF=Q2P NP!<SP SP+NP=S Q1P+Q2P=Q1
+    N+MF=Q2 N!<S (nat`eq?/no (N<>NP:nat`ne N NP)) Q1^Q2
+    <- set`update-preserves-not-member-converse N!<S SP+NP=S N!<SP
+    <- not-member-nat+set2set-implies-disjoint SP+MF=Q1P N+MF=Q2 N!<SP Q1P^Q2
+    <- nat`ne-symmetric N<>NP NP<>N
+    <- nat+set2set-nat-ne-implies-disjoint NP+MF=Q2P N+MF=Q2 NP<>N Q2P^Q2
+    <- set`union-preserves-disjoint* Q1P^Q2 Q2P^Q2 Q1P+Q2P=Q1 Q1^Q2.
+
+- : not-member-nat+set2set-implies-disjoint/L
+    _ _ _ SP+N=S _ _ N!<S nat`eq?/yes Q1^Q2
+    <- set`add-implies-member SP+N=S N<-S
+    <- set`member-not-member-contradiction N<-S N!<S V
+    <- set`false-implies-disjoint V Q1^Q2.
+
+- : not-member-nat+set2set-implies-disjoint set+set2set/0
+    N+MF=Q2 set`not-member/0 set`disjoint/L.
+
+- : not-member-nat+set2set-implies-disjoint
+    (set+set2set/U SP+MF=Q1P NP+MF=Q2P NP!<SP SP+NP=S Q1P+Q2P=Q1)
+    N+MF=Q2 N!<S Q1+Q2=Q
+    <- nat`eq?-total N=NP?
+    <- not-member-nat+set2set-implies-disjoint/L SP+MF=Q1P NP+MF=Q2P
+      NP!<SP SP+NP=S Q1P+Q2P=Q1 N+MF=Q2 N!<S N=NP? Q1+Q2=Q.
+
+%worlds () (not-member-nat+set2set-implies-disjoint _ _ _ _)
+  (not-member-nat+set2set-implies-disjoint/L _ _ _ _ _ _ _ _ _).
+%total (P PP) (not-member-nat+set2set-implies-disjoint P _ _ _)
+  (not-member-nat+set2set-implies-disjoint/L PP _ _ _ _ _ _ _ _).

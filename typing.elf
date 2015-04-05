@@ -1,10 +1,39 @@
 %%% Type judgments for conservative type system based on FP.
 
+%%% Type Checking Result
+
+result : kind -> type.
+
+%abbrev expr-result = result exprk.
+
+%abbrev cond-result = result condk.
+
+%abbrev args-result = result argsk.
+
+
+result/expr : reftype -> env -> expr-result.
+
+result/cond : env -> cond-result.
+
+result/args/0 : env -> args-result.
+
+result/args/+ : reftype -> args-result -> args-result.
+
+
+%%% Equality
+
+result`eq : result K -> result K -> type.
+
+result`eq/ : result`eq R R.
+
+
 
 %%% Type Checking Rules
 
 reftyping : clsmap -> methmap -> cxt -> env -> term K -> result K -> type.
 
+
+%%% ====================== Type Check Rules =======================
 
 %%% Checking Literals
 
@@ -18,13 +47,13 @@ reftyping/lit :
 
 %%% Reading a field
 
-targets-capmap : targets -> capmap -> type.
+targets-capset : targets -> set -> type.
 
-targets-capmap/shared : targets-capmap targets/shared _.
+targets-capset/shared : targets-capset targets/shared _.
 
-targets-capmap/unique :
-    capmap`disjoint M1 M2 ->
-  targets-capmap (targets/unique _ M1) M2.
+targets-capset/unique :
+    set`disjoint M1 M2 ->
+  targets-capset (targets/unique _ M1) M2.
 
 
 readRefTyping : clsmap -> expr-result -> nat -> expr-result -> type.
@@ -32,20 +61,16 @@ readRefTyping : clsmap -> expr-result -> nat -> expr-result -> type.
 readRefTyping/base :
     clsmap`lookup CM C FM ->
     fldmap`lookup FM F (ty/ NN A FC) ->
-    make-tgts-and-caps M0 G0 F cap/read G1 M1 ->
+    make-tgts-and-caps M0 G0 F G1 M1 ->
     consider-ftype G1 M1 A G2 M2 ->
-    targets-capmap G0 M0 ->
+    targets-capset G0 M0 ->
   readRefTyping CM (result/expr (reftype/ nn/yes C G0) (env/ U M0)) F
     (result/expr (reftype/ NN FC G2) (env/ U M2)).
 
-readRefTyping/exists :
-    ({v} readRefTyping CM (In v) F (Rslt v)) ->
-  readRefTyping CM (result/exists In) F (result/exists Rslt).
-
 reftyping/read :
-    reftyping CM MM B V E Rslt ->
-    readRefTyping CM Rslt F Rslt2 ->
-  reftyping CM MM B V (read E F) Rslt2.
+    reftyping CM MM B V E R ->
+    readRefTyping CM R F R2 ->
+  reftyping CM MM B V (read E F) R2.
 
 
 %%% Writing a field
@@ -56,21 +81,17 @@ writeRefTyping : clsmap -> methmap -> cxt -> expr-result -> nat -> expr ->
 writeRefTyping/base :
     clsmap`lookup CM C FM ->
     fldmap`lookup FM F (ty/ NN A FC) ->
-    make-tgts-and-caps M0 G0 F cap/write G1 M1 ->
+    make-tgts-and-caps M0 G0 F G1 M1 ->
     reftyping CM MM B (env/ U0 M1) E (result/expr RT V2) ->
     subtype CM RT V2 (ty/ NN A FC) (env/ U1 M3) ->
     consider-ftype G1 M3 A G2 M4 ->
   writeRefTyping CM MM B (result/expr (reftype/ nn/yes C G0) (env/ U0 M0))
     F E G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ U1 M4)).
 
-writeRefTyping/exists :
-    ({v} writeRefTyping CM MM B (In v) F E G T (Rslt v)) ->
-  writeRefTyping CM MM B (result/exists In) F E G T (result/exists Rslt).
-
 reftyping/write
-  : reftyping CM MM B V1 E1 Rslt1 ->
-    writeRefTyping CM MM B Rslt1 F E2 G T Rslt2 ->
-  reftyping CM MM B V1 (write E1 F E2) Rslt2.
+  : reftyping CM MM B V1 E1 R1 ->
+    writeRefTyping CM MM B R1 F E2 G T R2 ->
+  reftyping CM MM B V1 (write E1 F E2) R2.
 
 
 %%% Type Rules with Indirect Effects
@@ -96,17 +117,6 @@ Currently, we use the second approach, since it's easier to implement.
 In the future, we can come back here and switch to the first approach.
 }%
 
-%{
-TODO:
-What if the minimum capability of M1 is not write? If the capability is read,
-then it means you only cannot consume the object. Then, what the context and capmap
-look like? We cannot make x unique anymore.
-
-For unique G in "let x = G in ...", we take away capabilities for G, and add x
-as a unique parameter in the environment. After x is out of the scope, those unique
-capabilties should be returned to G, but this is a future work.
-}%
-
 
 %{
 update-cxt : clsmap -> env -> ty -> (object -> env) -> type.
@@ -124,30 +134,27 @@ update-cxt/shared :
     cxt`fresh B0 (s N) ->
     ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
   update-cxt CM (env/ B0 M0) (ty/ NN annot/shared C) ([x] env/ (B1 x) M0).
-
-
 }%
-
 
 %%% Make sure the let variable is not in the result target (no leaking).
 
-not-in-capmap : nat -> capmap -> type.
+not-in-capset : nat -> set -> type.
 
-not-in-capmap/0 : not-in-capmap N capmap/0.
+not-in-capset/0 : not-in-capset _ set/0.
 
-not-in-capmap/U :
-    not-in-capmap N M' ->
+not-in-capset/U :
+    not-in-capset N CS' ->
     nat2pair K (pair/ N' F) ->
     nat`ne N N' ->
-    capmap`fresh M' K ->
-    capmap`update M' K X M ->
-  not-in-capmap N M.
+    set`not-member CS' K ->
+    set`add CS' K CS ->
+  not-in-capset N CS.
 
 not-in-targets : nat -> targets -> type.
 
 not-in-targets/unique :
     set`not-member S N ->
-    not-in-capmap N M ->
+    not-in-capset N M ->
   not-in-targets N (targets/unique S M).
 
 not-in-targets/shared : not-in-targets _ targets/shared.
@@ -155,98 +162,52 @@ not-in-targets/shared : not-in-targets _ targets/shared.
 
 %%% Reclaim capabilities encumbered by the let variable.
 
-%{
-To reclaim the capabilities encumbered by the let variable N.
-First, for each pair (N, F) in `M2`, we remove it, and add back
-(N', F), for all N' in S. Second, we add `M1` to the result
-caps, only if none of the field for N has not been consumed.
-}%
-
-collect-matching-fields : nat -> capmap -> capmap -> type.
-
-collect-matching-fields/0 : collect-matching-fields _ capmap/0 capmap/0.
-
-collect-matching-fields/U/in :
-    collect-matching-fields N Min' Mout' ->
-    nat2pair K (pair/ N F) ->
-    capmap`fresh Min' K ->
-    capmap`update Min' K X Min ->
-    capmap`update Mout' F X Mout ->
-  collect-matching-fields N Min Mout.
-
-collect-matching-fields/U/out :
-    collect-matching-fields N Min' Mout ->
-    nat2pair K (pair/ N' _) ->
-    nat`ne N N' ->
-    capmap`fresh Min' K ->
-    capmap`update Min' K X Min ->
-  collect-matching-fields N Min Mout.
-
-
-reclaim-caps : nat -> set -> targets -> env -> env -> type.
-
-%%% The first case, if not all field capabilities for object N
-%%% are in the result capmap (in other words, some of them are consumed),
-%%% then we cannot restore any of the capabilities from M1, and we cannot
-%%% restore the encumbered permission for all objects in S.
-reclaim-caps/1 :
-    collect-matching-fields N M2 M3 ->
-    capmap`size M3 N1 ->
-    set`size FS N2 ->
-    nat`le N1 N2 ->
-    set+map2map S M3 M4 ->
-  reclaim-caps N FS (targets/unique S M1) (env/ U M2) (env/ U M4).
-
-reclaim-caps/2 :
-    collect-matching-fields N M2 M3 ->
-    capmap`size M3 N1 ->
-    set`size FS N1 ->
-    set+map2map S M3 M4 ->
-    capmap`join M4 M1 M5 ->
-    set`union S U U2 ->
-    set`remove U2 (set/1 N) U3 ->
-  reclaim-caps N FS (targets/unique S M1) (env/ U M2) (env/ U3 M5).
-
+%%% At the moment we just be conservative, and don't allow ANY field
+%%% from the let variable be consumed.
 
 letRefTyping : clsmap -> methmap -> cxt ->
     expr-result -> (object -> term K) -> result K -> type.
 
+%%% M5 = M0 - M2 + M3
 letRefTyping/base/unique :
     clsmap`lookup CM C FM ->
     fldmap`domain FM FS ->
-    set+set2capmap S FS cap/write M2 ->
-    set`remove U0 S U1 ->
+    set+set2set S FS M2 ->
     cxt`fresh B0 (s N) ->
     ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
-    capmap-split M0 M2 M4 ->
-    nat+set2capmap (s N) FS cap/write M3 ->
-    capmap-split M5 M3 M4 ->
-    capmap-min M1 cap/write ->
-    ({x} reftyping CM MM (B1 x) (env/ U1 M5) (F x) (result/expr (reftype/ NN1 C1 G1) V1)) ->
+    set`leq S U0 ->
+    set`remove U0 S U1 ->
+    set`add U1 (s N) U2 ->
+    capset-split M0 M2 M4 ->
+    nat+set2set (s N) FS M3 ->
+    capset-split M5 M3 M4 ->
+    ({x} reftyping CM MM (B1 x) (env/ U2 M5) (F x)
+      (result/expr (reftype/ NN1 C1 G1) (env/ U3 M6))) ->
     not-in-targets (s N) G1 ->
-    reclaim-caps (s N) S FS V1 V2 ->
+    capset-split M6 M3 M7 -> % M3 still in result
+    capset-split M8 M2 M7 ->
+    capset-split M9 M1 M8 ->
+    set`not-member U4 (s N) ->
+    set`add U4 (s N) U3 ->
+    set`union U4 S U5 ->
   letRefTyping CM MM B0 (result/expr (reftype/ NN C (targets/unique S M1)) (env/ U0 M0))
-    F (result/exists [x] (R x)).
+    F (result/expr (reftype/ NN1 C1 G1) (env/ U5 M9)).
 
 letRefTyping/base/shared :
     clsmap`lookup CM C FM ->
     cxt`fresh B0 (s N) ->
     ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-    ({x} reftyping CM MM (B1 x) V (F x) (R x)) ->
+    ({x} reftyping CM MM (B1 x) V (F x)
+      (result/expr (reftype/ NN1 C1 G1) V1)) ->
+    not-in-targets (s N) G1 ->
   letRefTyping CM MM B0 (result/expr (reftype/ NN C targets/shared) V)
-    F (result/exists [x] (R x)).
-
-% letRefTyping/exists :
-%     ({x} letRefTyping CM MM B (V x) F (R x)) ->
-%   letRefTyping CM MM B (result/exists [x] (V x)) F (result/exists [x] (R x)).
-
-
-% %%% TODO: add substitution.
+    F (result/expr (reftype/ NN1 C1 G1) V1).
 
 reftyping/let :
-    reftyping CM MM B V E Rslt1 ->
-    letRefTyping CM MM B Rslt1 F Rslt2 ->
-  reftyping CM MM B V (let E F) Rslt2.
+    reftyping CM MM B V E R1 ->
+    letRefTyping CM MM B R1 F R2 ->
+  reftyping CM MM B V (let E F) R2.
+
 
 %%% Method Calls
 
@@ -257,34 +218,20 @@ One issue we need to consider is aliasing between unique arguments.
 For instance, if a method is annotated as "reads a.f, writes b.f", and
 a and b are aliases to each other, then we cannot check the call.
 
-Given this situation doesn't occur very often, here we just simply
-disallow "duplicated" cap while checking method call effects.
+Given this situation doesn't occur very often, and is also illegal in FP,
+here we just simply disallow "duplicated" cap while checking method call effects.
 }%
 
-%{
-argsRefTyping : clsmap -> methmap -> env -> args -> methty -> args-result -> type.
+argsRefTyping : clsmap -> methmap -> cxt -> env -> args -> methty -> args-result -> type.
 
-argsRefTyping-helper : clsmap -> methmap -> expr-result -> ty -> capmap ->
-    args -> methty -> args-result -> type.
-
-argsRefTyping-helper/base :
-    subtype CM RT V T V' ->
-    argsRefTyping CM MM V' A MT ARslt ->
-  argsRefTyping-helper CM MM (result/expr RT V) T M A MT ARslt.
-
-argsRefTyping-helper/exists :
-    ({x} argsRefTyping-helper CM MM (ARslt x) T M A MT (ARslt' x)) ->
-  argsRefTyping-helper CM MM (result/exists [x] ARslt x) T M A MT (result/exists [x] ARslt' x).
-
-
-argsRefTyping/0 : argsRefTyping _ _ V args/0 (methty/base T) (result/args/0 V).
+argsRefTyping/0 : argsRefTyping _ _ _ V args/0 (methty/base T) (result/args/0 V).
 
 argsRefTyping/+ :
-    reftyping CM MM V E Rslt ->
-    argsRefTyping-helper CM MM Rslt T M A MT ARslt ->
-  argsRefTyping CM MM V (args/+ E A) (methty/arg T M MT) ARslt.
+    reftyping CM MM B V0 E (result/expr RT V1) ->
+    subtype CM RT V1 T V2 -> % TODO: use M
+    argsRefTyping CM MM B V2 A MT AR ->
+  argsRefTyping CM MM B V0 (args/+ E A) (methty/arg T M MT) (result/args/+ RT AR).
 
-}%
 
 %{
 How to check method call:
@@ -307,54 +254,61 @@ reclaimed after they are not needed after the method call checking. This is
 also needed for checking tLet.
 }%
 
-%{
-reclaim-capabilities : capmap -> set -> capmap -> capmap -> capmap -> type.
+reclaim-capabilities : set -> set -> set -> set -> set -> type.
 
 reclaim-capabilities/ :
-    set+map2map S M M2 ->
-    capmap-split M3 M1 M2 ->
-    capmap-split M4 M0 M1 ->
+    set+set2set S M M2 ->
+    capset-split M3 M1 M2 ->
+    capset-split M4 M0 M1 ->
   reclaim-capabilities M0 S M1 M M4.
 
 
-callRefTyping : clsmap -> methmap -> capmap -> args-result -> methty -> expr-result -> type.
+%%% Converting a ty to a reftype for a fresh new object.
+
+ty2new-reftype : ty -> reftype -> type.
+
+ty2new-reftype/unique :
+    ty2new-reftype (ty/ NN annot/unique C) (reftype/ NN C (targets/unique set/0 set/0)).
+
+ty2new-reftype/shared :
+    ty2new-reftype (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
+
+
+
+callRefTyping* : clsmap -> methmap -> set -> args-result -> methty -> expr-result -> type.
+
+callRefTyping/arg/0 :
+    capset-split M2 M0 M1 ->
+    ty2new-reftype T RT ->
+  callRefTyping* CM MM M0 (result/args/0 (env/ U0 M1)) (methty/base T)
+      (result/expr RT (env/ U0 M2)).
 
 callRefTyping/arg/+/unique :
-    callRefTyping CM MM M ARslt A Rslt ->
-  callRefTyping CM MM M (result/args/+ _ ARslt)
-      (methty/arg (ty/ _ annot/unique _) capmap/0 A) Rslt.
+    callRefTyping* CM MM M AR A R ->
+  callRefTyping* CM MM M (result/args/+ _ AR)
+      (methty/arg (ty/ _ annot/unique _) set/0 A) R.
 
 callRefTyping/arg/+/borrow :
     reclaim-capabilities M0 S M1 M M2 ->
-    callRefTyping CM MM M2 ARslt A Rslt ->
-  callRefTyping CM MM M0 (result/args/+ (reftype/ NN C (targets/unique S M1)) ARslt)
-      (methty/arg (ty/ _ annot/borrow _) M A) Rslt.
+    callRefTyping* CM MM M2 AR A R ->
+  callRefTyping* CM MM M0 (result/args/+ (reftype/ NN C (targets/unique S M1)) AR)
+      (methty/arg (ty/ _ annot/borrow _) M A) R.
 
 callRefTyping/arg/+/shared :
-    callRefTyping CM MM M ARslt A Rslt ->
-  callRefTyping CM MM M (result/args/+ (reftype/ NN C G) ARslt)
-      (methty/arg (ty/ _ annot/shared _) capmap/0 A) Rslt.
+    callRefTyping* CM MM M AR A R ->
+  callRefTyping* CM MM M (result/args/+ _ AR)
+      (methty/arg (ty/ _ annot/shared _) set/0 A) R.
 
-%%% TODO: fix this!
-callRefTyping/arg/0 :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x T) (B1 x)) ->
-    capmap-split M2 M0 M1 ->
-  callRefTyping CM MM M0 (result/args/0 (env/ B0 M1)) (methty/base T)
-      (result/exists [x] (result/expr RT (env/ (B1 x) M2))).
-
-callRefTyping/arg/exists :
-    ({x} callRefTyping CM MM M0 (ARslt x) MT (Rslt x)) ->
-  callRefTyping CM MM M0 (result/exists [x] (ARslt x)) MT (result/exists [x] (Rslt x)).
+%abbrev callRefTyping = [CM][MM][AR][A][R] callRefTyping* CM MM set/0 AR A R.
 
 
+%{
 reftyping/call :
     clsmap`fresh CM M ->
     methmap`lookup MM M MT ->
-    argsRefTyping CM MM V A MT ARslt ->
-    callRefTyping CM MM capmap/0 ARslt MT Rslt ->
-  reftyping CM MM V (call M A) Rslt.
-
+    argsRefTyping CM MM B V A MT AR ->
+    callRefTyping CM MM AR MT R ->
+  reftyping CM MM B V (call M A) R.
 }%
 
 %{

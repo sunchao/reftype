@@ -1333,6 +1333,24 @@ clsmap-predmap/+
 %total (L) (predmap`no-variable-lookup L _ _ _).
 
 
+%theorem predmap`no-variable-lookup2 :
+	forall* {PM} {C} {PDF:object -> object -> clspred}
+	forall  {PMLP: {x}{o} predmap`lookup PM C (PDF x o)}
+	exists  {PD} {PMLP: predmap`lookup PM C PD}
+                {EQ: {x}{o} predicate`eq (PDF x o) PD}
+	true.
+
+- : predmap`no-variable-lookup2 ([_][_] predmap`lookup/= N1=N2)
+     _ (predmap`lookup/= N1=N2) ([_][_] predicate`eq/).
+
+- : predmap`no-variable-lookup2 ([x][o] predmap`lookup/> (PML x o) P)
+     PD (predmap`lookup/> PMLP P) EQF
+     <- predmap`no-variable-lookup2 PML PD PMLP EQF.
+
+%worlds (objvar) (predmap`no-variable-lookup2 _ _ _ _).
+%total (L) (predmap`no-variable-lookup2 L _ _ _).
+
+
 %theorem permission`eq-preserves-predicate`eq-withvar :
         forall* {PDF: object -> clspred} {PD}
         forall  {PNF: clspred -> object -> permission}
@@ -1347,13 +1365,27 @@ clsmap-predmap/+
 %total  {} (permission`eq-preserves-predicate`eq-withvar _ _ _).
 
 
-%theorem ty2perm-no-var :
-        forall* {PM} {T} {PFF:object -> object -> permission}
-        forall  {T2P: {o} ty2perm PM T ([o1] PFF o o1)}
-        exists  {PF: object -> permission}
-                {EQ: {o}{o1} permission`eq (PFF o o1) (PF o1)}
-	        {T2P: ty2perm PM T ([o1] PF o1)}
-        true.
+%theorem permission`eq-preserves-predicate`eq-withvar2
+  : forall* {PDF: object -> object -> clspred} {PD}
+    forall {PNF: clspred -> object -> permission}
+    {EQ: {x}{o} predicate`eq (PDF x o) PD}
+    exists {EQ: {x}{o}{r} permission`eq (PNF (PDF x o) r) (PNF PD r)}
+    true.
+
+- : permission`eq-preserves-predicate`eq-withvar2 _
+     ([_][_] predicate`eq/) ([_][_][_] permission`eq/).
+
+%worlds (objvar) (permission`eq-preserves-predicate`eq-withvar2 _ _ _).
+%total  {} (permission`eq-preserves-predicate`eq-withvar2 _ _ _).
+
+
+%theorem ty2perm-no-var
+  : forall* {PM} {T} {PFF:object -> object -> permission}
+    forall {T2P: {o} ty2perm PM T ([o1] PFF o o1)}
+    exists {PF: object -> permission}
+    {EQ: {o}{o1} permission`eq (PFF o o1) (PF o1)}
+    {T2P: ty2perm PM T ([o1] PF o1)}
+    true.
 
 - : ty2perm-no-var
      ([_] ty2perm/null) _ ([_][_] permission`eq/) ty2perm/null.
@@ -1366,6 +1398,25 @@ clsmap-predmap/+
 %worlds (objvar) (ty2perm-no-var _ _ _ _ ).
 %total {} (ty2perm-no-var _ _ _ _).
 
+
+%theorem ty2perm-no-var2
+  : forall* {PM} {T} {PF': object -> object -> object -> permission}
+    forall {T2PF: {x}{o} ty2perm PM T ([v] PF' x o v)}
+    exists {PF} {EQ: {x}{o}{v} permission`eq (PF' x o v) (PF v)}
+    {T2PF: ty2perm PM T ([v] PF v)}
+    true.
+
+- : ty2perm-no-var2 ([_][_] ty2perm/null) _ ([_][_][_] permission`eq/) ty2perm/null.
+
+- : ty2perm-no-var2
+     ([x][o] ty2perm/ (PMLF x o) (NN2P: nn2perm _ _ PF) A2AF)
+    _ PEQ (ty2perm/ PML NN2P A2AF)
+     <- predmap`no-variable-lookup2 PMLF _ PML ([x][o] PF=P x o)
+     <- permission`eq-preserves-predicate`eq-withvar2 PF PF=P ([x][o][r] PEQ x o r).
+
+
+%worlds (objvar) (ty2perm-no-var2 _ _ _ _).
+%total { } (ty2perm-no-var2 _ _ _ _).
 
 
 %theorem can-duplicate-borrow
@@ -1690,7 +1741,7 @@ the nesting fact about F from the predicate. }%
  TODO: this lemma could be simpler by eliminating Pi1 and Pi3.
 }%
 
-%theorem can-carve-out-of-shared
+%theorem can-carve-out-of-shared-scale
   : forall* {Pi1} {Pi2} {Pi3} {Q}
     forall {EQV: equiv Pi2 (scale Q (allperm null) , Pi3)}
     exists {IMP: {r} implies
@@ -1703,7 +1754,7 @@ the nesting fact about F from the predicate. }%
                        (scale Q (allperm r)) (Pi2))) , (Pi1)))}
     true.
 
-- : can-carve-out-of-shared
+- : can-carve-out-of-shared-scale
     EQV ([r] implies/trans3
           (implies/equiv
             (equiv/transitive
@@ -1746,6 +1797,31 @@ the nesting fact about F from the predicate. }%
               (implies/combine implies/reflexive implies/chain-implication))
             (implies/reflexive))
           (implies/equiv (equiv/symmetric equiv/associate))).
+
+%worlds (objvar) (can-carve-out-of-shared-scale _ _).
+%total {} (can-carve-out-of-shared-scale _ _).
+
+
+%theorem can-carve-out-of-shared
+  : forall* {Pi1} {Pi2} {Pi3}
+    forall {EQV: equiv Pi2 ((allperm null) , Pi3)}
+    exists {IMP: {r} implies
+                 ((unitperm
+                      (nonlinear
+                        (nested (allperm r) null all))) , (Pi1 , Pi2))
+                 ((allperm r) ,
+                   ((unitperm
+                     (encumbered (allperm r) (Pi2))) , (Pi1)))}
+    true.
+
+- : can-carve-out-of-shared EQV
+    ([x] implies/trans
+      (IMP x)
+      (implies/combine (implies/equiv equiv/one)
+        (implies/combine (implies/equiv-encumbered equiv/one equiv/reflexive)
+          implies/reflexive)))
+    <- can-carve-out-of-shared-scale
+      (equiv/transitive EQV (equiv/combine (equiv/symmetric equiv/one) equiv/reflexive)) IMP.
 
 %worlds (objvar) (can-carve-out-of-shared _ _).
 %total {} (can-carve-out-of-shared _ _).
