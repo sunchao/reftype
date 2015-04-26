@@ -1004,20 +1004,22 @@ set-all-permissions*/U :
 
 %%% V1 = (env/ B0 M0), V2 = (env/ B1 M3)
 %theorem make-before-write-format
-  : forall* {CM} {PM} {RT} {T} {V1} {V2} {Out0} {B} {V3}
+  : forall* {CM} {PM} {V1} {V2} {Out0} {B} {V3} {FS} {C} {FM} {NN} {A} {RT}
     forall {WF-CM: wf-clsmap CM}
     {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {FM-DM: fldmap`domain FM FS}
     {CM-B-RSLT: clsmap-result CM B (result/expr RT V1)}
-    {SUB: subtype CM RT V1 T V3 V2}
+    {SUB: subtype FS RT V1 (ty/ NN A C) V3 V2}
     {R=>Out: result2output CM PM B (result/expr RT V1) Out0}
     exists {Out1}
     {TRANS: transform Out0 Out1}
     {BR-FMT: before-write-format CM PM B (result/expr RT V2) Out1}
     true.
 
-- : make-before-write-format WF-CM CM2PM
+- : make-before-write-format WF-CM CM2PM CML DM-FM=FS
     (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B0-S _ _) _ CM-B0-M0)
-    (subtype/ nat`eq/ NN-LEQ CML (DM-FM=FS:fldmap`domain FM FS)
+    (subtype/ NN-LEQ
       (sub-annot/unique (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3) S<=U0 (U0-S=U1:set`remove U0 S U1)))
     (result2output/expr (B=>PiB:cxt2perm CM PM B PiB)
@@ -1128,9 +1130,9 @@ set-all-permissions*/U :
     <- predmap`no-variable-lookup PMLP CP2 PML2 PEQ
     <- make-before-write-format/L3 PF PEQ EQV2.
 
-- : make-before-write-format WF-CM CM2PM
+- : make-before-write-format WF-CM CM2PM CML DM-FM=FS
     (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B-S _ _) _ CM-B-M0)
-    (subtype/ nat`eq/ NN-LEQ CML (DM-FM=FS:fldmap`domain FM FS)
+    (subtype/ NN-LEQ
       (sub-annot/unique (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3) S<=U0 (U0-S=U1:set`remove U0 S U1)))
     (result2output/expr (B=>PiB:cxt2perm CM PM B PiB)
@@ -1234,8 +1236,8 @@ set-all-permissions*/U :
     <- set-all-permissions-implies/L3 B=>PiB B-S-PiS PiS* B-S-PiS* IMP2
     <- make-before-write-format/L1 B-S-PiS* FLN B+S=>GF T2PF _ IMP.
 
-- : make-before-write-format _ _ CM-B-Rslt
-    (subtype/ nat`eq/ _ _ _  (sub-annot/shared))
+- : make-before-write-format _ _ _ _ CM-B-Rslt
+    (subtype/ _  (sub-annot/shared))
     (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) (reftype2perm/shared T2PF)) _
     (transform/inside [o]
       (transform/trans
@@ -1248,8 +1250,8 @@ set-all-permissions*/U :
         (transform/rem-unused)))
     (before-write-format/expr U=>PiU B=>PiB M=>PiM reftype2ty/shared T2PF).
 
-%worlds (objvar) (make-before-write-format _ _ _ _ _ _ _ _).
-%total (T) (make-before-write-format _ _ _ _ T _ _ _).
+%worlds (objvar) (make-before-write-format _ _ _ _ _ _ _ _ _ _).
+%total (T) (make-before-write-format _ _ _ _ _ _ T _ _ _).
 
 
 %theorem subtype-implies-ty2perm-leq
@@ -1282,11 +1284,12 @@ set-all-permissions*/U :
 %%% B0 is the output context for checking E1,
 
 %theorem do-write
-  : forall* {CM} {PM} {W} {RT} {B} {U1} {U2} {M} {M1} {M2} {M3} {M4} {NN} {A} {FC}
-    {G2} {PiB} {PiM} {PiM1} {PiM1'} {E2} {F} {PF} {Out} {PiU0} {V3}
+  : forall* {CM} {PM} {W} {B} {U1} {U2} {M} {M1} {M2} {M3} {M4} {NN} {A} {FC} {FM} {FS}
+    {G2} {PiB} {PiM} {PiM1} {PiM1'} {E2} {F} {PF} {Out} {PiU0} {V3} {RT}
     forall {B2+M1=>Pi2: capset2perm CM PM B M1 PiM1'}
     {BF-READ-FMT: read-format CM PM B (targets/unique set/0 M) M1 PiM PiM1}
-    {SUB: subtype CM RT (env/ U1 M2) (ty/ NN A FC) V3 (env/ U2 M3)}
+    {CML: clsmap`lookup CM FC FM} {FM-DM: fldmap`domain FM FS}
+    {SUB: subtype FS RT (env/ U1 M2) (ty/ NN A FC) V3 (env/ U2 M3)}
     {T2PF: ty2perm PM (ty/ NN A FC) ([x] PF x)}
     {TYP-E2: typing W (PiB , (PiU0 , PiM1')) E2 Out}
     {BW-FMT: before-write-format CM PM B (result/expr RT (env/ U2 M3)) Out}
@@ -1302,6 +1305,7 @@ set-all-permissions*/U :
     (read-format/ (SZ-M:set`size M (s _))
       (M1=>PiM1:capset2perm CM PM B M1 PiM1)
       (M=>PiM:capset2perm CM PM B M PiM))
+    CML DM-FM=FS
     SUB (T2PF) (TYP-E2:typing W (PiB , (PiU , PiM1')) E2 _)
     (before-write-format/expr (U2=>PiU2:make-encumbered CM PM B U2 PiU2)
       (B=>PiB:cxt2perm CM PM B PiB')
@@ -1407,6 +1411,7 @@ set-all-permissions*/U :
     (read-format/ (SZ-M:set`size M (s _))
       (M1=>PiM1:capset2perm CM PM B M1 PiM1)
       (M=>PiM:capset2perm CM PM B M PiM))
+    CML DM-FM=FS
     SUB (T2PF:ty2perm PM _ ([x] PF x)) (TYP-E2:typing W (PiB , (PiU0 , PiM1')) E2 _)
     (before-write-format/expr (U2=>PiU2: make-encumbered CM PM B U2 PiU2)
       (B=>PiB)
@@ -1534,5 +1539,5 @@ set-all-permissions*/U :
     <- ({o:object} typing-frame* TYP-E2 (envadd/exists [x] envadd/expr) (TYP-E2' o))
     <- subtype-implies-ty2perm-leq* SUB RT2T T2PF2 T2PF IMP.
 
-%worlds (objvar) (do-write _ _ _ _ _ _ _ _ _ _).
-%total { } (do-write _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (do-write _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (do-write _ _ _ _ _ _ _ _ _ _ _ _).

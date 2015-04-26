@@ -17,7 +17,7 @@ result/cond : env -> cond-result.
 
 result/args/0 : env -> args-result.
 
-result/args/+ : reftype -> args-result -> args-result.
+result/args/+ : reftype -> env -> args-result -> args-result.
 
 
 %%% Equality
@@ -81,9 +81,11 @@ writeRefTyping : clsmap -> methmap -> cxt -> expr-result -> nat -> expr ->
 writeRefTyping/base :
     clsmap`lookup CM C FM ->
     fldmap`lookup FM F (ty/ NN A FC) ->
+    clsmap`lookup CM FC FFM ->
+    fldmap`domain FFM FS ->
     make-tgts-and-caps M0 G0 F G1 M1 ->
     reftyping CM MM B (env/ U0 M1) E (result/expr RT V2) ->
-    subtype CM RT V2 (ty/ NN A FC) _ (env/ U1 M3) ->
+    subtype FS RT V2 (ty/ NN A FC) _ (env/ U1 M3) ->
     consider-ftype G1 M3 A G2 M4 ->
   writeRefTyping CM MM B (result/expr (reftype/ nn/yes C G0) (env/ U0 M0))
     F E G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ U1 M4)).
@@ -228,9 +230,9 @@ argsRefTyping/0 : argsRefTyping _ _ _ V args/0 (methty/base T) (result/args/0 V)
 
 argsRefTyping/+ :
     reftyping CM MM B V0 E (result/expr RT V1) ->
-    subtype CM RT V1 T _ V2 -> % TODO: use M
+    subtype FS RT V1 T V3 V2 ->
     argsRefTyping CM MM B V2 A MT AR ->
-  argsRefTyping CM MM B V0 (args/+ E A) (methty/arg T M MT) (result/args/+ RT AR).
+  argsRefTyping CM MM B V0 (args/+ E A) (methty/arg T FS MT) (result/args/+ RT V3 AR).
 
 
 %{
@@ -254,15 +256,6 @@ reclaimed after they are not needed after the method call checking. This is
 also needed for checking tLet.
 }%
 
-reclaim-capabilities : set -> set -> set -> set -> set -> type.
-
-reclaim-capabilities/ :
-    set+set2set S M M2 ->
-    capset-split M3 M1 M2 ->
-    capset-split M4 M0 M1 ->
-  reclaim-capabilities M0 S M1 M M4.
-
-
 %%% Converting a ty to a reftype for a fresh new object.
 
 ty2new-reftype : ty -> reftype -> type.
@@ -275,31 +268,35 @@ ty2new-reftype/shared :
 
 
 
-callRefTyping* : clsmap -> methmap -> set -> args-result -> methty -> expr-result -> type.
+callRefTyping* : clsmap -> methmap -> env -> args-result -> methty -> expr-result -> type.
 
 callRefTyping/arg/0 :
+    set`union U0 U1 U2 ->
     capset-split M2 M0 M1 ->
     ty2new-reftype T RT ->
-  callRefTyping* CM MM M0 (result/args/0 (env/ U0 M1)) (methty/base T)
-      (result/expr RT (env/ U0 M2)).
+  callRefTyping* CM MM (env/ U0 M0) (result/args/0 (env/ U1 M1)) (methty/base T)
+      (result/expr RT (env/ U2 M2)).
 
 callRefTyping/arg/+/unique :
-    callRefTyping* CM MM M AR A R ->
-  callRefTyping* CM MM M (result/args/+ _ AR)
+    callRefTyping* CM MM V AR A R ->
+  callRefTyping* CM MM V (result/args/+ _ _ AR)
       (methty/arg (ty/ _ annot/unique _) set/0 A) R.
 
 callRefTyping/arg/+/borrow :
-    reclaim-capabilities M0 S M1 M M2 ->
-    callRefTyping* CM MM M2 AR A R ->
-  callRefTyping* CM MM M0 (result/args/+ (reftype/ NN C (targets/unique S M1)) AR)
-      (methty/arg (ty/ _ annot/borrow _) M A) R.
+    set`union U0 U1 U2 ->
+    capset-split M2 M0 M1 ->
+    capset-split M4 M2 M3 ->
+    callRefTyping* CM MM (env/ U2 M4) AR A R ->
+  callRefTyping* CM MM (env/ U0 M0)
+      (result/args/+ (reftype/ NN C (targets/unique S M1)) (env/ U1 M3) AR)
+      (methty/arg (ty/ _ annot/borrow _) _ A) R.
 
 callRefTyping/arg/+/shared :
-    callRefTyping* CM MM M AR A R ->
-  callRefTyping* CM MM M (result/args/+ _ AR)
+    callRefTyping* CM MM V AR A R ->
+  callRefTyping* CM MM V (result/args/+ _ empty-env AR)
       (methty/arg (ty/ _ annot/shared _) set/0 A) R.
 
-%abbrev callRefTyping = [CM][MM][AR][A][R] callRefTyping* CM MM set/0 AR A R.
+%abbrev callRefTyping = [CM][MM][AR][A][R] callRefTyping* CM MM empty-env AR A R.
 
 
 %{
