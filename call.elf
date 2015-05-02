@@ -1,17 +1,147 @@
-%theorem reftyping-ok/call
-  : forall* {CM} {MM} {PM} {V} {A} {MT} {Rslt} {Pi} {W} {PT}
+%%% Relation between argument permissions
+
+arg-perm-rel : clsmap -> predmap -> cxt ->
+  permission -> permission -> permission -> type.
+
+arg-perm-rel/0 : arg-perm-rel _ _ _ empty empty empty.
+
+arg-perm-rel/+ :
+    reftype2perm CM PM B RT ([o][r] PF o r) ->
+    make-encumbered CM PM B U PiU ->
+    capset2perm CM PM B M PiM ->
+    argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o) ->
+    check-declared-caps CM T FS FS1 ->
+    subtype FS1 RT V1 T (env/ U M) V2 ->
+    ({o}{r} arg-perm-rel CM PM B (((PF o r) , (PiU , PiM)) , Pi)
+      ((PF1 o) , Pi1) ((PF2 o) , Pi2)) ->
+  arg-perm-rel CM PM B Pi Pi1 Pi2.
+
+
+%{
+This lemma shows that suppose for a single argument
+we have the corresponding permissions for the reftype, then
+we can transform that permissions into two sets of permissions:
+one set contains the permissions needed by the method for that argument,
+and another set contains the rest of permissions, which can be
+used to restore the original permission once the method call
+is done. This is only needed for borrowed argument.
+}%
+%theorem arg-perm-implies-input-single
+  : forall* {CM} {PM} {B} {RT} {PF} {U} {M} {PiU} {PiM}
+    {T} {FS} {FS1} {PF1} {PF2} {V1} {V2} {PiB}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
-    {V=>Pi: env2input CM PM V Pi}
-    {RTYP-A: reftyping/args CM MM V A MT Rslt}
-    {MT=>PT: methty2proctype CM PM MT PT}
-    exists {Out1} {Out2}
-    {TYP: typing W Pi A Out1}
-    {CTYP: callTyping W Out1 PT Out2}
-    {Rslt=>Out: result2output CM PM Rslt Out2}
+    {B=>PiB: cxt2perm CM PM B PiB}
+    {CM-B-RT: clsmap-cxt-reftype CM B RT}
+    {CDC: check-declared-caps CM T FS FS1}
+    {SUB: subtype FS1 RT V1 T (env/ U M) V2}
+    {RT2P: reftype2perm CM PM B RT ([o][r] PF o r)}
+    {U=>PiU: make-encumbered CM PM B U PiU}
+    {M=>PiM: capset2perm CM PM B M PiM}
+    {AT: argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o)}
+    exists {Pi}
+    {IMP: {o}{r} implies (PiB , ((PF o r) , (PiU , PiM)))
+          (PiB , (((PF1 o) , (Pi o r))))}
     true.
 
-- : reftyping-ok/call CM-CM CM2PM V=>Pi
-    (reftyping/args/0 B-FS ([x] B-UD x) T2RT)
-    (methty2proctype/base T2RT2) _ _ TYP ATYP Rslt=>Out
-    <- 
+%%% unique => unique
+%%% Since we have corresponding permissions in PiU and PiM, we can get
+%%% the whole permissions for the unique argument. For this case, we actually
+%%% don't need to keep the rest of the permissions, since unique argument is
+%%% wholly consumed.
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (check-declared-caps/unique (DM-FM:fldmap`domain FM FS) (CML:clsmap`lookup CM C FM))
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/unique (S+FS=>M2:set+set2set S FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
+        (U0-S=U1:set`remove U0 S U1)))
+    (reftype2perm/borrow SZ set`size/0
+      (ty2perm/ (PML1:predmap`lookup PM C CP1) (NN2P1:nn2perm NN1 _ AF1) annot2perm/borrow)
+      ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
+    (S=>PiS:make-encumbered CM PM B S PiS)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/unique T2PF4)
+    _
+    ([o][r] implies/trans7
+      (implies/combine implies/reflexive
+        (implies/trans
+          (implies/combine implies/reflexive
+            (implies/trans (implies/commute) IMP1))
+          (implies/equiv equiv/commute)))
+      (implies/equiv equiv/associate)
+      (implies/combine (implies/trans IMP2 (implies/commute))
+        (implies/commute))
+      (implies/equiv equiv/swap-middle)
+      (implies/combine (implies/trans implies/commute (IMP3 o)) implies/reflexive)
+      (implies/combine (implies/combine (IMP4 o) implies/reflexive) implies/reflexive)
+      (implies/equiv
+        (equiv/transitive3
+          (equiv/swap-middle)
+          (equiv/combine equiv/commute equiv/reflexive)
+          (equiv/symmetric equiv/associate))))
+    <- cxt-unique-objset-implies-same-class B-S SOC
+    <- cxt-unique-objset-implies-least-nonnull B-S LNN
+    <- restore-object-permission SOC CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
+    <- set-all-permissions-implies/L3 B=>PiB SAP _ SAP* IMP2
+    <- set-all-permissions-implies-var _ SZ SAP* S=>GF LNN _ T2PF3 _ IMP3
+    <- nn-leq-implies-permission-leq* T2PF3 NN2<=NN1 T2PF4 IMP4.
+
+%worlds () (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem reftyping-ok/call
+  : forall* {CM} {MM} {PM} {B} {V} {A} {MT} {AR} {AO} {PT} {W}
+    forall {Pi} {Pi1} {Pi2}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM=>W: methmap2progtype CM PM MM W}
+    {RTYP-A: argsRefTyping CM MM B V A MT AR}
+    {AR=>AO: result2output* CM PM B Pi AR AO}
+    {REL: arg-perm-rel CM PM B Pi Pi1 Pi2}
+    {MT=>PT: methty2proctype* CM PM Pi1 Pi2 MT PT}
+    exists {O} {CTYP: callTyping W AO PT O}
+    true.
+
+%{
+How To Prove This?
+Everytime argsRefTyping adds a set of permissions, which correspond to
+the actual argument. Also, everytime methty2proc type adds a set of permissions
+as well, which correspond to the formal argument. We need to show that
+from the first set of permissions, we can derive the second set of
+permissions.
+
+But the "+" case really just pass on the permissions to the next (inside)
+argument, and the only interesting case is the "0" case, where the
+permissions are used. This is a little bit tricky to prove since we cannot
+use induction hypothesis as we used to.
+}%
+
+- : reftyping-ok/call Pi Pi1 Pi2 CM-CM CM2PM MM2W
+    (argsRefTyping/0)
+    (result2output/args/0
+      (B=>PiB:cxt2perm CM PM B PiB)
+      (env2input/ (U=>PiU:make-encumbered CM PM B U PiU)
+        (M=>PiM:capset2perm CM PM B M PiM)))
+    REL
+    (methty2proctype/base T2RT) _ CTYP.
+
+- : reftyping-ok/call Pi Pi1 Pi2 CM-CM (CM2PM:clsmap2predmap CM PM) MM2W
+    (argsRefTyping/+
+      (RTYP:reftyping CM MM B V0 E (result/expr RT V1))
+      (SUB:subtype FS RT V1 T (env/ U M) V2)
+      (ATYP:argsRefTyping CM MM B V2 AR MT AOut))
+    (result2output/args/+ (RT2P:reftype2perm CM PM B RT ([x][o] PF x o))
+      (U=>PiU:make-encumbered CM PM B U PiU)
+      (M=>PiM:capset2perm CM PM B M PiM)
+      ([o][r] AR=>AO o r))
+    (methty2proctype/arg AT2P ([o] MT=>PT o))
+    _
+    (callTyping/exists [o] (callTyping/exists [r] (callTyping/arg o (CTYP o r))))
+    <- ({o}{r} reftyping-ok/call _ _ _ CM-CM CM2PM MM2W ATYP
+         (AR=>AO o r) (MT=>PT o) _ (CTYP o r)).
+
+%worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _).
+%total (AT) (reftyping-ok/call _ _ _ _ _ _ AT _ _ _ _).
