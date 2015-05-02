@@ -224,13 +224,31 @@ Given this situation doesn't occur very often, and is also illegal in FP,
 here we just simply disallow "duplicated" cap while checking method call effects.
 }%
 
+%%% For unique argument, we need caps on all fields. In that case we'll ignore
+%%% the declared caps.
+check-declared-caps : clsmap -> ty -> set -> set -> type.
+
+check-declared-caps/unique
+  : check-declared-caps CM (ty/ NN annot/unique C) _ FS
+    <- clsmap`lookup CM C FM
+    <- fldmap`domain FM FS.
+
+%%% Shared doesn't need any cap
+check-declared-caps/shared
+  : check-declared-caps CM (ty/ NN annot/shared C) _ set/0.
+
+check-declared-caps/borrowed
+  : check-declared-caps CM (ty/ NN annot/borrow C) FS FS.
+
+
 argsRefTyping : clsmap -> methmap -> cxt -> env -> args -> methty -> args-result -> type.
 
 argsRefTyping/0 : argsRefTyping _ _ _ V args/0 (methty/base T) (result/args/0 V).
 
 argsRefTyping/+ :
     reftyping CM MM B V0 E (result/expr RT V1) ->
-    subtype FS RT V1 T V3 V2 ->
+    check-declared-caps CM T FS FS1 ->
+    subtype FS1 RT V1 T V3 V2 ->
     argsRefTyping CM MM B V2 A MT AR ->
   argsRefTyping CM MM B V0 (args/+ E A) (methty/arg T FS MT) (result/args/+ RT V3 AR).
 
