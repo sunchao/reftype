@@ -5,16 +5,17 @@ arg-perm-rel : clsmap -> predmap -> cxt ->
 
 arg-perm-rel/0 : arg-perm-rel _ _ _ empty empty empty.
 
-arg-perm-rel/+ :
+arg-perm-rel/+ : {O} {R}
+    clsmap-cxt-reftype CM B RT ->
     reftype2perm CM PM B RT ([o][r] PF o r) ->
     make-encumbered CM PM B U PiU ->
     capset2perm CM PM B M PiM ->
     argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o) ->
     check-declared-caps CM T FS FS1 ->
     subtype FS1 RT V1 T (env/ U M) V2 ->
-    ({o}{r} arg-perm-rel CM PM B (((PF o r) , (PiU , PiM)) , Pi)
-      ((PF1 o) , Pi1) ((PF2 o) , Pi2)) ->
-  arg-perm-rel CM PM B Pi Pi1 Pi2.
+    arg-perm-rel CM PM B Pi Pi1 Pi2 ->
+  arg-perm-rel CM PM B (((PF O R) , (PiU , PiM)) , Pi)
+      ((PF1 O) , Pi1) ((PF2 O) , Pi2).
 
 
 %{
@@ -25,10 +26,15 @@ one set contains the permissions needed by the method for that argument,
 and another set contains the rest of permissions, which can be
 used to restore the original permission once the method call
 is done. This is only needed for borrowed argument.
+
+For the case of unique => shared, it is tricky, since we need `transform`
+to do the job.
+
 }%
+
 %theorem arg-perm-implies-input-single
   : forall* {CM} {PM} {B} {RT} {PF} {U} {M} {PiU} {PiM}
-    {T} {FS} {FS1} {PF1} {PF2} {V1} {V2} {PiB}
+    {T} {FS} {FS1} {PF1} {PF2} {V1} {V2} {PiB} {PiR}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {B=>PiB: cxt2perm CM PM B PiB}
@@ -40,9 +46,29 @@ is done. This is only needed for borrowed argument.
     {M=>PiM: capset2perm CM PM B M PiM}
     {AT: argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o)}
     exists {Pi}
-    {IMP: {o}{r} implies (PiB , ((PF o r) , (PiU , PiM)))
-          (PiB , (((PF1 o) , (Pi o r))))}
+    {TRANS: {o}{r} transform
+            (output/args/0 ((PiB , ((PF o r) , (PiU , PiM))) , PiR))
+            (output/args/0 ((PiB , (((PF1 o) , (Pi o r)))) , PiR))}
     true.
+
+%%% unique => shared
+
+%%% The borrowed case
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (check-declared-caps/shared)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/unique (S+FS=>M2:set+set2set S FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
+        (U0-S=U1:set`remove U0 S U1)))
+    (reftype2perm/borrow SZ set`size/0
+      (ty2perm/ (PML1:predmap`lookup PM C CP1) (NN2P1:nn2perm NN1 _ AF1) annot2perm/borrow)
+      ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
+    (S=>PiS:make-encumbered CM PM B S PiS)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/shared T2PF4)
+    _ KK.
 
 
 %%% unique => unique
@@ -50,6 +76,8 @@ is done. This is only needed for borrowed argument.
 %%% the whole permissions for the unique argument. For this case, we actually
 %%% don't need to keep the rest of the permissions, since unique argument is
 %%% wholly consumed.
+
+%% The borrowed case
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
     (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
@@ -65,23 +93,26 @@ is done. This is only needed for borrowed argument.
     (M2=>PiM2:capset2perm CM PM B M2 PiM2)
     (argtype2perm/unique T2PF4)
     _
-    ([o][r] implies/trans7
-      (implies/combine implies/reflexive
-        (implies/trans
+    ([o][r] transform/args/0
+      (implies/combine
+        (implies/trans7
           (implies/combine implies/reflexive
-            (implies/trans (implies/commute) IMP1))
-          (implies/equiv equiv/commute)))
-      (implies/equiv equiv/associate)
-      (implies/combine (implies/trans IMP2 (implies/commute))
-        (implies/commute))
-      (implies/equiv equiv/swap-middle)
-      (implies/combine (implies/trans implies/commute (IMP3 o)) implies/reflexive)
-      (implies/combine (implies/combine (IMP4 o) implies/reflexive) implies/reflexive)
-      (implies/equiv
-        (equiv/transitive3
-          (equiv/swap-middle)
-          (equiv/combine equiv/commute equiv/reflexive)
-          (equiv/symmetric equiv/associate))))
+            (implies/trans
+              (implies/combine implies/reflexive
+                (implies/trans (implies/commute) IMP1))
+              (implies/equiv equiv/commute)))
+          (implies/equiv equiv/associate)
+          (implies/combine (implies/trans IMP2 (implies/commute))
+            (implies/commute))
+          (implies/equiv equiv/swap-middle)
+          (implies/combine (implies/trans implies/commute (IMP3 o)) implies/reflexive)
+          (implies/combine (implies/combine (IMP4 o) implies/reflexive) implies/reflexive)
+          (implies/equiv
+            (equiv/transitive3
+              (equiv/swap-middle)
+              (equiv/combine equiv/commute equiv/reflexive)
+              (equiv/symmetric equiv/associate))))
+        (implies/reflexive)))
     <- cxt-unique-objset-implies-same-class B-S SOC
     <- cxt-unique-objset-implies-least-nonnull B-S LNN
     <- restore-object-permission SOC CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
@@ -89,7 +120,7 @@ is done. This is only needed for borrowed argument.
     <- set-all-permissions-implies-var _ SZ SAP* S=>GF LNN _ T2PF3 _ IMP3
     <- nn-leq-implies-permission-leq* T2PF3 NN2<=NN1 T2PF4 IMP4.
 
-
+%%% The unique case
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
     (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
@@ -105,25 +136,29 @@ is done. This is only needed for borrowed argument.
     (M2=>PiM2:capset2perm CM PM B M2 PiM2)
     (argtype2perm/unique T2PF2)
     _
-    ([o][r] implies/trans5
-      (implies/combine implies/reflexive
-        (implies/trans
-          (implies/combine implies/reflexive
-            (implies/trans implies/commute IMP1))
-          (implies/commute)))
-      (implies/associate)
-      (implies/combine IMP2 implies/reflexive)
-      (implies/equiv
-        (equiv/transitive3
-          (equiv/combine equiv/reflexive equiv/roll2)
-          (equiv/symmetric equiv/associate)
-          (equiv/combine equiv/reflexive
-            (equiv/transitive equiv/associate equiv/associate))))
-      (implies/combine implies/reflexive
-        (implies/trans3
-          (implies/combine (IMP3 o r) implies/reflexive)
-          (implies/equiv (equiv/symmetric equiv/associate))
-          (implies/combine (IMP4 o) implies/reflexive))))
+    ([o][r]
+      (transform/args/0
+        (implies/combine
+          (implies/trans5
+            (implies/combine implies/reflexive
+              (implies/trans
+                (implies/combine implies/reflexive
+                  (implies/trans implies/commute IMP1))
+                (implies/commute)))
+            (implies/associate)
+            (implies/combine IMP2 implies/reflexive)
+            (implies/equiv
+              (equiv/transitive3
+                (equiv/combine equiv/reflexive equiv/roll2)
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive equiv/associate equiv/associate))))
+            (implies/combine implies/reflexive
+              (implies/trans3
+                (implies/combine (IMP3 o r) implies/reflexive)
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine (IMP4 o) implies/reflexive))))
+          (implies/reflexive))))
     <- cxt-unique-objset-implies-same-class B-S SOC
     <- cxt-unique-objset-implies-least-nonnull B-S LNN
     <- restore-object-permission SOC CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
@@ -131,22 +166,74 @@ is done. This is only needed for borrowed argument.
     <- make-before-write-format/L1 SAP* LNN S=>GF T2PF1 _ IMP3
     <- nn-leq-implies-permission-leq T2PF1 NN2<=NN1 _ T2PF2 IMP4.
 
-%worlds () (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
 %total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
 
 
+%theorem arg-perm-rel-transform
+  : forall* {CM} {PM} {B} {Pi} {Pi1} {Pi2} {PiB} {PiR}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B=>PiB: cxt2perm CM PM B PiB}
+    {REL: arg-perm-rel CM PM B Pi Pi1 Pi2}
+    exists {PiR'}
+    {TRANS: transform
+            (output/args/0 (combine Pi (combine PiB PiR)))
+            (output/args/0 (combine Pi1 (combine PiB PiR')))}
+    true.
+
+- : arg-perm-rel-transform CM-CM CM2PM B2P
+    arg-perm-rel/0 _
+    (transform/reflexive).
+
+- : arg-perm-rel-transform CM-CM CM2PM B=>PiB
+    (arg-perm-rel/+ O R CM-B-RT RT2P U=>PiU M=>PiM AT2P CDC SUB REL)
+    _
+    (transform/trans3
+      (transform/args/0
+        (implies/equiv
+          (equiv/symmetric equiv/associate)))
+      (TRANS1')
+      (transform/trans3
+        (transform/args/0
+          (implies/equiv
+            (equiv/transitive3
+              (equiv/combine equiv/reflexive equiv/roll2)
+              (equiv/associate)
+              (equiv/combine equiv/commute equiv/reflexive))))
+        (TRANS2 O R)
+        (transform/args/0
+          (implies/equiv
+            (equiv/transitive5
+              (equiv/combine equiv/commute equiv/reflexive)
+              (equiv/swap-middle)
+              (equiv/combine equiv/swap equiv/reflexive)
+              (equiv/symmetric equiv/associate)
+              (equiv/combine equiv/reflexive equiv/reorder))))))
+    <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL _ TRANS1
+    <- transform-commutes-envadd* TRANS1 envadd/args/0 envadd/args/0 TRANS1'
+    <- arg-perm-implies-input-single CM-CM CM2PM B=>PiB CM-B-RT
+      CDC SUB RT2P U=>PiU M=>PiM AT2P _ ([o][r] TRANS2 o r).
+
+%worlds (objvar) (arg-perm-rel-transform _ _ _ _ _ _).
+%total (A) (arg-perm-rel-transform _ _ _ A _ _).
+
 
 %theorem reftyping-ok/call
-  : forall* {CM} {MM} {PM} {B} {V} {A} {MT} {AR} {AO} {PT} {W}
-    forall {Pi} {Pi1} {Pi2}
-    {CM-CM: clsmap-clsmap CM CM}
+  : forall* {CM} {MM} {PM} {B} {V} {A}
+    {MT} {AR} {AO} {PT} {W} {Pi} {Pi1} {Pi2}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
     {CM2PM: clsmap2predmap CM PM}
     {MM=>W: methmap2progtype CM PM MM W}
+    {CM-V: clsmap-cxt-env CM B V}
     {RTYP-A: argsRefTyping CM MM B V A MT AR}
     {AR=>AO: result2output* CM PM B Pi AR AO}
     {REL: arg-perm-rel CM PM B Pi Pi1 Pi2}
     {MT=>PT: methty2proctype* CM PM Pi1 Pi2 MT PT}
-    exists {O} {CTYP: callTyping W AO PT O}
+    exists {AO'} {O}
+    {TRANS: transform AO AO'}
+    {CTYP: callTyping W AO' PT O}
     true.
 
 %{
@@ -163,29 +250,41 @@ permissions are used. This is a little bit tricky to prove since we cannot
 use induction hypothesis as we used to.
 }%
 
-- : reftyping-ok/call Pi Pi1 Pi2 CM-CM CM2PM MM2W
+- : reftyping-ok/call CM-CM CM-MM CM2PM MM2W _
     (argsRefTyping/0)
     (result2output/args/0
       (B=>PiB:cxt2perm CM PM B PiB)
       (env2input/ (U=>PiU:make-encumbered CM PM B U PiU)
         (M=>PiM:capset2perm CM PM B M PiM)))
     REL
-    (methty2proctype/base T2RT) _ CTYP.
+    (methty2proctype/base T2RT) _ _ TRANS
+    (callTyping/call (envadd/exists [o] (envadd/expr)))
+    <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL _ TRANS.
 
-- : reftyping-ok/call Pi Pi1 Pi2 CM-CM (CM2PM:clsmap2predmap CM PM) MM2W
+- : reftyping-ok/call CM-CM CM-MM (CM2PM:clsmap2predmap CM PM)
+    (MM2W:methmap2progtype CM PM MM W) CM-B-V
     (argsRefTyping/+
-      (RTYP:reftyping CM MM B V0 E (result/expr RT V1))
-      (SUB:subtype FS RT V1 T (env/ U M) V2)
-      (ATYP:argsRefTyping CM MM B V2 AR MT AOut))
+      (RTYP:reftyping CM MM B V0 E (result/expr RT (env/ U1 M1)))
+      (CK:check-declared-caps CM T FS FS1)
+      (SUB:subtype FS1 RT (env/ U1 M1) T (env/ U3 M3) (env/ U2 M2))
+      (ATYP:argsRefTyping CM MM B (env/ U2 M2) AR MT AOut))
     (result2output/args/+ (RT2P:reftype2perm CM PM B RT ([x][o] PF x o))
-      (U=>PiU:make-encumbered CM PM B U PiU)
-      (M=>PiM:capset2perm CM PM B M PiM)
+      (U=>PiU:make-encumbered CM PM B U3 PiU)
+      (M=>PiM:capset2perm CM PM B M3 PiM)
       ([o][r] AR=>AO o r))
-    (methty2proctype/arg AT2P ([o] MT=>PT o))
-    _
+    REL
+    (methty2proctype/arg (AT2P:argtype2perm CM PM T FS ([x] PF1 x) ([x] PF2 x))
+      ([o] MT=>PT o))
+    _ _
+    (transform/inside [o] (transform/inside [r] (transform/args/+ (TRANS o r))))
     (callTyping/exists [o] (callTyping/exists [r] (callTyping/arg o (CTYP o r))))
-    <- ({o}{r} reftyping-ok/call _ _ _ CM-CM CM2PM MM2W ATYP
-         (AR=>AO o r) (MT=>PT o) _ (CTYP o r)).
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B-V RTYP CM-B-R1
+    <- clsmap-result/expr-inversion CM-B-R1 CM-B-RT CM-B-U1 CM-B-M1
+    <- subtype-consistent (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2
+    <- ({o}{r} reftyping-ok/call CM-CM CM-MM CM2PM MM2W CM-B-V2 ATYP
+         (AR=>AO o r)
+         (arg-perm-rel/+ o r CM-B-RT RT2P U=>PiU M=>PiM AT2P CK SUB REL)
+         (MT=>PT o) _ _ (TRANS o r) (CTYP o r)).
 
-%worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _).
-%total (AT) (reftyping-ok/call _ _ _ _ _ _ AT _ _ _ _).
+%worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (AT) (reftyping-ok/call _ _ _ _ _ _ AT _ _ _ _ _ _).
