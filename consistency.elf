@@ -1,14 +1,5 @@
 %% Consistency relation between various contexts.
 
-
-%%% Well-formedness of Field Type
-%%% A field type shouldn't be borrowed.
-
-wf-fldty : ty -> type.
-
-wf-fldty/ : not-borrowed A -> wf-fldty (ty/ _ A _).
-
-
 %%% Consistency between a class map and a type.
 %%% Check if the class ID is in clsmap
 
@@ -40,8 +31,9 @@ clsmap-fldmap/0 : clsmap-fldmap _ fldmap/0.
 
 clsmap-fldmap/+ :
     clsmap-fldmap CM FM ->
-    clsmap-ty CM T ->
-  clsmap-fldmap CM (fldmap/+ _ T FM).
+    clsmap-ty CM (ty/ NN A C) ->
+    not-borrowed A ->
+  clsmap-fldmap CM (fldmap/+ _ (ty/ NN A C) FM).
 
 
 %%% Well-formedness of a class map
@@ -335,8 +327,8 @@ clsmap-result/expr :
 
 - : clsmap-fldmap-respects-leq clsmap-fldmap/0 _ clsmap-fldmap/0.
 
-- : clsmap-fldmap-respects-leq (clsmap-fldmap/+ CM0-FM CM0-T)
-    CM0<=CM1 (clsmap-fldmap/+ CM1-FM CM1-T)
+- : clsmap-fldmap-respects-leq (clsmap-fldmap/+ CM0-FM CM0-T NB)
+    CM0<=CM1 (clsmap-fldmap/+ CM1-FM CM1-T NB)
     <- clsmap-ty-respects-leq CM0-T CM0<=CM1 CM1-T
     <- clsmap-fldmap-respects-leq CM0-FM CM0<=CM1 CM1-FM.
 
@@ -375,7 +367,7 @@ clsmap-result/expr :
 - : shift-preserves-clsmap-fldmap clsmap-fldmap/0 _ clsmap-fldmap/0.
 
 - : shift-preserves-clsmap-fldmap
-    (clsmap-fldmap/+ CM-FM CM-T) SH (clsmap-fldmap/+ CM-FM CM-T).
+    (clsmap-fldmap/+ CM-FM CM-T NB) SH (clsmap-fldmap/+ CM-FM CM-T NB).
 
 %worlds (objvar) (shift-preserves-clsmap-fldmap _ _ _).
 %total {} (shift-preserves-clsmap-fldmap _ _ _).
@@ -426,15 +418,33 @@ clsmap-result/expr :
     exists {CM-NT: clsmap-ty CM T}
     true.
 
-- : lookup-implies-clsmap-ty (clsmap-fldmap/+ CM-FM CM-T)
+- : lookup-implies-clsmap-ty (clsmap-fldmap/+ CM-FM CM-T _)
     (fldmap`lookup/= _) CM-T.
 
-- : lookup-implies-clsmap-ty (clsmap-fldmap/+ CM-FM _)
+- : lookup-implies-clsmap-ty (clsmap-fldmap/+ CM-FM _ _)
     (fldmap`lookup/> LP _) CM-T
     <- lookup-implies-clsmap-ty CM-FM LP CM-T.
 
 %worlds (objvar) (lookup-implies-clsmap-ty _ _ _).
 %total (CM-FM) (lookup-implies-clsmap-ty CM-FM _ _).
+
+
+%theorem lookup-implies-not-borrowed
+  : forall* {CM} {FM} {F} {NN} {A} {C}
+    forall {CM-FM: clsmap-fldmap CM FM}
+    {FM-L: fldmap`lookup FM F (ty/ NN A C)}
+    exists {NB: not-borrowed A}
+    true.
+
+- : lookup-implies-not-borrowed (clsmap-fldmap/+ CM-FM _ NB)
+    (fldmap`lookup/= _) NB.
+
+- : lookup-implies-not-borrowed (clsmap-fldmap/+ CM-FM _ _)
+    (fldmap`lookup/> LP _) CM-T
+    <- lookup-implies-not-borrowed CM-FM LP CM-T.
+
+%worlds (objvar) (lookup-implies-not-borrowed _ _ _).
+%total (CM-FM) (lookup-implies-not-borrowed CM-FM _ _).
 
 
 %theorem lookup-implies-clsmap-methty
@@ -1692,22 +1702,28 @@ clsmap-result/expr :
 %theorem subtype-consistent
   : forall* {CM} {FS} {RT} {V0} {T} {V1} {B} {V2}
     forall {CM-VI: clsmap-cxt-env CM B V0}
-    {SUB: subtype FS RT V0 T V2 V1}
+    {SUB: subtype CM FS RT V0 T V2 V1}
     exists {CM-VO: clsmap-cxt-env CM B V1}
     true.
 
 %theorem sub-annot-consistent
-  : forall* {CM} {FS} {B} {A} {G} {U0} {U1} {M0} {M1} {V2}
+  : forall* {CM} {FS} {B} {T} {G} {U0} {U1} {M0} {M1} {V2}
     forall {CM-VI: clsmap-cxt-env CM B (env/ U0 M0)}
-    {SUB: sub-annot G (env/ U0 M0) FS A V2 (env/ U1 M1)}
+    {SUB: sub-annot CM FS G (env/ U0 M0) T V2 (env/ U1 M1)}
     exists {CM-VO: clsmap-cxt-env CM B (env/ U1 M1)}
     true.
 
 - : sub-annot-consistent (clsmap-cxt-env/ CM-U0 CM-B-M0)
-    (sub-annot/unique _ (capset-split/ M2^M3 M2+M3=M0) _ U0-S=U1)
+    (sub-annot/unique _ _ _ (capset-split/ M2^M3 M2+M3=M0) _ U0-S=U1 _)
     (clsmap-cxt-env/ CM-U1 CM-B-M3)
     <- set`remove-implies-leq U0-S=U1 U1<=U0
     <- clsmap-cxt-objset-respects-geq CM-U0 U1<=U0 CM-U1
+    <- set`union-implies-leq M2+M3=M0 M2<=M0 M3<=M0
+    <- clsmap-cxt-capset-respects-geq CM-B-M0 M3<=M0 CM-B-M3.
+
+- : sub-annot-consistent (clsmap-cxt-env/ CM-U0 CM-B-M0)
+    (sub-annot/borrow _ (capset-split/ M2^M3 M2+M3=M0))
+    (clsmap-cxt-env/ CM-U0 CM-B-M3)
     <- set`union-implies-leq M2+M3=M0 M2<=M0 M3<=M0
     <- clsmap-cxt-capset-respects-geq CM-B-M0 M3<=M0 CM-B-M3.
 
