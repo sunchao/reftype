@@ -11,11 +11,604 @@ arg-perm-rel/+ : {O} {R}
     make-encumbered CM PM B U PiU ->
     capset2perm CM PM B M PiM ->
     argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o) ->
-    check-declared-caps CM T FS FS1 ->
-    subtype FS1 RT V1 T (env/ U M) V2 ->
+    subtype CM FS RT V1 T (env/ U M) V2 ->
     arg-perm-rel CM PM B Pi Pi1 Pi2 ->
   arg-perm-rel CM PM B (((PF O R) , (PiU , PiM)) , Pi)
       ((PF1 O) , Pi1) ((PF2 O) , Pi2).
+
+
+%%% A relation that is similar to fldmap2perm - the only difference is that
+%%% we have a conditional for each of the field permission.
+
+fldset2condperm : clsmap -> predmap -> nat -> set -> (object -> permission) -> type.
+
+fldset2condperm/0 : fldset2condperm _ _ _ set/0 ([_] empty).
+
+fldset2condperm/U :
+    fldset2condperm CM PM C M' ([x] Pi2 x) ->
+    create-fldperm CM PM C F PF ->
+    set`not-member M' F ->
+    set`add M' F M ->
+  fldset2condperm CM PM C M
+    ([x] combine (unitperm (conditional (objequal x null) empty
+       (fldperm x F PF))) (Pi2 x)).
+
+
+%theorem fldset2condperm-equiv
+  : forall* {CM1} {CM2} {PM1} {PM2} {C1} {C2} {FS1} {FS2} {PF1} {PF2}
+    forall {DCP: fldset2condperm CM1 PM1 C1 FS1 PF1}
+    {DCP: fldset2condperm CM2 PM2 C2 FS2 PF2}
+    {CME: clsmap`eq CM1 CM2}
+    {PME: predmap`eq PM1 PM2}
+    {CE: nat`eq C1 C2}
+    {FSE: set`eq FS1 FS2}
+    exists {PEQV: {x} equiv (PF1 x) (PF2 x)}
+    true.
+
+%worlds (objvar) (fldset2condperm-equiv _ _ _ _ _ _ _).
+%trustme %total { } (fldset2condperm-equiv _ _ _ _ _ _ _).
+
+
+%theorem fldset2condperm/U-inversion
+  : forall* {CM} {PM} {C} {F} {FS} {FSP} {PF}
+    forall {DCP: fldset2condperm CM PM C FS PF}
+    {F!<FSP: set`not-member FSP F}
+    {FSP+F=FS: set`add FSP F FS}
+    exists {PFP} {PFF} {DCPP: fldset2condperm CM PM C FSP PFP}
+    {CF: create-fldperm CM PM C F PFF}
+    {EQV: {x} equiv (PF x)
+          (combine (unitperm (conditional (objequal x null) empty
+                               (fldperm x F PFF))) (PFP x))}
+    true.
+
+%worlds (objvar) (fldset2condperm/U-inversion _ _ _ _ _ _ _ _).
+%trustme %total { } (fldset2condperm/U-inversion _ _ _ _ _ _ _ _).
+
+
+
+%%% Lemmas copied from let.elf
+
+%theorem callRefTyping-helper/L1L2L1
+  : forall* {O2} {O2P} {N} {F} {PF}
+    forall {EQ: object`eq O2 O2P} {EQ: nat`eq F N}
+    exists {IMP: {x} implies
+                 (combine
+                   (unitperm (nonlinear (objequal x O2)))
+                   (unitperm
+                     (conditional
+                       (objequal O2P null)
+                       (empty)
+                       (fldperm O2P N PF))))
+                 (combine
+                   (unitperm
+                     (conditional
+                       (objequal x null)
+                       (empty)
+                       (fldperm x F PF)))
+                   (unitperm
+                     (encumbered
+                       (unitperm
+                         (conditional
+                           (objequal x null)
+                           (empty)
+                           (fldperm x F PF)))
+                       (unitperm
+                         (conditional
+                           (objequal O2P null)
+                           (empty)
+                           (fldperm O2P N PF))))))}
+    true.
+
+- : callRefTyping-helper/L1L2L1 object`eq/ nat`eq/
+    ([x] implies/trans
+      (implies/combine (implies/nonlinear bimplies/objequal-symmetric)
+        (implies/trans
+          (implies/equiv (equiv/symmetric equiv/identity))
+          (implies/combine implies/reflexive
+            (implies/self-implication))))
+      (implies/objequal
+        ([v] (combine
+               (unitperm
+                 (conditional
+                   (objequal v null)
+                   (empty)
+                   (fldperm v F PF)))
+               (unitperm
+                 (encumbered
+                   (unitperm
+                     (conditional
+                       (objequal v null)
+                       (empty)
+                       (fldperm v F PF)))
+                   (unitperm
+                     (conditional
+                       (objequal O2P null)
+                       (empty)
+                       (fldperm O2P F PF))))))))).
+
+%worlds (objvar) (callRefTyping-helper/L1L2L1 _ _ _).
+%total { } (callRefTyping-helper/L1L2L1 _ _ _).
+
+
+%theorem callRefTyping-helper/L1L2
+  : forall* {CM} {PM} {B} {O} {FS} {M2} {Pi2} {C} {N2} {A} {NN}
+    forall {L: cxt`lookup B (s N2) (cxt-info/ O (ty/ NN A C))}
+    {N2+FS=M2: nat+set2set (s N2) FS M2}
+    {M2=>Pi2: capset2perm CM PM B M2 Pi2}
+    exists {Pi1}
+    {DCP: fldset2condperm CM PM C FS ([x] Pi1 x)}
+    {IMP: {x} implies (combine (unitperm (nonlinear (objequal x O))) Pi2)
+          (combine (Pi1 x) (unitperm (encumbered (Pi1 x) Pi2)))}
+    true.
+
+%theorem callRefTyping-helper/L1L2/F
+  : forall* {CM} {PM} {C} {MF} {O} {Pi2}
+    forall {F:void}
+    exists {Pi1}
+    {DCP: fldset2condperm CM PM C MF ([x] Pi1 x)}
+    {IMP: {x} implies (combine (unitperm (nonlinear (objequal x O))) Pi2)
+          (combine (Pi1 x) (unitperm (encumbered (Pi1 x) Pi2)))}
+    true.
+
+%worlds (objvar) (callRefTyping-helper/L1L2/F _ _ _ _).
+%total { } (callRefTyping-helper/L1L2/F _ _ _ _).
+
+- : callRefTyping-helper/L1L2 _ nat+set2set/0 capset2perm/0 _
+    (fldset2condperm/0)
+    ([x] implies/combine implies/nonlinear2empty implies/self-implication).
+
+- : callRefTyping-helper/L1L2
+    (BL:cxt`lookup B (s Nx2) _)
+    (nat+set2set/U (N2+MFP=M2P:nat+set2set (s Nx2) MFP M2P)
+      (N2+F=K2:pair2nat (pair/ (s Nx2) F) shared)
+      F!<MFP MFP+F+X=MF M2P+K2+X=M2) M2=>Pi2 _ M1=>Pi1 IMP
+    <- nat2pair-deterministic/0 N2+F=K2 PE
+    <- pair-eq-implies-eq PE E1 E2
+    <- nat`eq-symmetric E1 E1S
+    <- nat`eq-contradiction E1S V
+    <- callRefTyping-helper/L1L2/F V _ M1=>Pi1 IMP.
+
+- : callRefTyping-helper/L1L2
+    (BL:cxt`lookup B (s Nx2) (cxt-info/ O2 (ty/ NNx2 A1 C)))
+    (nat+set2set/U (N2+MFP=M2P:nat+set2set (s Nx2) MFP M2P)
+      (N2+F=K2:pair2nat (pair/ (s Nx2) F) (s K2))
+      F!<MFP MFP+F+X=MF (M2P+K2+X=M2:set`add M2P (s K2) M2))
+    M2=>Pi2 _
+    (fldset2condperm/U MFP=>Pi12 (create-fldperm/ CML FML T2PF) F!<MFP MFP+F+X=MF)
+    ([x] implies/trans7
+      (implies/combine
+        (implies/duplicate)
+        (implies/equiv (equiv/symmetric (Pi21+Pi22<=>Pi2))))
+      (implies/equiv
+        (equiv/transitive
+          (equiv/symmetric equiv/associate)
+          (equiv/combine equiv/reflexive equiv/roll2)))
+      (implies/combine
+        (implies/reflexive)
+        (implies/combine
+          (implies/reflexive)
+          (IMPP x)))
+      (implies/equiv equiv/associate)
+      (implies/combine (IMPP2 x) (implies/reflexive))
+      (implies/equiv
+        (equiv/transitive3
+          (equiv/symmetric equiv/associate)
+          (equiv/combine equiv/reflexive equiv/roll2)
+          (equiv/associate)))
+      (implies/combine implies/reflexive
+        (implies/trans
+          (implies/combine-merge-encumbered)
+          (implies/equiv-encumbered
+            (equiv/reflexive)
+            (Pi21+Pi22<=>Pi2)))))
+     <- nat+set2set-preserves-not-member N2+MFP=M2P F!<MFP N2+F=K2 K2!<M2P
+     <- capset2perm/U-inversion M2=>Pi2 K2!<M2P M2P+K2+X=M2
+       N2P FP N2P+FP=K2 O2P NNP AP CP BL2 _ (create-fldperm/ CML2 FML2 T2PF)
+       Pi22 M2P=>Pi22 (Pi21+Pi22<=>Pi2)
+     <- callRefTyping-helper/L1L2 BL N2+MFP=M2P
+       M2P=>Pi22 Pi12 MFP=>Pi12 ([x] IMPP x)
+     <- nat2pair-unique N2+F=K2 N2P+FP=K2 nat`eq/ N2+F=N2P+FP
+     <- pair-eq-implies-eq N2+F=N2P+FP N2=N2P F=FP
+     <- cxt`lookup-unique BL BL2 cxt`eq/ N2=N2P CIE
+     <- cxt-info-eq-inversion CIE O2=O2P TE
+     <- ty-eq-inversion TE NN=NNP A=AP C=CP
+     <- nat`eq-symmetric C=CP CP=C
+     <- nat`eq-symmetric F=FP FP=F
+     <- nonnull`eq-symmetric NN=NNP NNP=NN
+     <- clsmap`lookup-respects-eq CML2 clsmap`eq/ CP=C fldmap`eq/ CML
+     <- fldmap`lookup-respects-eq FML2 fldmap`eq/ FP=F ty`eq/ FML
+     <- callRefTyping-helper/L1L2L1 O2=O2P F=FP IMPP2.
+
+%worlds (objvar) (callRefTyping-helper/L1L2 _ _ _ _ _ _).
+%total (M) (callRefTyping-helper/L1L2 _ M _ _ _ _ ).
+
+
+%theorem callRefTyping-helper/L1L3
+  : forall* {O1} {O2} {Pi2} {Pi2P}
+    forall {O1=O2: {x} object`eq (O1 x) O2}
+    {IMP2:{x:gterm objectk}
+           implies (combine (unitperm (nonlinear (objequal x O2))) Pi2)
+           (combine (Pi2P x) (unitperm (encumbered (Pi2P x) Pi2)))}
+    exists {IMP2:{x:gterm objectk}
+                  implies
+                  (combine (unitperm (nonlinear (objequal x (O1 x)))) Pi2)
+                  (combine (Pi2P x) (unitperm (encumbered (Pi2P x) Pi2)))}
+    true.
+
+- : callRefTyping-helper/L1L3 ([_] object`eq/) IMP IMP.
+
+%worlds (objvar) (callRefTyping-helper/L1L3 _ _ _).
+%total { } (callRefTyping-helper/L1L3 _ _ _).
+
+
+%theorem callRefTyping-helper/L1
+  : forall* {S} {B} {GF} {FS} {M} {C} {CM} {PM} {PiM} {NN}
+    forall {SN} {SZ-S: set`size S (s SN)}
+    {CM-B-S: cxt-unique-objset B NN C S}
+    {S+FS=M1: set+set2set S FS M}
+    {M1=>PiM1: capset2perm CM PM B M PiM}
+    {S=>GF: {x} set2cond B x S (GF x)}
+    exists {PiF}
+    {DCP: fldset2condperm CM PM C FS ([x] PiF x)}
+    {PiM1+GF=>PiM2: {x} implies (combine (GF x) PiM)
+                    (combine (GF x)
+                      (combine (PiF x) (unitperm (encumbered (PiF x) PiM))))}
+    true.
+
+%theorem callRefTyping-helper/L1/F
+  : forall* {CM} {PM} {FS} {C} {GF:object -> permission} {PiM}
+    forall {V:void}
+    exists {PiF}
+    {DCP: fldset2condperm CM PM C FS ([x] PiF x)}
+    {PiM1+GF=>PiM2: {x} implies (combine (GF x) PiM)
+                    (combine (GF x)
+                      (combine (PiF x) (unitperm (encumbered (PiF x) PiM))))}
+    true.
+
+%worlds (objvar) (callRefTyping-helper/L1/F _ _ _ _).
+%total { } (callRefTyping-helper/L1/F _ _ _ _).
+
+ - : callRefTyping-helper/L1 _ SZ CM-B-S
+     (set+set2set/U SP+MF=MP1 NP+MF=>MP2 NP!<SP (SP+NP=S:set`add SP z S) MP1+MP2=M)
+     M=>Pi ([x] S=>GF x) _ K1 K2
+     <- set`add-implies-member SP+NP=S MB
+     <- cxt-unique-objset-no-zero CM-B-S MB V
+     <- callRefTyping-helper/L1/F V _ K1 K2.
+
+ - : callRefTyping-helper/L1 z SZ CM-B-S
+     (set+set2set/U SP+MF=MP1 NP+MF=>MP2 NP!<SP (SP+NP=S:set`add SP (s NP) S)
+       (MP1+MP2=M:set`union MP1 MP2 M))
+     M=>Pi ([x] S=>GF x) _ MN=>Pf
+     ([x] implies/trans8
+       (implies/combine (GIMP1 x) implies/reflexive)
+       (implies/equiv equiv/commute)
+       (implies/cond-push)
+       (implies/cond-gen-inner)
+       (implies/cond-inner
+         (bimplies/reflexive)
+         (bimplies/reflexive)
+         (implies/trans3
+           (implies/combine
+             (implies/reflexive)
+             ((implies/equiv equiv/identity)))
+           (IMPP2 x)
+           (implies/equiv (equiv/symmetric equiv/identity)))
+         (implies/trans5
+           (implies/combine implies/nonlinear2empty
+             (implies/combine implies/reflexive (GFP=>F x)))
+           (implies/equiv (equiv/transitive equiv/commute equiv/identity))
+           (implies/combine implies/reflexive implies/duplicate)
+           (implies/equiv equiv/associate)
+           (implies/combine
+             (implies/trans3
+               (implies/equiv equiv/commute)
+               (implies/combine (implies/contradiction) implies/reflexive)
+               (IMPP2 x))
+             (F=>GFP x))))
+       (implies/cond-pull)
+       (implies/equiv equiv/commute)
+       (implies/combine (GIMP2 x) implies/reflexive))
+     <- set`not-member-add-size-implies-empty NP!<SP SP+NP=S SZ SP=0
+     <- ({x} set2cond/U-inversion (S=>GF x) NP!<SP SP+NP=S (GFP x) (SP=>GFP x)
+       (OF x) _ (BL x) (GIMP1 x) (GIMP2 x))
+     <- letRefTyping-helper/base/unique/L1L BL _ _ BL1 ([x] OF=O2 x)
+     <- cxt-unique-objset/U-inversion CM-B-S NP!<SP SP+NP=S
+       CM-B-SP O1 A1 _ BLP UA (LEQ:nonnull`leq NNx1 NNx2)
+     <- set+set2set-unique SP+MF=MP1 set+set2set/0 SP=0 set`eq/ MP1=0
+     <- set`union-unique MP1+MP2=M set`union/L MP1=0 set`eq/ M=MP2
+     <- capset2perm-respects-eq M=>Pi clsmap`eq/ predmap`eq/ cxt`eq/ M=MP2
+       permission`eq/ MP2=>Pi
+     <- cxt`lookup-unique BL1 BLP cxt`eq/ nat`eq/ CIE
+     <- callRefTyping-helper/L1L2 BLP NP+MF=>MP2 MP2=>Pi _ MN=>Pf IMPP
+     <- set`eq-symmetric M=MP2 MP2=M
+     <- cxt-info-eq-inversion CIE O2=O1 TE
+     <- ({x:object} object`eq-transitive (OF=O2 x) O2=O1 (OF=O1 x))
+     <- callRefTyping-helper/L1L3 OF=O1 IMPP IMPP2
+     <- ({x} set2cond-implies (SP=>GFP x) set2cond/0 object`eq/ SP=0 (GFP=>F x) (F=>GFP x)).
+
+- : {S=>GF: {x} set2cond B x S (GF x)}
+    callRefTyping-helper/L1 _ SZ S-NN-C
+    (set+set2set/U SP+MF=M1 N1+MF=M2 (N1!<SP:set`not-member SP (s Nx1))
+      SP+N1=S (M1+M2=M:set`union M1 M2 M)) M=>Pi ([x] S=>GF x)
+    _ MN=>Pf
+    ([x] implies/trans7
+      (implies/combine (GF=>EQ+GFP x) (implies/equiv (Pi<=>Pi1+Pi2)))
+      (implies/equiv equiv/commute)
+      (implies/cond-push)
+      (implies/cond-gen-inner)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/trans7
+          (implies/combine implies/reflexive (implies/equiv equiv/identity))
+          (implies/equiv
+            (equiv/transitive
+              (equiv/combine equiv/reflexive equiv/commute)
+              (equiv/associate)))
+          (implies/combine (IMP2P x)
+            (implies/trans3
+              (implies/equiv (equiv/symmetric equiv/identity))
+              (implies/combine implies/reflexive
+                (implies/trans3
+                  (implies/self-implication)
+                  (implies/equiv-encumbered
+                    (Pi<=>Pi1+Pi2)
+                    (equiv/reflexive))
+                  (implies/combine-assoc-encumbered)))
+              (implies/linear-modus-ponens)))
+          (implies/equiv (equiv/symmetric equiv/associate))
+          (implies/combine implies/reflexive implies/chain-implication)
+          (implies/combine (implies/equiv (Pi2P<=>Pf x))
+            (implies/equiv-encumbered (Pi2P<=>Pf x) equiv/reflexive))
+          (implies/equiv
+            (equiv/transitive (equiv/symmetric equiv/identity) (equiv/commute))))
+        (implies/trans4
+          (implies/combine
+            (implies/nonlinear2empty)
+            (implies/trans3
+              (implies/equiv equiv/commute)
+              (implies/equiv equiv/associate)
+              (implies/combine
+                (GFP+Pi1=>Pf+Pf-Pi1 x)
+                (implies/reflexive))))
+          (implies/equiv
+            (equiv/transitive equiv/commute equiv/identity))
+          (implies/equiv (equiv/symmetric equiv/associate))
+          (implies/combine implies/reflexive
+            (implies/trans3
+              (implies/combine implies/reflexive
+                (implies/trans3
+                  (implies/equiv (equiv/symmetric equiv/identity))
+                  (implies/combine implies/reflexive
+                    (implies/trans3
+                      (implies/self-implication)
+                      (implies/equiv-encumbered
+                        (equiv/transitive
+                          (Pi<=>Pi1+Pi2)
+                          (equiv/commute))
+                        (equiv/reflexive))
+                      (implies/combine-assoc-encumbered)))
+                  (implies/linear-modus-ponens)))
+              (implies/equiv (equiv/symmetric equiv/associate))
+              (implies/combine implies/reflexive implies/chain-implication)))))
+      (implies/cond-distribute)
+      (implies/combine (EQ+GFP=>GF x) (implies/cond-equal)))
+     <- ({x} set2cond/U-inversion (S=>GF x) N1!<SP SP+N1=S (GFP x)
+          (SP=>GFP x) (OF x) T (BL1 x) (GF=>EQ+GFP x) (EQ+GFP=>GF x))
+     <- letRefTyping-helper/base/unique/L1L BL1 _ _ BL1P ([x] OF=O1 x)
+     <- cxt-unique-objset/U-inversion S-NN-C N1!<SP SP+N1=S
+       SP-NN-C O2 _ _ BL2 UA LEQ
+     <- cxt`lookup-unique BL1P BL2 cxt`eq/ nat`eq/ CIE
+     <- cxt-info-eq-inversion CIE O1=O2 TE
+     <- ({x} object`eq-transitive (OF=O1 x) O1=O2 (OF=O2 x))
+     <- not-member-nat+set2set-implies-disjoint SP+MF=M1 N1+MF=M2 N1!<SP M1^M2
+     <- capset`disjoint-join-implies-equiv M1^M2 M1+M2=M M=>Pi
+       Pi1 Pi2 M1=>Pi1 M2=>Pi2 (Pi<=>Pi1+Pi2:equiv Pi (combine Pi1 Pi2))
+     <- set`not-member-add-increases-size-converse SZ N1!<SP SP+N1=S SZP
+     <- callRefTyping-helper/L1 _ SZP SP-NN-C SP+MF=M1 M1=>Pi1 ([x] SP=>GFP x)
+       _ MN=>Pf (GFP+Pi1=>Pf+Pf-Pi1)
+     <- callRefTyping-helper/L1L2 BL2 N1+MF=M2 M2=>Pi2
+       _ BF+M2P=>Pi2P ([x] IMP2 x)
+     <- fldset2condperm-equiv BF+M2P=>Pi2P MN=>Pf clsmap`eq/ predmap`eq/
+       nat`eq/ set`eq/ ([x] Pi2P<=>Pf x)
+     <- callRefTyping-helper/L1L3 OF=O2 IMP2 IMP2P.
+
+%worlds (objvar) (callRefTyping-helper/L1 _ _ _ _ _ _ _ _ _).
+%total (N) (callRefTyping-helper/L1 N _ _ _ _ _ _ _ _).
+
+
+%%% Now we show we can convert permissions from fldset2condperm to fldmap2perm
+
+%theorem fldset2condperm-bimplies-fldmap2perm/L
+  : forall* {CM} {PM} {C} {FM} {FS} {PF1}
+    forall {N} {SZ: set`size FS N}
+    {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {C+FS=>PiF: fldset2condperm CM PM C FS PF1}
+    exists {PF2} {FM2P: {x} fldmap2perm PM x FM FS (PF2 x)}
+    {IMP: {x} implies (PF1 x) (unitperm (conditional (objequal x null) empty (PF2 x)))}
+    {IMP: {x} implies (unitperm (conditional (objequal x null) empty (PF2 x))) (PF1 x)}
+    true.
+
+- : fldset2condperm-bimplies-fldmap2perm/L z _ CM2PM
+    _ fldset2condperm/0 _ ([_] fldmap2perm/0)
+    ([_] implies/cond-equal-objequal)
+    ([_] implies/cond-equal).
+
+- : fldset2condperm-bimplies-fldmap2perm/L (s N) SZ
+    (CM2PM:clsmap2predmap CM PM) CML
+    DCP
+    _ ([x] fldmap2perm/+ (SH:set`shift F FS FSP)
+        (FM2P x) (FML:fldmap`lookup FM F T) T2PF)
+    ([x] implies/trans4
+      (implies/equiv (EQV x))
+      (implies/combine implies/reflexive (IMP1 x))
+      (implies/cond-factor)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/identity)
+        (implies/reflexive)))
+    ([x] implies/trans4
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/reflexive))
+      (implies/cond-distribute)
+      (implies/combine implies/reflexive (IMP2 x))
+      (implies/equiv (equiv/symmetric (EQV x))))
+    <- set`member-implies-not-member-add (set`lookup/= nat`eq/) FSP NM ADD
+    <- fldset2condperm/U-inversion DCP NM ADD _ _ DCPP (create-fldperm/ CML1 FML1 T2PF) EQV
+    <- set`not-member-update-implies-shift NM ADD SH unit`eq/
+    <- set`not-member-add-increases-size-converse SZ NM ADD SZP
+    <- fldset2condperm-bimplies-fldmap2perm/L _ SZP CM2PM CML DCPP _ FM2P IMP1 IMP2
+    <- clsmap`lookup-unique CML1 CML clsmap`eq/ nat`eq/ FM1=FM
+    <- fldmap`lookup-respects-eq FML1 FM1=FM nat`eq/ ty`eq/ FML.
+
+%worlds (objvar) (fldset2condperm-bimplies-fldmap2perm/L _ _ _ _ _ _ _ _ _).
+%total (A) (fldset2condperm-bimplies-fldmap2perm/L A _ _ _ _ _ _ _ _).
+
+
+%theorem fldset2condperm-bimplies-fldmap2perm
+  : forall* {CM} {PM} {C} {FM} {FS} {PF1}
+    forall {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {C+FS=>PiF: fldset2condperm CM PM C FS PF1}
+    exists {PF2} {FM2P: {x} fldmap2perm PM x FM FS (PF2 x)}
+    {IMP: {x} implies (PF1 x) (unitperm (conditional (objequal x null) empty (PF2 x)))}
+    {IMP: {x} implies (unitperm (conditional (objequal x null) empty (PF2 x))) (PF1 x)}
+    true.
+
+- : fldset2condperm-bimplies-fldmap2perm CM2PM CML FS2CP _ FS2P IMP1 IMP2
+    <- set`size-total SZ
+    <- fldset2condperm-bimplies-fldmap2perm/L _ SZ CM2PM CML FS2CP _ FS2P IMP1 IMP2.
+
+%worlds (objvar) (fldset2condperm-bimplies-fldmap2perm _ _ _ _ _ _ _).
+%total { } (fldset2condperm-bimplies-fldmap2perm _ _ _ _ _ _ _).
+
+
+%theorem fldset2condperm-bimplies-fldmap2perm-converse/LL
+  : forall* {PFF} {PF} {F}
+    forall {PF-EQ:{x} {x1} gterm#eq (PFF x x1) (PF x1)}
+    exists {EQV: {x} equiv
+                 (unitperm
+                   (conditional (objequal x null) empty
+                     (unitperm
+                       (precise-exists x F ([x1] PFF x x1)))))
+                 (unitperm
+                   (conditional (objequal x null) empty
+                     (unitperm
+                       (precise-exists x F ([x1] PF x1)))))}
+    true.
+
+- : fldset2condperm-bimplies-fldmap2perm-converse/LL ([_][_] gterm#eq/) ([_] equiv/reflexive).
+
+%worlds (objvar) (fldset2condperm-bimplies-fldmap2perm-converse/LL _ _).
+%total { } (fldset2condperm-bimplies-fldmap2perm-converse/LL _ _).
+
+
+%theorem fldset2condperm-bimplies-fldmap2perm-converse/L
+  : forall* {CM} {PM} {C} {FM} {FS} {PF2}
+    forall {N} {SZ: set`size FS N}
+    {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {FM2P: {x} fldmap2perm PM x FM FS (PF2 x)}
+    exists {PF1} {C+FS=>PiF: fldset2condperm CM PM C FS PF1}
+    {IMP: {x} implies (PF1 x) (unitperm (conditional (objequal x null) empty (PF2 x)))}
+    {IMP: {x} implies (unitperm (conditional (objequal x null) empty (PF2 x))) (PF1 x)}
+    true.
+
+- : fldset2condperm-bimplies-fldmap2perm-converse/L z _ CM2PM
+    _ ([_] fldmap2perm/0) _ fldset2condperm/0
+    ([_] implies/cond-equal-objequal)
+    ([_] implies/cond-equal).
+
+- : fldset2condperm-bimplies-fldmap2perm-converse/L (s N) SZ
+    (CM2PM:clsmap2predmap CM PM) CML
+     ([x] fldmap2perm/+ (SH:set`shift F FS FSP)
+        (FM2P x) (FML:fldmap`lookup FM F T) (T2PFF x))
+    _
+    (fldset2condperm/U DCPP (create-fldperm/ CML FML T2PF) NM ADD)
+    ([x] implies/trans3
+      (implies/combine (implies/equiv (equiv/symmetric (EQV x))) (IMP1 x))
+      (implies/cond-factor)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/identity)
+        (implies/reflexive)))
+    ([x] implies/trans3
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/equiv (equiv/symmetric equiv/identity))
+        (implies/reflexive))
+      (implies/cond-distribute)
+      (implies/combine (implies/equiv (EQV x)) (IMP2 x)))
+    <- set`shift-implies-not-member SH NM
+    <- set`shift-implies-update SH ADD
+    <- set`not-member-add-increases-size-converse SZ NM ADD SZP
+    <- fldset2condperm-bimplies-fldmap2perm-converse/L _ SZP CM2PM CML FM2P _ DCPP IMP1 IMP2
+    <- ty2perm-no-var T2PFF _ PF-EQ T2PF
+    <- fldset2condperm-bimplies-fldmap2perm-converse/LL PF-EQ EQV.
+
+%worlds (objvar) (fldset2condperm-bimplies-fldmap2perm-converse/L _ _ _ _ _ _ _ _ _).
+%total (A) (fldset2condperm-bimplies-fldmap2perm-converse/L A _ _ _ _ _ _ _ _).
+
+
+%theorem fldset2condperm-bimplies-fldmap2perm-converse
+  : forall* {CM} {PM} {C} {FM} {FS} {PF2}
+    forall {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {FM2P: {x} fldmap2perm PM x FM FS (PF2 x)}
+    exists {PF1} {C+FS=>PiF: fldset2condperm CM PM C FS PF1}
+    {IMP: {x} implies (PF1 x) (unitperm (conditional (objequal x null) empty (PF2 x)))}
+    {IMP: {x} implies (unitperm (conditional (objequal x null) empty (PF2 x))) (PF1 x)}
+    true.
+
+- : fldset2condperm-bimplies-fldmap2perm-converse CM2PM CML FS2P _ FS2CP IMP1 IMP2
+    <- set`size-total SZ
+    <- fldset2condperm-bimplies-fldmap2perm-converse/L _ SZ CM2PM CML FS2P _ FS2CP IMP1 IMP2.
+
+%worlds (objvar) (fldset2condperm-bimplies-fldmap2perm-converse _ _ _ _ _ _ _).
+%total { } (fldset2condperm-bimplies-fldmap2perm-converse _ _ _ _ _ _ _).
+
+
+%theorem fldset2condperm-bimplies-fldmap2perm*
+  : forall* {CM} {PM} {C} {FM} {FS} {PF1} {PF2}
+    forall {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {FS2P: fldset2condperm CM PM C FS PF1}
+    {FM2P: {x} fldmap2perm PM x FM FS (PF2 x)}
+    exists
+    {IMP: {x} implies (PF1 x) (unitperm (conditional (objequal x null) empty (PF2 x)))}
+    {IMP: {x} implies (unitperm (conditional (objequal x null) empty (PF2 x))) (PF1 x)}
+    true.
+
+- : fldset2condperm-bimplies-fldmap2perm* CM2PM CML FS2P FM2P
+    ([x] implies/trans
+      (IMP1' x)
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (implies/equiv (PEQV x))))
+    ([x] implies/trans
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (implies/equiv (equiv/symmetric (PEQV x))))
+      (IMP2' x))
+    <- fldset2condperm-bimplies-fldmap2perm CM2PM CML FS2P _ FM2P' IMP1' IMP2'
+    <- ({x} fldmap2perm-unique (FM2P' x) (FM2P x) predmap`eq/ object`eq/ fldmap`eq/
+         set`eq/ (PEQ x))
+    <- ({x} permission`eq-implies-equiv (PEQ x) (PEQV x)).
+
+%worlds (objvar) (fldset2condperm-bimplies-fldmap2perm* _ _ _ _ _ _).
+%total { } (fldset2condperm-bimplies-fldmap2perm* _ _ _ _ _ _).
+
 
 
 %{
@@ -29,18 +622,362 @@ is done. This is only needed for borrowed argument.
 
 For the case of unique => shared, it is tricky, since we need `transform`
 to do the job.
-
 }%
+
+%theorem arg-perm-implies-input-single/L0
+  : forall* {CM} {PM} {NN} {C} {FM} {FS} {FS0} {PF} {PFS0} {CP}
+    forall {CM2PM: clsmap2predmap CM PM}
+    {CML: clsmap`lookup CM C FM}
+    {PML: predmap`lookup PM C CP}
+    {FM-DM: fldmap`domain FM FS0}
+    {FS<=FS0: set`leq FS FS0}
+    {T2PF:ty2perm PM (ty/ NN annot/borrow C) ([x] PF x)}
+    {FM2P: {x} fldmap2perm PM x FM FS0 (PFS0 x)}
+    exists {PFS}
+    {FM2P: {x} fldmap2perm PM x FM FS (PFS x)}
+    {IMP: {x} implies
+          (combine
+            (combine (PF x)
+              (unitperm
+                (conditional
+                  (objequal x null) empty
+                  (unitperm (encumbered (PFS0 x) (combine (allperm x) (one-predcall CP x)))))))
+            (unitperm (conditional (objequal x null) empty (PFS0 x))))
+          (combine
+            (combine (PF x)
+              (unitperm
+                (conditional
+                  (objequal x null) empty
+                  (unitperm (encumbered (PFS x) (combine (allperm x) (one-predcall CP x)))))))
+            (unitperm (conditional (objequal x null) empty (PFS x))))}
+    true.
+
+- : arg-perm-implies-input-single/L0 CM2PM CML PML FM-DM (FS<=FS0:set`leq FS FS0)
+    T2PF FS0=>PFS0 _ FS=>PFS
+    ([x] implies/trans3
+      (implies/combine (implies/reflexive)
+        (implies/trans3
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/equiv (equiv/symmetric equiv/identity))
+            (implies/equiv (EQV x)))
+          (implies/cond-distribute)
+          (implies/commute)))
+      (implies/equiv equiv/associate)
+      (implies/combine
+        (implies/trans3
+          (implies/commute)
+          (implies/equiv equiv/reorder)
+          (implies/combine implies/reflexive
+            (implies/trans
+              (implies/cond-factor)
+              (implies/cond-inner
+                (bimplies/reflexive)
+                (bimplies/reflexive)
+                (implies/identity)
+                (implies/trans
+                  (implies/combine
+                    (implies/reflexive)
+                    (implies/trans
+                      (implies/equiv-encumbered
+                        (equiv/transitive (EQV x) equiv/commute)
+                        (equiv/reflexive))
+                      (implies/combine-assoc-encumbered)))
+                  (implies/linear-modus-ponens))))))
+        (implies/reflexive)))
+    <- ({x} fldmap2perm-split-implies-permission-combine FS<=FS0 (FS0=>PFS0 x)
+      FS2 (PFS x) (PFS2 x) RM (FS=>PFS x) (FS2=>PFS2 x) (EQV x)).
+
+%worlds (objvar) (arg-perm-implies-input-single/L0 _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single/L0 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem arg-perm-implies-input-single/L1L
+  : forall* {CM} {PM} {B} {S} {FS} {M2} {M} {PiB} {PiM2} {PiM} {GF}
+    {NN} {C} {PF} {FM} {FS0}
+    forall {N} {SZ: set`size S N}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B-S: cxt-unique-objset B NN C S}
+    {CML: clsmap`lookup CM C FM}
+    {FM-DM: fldmap`domain FM FS0}
+    {FS<=FS0: set`leq FS FS0}
+    {S+FS=>M2: set+set2set S FS M2}
+    {B=>PiB:cxt2perm CM PM B PiB}
+    {S=>GF: {x} set2cond B x S (GF x)}
+    {M2=>PiM2: capset2perm CM PM B M2 PiM2}
+    {M=>PiM:capset2perm CM PM B M PiM}
+    {T2PF:ty2perm PM (ty/ NN annot/unique C) ([x] PF x)}
+    exists {Pi} {PiF}
+    {C+FS=>PiF:fldset2condperm CM PM C FS ([x] PiF x)}
+    {IMP: {o}{r} implies
+          (combine PiB
+            (combine
+              (combine
+                (unitperm
+                  (conditional (objequal o r) empty (GF o)))
+                (combine (PF r)
+                  (unitperm (encumbered (PF r) PiM))))
+              (combine empty PiM2)))
+          (combine PiB (combine (PiF o) (Pi o r)))}
+    true.
+
+- : arg-perm-implies-input-single/L1L z set`size/0
+    CM-CM CM2PM _ CML (FM-DM=FS0:fldmap`domain FM FS0) (FS<=FS0:set`leq FS FS0)
+    (S+FS=>M2:set+set2set set/0 FS M2) (B=>PiB:cxt2perm CM PM B PiB)
+    ([x](S=>GF:{x} set2cond B x set/0 (GF x)) x)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (M=>PiM:capset2perm CM PM B M PiM) (T2PF:ty2perm _ _ PF) _ _
+    FS2PFSC
+    ([x][o] implies/trans
+      (implies/combine implies/reflexive
+        (implies/combine
+          (implies/combine
+            (implies/cond-inner
+              (bimplies/reflexive)
+              (bimplies/reflexive)
+              (implies/reflexive)
+              (GF=>E x))
+            (implies/reflexive))
+          (implies/combine implies/reflexive (implies/equiv (PiM2=0)))))
+      (implies/combine implies/reflexive
+        (implies/trans7
+          (implies/combine implies/reflexive implies/identity)
+          (implies/identity)
+          (implies/commute)
+          (implies/cond-push)
+          (implies/cond-gen-inner)
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/trans5
+              (implies/combine (implies/nonlinear bimplies/objequal-symmetric) implies/reflexive)
+              (implies/objequal
+                ([r] combine (combine (PF r) (unitperm (encumbered (PF r) PiM))) empty))
+              (implies/combine
+                (implies/combine
+                  (implies/trans3 (IMP x) (IMP1 x)
+                    (implies/combine implies/reflexive (IMP3 x)))
+                  (implies/reflexive))
+                (implies/reflexive))
+              (implies/identity)
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/combine equiv/commute equiv/reflexive)
+                  (equiv/symmetric equiv/associate))))
+            (implies/trans7
+              (implies/combine (implies/nonlinear2empty)
+                (implies/combine implies/reflexive implies/contradiction))
+              (implies/equiv
+                (equiv/transitive3
+                  (equiv/combine equiv/reflexive equiv/commute)
+                  (equiv/reorder)
+                  (equiv/combine equiv/reflexive equiv/commute)))
+              (implies/combine (implies/nonlinear bimplies/objequal-symmetric) implies/reflexive)
+              (implies/objequal
+                ([r] combine (combine (PF r) (unitperm (encumbered (PF r) PiM))) empty))
+              (implies/combine
+                (implies/combine
+                  (implies/trans3 (IMP x) (IMP1 x)
+                    (implies/combine implies/reflexive (IMP3 x)))
+                  (implies/reflexive))
+                (implies/reflexive))
+              (implies/identity)
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/combine equiv/commute equiv/reflexive)
+                  (equiv/symmetric equiv/associate)))))
+          (implies/cond-equal))))
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
+    <- letRefTyping-helper/base/unique/L4L1** CM-CM CM2PM CML PML FM-DM=FS0 T2PF
+      _ _ FS0=>PFS0 T2PFB IMP
+    <- arg-perm-implies-input-single/L0 CM2PM CML PML FM-DM=FS0 FS<=FS0 T2PFB FS0=>PFS0
+      PFS FS=>PFS IMP1
+    <- fldset2condperm-bimplies-fldmap2perm-converse CM2PM CML FS=>PFS _ FS2PFSC IMP2 IMP3
+    <- set+set2set-unique S+FS=>M2 set+set2set/0 set`eq/ set`eq/ M2=0
+    <- capset2perm-equiv M2=>PiM2 capset2perm/0 clsmap`eq/ predmap`eq/ cxt`eq/ M2=0 PiM2=0
+    <- ({x} set2cond-implies (S=>GF x) set2cond/0 object`eq/ set`eq/ (GF=>E x) (E=>GF x)).
+
+- : arg-perm-implies-input-single/L1L (s N) SZ
+    CM-CM CM2PM B-S CML (FM-DM=FS0:fldmap`domain FM FS0) (FS<=FS0:set`leq FS FS0)
+    (S+FS=>M2:set+set2set S FS M2) (B=>PiB:cxt2perm CM PM B PiB)
+    ([x](S=>GF:{x} set2cond B x S (GF x)) x)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (M=>PiM:capset2perm CM PM B M PiM) (T2PF:ty2perm _ _ PF) _ _
+    FS2PFSC
+    ([x][o]
+      (implies/combine (implies/reflexive)
+        (implies/trans6
+          (implies/combine
+            (implies/trans implies/commute implies/cond-push)
+            (implies/commute-identity))
+          (implies/commute)
+          (implies/cond-push)
+          (implies/cond-gen-inner)
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/trans3
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/combine equiv/reflexive equiv/commute)
+                  (equiv/associate)))
+              (implies/combine
+                (implies/trans5
+                  (implies/combine
+                    (implies/nonlinear bimplies/objequal-symmetric)
+                    (implies/reflexive))
+                  (implies/objequal
+                    ([r] combine (combine (PF r) (unitperm (encumbered (PF r) PiM))) empty))
+                  (implies/combine
+                    (implies/combine
+                      (implies/trans3 (IMP x) (IMP1 x)
+                        (implies/combine implies/reflexive (IMP3 x)))
+                      (implies/reflexive))
+                    (implies/reflexive))
+                  (implies/identity)
+                  (implies/equiv
+                    (equiv/transitive
+                      (equiv/combine equiv/commute equiv/reflexive)
+                      (equiv/symmetric equiv/associate))))
+                (implies/reflexive))
+              (implies/equiv (equiv/symmetric equiv/associate)))
+            (implies/trans3
+              (implies/combine implies/nonlinear2empty
+                (implies/trans3
+                  (implies/combine implies/reflexive implies/commute)
+                  (implies/associate)
+                  (implies/combine
+                    (implies/trans3 implies/commute (IMP4 x) (implies/equiv equiv/reorder))
+                    (implies/reflexive))))
+              (implies/commute-identity)
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/symmetric equiv/associate)
+                  (equiv/combine (EQV x) equiv/reflexive)))))
+          (implies/cond-pull))))
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
+    <- letRefTyping-helper/base/unique/L4L1** CM-CM CM2PM CML PML FM-DM=FS0 T2PF
+      _ _ FS0=>PFS0 T2PFB IMP
+    <- arg-perm-implies-input-single/L0 CM2PM CML PML FM-DM=FS0 FS<=FS0 T2PFB FS0=>PFS0
+      PFS FS=>PFS IMP1
+    <- fldset2condperm-bimplies-fldmap2perm-converse CM2PM CML FS=>PFS PFSC FS2PFSC IMP2 IMP3
+    <- cxt-unique-objset-implies-same-class B-S SOC
+    <- cxt-unique-objset-implies-least-nonnull B-S LNN
+    <- callRefTyping-helper/L1 _ SZ B-S S+FS=>M2 M2=>PiM2 S=>GF PFSC2 FS2PFSC2 ([x] IMP4 x)
+    <- fldset2condperm-equiv FS2PFSC2 FS2PFSC clsmap`eq/ predmap`eq/ nat`eq/ set`eq/ EQV.
+
+%worlds (objvar) (arg-perm-implies-input-single/L1L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single/L1L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem arg-perm-implies-input-single/L1
+  : forall* {CM} {PM} {B} {S} {FS} {M2} {M} {PiB} {PiM2} {PiM} {GF}
+    {NN} {C} {PF} {FM} {FS0}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {B-S: cxt-unique-objset B NN C S}
+    {CML: clsmap`lookup CM C FM}
+    {FM-DM: fldmap`domain FM FS0}
+    {FS<=FS0: set`leq FS FS0}
+    {S+FS=>M2: set+set2set S FS M2}
+    {B=>PiB:cxt2perm CM PM B PiB}
+    {S=>GF: {x} set2cond B x S (GF x)}
+    {M2=>PiM2: capset2perm CM PM B M2 PiM2}
+    {M=>PiM:capset2perm CM PM B M PiM}
+    {T2PF:ty2perm PM (ty/ NN annot/unique C) ([x] PF x)}
+    exists {Pi} {PiF}
+    {C+FS=>PiF:fldset2condperm CM PM C FS ([x] PiF x)}
+    {IMP: {o}{r} implies
+          (combine PiB
+            (combine
+              (combine
+                (unitperm
+                  (conditional (objequal o r) empty (GF o)))
+                (combine (PF r)
+                  (unitperm (encumbered (PF r) PiM))))
+              (combine empty PiM2)))
+          (combine PiB (combine (PiF o) (Pi o r)))}
+    true.
+
+- : arg-perm-implies-input-single/L1 CM-CM CM2PM B-S CML FM-DM FS<=FS0
+    S+FS=>M2 B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ FS2CP IMP
+    <- set`size-total SZ
+    <- arg-perm-implies-input-single/L1L _ SZ CM-CM CM2PM B-S CML FM-DM FS<=FS0 S+FS=>M2
+      B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ FS2CP IMP.
+
+%worlds (objvar) (arg-perm-implies-input-single/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem arg-perm-implies-input-single/L
+  : forall* {PiB} {PM} {C} {X2} {NN2} {X1} {X8} {X9} {PF1}
+    forall {PML: predmap`lookup PM C X2}
+    {NN2P1: nn2perm NN2 ([x] allperm x) ([p][o] X1 p o)}
+    {NN2P2: nn2perm NN2 ([x] unitperm (nonlinear (nested (allperm x) null all))) ([p][o] X8 p o)}
+    exists {PF2} {KKK:{x:gterm objectk} {x1:gterm objectk}
+                 transform
+                 (output/args/0
+                   (combine
+                     (combine PiB
+                       (combine (X1 X2 x) (PF1 x x1)))
+                     X9))
+                 (output/args/0
+                   (combine
+                     (combine PiB
+                       (combine (X8 X2 x) (PF2 x x1))) X9))}
+    true.
+
+- : arg-perm-implies-input-single/L _ nn2perm/yes nn2perm/yes
+    _ ([o][r] transform/trans3
+      (transform/args/0
+        (implies/equiv
+          (equiv/transitive4
+            (equiv/combine equiv/reorder equiv/reflexive)
+            (equiv/symmetric equiv/associate)
+            (equiv/combine equiv/reorder equiv/reflexive)
+            (equiv/symmetric equiv/associate))))
+      (transform/args/0/nest)
+      (transform/args/0
+        (implies/equiv
+          (equiv/transitive4
+            (equiv/associate)
+            (equiv/combine equiv/reorder equiv/reflexive)
+            (equiv/associate)
+            (equiv/combine equiv/reorder equiv/reflexive))))).
+
+- : arg-perm-implies-input-single/L _ nn2perm/may nn2perm/may
+    _ ([o][r] transform/trans3
+        (transform/args/0
+          (implies/trans
+            (implies/equiv
+              (equiv/transitive
+                (equiv/combine equiv/reorder equiv/reflexive)
+                (equiv/symmetric equiv/associate)))
+            (implies/combine implies/cond-neg implies/reflexive)))
+        (transform/args/0/cond/nest)
+        (transform/args/0
+          (implies/trans
+            (implies/combine implies/cond-unneg implies/reflexive)
+            (implies/equiv
+              (equiv/transitive
+                (equiv/associate)
+                (equiv/combine equiv/reorder equiv/reflexive)))))).
+
+%worlds (objvar) (arg-perm-implies-input-single/L _ _ _ _ _).
+%total { } (arg-perm-implies-input-single/L _ _ _ _ _).
+
+
 
 %theorem arg-perm-implies-input-single
   : forall* {CM} {PM} {B} {RT} {PF} {U} {M} {PiU} {PiM}
-    {T} {FS} {FS1} {PF1} {PF2} {V1} {V2} {PiB} {PiR}
+    {T} {FS} {PF1} {PF2} {V1} {V2} {PiB} {PiR}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {B=>PiB: cxt2perm CM PM B PiB}
     {CM-B-RT: clsmap-cxt-reftype CM B RT}
-    {CDC: check-declared-caps CM T FS FS1}
-    {SUB: subtype FS1 RT V1 T (env/ U M) V2}
+    {SUB: subtype CM FS RT V1 T (env/ U M) V2}
     {RT2P: reftype2perm CM PM B RT ([o][r] PF o r)}
     {U=>PiU: make-encumbered CM PM B U PiU}
     {M=>PiM: capset2perm CM PM B M PiM}
@@ -50,25 +987,6 @@ to do the job.
             (output/args/0 ((PiB , ((PF o r) , (PiU , PiM))) , PiR))
             (output/args/0 ((PiB , (((PF1 o) , (Pi o r)))) , PiR))}
     true.
-
-%%% unique => shared
-
-%%% The borrowed case
-- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
-    (B=>PiB:cxt2perm CM PM B PiB)
-    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
-    (check-declared-caps/shared)
-    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
-      (sub-annot/unique (S+FS=>M2:set+set2set S FS M2)
-        (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
-        (U0-S=U1:set`remove U0 S U1)))
-    (reftype2perm/borrow SZ set`size/0
-      (ty2perm/ (PML1:predmap`lookup PM C CP1) (NN2P1:nn2perm NN1 _ AF1) annot2perm/borrow)
-      ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
-    (S=>PiS:make-encumbered CM PM B S PiS)
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
-    (argtype2perm/shared T2PF4)
-    _ KK.
 
 
 %%% unique => unique
@@ -81,11 +999,10 @@ to do the job.
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
     (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
-    (check-declared-caps/unique (DM-FM:fldmap`domain FM FS) (CML:clsmap`lookup CM C FM))
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
-      (sub-annot/unique (S+FS=>M2:set+set2set S FS M2)
+      (sub-annot/unique CML DM-FM (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
-        (U0-S=U1:set`remove U0 S U1)))
+        (U0-S=U1:set`remove U0 S U1) not-borrowed/unique))
     (reftype2perm/borrow SZ set`size/0
       (ty2perm/ (PML1:predmap`lookup PM C CP1) (NN2P1:nn2perm NN1 _ AF1) annot2perm/borrow)
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
@@ -124,11 +1041,10 @@ to do the job.
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
     (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
-    (check-declared-caps/unique (DM-FM:fldmap`domain FM FS) (CML:clsmap`lookup CM C FM))
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
-      (sub-annot/unique (S+FS=>M2:set+set2set S FS M2)
+      (sub-annot/unique CML DM-FM (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
-        (U0-S=U1:set`remove U0 S U1)))
+        (U0-S=U1:set`remove U0 S U1) not-borrowed/unique))
     (reftype2perm/unique SZ T2PF1
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x)
       (M=>PiM:capset2perm CM PM B M PiM))
@@ -164,10 +1080,192 @@ to do the job.
     <- restore-object-permission SOC CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
     <- set-all-permissions-implies/L3 B=>PiB SAP _ SAP* IMP2
     <- make-before-write-format/L1 SAP* LNN S=>GF T2PF1 _ IMP3
-    <- nn-leq-implies-permission-leq T2PF1 NN2<=NN1 _ T2PF2 IMP4.
+    <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1 T2PF2 IMP4.
 
-%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
+
+%%% unique => borrow
+
+%%% The borrowed case
+%%% With GF and M2, we can get permissions for the argument
+
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/borrow (S+FS=>M2:set+set2set S FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3)))
+    (reftype2perm/borrow SZ set`size/0 T2PF
+      ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
+    make-encumbered/0
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/borrow CML FM-DM LEQ FM2P)
+    _
+    ([o][r] transform/args/0
+      (implies/combine
+        (implies/combine implies/reflexive
+          (implies/trans4
+            (implies/combine
+              (implies/trans
+                (implies/combine (IMP3 o) implies/reflexive)
+                (implies/commute-identity))
+              (implies/commute-identity))
+            (IMP o)
+            (implies/equiv equiv/reorder)
+            (implies/combine (IMP1 o) implies/reflexive)))
+        (implies/reflexive)))
+    <- cxt-unique-objset-implies-same-class B-S SOC
+    <- cxt-unique-objset-implies-least-nonnull B-S LNN
+    <- callRefTyping-helper/L1 _ SZ B-S S+FS=>M2 M2=>PiM2 S=>GF PiF FS2CP ([x] IMP x)
+    <- fldset2condperm-bimplies-fldmap2perm* CM2PM CML FS2CP FM2P IMP1 IMP2
+    <- not-unique-perm-implies-empty T2PF not-unique/borrow IMP3.
+
+
+%%% unique ==> shared
+%%% transformations are similar to unique ==> unique, except we need to do an
+%%% extra transform at end to nest the unique permission into null.all.
+
+%%% The unique case
+
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ (B-S:cxt-unique-objset B NN1 C S) _ _)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/borrow (S+FS=>M2:set+set2set S FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3)))
+    (reftype2perm/unique SZ-M (T2PF:ty2perm PM _ ([x] PF x))
+      ([x] (S=>GF:{x} set2cond B x S (GF x)) x)
+      (M=>PiM:capset2perm CM PM B M PiM))
+    make-encumbered/0
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/borrow (CML:clsmap`lookup CM C FM)
+      (FM-DM:fldmap`domain FM FS0)
+      (LEQ:set`leq FS FS0)
+      (FM2P:{x}fldmap2perm PM x FM FS (PFM x)))
+    _
+    ([o][r] transform/args/0
+      (implies/combine
+        (implies/trans
+          (IMP o r)
+          (implies/combine implies/reflexive
+            (implies/combine (IMP1 o) implies/reflexive)))
+        (implies/reflexive)))
+    <- arg-perm-implies-input-single/L1 CM-CM CM2PM B-S CML FM-DM LEQ S+FS=>M2
+      B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ FS2CP IMP
+    <- fldset2condperm-bimplies-fldmap2perm* CM2PM CML FS2CP FM2P IMP1 IMP2.
+
+
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/unique (CML:clsmap`lookup CM C FM)
+        (DM-FM:fldmap`domain FM FS) (S+FS=>M2:set+set2set S FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
+        (U0-S=U1:set`remove U0 S U1) not-borrowed/shared))
+    (reftype2perm/borrow SZ set`size/0
+      (ty2perm/ (PML1:predmap`lookup PM C CP1) (NN2P1:nn2perm NN1 _ AF1) annot2perm/borrow)
+      ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
+    (S=>PiS:make-encumbered CM PM B S PiS)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/shared (ty2perm/ PML NN2P annot2perm/shared)) _
+    ([o][r] transform/trans
+      (transform/args/0
+        (implies/combine
+          (implies/trans7
+            (implies/combine implies/reflexive
+              (implies/trans
+                (implies/combine implies/reflexive
+                  (implies/trans (implies/commute) IMP1))
+                (implies/equiv equiv/commute)))
+            (implies/equiv equiv/associate)
+            (implies/combine (implies/trans IMP2 (implies/commute))
+              (implies/commute))
+            (implies/equiv equiv/swap-middle)
+            (implies/combine (implies/trans implies/commute (IMP3 o)) implies/reflexive)
+            (implies/combine (implies/combine (IMP4 o) implies/reflexive) implies/reflexive)
+            (implies/equiv
+              (equiv/transitive3
+                (equiv/swap-middle)
+                (equiv/combine equiv/commute equiv/reflexive)
+                (equiv/symmetric equiv/associate))))
+          (implies/reflexive)))
+      (TRANS o r))
+    <- cxt-unique-objset-implies-same-class B-S SOC
+    <- cxt-unique-objset-implies-least-nonnull B-S LNN
+    <- restore-object-permission SOC CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
+    <- set-all-permissions-implies/L3 B=>PiB SAP _ SAP* IMP2
+    <- set-all-permissions-implies-var _ SZ SAP* S=>GF LNN _ T2PF3 _ IMP3
+    <- nn2perm-total NN2P2
+    <- nn-leq-implies-permission-leq* T2PF3 NN2<=NN1
+      (ty2perm/ PML NN2P2 annot2perm/unique) IMP4
+    <- arg-perm-implies-input-single/L PML NN2P2 NN2P _ TRANS.
+
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/unique CML DM-FM (S+FS=>M2:set+set2set S FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
+        (U0-S=U1:set`remove U0 S U1) not-borrowed/shared))
+    (reftype2perm/unique SZ T2PF1
+      ([x] (S=>GF:{x} set2cond B x S (GF x)) x)
+      (M=>PiM:capset2perm CM PM B M PiM))
+    (S=>PiS:make-encumbered CM PM B S PiS)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/shared (ty2perm/ PML (NN2P:nn2perm NN2 _ PK2) annot2perm/shared))
+    _
+    ([o][r] transform/trans
+      (transform/args/0
+        (implies/combine
+          (implies/trans5
+            (implies/combine implies/reflexive
+              (implies/trans
+                (implies/combine implies/reflexive
+                  (implies/trans implies/commute IMP1))
+                (implies/commute)))
+            (implies/associate)
+            (implies/combine IMP2 implies/reflexive)
+            (implies/equiv
+              (equiv/transitive3
+                (equiv/combine equiv/reflexive equiv/roll2)
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive equiv/associate equiv/associate))))
+            (implies/combine implies/reflexive
+              (implies/trans3
+                (implies/combine (IMP3 o r) implies/reflexive)
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/combine (IMP4 o) implies/reflexive))))
+          (implies/reflexive)))
+      (TRANS o r))
+    <- cxt-unique-objset-implies-same-class B-S SOC
+    <- cxt-unique-objset-implies-least-nonnull B-S LNN
+    <- restore-object-permission SOC CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
+    <- set-all-permissions-implies/L3 B=>PiB SAP _ SAP* IMP2
+    <- make-before-write-format/L1 SAP* LNN S=>GF T2PF1 _ IMP3
+    <- nn2perm-total (NN2P2: nn2perm NN2 _ PK1)
+    <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1
+      (ty2perm/ PML NN2P2 annot2perm/unique) IMP4
+    <- arg-perm-implies-input-single/L PML NN2P2 NN2P _ TRANS.
+
+%%% shared => shared
+
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/shared _)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1) (sub-annot/shared))
+    (reftype2perm/shared T2PF1)
+    make-encumbered/0 capset2perm/0
+    (argtype2perm/shared T2PF2) _
+    ([o][r] transform/args/0
+      (implies/combine
+        (implies/combine implies/reflexive
+          (implies/combine (IMP o) implies/reflexive))
+        (implies/reflexive)))
+    <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1 T2PF2 IMP.
+
+%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem arg-perm-rel-transform
@@ -187,7 +1285,7 @@ to do the job.
     (transform/reflexive).
 
 - : arg-perm-rel-transform CM-CM CM2PM B=>PiB
-    (arg-perm-rel/+ O R CM-B-RT RT2P U=>PiU M=>PiM AT2P CDC SUB REL)
+    (arg-perm-rel/+ O R CM-B-RT RT2P U=>PiU M=>PiM AT2P SUB REL)
     _
     (transform/trans3
       (transform/args/0
@@ -213,7 +1311,7 @@ to do the job.
     <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL _ TRANS1
     <- transform-commutes-envadd* TRANS1 envadd/args/0 envadd/args/0 TRANS1'
     <- arg-perm-implies-input-single CM-CM CM2PM B=>PiB CM-B-RT
-      CDC SUB RT2P U=>PiU M=>PiM AT2P _ ([o][r] TRANS2 o r).
+      SUB RT2P U=>PiU M=>PiM AT2P _ ([o][r] TRANS2 o r).
 
 %worlds (objvar) (arg-perm-rel-transform _ _ _ _ _ _).
 %total (A) (arg-perm-rel-transform _ _ _ A _ _).
@@ -265,8 +1363,7 @@ use induction hypothesis as we used to.
     (MM2W:methmap2progtype CM PM MM W) CM-B-V
     (argsRefTyping/+
       (RTYP:reftyping CM MM B V0 E (result/expr RT (env/ U1 M1)))
-      (CK:check-declared-caps CM T FS FS1)
-      (SUB:subtype FS1 RT (env/ U1 M1) T (env/ U3 M3) (env/ U2 M2))
+      (SUB:subtype CM FS RT (env/ U1 M1) T (env/ U3 M3) (env/ U2 M2))
       (ATYP:argsRefTyping CM MM B (env/ U2 M2) AR MT AOut))
     (result2output/args/+ (RT2P:reftype2perm CM PM B RT ([x][o] PF x o))
       (U=>PiU:make-encumbered CM PM B U3 PiU)
@@ -283,7 +1380,7 @@ use induction hypothesis as we used to.
     <- subtype-consistent (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2
     <- ({o}{r} reftyping-ok/call CM-CM CM-MM CM2PM MM2W CM-B-V2 ATYP
          (AR=>AO o r)
-         (arg-perm-rel/+ o r CM-B-RT RT2P U=>PiU M=>PiM AT2P CK SUB REL)
+         (arg-perm-rel/+ o r CM-B-RT RT2P U=>PiU M=>PiM AT2P SUB REL)
          (MT=>PT o) _ _ (TRANS o r) (CTYP o r)).
 
 %worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _).

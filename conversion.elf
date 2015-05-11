@@ -258,21 +258,6 @@ result2output/args/+ :
 %abbrev result2output : clsmap -> predmap -> cxt -> result K -> output K -> type =
     [CM][PM][B][R][O] result2output* CM PM B empty R O.
 
-%%% Convert a method type to a proctype
-
-declared-capset2perm : clsmap -> predmap -> nat -> set -> (object -> permission) -> type.
-
-declared-capset2perm/0 : declared-capset2perm _ _ _ set/0 ([_] empty).
-
-declared-capset2perm/U :
-    declared-capset2perm CM PM C M' ([x] Pi2 x) ->
-    create-fldperm CM PM C F PF ->
-    set`not-member M' F ->
-    set`add M' F M ->
-  declared-capset2perm CM PM C M
-    ([x] combine (unitperm (conditional (objequal x null) empty
-      (fldperm x F PF))) (Pi2 x)).
-
 
 argtype2perm : clsmap -> predmap -> ty -> set
     -> (object -> permission) -> (object -> permission) -> type.
@@ -286,8 +271,13 @@ argtype2perm/shared :
   argtype2perm CM PM (ty/ NN annot/shared C) _ ([x] PF x) ([x] PF x).
 
 argtype2perm/borrow :
-    declared-capset2perm CM PM C M PF ->
-  argtype2perm CM PM (ty/ NN annot/borrow C) M ([x] PF x) ([x] PF x).
+    clsmap`lookup CM C FM ->
+    fldmap`domain FM FS0 ->
+    set`leq FS FS0 ->
+    ({x} fldmap2perm PM x FM FS (PF x)) ->
+  argtype2perm CM PM (ty/ NN annot/borrow C) FS
+    ([x] (unitperm (conditional (objequal x null) empty (PF x))))
+    ([x] (unitperm (conditional (objequal x null) empty (PF x)))).
 
 
 methty2proctype* : clsmap -> predmap -> permission -> permission -> methty -> proctype -> type.
@@ -701,6 +691,20 @@ methmap2progtype/U/m :
 %worlds (objvar) (fldmap2perm-unique _ _ _ _ _ _ _).
 %total (A) (fldmap2perm-unique A _ _ _ _ _ _).
 
+
+%theorem fldmap2perm-split-implies-permission-combine
+  : forall* {CM} {PM} {FM} {FS0} {FS1} {Pi0}
+    forall {FS1<=FS0: set`leq FS1 FS0}
+    {FS0=>Pi0: fldmap2perm CM PM FM FS0 Pi0}
+    exists {FS2} {Pi1} {Pi2}
+    {FS0-FS1=FS2: set`remove FS0 FS1 FS2}
+    {FS1=>Pi1: fldmap2perm CM PM FM FS1 Pi1}
+    {FS2=>Pi2: fldmap2perm CM PM FM FS2 Pi2}
+    {EQV: equiv Pi0 (Pi1 , Pi2)}
+    true.
+
+%worlds (objvar) (fldmap2perm-split-implies-permission-combine _ _ _ _ _ _ _ _ _).
+%trustme %total { } (fldmap2perm-split-implies-permission-combine _ _ _ _ _ _ _ _ _).
 
 
 %theorem fldmap2perm2-total
@@ -2358,20 +2362,3 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 
 %worlds (objvar) (nn-leq-implies-permission-leq* _ _ _ _).
 %total { } (nn-leq-implies-permission-leq* _ _ _ _).
-
-
-%%% Theorems about declared-capset2perm
-
-%theorem declared-capset2perm-equiv
-  : forall* {CM1} {CM2} {PM1} {PM2} {C1} {C2} {FS1} {FS2} {PF1} {PF2}
-    forall {DCP: declared-capset2perm CM1 PM1 C1 FS1 PF1}
-    {DCP: declared-capset2perm CM2 PM2 C2 FS2 PF2}
-    {CME: clsmap`eq CM1 CM2}
-    {PME: predmap`eq PM1 PM2}
-    {CE: nat`eq C1 C2}
-    {FSE: set`eq FS1 FS2}
-    exists {PEQV: {x} equiv (PF1 x) (PF2 x)}
-    true.
-
-%worlds (objvar) (declared-capset2perm-equiv _ _ _ _ _ _ _).
-%trustme %total { } (declared-capset2perm-equiv _ _ _ _ _ _ _).
