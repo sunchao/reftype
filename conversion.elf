@@ -46,17 +46,6 @@ set2cond/U :
  set2cond B O S (unitperm (conditional (objequal O O') empty Pi)).
 
 
-%%% Apply nonnull-ness
-
-apply-nn : nonnull -> (object -> permission) -> (object -> permission) -> type.
-
-apply-nn/may : apply-nn nn/may ([x] PF x)
-               ([x] unitperm (conditional (objequal x null) empty (PF x))).
-
-apply-nn/yes : apply-nn nn/yes ([x] PF x)
-    ([x] (unitperm (nonlinear (neg (objequal x null))) , (PF x))).
-
-
 %{
 A whole object can be consumed, for instance, in x.f = a, object
 a is consumed. In this case, we treated as if all of a's field are
@@ -522,53 +511,6 @@ methmap2progtype/U/m :
 
 %worlds (objvar) (set2cond-implies _ _ _ _ _ _).
 %total (R) (set2cond-implies R _ _ _ _ _).
-
-
-%% theorems about apply-nn
-
-%theorem apply-nn-respects-eq
-  : forall* {NN} {NN'} {Pi1} {Pi1'} {Pi2} {Pi2'}
-    forall {AP: apply-nn NN Pi1 Pi2}
-    {AP': apply-nn NN' Pi1' Pi2'}
-    {EQ: nonnull`eq NN NN'}
-    {EQ: {x} permission`eq (Pi1 x) (Pi1' x)}
-    exists {EQ: {x} permission`eq (Pi2 x) (Pi2' x)}
-    true.
-
-- : apply-nn-respects-eq AP AP nonnull`eq/ ([_] permission`eq/) ([_] permission`eq/).
-
-%worlds (objvar) (apply-nn-respects-eq _ _ _ _ _).
-%total { } (apply-nn-respects-eq _ _ _ _ _).
-
-
-%theorem apply-nn-total*
-  : forall {NN} {Pi}
-    exists {Pi2} {AP: apply-nn NN Pi Pi2}
-    true.
-
-- : apply-nn-total* nn/yes _ _ apply-nn/yes.
-
-- : apply-nn-total* nn/may _ _ apply-nn/may.
-
-%worlds (objvar) (apply-nn-total* _ _ _ _).
-%total { } (apply-nn-total* _ _ _ _).
-
-%abbrev apply-nn-total = apply-nn-total* _ _.
-
-
-%theorem apply-nn-unique
-  : forall* {NN} {NN'} {Pi1} {Pi1'} {Pi2} {Pi2'}
-    forall {AP1: apply-nn NN Pi1 Pi2}
-    {AP2: apply-nn NN' Pi1' Pi2'}
-    {EQ: nonnull`eq NN NN'}
-    {EQ: {x} permission`eq (Pi1 x) (Pi1' x)}
-    exists {EQ: {x} permission`eq (Pi2 x) (Pi2' x)}
-    true.
-
-- : apply-nn-unique AN AN nonnull`eq/ ([_] permission`eq/) ([_] permission`eq/).
-
-%worlds (objvar) (apply-nn-unique _ _ _ _ _).
-%total { } (apply-nn-unique _ _ _ _ _).
 
 
 %% theorems about fldmap2perm
@@ -1343,93 +1285,6 @@ methmap2progtype/U/m :
 
 %worlds (objvar) (capset2perm-equiv _ _ _ _ _ _ _).
 %total (R) (capset2perm-equiv R _ _ _ _ _ _).
-
-
-%%% TODO: This theorem is not used anywhere, so prove it later if necessary.
-
-%theorem capset2perm-respects-geq
-  : forall* {M1} {M2} {CM} {PM} {B} {Pi2}
-    forall {M2=>Pi2: capset2perm CM PM B M2 Pi2}
-    {M1<=M2: set`leq M1 M2}
-    exists {Pi1} {Pi3} {M1=>Pi1: capset2perm CM PM B M1 Pi1}
-    {EQV: (equiv Pi2 (Pi1 , Pi3))}
-    true.
-
-%theorem capset2perm-respects-geq/L
-  : forall* {M1} {M2} {CM} {PM} {B} {Pi22}
-    {M2'} {K} {N} {F} {NN} {A} {C} {Pi21} {T} {PF} {O}
-    forall {FS: set`not-member M2' K}
-    {UD: set`add M2' K M2}
-    {K=>NF: nat2pair K (pair/ N F)}
-    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {CT: create-fldperm CM PM C T PF}
-    {AP: apply-nn NN ([x] fldperm x F PF) Pi21}
-    {M2'=>Pi22: capset2perm CM PM B M2' Pi22}
-    {M1<=M2: set`leq M1 M2}
-    {BP} {DM?: set`member? M1 K BP}
-    exists {Pi1} {Pi3} {M1=>Pi1: capset2perm CM PM B M1 Pi1}
-    {EQV: (equiv ((Pi21 O) , Pi22) (Pi1 , Pi3))}
-    true.
-
-% - : capset2perm-respects-geq/L K!<M2' M2'+K+X=M2
-%     K2NF BL CT AE AP M2'=>Pi22 M1<=M2 _ (capset`domain?/out K!<M1)
-%     _ _ M1=>Pi1
-%     (equiv/transitive
-%       (equiv/combine equiv/reflexive (Pi22<=>Pi1+Pi3))
-%       (equiv/reorder))
-%     <- set`not-member-update2-preserves-leq-converse
-%       M1<=M2 K!<M1 K!<M2' M2'+K+X=M2 M1<=M2'
-%     <- capset2perm-respects-geq
-%       M2'=>Pi22 M1<=M2' _ _ M1=>Pi1 Pi22<=>Pi1+Pi3.
-
-% - : capset2perm-respects-geq/L K!<M2' M2'+K+X=M2
-%     K2NF BL CT X2Q AP M2'=>Pi22 M1<=M2 _ (capset`domain?/in M1->K=X1)
-%     _ _ (capset2perm/U M1'=>Pi11 K2NF BL CT X2Q1 AP K!<M1' M1'+K+X1=M1)
-%     (equiv/transitive6
-%       (equiv/combine (EQV1) (Pi22<=>Pi11+Pi3))
-%       (equiv/symmetric equiv/associate)
-%       (equiv/combine equiv/reflexive equiv/reorder)
-%       (equiv/associate))
-%     <- capset`lookup-implies-fresh-update M1->K=X1 M1' K!<M1' M1'+K+X1=M1
-%     <- set`not-member-update-preserves-leq-converse M1<=M2
-%       K!<M1' M1'+K+X1=M1 K!<M2' M2'+K+X=M2 M1'<=M2' X1<=X
-%     <- capset2perm-respects-geq
-%       M2'=>Pi22 M1'<=M2' _ _ M1'=>Pi11 Pi22<=>Pi11+Pi3
-%     <- cap2frac-permission-respects-geq X2Q X1<=X _ _ X2Q1 EQV1.
-
-% - : capset2perm-respects-geq
-%     capset2perm/0 capset`leq/0 _ _ capset2perm/0
-%     (equiv/symmetric equiv/identity).
-
-% - : capset2perm-respects-geq
-%     (capset2perm/U T' P BL CML FML T2PF AE F U) M1<=M2 _ _ M1=>Pi1 EQV
-%     <- capset`domain?-total DM?
-%     <- capset2perm-respects-geq/L F U P BL CML FML T2PF AE
-%       T' M1<=M2 _ DM? _ _ M1=>Pi1 EQV.
-
-%worlds (objvar)
-	(capset2perm-respects-geq _ _ _ _ _ _)
-	(capset2perm-respects-geq/L _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%trustme %total (A1 A2)
-	(capset2perm-respects-geq A1 _ _ _ _ _)
-	(capset2perm-respects-geq/L _ _ _ _ _ _ A2 _ _ _ _ _ _ _).
-
-
-%theorem capset2perm-respects-geq*
-  : forall* {M1} {M2} {CM} {PM} {B} {Pi1} {Pi2}
-    forall {M2=>Pi2: capset2perm CM PM B M2 Pi2}
-    {M1<=M2: set`leq M1 M2}
-    {M1=>Pi1: capset2perm CM PM B M1 Pi1}
-    exists {Pi3} {EQV: (equiv Pi2 (Pi1 , Pi3))}
-    true.
-
-- : capset2perm-respects-geq* M2=>Pi2 M1<=M2 M1=>Pi1 _
-    (equiv/transitive EQV1 (equiv/combine EQV2 equiv/reflexive))
-    <- capset2perm-respects-geq M2=>Pi2 M1<=M2 _ _ M1=>Pi1' EQV1
-    <- capset2perm-equiv M1=>Pi1' M1=>Pi1 clsmap`eq/ predmap`eq/ cxt`eq/ set`eq/ EQV2.
-
-%worlds (objvar) (capset2perm-respects-geq* _ _ _ _ _).
-%total {} (capset2perm-respects-geq* _ _ _ _ _).
 
 
 %theorem capset`disjoint-join-implies-equiv
