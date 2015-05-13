@@ -8,9 +8,9 @@ set-all-permissions/0 : set-all-permissions _ _ _ set/0 empty.
 
 set-all-permissions/U :
     set-all-permissions PM B C S' Pi ->
-    set`not-member S' N ->
-    set`add S' N S ->
-    cxt`lookup B N (cxt-info/ O (ty/ _ _ C)) ->
+    set`not-member S' (s N) ->
+    set`add S' (s N) S ->
+    cxt`lookup B (s N) (cxt-info/ O (ty/ _ _ C)) ->
     ty2perm PM (ty/ nn/may annot/unique C) PF ->
   set-all-permissions PM B C S ((PF O) , Pi).
 
@@ -21,9 +21,9 @@ set-all-permissions*/0 : set-all-permissions* _ _ _ set/0 empty.
 
 set-all-permissions*/U :
     set-all-permissions* PM B C S' Pi ->
-    set`not-member S' N ->
-    set`add S' N S ->
-    cxt`lookup B N (cxt-info/ O (ty/ NN _ C)) ->
+    set`not-member S' (s N) ->
+    set`add S' (s N) S ->
+    cxt`lookup B (s N) (cxt-info/ O (ty/ NN _ C)) ->
     ty2perm PM (ty/ NN annot/unique C) PF ->
   set-all-permissions* PM B C S ((PF O) , Pi).
 
@@ -441,8 +441,8 @@ before-write-format/expr :
 
 
 %theorem restore-object-permission
-  : forall* {CM} {PM} {B} {S} {FS} {Pi} {M} {Pi2} {C} {FM}
-    forall {SOC: same-class B S C}
+  : forall* {CM} {PM} {B} {S} {FS} {Pi} {M} {Pi2} {C} {FM} {NN}
+    forall {SOC: cxt-unique-objset B NN C S}
     {CM2PM: clsmap2predmap CM PM}
     {CML: clsmap`lookup CM C FM}
     {FM-DM: fldmap`domain FM FS}
@@ -461,7 +461,7 @@ before-write-format/expr :
     <- capset2perm-equiv M2=>Pi2 capset2perm/0 clsmap`eq/ predmap`eq/ cxt`eq/ M2=0 EQV.
 
 - : restore-object-permission
-    (SOC:same-class B S C) (CM2PM:clsmap2predmap CM PM)
+    (SOC:cxt-unique-objset B NN C S) (CM2PM:clsmap2predmap CM PM)
     (CML0:clsmap`lookup CM C FM0)
     (FM-DM0:fldmap`domain FM0 FS0)
     (make-encumbered/U (S'=>Pi':make-encumbered CM PM B SP PiP)
@@ -472,11 +472,11 @@ before-write-format/expr :
     (S+FS=>M2:set+set2set S FS0 M2)
     (M2=>Pi2:capset2perm CM PM B M2 Pi2) _ IMP SAP
     <- set`add-implies-member S'+N=S MB
-    <- same-class-no-zero SOC MB V
+    <- cxt-unique-objset-implies-no-zero SOC MB V
     <- restore-object-permission/F V _ IMP SAP.
 
 - : restore-object-permission
-    (SOC:same-class B S C) (CM2PM:clsmap2predmap CM PM)
+    (SOC:cxt-unique-objset B NN C S) (CM2PM:clsmap2predmap CM PM)
     (CML0:clsmap`lookup CM C FM0)
     (FM-DM0:fldmap`domain FM0 FS0)
     (make-encumbered/U (S'=>Pi':make-encumbered CM PM B SP PiP)
@@ -502,8 +502,7 @@ before-write-format/expr :
       (implies/combine (implies/equiv EQV3) IMP))
     (set-all-permissions/U S'-Pi3 N!<S' S'+N=S BL1'
       (ty2perm/ PML2 nn2perm/may annot2perm/unique))
-    <- same-class/U-inversion SOC N!<S' S'+N=S O0 NN0 A0 (SOC':same-class B SP C)
-      (BL0:cxt`lookup B _ (cxt-info/ O0 (ty/ NN0 A0 C)))
+    <- cxt-unique-objset/U-inversion SOC N!<S' S'+N=S SOC' O0 A0 NN0 BL0 _ _
     <- set+set2set/U-inversion
       S+FS=>M2 N!<S' S'+N=S S2P R S'+FS=>M2' N+FS=>MR M2'+MR=M2
     <- restore-object-permission/L1 N!<S' N+FS=>MR S'+FS=>M2' M2'^MR
@@ -636,16 +635,16 @@ before-write-format/expr :
     forall {N} {SZ: set`size S (s N)}
     {SAP: set-all-permissions* PM B C S Pi}
     {S=>G: set2cond B O S GF}
-    {LNN: least-nonnull B S NN}
+    {LNN: cxt-unique-objset B NN C S}
     exists {PF} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     {Pi2} {IMP: implies (GF , Pi) ((PF O) , Pi2)}
     true.
 
 - : set-all-permissions-implies z SZ
     (set-all-permissions*/U (S=>Pi:set-all-permissions* PM B C S' Pi)
-      (F:set`not-member _ N) U
-      (BL:cxt`lookup B N (cxt-info/ O (ty/ NN1 A C))) T2PF) S=>GF
-    (MN-NN:least-nonnull B S NN) _ (T2PF2:ty2perm _ _ PF) _
+      (F:set`not-member _ _) U
+      (BL:cxt`lookup B _ (cxt-info/ O (ty/ NN1 A C))) T2PF) S=>GF
+    (MN-NN:cxt-unique-objset B NN C S) _ (T2PF2:ty2perm _ _ PF) _
     (implies/trans7
       (implies/combine BIMP
         (implies/trans
@@ -693,7 +692,7 @@ before-write-format/expr :
     <- set2cond/U-inversion S=>GF F U _ S'=>GF' O2 T2 BL2 BIMP _
     <- set2cond-implies S'=>GF' set2cond/0 object`eq/ S=0 BIMP2 _
     <- set`eq-symmetric S=0 E=S
-    <- least-nonnull/U-inversion MN-NN F U O3 NN3 A3 C3 BL3 LE _
+    <- cxt-unique-objset/U-inversion MN-NN F U _ O3 A3 NN3 BL3 _ LE
     <- cxt`lookup-unique BL3 BL cxt`eq/ nat`eq/ CIE
     <- cxt-info-eq-inversion CIE O3=O TE
     <- ty-eq-inversion TE NNE _ CE
@@ -739,7 +738,7 @@ before-write-format/expr :
           (implies/equiv (equiv/symmetric equiv/associate))))
       (implies/cond-pull))
     <- set2cond/U-inversion S=>GF N!<S' S'+N=S GF' S'=>GF' O2 T2 BL2 GF=>E+GF' _
-    <- least-nonnull/U-inversion MN-NN N!<S' S'+N=S _ _ _ _ BL' LE MN-NN'
+    <- cxt-unique-objset/U-inversion MN-NN N!<S' S'+N=S MN-NN' _ _ _ BL' _ LE
     <- set`not-member-add-increases-size-converse SZ N!<S' S'+N=S SZ'
     <- set-all-permissions-implies N SZ' S'=>Pi' S'=>GF' MN-NN' _ T2PF _ IMP
     <- cxt`lookup-unique BL' BL cxt`eq/ nat`eq/ CIE
@@ -760,8 +759,10 @@ before-write-format/expr :
 %theorem set-all-permissions-implies*
   : forall* {PM} {S} {Pi} {GF} {O} {B} {NN} {C} {PF} {N}
     forall {SZ: set`size S (s N)}
-    {SAP: set-all-permissions* PM B C S Pi} {S=>G: set2cond B O S GF}
-    {LNN: least-nonnull B S NN} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
+    {SAP: set-all-permissions* PM B C S Pi}
+    {S=>G: set2cond B O S GF}
+    {LNN: cxt-unique-objset B NN C S}
+    {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     exists {Pi2} {_: implies (GF , Pi) (PF O , Pi2)}
     true.
 
@@ -782,7 +783,7 @@ before-write-format/expr :
     forall {N} {SZ: set`size S (s N)}
     {SAP: set-all-permissions* PM B C S Pi}
     {S=>G: {x} set2cond B x S (GF x)}
-    {LNN: least-nonnull B S NN}
+    {LNN: cxt-unique-objset B NN C S}
     exists {PF} {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     {Pi2} {IMP: {x} implies (GF x , Pi) ((PF x) , (Pi2 x))}
     true.
@@ -804,7 +805,7 @@ before-write-format/expr :
   : forall* {PM} {B} {S} {C} {Pi} {NN} {GF} {PF}
     forall {N} {SZ: set`size S N}
     {SAP: set-all-permissions* PM B C S Pi}
-    {FLN: least-nonnull B S NN}
+    {FLN: cxt-unique-objset B NN C S}
     {G=>GF: {x} set2cond B x S (GF x)}
     {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     exists {Pi2}
@@ -815,7 +816,7 @@ before-write-format/expr :
     true.
 
 - : make-before-write-format/L1* z _ set-all-permissions*/0
-    least-nonnull/0 ([_] set2cond/0) (T2PF:ty2perm _ _ PF) _
+    cxt-unique-objset/0 ([_] set2cond/0) (T2PF:ty2perm _ _ PF) _
     ([x][o] implies/trans4
       (implies/combine
         (implies/equiv (equiv/transitive equiv/commute equiv/identity))
@@ -865,7 +866,7 @@ before-write-format/expr :
 %theorem make-before-write-format/L1
   : forall* {PM} {B} {S} {C} {Pi} {NN} {GF} {PF}
     forall {SAP: set-all-permissions* PM B C S Pi}
-    {FLN: least-nonnull B S NN}
+    {FLN: cxt-unique-objset B NN C S}
     {G=>GF: {x} set2cond B x S (GF x)}
     {T2PF: ty2perm PM (ty/ NN annot/unique C) PF}
     exists {Pi2}
@@ -1047,12 +1048,10 @@ before-write-format/expr :
     <- make-encumbered-intro S<=U0 U0-S=U1 U0=>PiU0 _ PiU1 S=>PiS U1=>PiU1 EQV
     <- capset-split-implies-permission-combine
       M0-M2=M3 M0=>PiM0 PiM2 PiM3 M2=>PiM2 M3=>PiM3 PiM0<=>PiM2+PiM3
-    <- cxt-unique-objset-implies-same-class CM-B0-S SOC
-    <- cxt-unique-objset-implies-least-nonnull CM-B0-S FLN
-    <- restore-object-permission SOC CM2PM CML DM-FM=FS S=>PiS S+FS=>M2 M2=>PiM2
+    <- restore-object-permission CM-B0-S CM2PM CML DM-FM=FS S=>PiS S+FS=>M2 M2=>PiM2
       _ PiM2+Pi<=>PiS S-PiS
     <- set-all-permissions-implies/L3 B=>PiB S-PiS PiS* S-PiS* IMP1
-    <- ({x} set-all-permissions-implies _ SZ-S S-PiS* (S=>GF x) FLN _
+    <- ({x} set-all-permissions-implies _ SZ-S S-PiS* (S=>GF x) CM-B0-S _
          (ty2perm/ (PMLP x) (NN2P:nn2perm _ _ PF) A2P) _ (IMP2 x))
     <- predmap`no-variable-lookup PMLP CP2 PML2 PEQ
     <- make-before-write-format/L3 PF PEQ EQV2.
@@ -1154,12 +1153,10 @@ before-write-format/expr :
     <- make-encumbered-intro S<=U0 U0-S=U1 U0=>PiU0 _ PiU1 S=>PiS U1=>PiU1 EQV
     <- capset-split-implies-permission-combine
       M0-M2=M3 M0=>PiM0 PiM2 PiM3 M2=>PiM2 M3=>PiM3 PiM0<=>PiM2+PiM3
-    <- cxt-unique-objset-implies-same-class CM-B-S SOC
-    <- cxt-unique-objset-implies-least-nonnull CM-B-S FLN
-    <- restore-object-permission SOC CM2PM CML DM-FM=FS S=>PiS S+FS=>M2 M2=>PiM2
+    <- restore-object-permission CM-B-S CM2PM CML DM-FM=FS S=>PiS S+FS=>M2 M2=>PiM2
       PiS PiM2+Pi<=>PiS B-S-PiS
     <- set-all-permissions-implies/L3 B=>PiB B-S-PiS PiS* B-S-PiS* IMP2
-    <- make-before-write-format/L1 B-S-PiS* FLN B+S=>GF T2PF _ IMP.
+    <- make-before-write-format/L1 B-S-PiS* CM-B-S B+S=>GF T2PF _ IMP.
 
 - : make-before-write-format _ CM-B-Rslt
     (subtype/ _ (sub-annot/shared)) _
