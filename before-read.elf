@@ -966,16 +966,102 @@ M1P will be less than M1.
 %total {} (before-read/unique/2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
+%%% The fresh case is a little different from all the rest - it doesn't
+%%% have any encumbered permission.
+
+%theorem before-read/fresh
+  : forall* {B} {CM} {PM} {FM} {C} {M2} {M} {M3}
+    {F} {NN} {A} {FC} {S} {Out} {U}
+    forall {CM-B-M: clsmap-cxt-capset CM B M}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-L: clsmap`lookup CM C FM}
+    {FM-L: fldmap`lookup FM F (ty/ NN A FC)}
+    {S+F+X=>M2: set+nat2set S F M2}
+    {M-M2P=M3: capset-split M M2 M3}
+    {M=>Out: result2output CM PM B
+      (result/expr (reftype/ nn/yes C (targets/unique S set/0)) (env/ U M)) Out}
+    {SZ: set`size S z}
+    exists {TF} {T2TF: ty2perm PM (ty/ NN A FC) TF}
+    {Pi4} {B=>Pi4: cxt2perm CM PM B Pi4}
+    {PiU} {U=>PiU: make-encumbered CM PM B U PiU}
+    {Pi1} {M1P=>Pi1: capset2perm CM PM B M3 Pi1}
+    {TRANS: transform Out
+            (output/exists [r]
+              (output/expr r
+                (combine PiU
+                  (combine Pi4
+                    (combine (fperm r F TF) (empty , Pi1))))))}
+    true.
+
+- : before-read/fresh CM-B-M CM-CM CM2PM CM-L FM-L S+F+X=>M2
+    (M-M2=M3:capset-split M M2 M3)
+    (result2output/expr B=>Pi4 (env2input/ U=>PiU M=>Pi)
+      (reftype2perm/fresh (ty2perm/ PM-L nn2perm/yes annot2perm/unique)))
+    set`size/0 _ (ty2perm/ F-PM-L F-NN2P F-A2AF) _ B=>Pi4 _ U=>PiU _ M3=>Pi
+    (transform/inside [o]
+      (transform/trans
+        (transform/inside [r]
+          (transform/trans
+            (transform/implies
+              (implies/trans4
+                (implies/identity)
+                (implies/combine implies/reflexive
+                  (implies/trans
+                    (implies/combine
+                      (implies/trans
+                        (implies/combine implies/nonlinear2empty
+                          (implies/trans3
+                            (implies/combine implies/reflexive (IMP o))
+                            (implies/commute)
+                            (implies/carve)))
+                        (implies/commute-identity))
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))))
+                (implies/equiv equiv/roll3)
+                (implies/combine implies/reflexive
+                  (implies/trans
+                    (implies/equiv equiv/roll3)
+                    (implies/combine implies/reflexive
+                      (implies/combine implies/reflexive
+                        (implies/combine implies/reflexive
+                          (implies/equiv
+                            (equiv/transitive
+                              (equiv/symmetric equiv/identity)
+                              (equiv/commute))))))))))
+            (transform/drop)))
+        (transform/rem-unused)))
+    <- set+nat2set-unique S+F+X=>M2 set+nat2set/0 set`eq/ nat`eq/ M2=0
+    <- capset-split-respects-eq M-M2=M3 set`eq/ M2=0 set`eq/ M-0=M3
+    <- capset-split-empty M-0=M3 M3=M
+    <- set`eq-symmetric M3=M M=M3
+    <- set`eq-symmetric M2=0 E=M2
+    <- capset2perm-respects-eq M=>Pi clsmap`eq/ predmap`eq/ cxt`eq/ M=M3 permission`eq/ M3=>Pi
+    <- lookup-implies-clsmap-fldmap CM-CM CM-L CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FM-L CM-T
+    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
+    <- fldperm-can-lookup CM2PM PM-L CM-L FM-L _ _ _ F-A2AF F-NN2P F-PM-L IMP.
+
+%worlds (objvar) (before-read/fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total {} (before-read/fresh _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
 %%% a format ready for reading a field
 
-read-format : clsmap -> predmap -> cxt ->
-	 targets -> set -> permission -> permission -> type.
+read-format : clsmap -> predmap -> cxt -> nat -> (object -> permission) ->
+	 targets -> set -> (object -> permission) -> permission -> type.
 
 read-format/ :
     set`size M2 (s N) ->
     capset2perm CM PM B M1 Pi2 ->
     capset2perm CM PM B M2 Pi3 ->
-  read-format CM PM B (targets/unique set/0 M2) M1 Pi3 Pi2.
+  read-format CM PM B F TF (targets/unique set/0 M2) M1
+    ([r] unitperm (encumbered (fperm r F TF) Pi3)) Pi2.
+
+read-format/fresh :
+    set`size M2 z ->
+    capset2perm CM PM B M1 Pi2 ->
+  read-format CM PM B _ _ (targets/unique set/0 M2) M1 ([_] empty) Pi2.
 
 
 %theorem before-read/unique/L
@@ -996,21 +1082,32 @@ read-format/ :
     {FT=>TF: ty2perm PM (ty/ NN A FC) TF}
     {B=>Pi1: cxt2perm CM PM B Pi1}
     {U=>PiU: make-encumbered CM PM B U PiU}
-    {REE: read-format CM PM B G M2 Pi2 Pi3}
+    {REE: read-format CM PM B F TF G M2 Pi2 Pi3}
     {TRANS: transform Rslt
             (output/exists [r]
               (output/expr r
                 (combine PiU
                   (combine Pi1
                     (combine (fperm r F TF)
-                      (combine
-                        (unitperm (encumbered (fperm r F TF) Pi2)) Pi3))))))}
+                      (combine (Pi2 r) Pi3))))))}
     true.
+
+- : before-read/unique/L z _ z _ CM-CM CM2PM CML FML R=>O
+    (make-tgts-and-caps/unique S1+F=>M SP (M0-M=M2: capset-split M0 M M2))
+    (clsmap-cxt-reftype/unique _ CM-B-S CM-B-S2)
+    CM-B-M0 _ _ _ _ _ T2TF B=>Pi1 U=>PiU
+    (read-format/fresh SZ M2=>Pi2) TRANS
+    <- before-read/fresh CM-B-M0 CM-CM CM2PM CML FML S1+F=>M M0-M=M2
+      R=>O set`size/0 _ T2TF _ B=>Pi1 _ U=>PiU _ M2=>Pi2 TRANS
+    <- capset-split-empty SP ME
+    <- set+nat2set-unique set+nat2set/0 S1+F=>M set`eq/ nat`eq/ E=M
+    <- set`eq-transitive E=M ME ME2
+    <- set`size-respects-eq set`size/0 ME2 nat`eq/ SZ.
 
 - : before-read/unique/L (s N) SZ-S z _ CM-CM CM2PM CML FML XX=>Rslt
     (make-tgts-and-caps/unique S1+F+X=>M
       _ (M0-M=M2: capset-split M0 M M2))
-    (clsmap-cxt-reftype/unique _ CM-B-S CM-B-S2 WF-TGT)
+    (clsmap-cxt-reftype/unique _ CM-B-S CM-B-S2)
     CM-B-M0 _ _ _ _ _ T2TF B=>Pi1 U=>PiU
     (read-format/ SZ-M M2=>Pi2 M=>Pi) TRANS
     <- set+nat2set-preserves-size S1+F+X=>M SZ-S SZ-M
@@ -1020,7 +1117,7 @@ read-format/ :
 - : before-read/unique/L _ SZ-S1 (s N) SZ-S2 CM-CM CM2PM CML FML XX=>Rslt
     (make-tgts-and-caps/unique S1+F+X=>M (capset-split/ S2^M S2+M=M3)
       (M0-M=M2: capset-split M0 M M2))
-    (clsmap-cxt-reftype/unique _ CM-B-S CM-B-S2 WF-TGT)
+    (clsmap-cxt-reftype/unique _ CM-B-S CM-B-S2)
     CM-B-M0 _ _ _ _ _ T2TF B=>Pi1 U=>PiU
     (read-format/ (set`size/+ SZ-M3) M2=>Pi2 M3=>Pi3) TRANS
     <- set`size-total SZ-M3
@@ -1047,15 +1144,14 @@ read-format/ :
     {FT=>TF: ty2perm PM (ty/ NN A FC) TF}
     {B=>Pi1: cxt2perm CM PM B Pi1}
     {U=>PiU: make-encumbered CM PM B U PiU}
-    {REE: read-format CM PM B G M2 Pi2 Pi3}
+    {REE: read-format CM PM B F TF G M2 Pi2 Pi3}
     {TRANS: transform Rslt
             (output/exists [r]
               (output/expr r
                 (combine PiU
                   (combine Pi1
                     (combine (fperm r F TF)
-                      (combine
-                        (unitperm (encumbered (fperm r F TF) Pi2)) Pi3))))))}
+                      (combine (Pi2 r) Pi3))))))}
     true.
 
 - : before-read/unique CM-CM CM2PM CML FML XX=>Rslt
@@ -1213,15 +1309,14 @@ read-format/ :
     {FT=>TF: ty2perm PM (ty/ NN A FC) TF}
     {B=>Pi1: cxt2perm CM PM B Pi1}
     {U=>PiU: make-encumbered CM PM B U PiU}
-    {REE: read-format CM PM B G1 M2 Pi2 Pi3}
+    {REE: read-format CM PM B F TF G1 M2 Pi2 Pi3}
     {TRANS: transform Out
             (output/exists [r]
               (output/expr r
                 (combine PiU
                   (combine Pi1
                     (combine (fperm r F TF)
-                      (combine
-                        (unitperm (encumbered (fperm r F TF) Pi2)) Pi3))))))}
+                      (combine (Pi2 r) Pi3))))))}
     true.
 
 - : before-read CM-CM CM2PM CML FML XX=>Rslt
