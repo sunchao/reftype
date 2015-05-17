@@ -65,7 +65,6 @@ fldset2condperm/U :
 %trustme %total { } (fldset2condperm/U-inversion _ _ _ _ _ _ _ _).
 
 
-
 %%% Lemmas copied from let.elf
 
 %theorem callRefTyping-helper/L1L2L1
@@ -967,7 +966,6 @@ to do the job.
 %total { } (arg-perm-implies-input-single/L _ _ _ _ _).
 
 
-
 %theorem arg-perm-implies-input-single
   : forall* {CM} {PM} {B} {RT} {PF} {U} {M} {PiU} {PiM}
     {T} {FS} {PF1} {PF2} {V1} {V2} {PiB} {PiR}
@@ -986,17 +984,38 @@ to do the job.
             (output/args/0 ((PiB , (((PF1 o) , (Pi o r)))) , PiR))}
     true.
 
-
 %%% unique => unique
 %%% Since we have corresponding permissions in PiU and PiM, we can get
 %%% the whole permissions for the unique argument. For this case, we actually
 %%% don't need to keep the rest of the permissions, since unique argument is
 %%% wholly consumed.
 
+%%% The fresh case
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/unique CML DM-FM (S+FS=>M2:set+set2set set/0 FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq set/0 U0)
+        (U0-S=U1:set`remove U0 set/0 U1) not-borrowed/unique))
+    (reftype2perm/fresh T2PF1)
+    (S=>PiS:make-encumbered CM PM B set/0 PiS)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/unique T2PF2)
+    _
+    ([o][r] transform/args/0
+      (implies/combine
+        (implies/combine implies/reflexive
+          (implies/combine (IMP3 o) implies/reflexive))
+        (implies/reflexive)))
+    <- restore-object-permission B-S CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
+    <- set-all-permissions-implies/L3 B=>PiB SAP _ SAP* IMP2
+    <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1 T2PF2 IMP3.
+
 %% The borrowed case
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
-    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
       (sub-annot/unique CML DM-FM (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
@@ -1036,7 +1055,7 @@ to do the job.
 %%% The unique case
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
-    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
       (sub-annot/unique CML DM-FM (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
@@ -1079,12 +1098,55 @@ to do the job.
 
 %%% unique => borrow
 
-%%% The borrowed case
-%%% With GF and M2, we can get permissions for the argument
-
+%%% The fresh case
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
-    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/borrow (S+FS=>M2:set+set2set set/0 FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3)))
+    (reftype2perm/fresh T2PF)
+    make-encumbered/0
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/borrow CML (FM-DM:fldmap`domain FM FS0)
+      (FS<=FS0:set`leq FS FS0) FS2P)
+    _
+    ([o][r] transform/args/0
+      (implies/combine
+        (implies/combine implies/reflexive
+          (implies/trans
+            (implies/combine
+              (implies/trans3
+                (IMP o)
+                (implies/combine implies/reflexive
+                  (implies/trans3
+                    (implies/cond-inner
+                      (bimplies/reflexive)
+                      (bimplies/reflexive)
+                      (implies/equiv (equiv/symmetric equiv/identity))
+                      (implies/equiv
+                        (equiv/transitive
+                          (EQV o)
+                          (equiv/combine (PEQV o) equiv/reflexive))))
+                    (implies/cond-distribute)
+                    (implies/commute)))
+                (implies/equiv
+                  (equiv/transitive equiv/associate equiv/commute)))
+              (implies/reflexive))
+            (implies/equiv (equiv/symmetric equiv/associate))))
+        (implies/reflexive)))
+    <- letRefTyping-helper/base/unique/L4L1 CM-CM CM2PM CML FM-DM T2PF _ _ T2PF3 FS2P0 IMP
+    <- ({x} fldset2perm-split-implies-permission-combine FS<=FS0 (FS2P0 x)
+         _ _ _ RM (FS2P1 x) _ (EQV x))
+    <- ({x} fldset2perm-unique (FS2P1 x) (FS2P x) predmap`eq/ object`eq/
+         fldmap`eq/ set`eq/ (PEQ x))
+    <- ({x} permission`eq-implies-equiv (PEQ x) (PEQV x)).
+
+%%% The borrowed case
+%%% With GF and M2, we can get permissions for the argument
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
       (sub-annot/borrow (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3)))
@@ -1092,7 +1154,7 @@ to do the job.
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
     make-encumbered/0
     (M2=>PiM2:capset2perm CM PM B M2 PiM2)
-    (argtype2perm/borrow CML FM-DM LEQ FM2P)
+    (argtype2perm/borrow CML FM-DM LEQ FS2P)
     _
     ([o][r] transform/args/0
       (implies/combine
@@ -1108,19 +1170,13 @@ to do the job.
             (implies/combine (IMP1 o) implies/reflexive)))
         (implies/reflexive)))
     <- callRefTyping-helper/L1 _ SZ B-S S+FS=>M2 M2=>PiM2 S=>GF PiF FS2CP ([x] IMP x)
-    <- fldset2condperm-bimplies-fldset2perm* CM2PM CML FS2CP FM2P IMP1 IMP2
+    <- fldset2condperm-bimplies-fldset2perm* CM2PM CML FS2CP FS2P IMP1 IMP2
     <- not-unique-perm-implies-empty T2PF not-unique/borrow IMP3.
 
-
-%%% unique ==> shared
-%%% transformations are similar to unique ==> unique, except we need to do an
-%%% extra transform at end to nest the unique permission into null.all.
-
 %%% The unique case
-
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
-    (clsmap-cxt-reftype/unique _ (B-S:cxt-unique-objset B NN1 C S) _ _)
+    (clsmap-cxt-reftype/unique _ (B-S:cxt-unique-objset B NN1 C S) _)
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
       (sub-annot/borrow (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3)))
@@ -1132,7 +1188,7 @@ to do the job.
     (argtype2perm/borrow (CML:clsmap`lookup CM C FM)
       (FM-DM:fldmap`domain FM FS0)
       (LEQ:set`leq FS FS0)
-      (FM2P:{x}fldset2perm PM x FM FS (PFM x)))
+      (FS2P:{x}fldset2perm PM x FM FS (PFM x)))
     _
     ([o][r] transform/args/0
       (implies/combine
@@ -1143,12 +1199,42 @@ to do the job.
         (implies/reflexive)))
     <- arg-perm-implies-input-single/L1 CM-CM CM2PM B-S CML FM-DM LEQ S+FS=>M2
       B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ FS2CP IMP
-    <- fldset2condperm-bimplies-fldset2perm* CM2PM CML FS2CP FM2P IMP1 IMP2.
+    <- fldset2condperm-bimplies-fldset2perm* CM2PM CML FS2CP FS2P IMP1 IMP2.
 
+%%% unique ==> shared
+%%% transformations are similar to unique ==> unique, except we need to do an
+%%% extra transform at end to nest the unique permission into null.all.
 
+%%% The fresh case
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
-    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
+    (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
+      (sub-annot/unique (CML:clsmap`lookup CM C FM)
+        (DM-FM:fldmap`domain FM FS) (S+FS=>M2:set+set2set set/0 FS M2)
+        (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq set/0 U0)
+        (U0-S=U1:set`remove U0 set/0 U1) not-borrowed/shared))
+    (reftype2perm/fresh T2PF1)
+    (S=>PiS:make-encumbered CM PM B set/0 PiS)
+    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (argtype2perm/shared (ty2perm/ PML NN2P annot2perm/shared)) _
+    ([o][r] transform/trans
+      (transform/args/0
+        (implies/combine
+          (implies/combine implies/reflexive
+            (implies/combine (IMP3 o) implies/reflexive))
+          (implies/reflexive)))
+      (TRANS o r))
+    <- restore-object-permission B-S CM2PM CML DM-FM S=>PiS S+FS=>M2 M2=>PiM2 _ IMP1 SAP
+    <- set-all-permissions-implies/L3 B=>PiB SAP _ SAP* IMP2
+    <- nn2perm-total NN2P2
+    <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1 (ty2perm/ PML NN2P2 annot2perm/unique) IMP3
+    <- arg-perm-implies-input-single/L PML NN2P2 NN2P _ TRANS.
+
+%%% The borrowed case
+- : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
+    (B=>PiB:cxt2perm CM PM B PiB)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
       (sub-annot/unique (CML:clsmap`lookup CM C FM)
         (DM-FM:fldmap`domain FM FS) (S+FS=>M2:set+set2set S FS M2)
@@ -1190,9 +1276,10 @@ to do the job.
       (ty2perm/ PML NN2P2 annot2perm/unique) IMP4
     <- arg-perm-implies-input-single/L PML NN2P2 NN2P _ TRANS.
 
+%%% The unique case
 - : arg-perm-implies-input-single CM-CM (CM2PM:clsmap2predmap CM PM)
     (B=>PiB:cxt2perm CM PM B PiB)
-    (clsmap-cxt-reftype/unique _ B-S CM-B-M _)
+    (clsmap-cxt-reftype/unique _ B-S CM-B-M)
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1)
       (sub-annot/unique CML DM-FM (S+FS=>M2:set+set2set S FS M2)
         (M0-M2=M3:capset-split M0 M2 M3) (S<=U0:set`leq S U0)
