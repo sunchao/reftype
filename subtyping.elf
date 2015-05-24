@@ -27,27 +27,28 @@ env`eq/ : env`eq V V.
 
 %% Spliting a capability set into two subsets.
 
-capset-split : set -> set -> set -> type.
+set`split : set -> set -> set -> type.
 
-capset-split/ :
+set`split/ :
     set`disjoint S1 S2 ->
     set`union S1 S2 S ->
-  capset-split S S1 S2.
+  set`split S S1 S2.
 
+%abbrev set`combine : set -> set -> set -> type = [S1][S2][S] set`split S S1 S2.
 
 
 make-tgts-and-caps : set -> targets -> nat -> targets -> set -> type.
 
 %%% When the result is shared, we can claim back the encumbered capabilities.
 make-tgts-and-caps/shared :
-    capset-split M0 (set/1 shared-tgt) M1 ->
+    set`split M0 (set/1 shared-tgt) M1 ->
  make-tgts-and-caps M0 targets/shared _
    (targets/unique set/0 (set/1 shared-tgt)) M1.
 
 make-tgts-and-caps/unique :
     set+nat2set S F M2 ->
-    capset-split M M1 M2 ->
-    capset-split M0 M2 M3 ->
+    set`combine M1 M2 M ->
+    set`split M0 M2 M3 ->
   make-tgts-and-caps M0 (targets/unique S M1) F (targets/unique set/0 M) M3.
 
 
@@ -58,7 +59,7 @@ make-tgts-and-caps/unique :
 consider-ftype : targets -> set -> annot -> targets -> set -> type.
 
 consider-ftype/shared :
-    capset-split M1 M M0 ->
+    set`combine M M0 M1 ->
   consider-ftype (targets/unique set/0 M) M0 annot/shared targets/shared M1.
 
 consider-ftype/unique : consider-ftype G M annot/unique G M.
@@ -100,7 +101,7 @@ sub-annot/unique :
     clsmap`lookup CM C FM ->
     fldmap`domain FM FS ->
     set+set2set S FS M2 ->
-    capset-split M0 M2 M3 ->
+    set`split M0 M2 M3 ->
     set`leq S U0 ->
     set`remove U0 S U1 ->
     not-borrowed A ->
@@ -111,7 +112,7 @@ sub-annot/unique :
 
 sub-annot/borrow :
     set+set2set S FS M2 ->
-    capset-split M0 M2 M3 ->
+    set`split M0 M2 M3 ->
   sub-annot _ FS (targets/unique S _) (env/ U0 M0) (ty/ _ annot/borrow _)
     (env/ set/0 M2) (env/ U0 M3).
 
@@ -129,55 +130,55 @@ subtype/ :
 %%% ======================= Theorems =======================================
 
 
-%theorem capset-split-implies-disjoint-union
+%theorem set`split-implies-disjoint-union
   : forall* {CS} {CS1} {CS2}
-    forall {SP: capset-split CS CS1 CS2}
+    forall {SP: set`split CS CS1 CS2}
     exists {CS1^CS2: set`disjoint CS1 CS2} {CS1+CS2=CS: set`union CS1 CS2 CS}
     true.
 
-- : capset-split-implies-disjoint-union (capset-split/ D U) D U.
+- : set`split-implies-disjoint-union (set`split/ D U) D U.
 
-%worlds (objvar) (capset-split-implies-disjoint-union _ _ _).
-%total { } (capset-split-implies-disjoint-union _ _ _).
+%worlds (objvar) (set`split-implies-disjoint-union _ _ _).
+%total { } (set`split-implies-disjoint-union _ _ _).
 
 
-%theorem capset-split-implies-leq
+%theorem set`split-implies-leq
   : forall* {CS} {CS1} {CS2}
-    forall {SP: capset-split CS CS1 CS2}
+    forall {SP: set`split CS CS1 CS2}
     exists {CS1<=CS: set`leq CS1 CS} {CS2<=CS: set`leq CS2 CS}
     true.
 
-- : capset-split-implies-leq (capset-split/ _ U) L1 L2
+- : set`split-implies-leq (set`split/ _ U) L1 L2
     <- set`union-implies-leq U L1 L2.
 
-%worlds (objvar) (capset-split-implies-leq _ _ _).
-%total { } (capset-split-implies-leq _ _ _).
+%worlds (objvar) (set`split-implies-leq _ _ _).
+%total { } (set`split-implies-leq _ _ _).
 
 
-%theorem capset-split-respects-eq
+%theorem set`split-respects-eq
   : forall* {M} {MP} {M1} {M1P} {M2} {M2P}
-    forall {M-M1=M2: capset-split M M1 M2}
+    forall {M-M1=M2: set`split M M1 M2}
     {M=MP: set`eq M MP}
     {M1=M1P: set`eq M1 M1P}
     {M2=M2P: set`eq M2 M2P}
-    exists {M-M1=M2: capset-split MP M1P M2P}
+    exists {M-M1=M2: set`split MP M1P M2P}
     true.
 
-%worlds () (capset-split-respects-eq _ _ _ _ _).
-%trustme %total { } (capset-split-respects-eq _ _ _ _ _).
+%worlds () (set`split-respects-eq _ _ _ _ _).
+%trustme %total { } (set`split-respects-eq _ _ _ _ _).
 
 
-%theorem capset-split-unique
+%theorem set`split-unique
   : forall* {M} {MP} {M1} {M1P} {M2} {M2P}
-    forall {M-M1=M2: capset-split M M1 M2}
-    {MP-M1P=M2P: capset-split MP M1P M2P}
+    forall {M-M1=M2: set`split M M1 M2}
+    {MP-M1P=M2P: set`split MP M1P M2P}
     {M=MP: set`eq M MP}
     {M1=M1P: set`eq M1 M1P}
     exists {M2=M2P: set`eq M2 M2P}
     true.
 
-- : capset-split-unique (capset-split/ M1^M2 M1+M2=M)
-    (capset-split/ M1P^M2P M1P+M2P=MP) M=MP M1=M1P M2=M2P
+- : set`split-unique (set`split/ M1^M2 M1+M2=M)
+    (set`split/ M1P^M2P M1P+M2P=MP) M=MP M1=M1P M2=M2P
     <- set`union-commutative M1+M2=M M2+M1=M
     <- set`union-commutative M1P+M2P=MP M2P+M1P=MP
     <- set`disjoint-symmetric M1^M2 M2^M1
@@ -186,15 +187,15 @@ subtype/ :
     <- set`disjoint-union-implies-remove M2P+M1P=MP M2P^M1P MP-M1P=M2P
     <- set`remove-unique M-M1=M2 MP-M1P=M2P M=MP M1=M1P M2=M2P.
 
-%worlds () (capset-split-unique _ _ _ _ _).
-%total { } (capset-split-unique _ _ _ _ _).
+%worlds () (set`split-unique _ _ _ _ _).
+%total { } (set`split-unique _ _ _ _ _).
 
 
-%theorem capset-split-empty
+%theorem set`split-empty
   : forall* {M} {M1}
-    forall {M-E=M1: capset-split M set/0 M1}
+    forall {M-E=M1: set`split M set/0 M1}
     exists {M1=M: set`eq M1 M}
     true.
 
-%worlds () (capset-split-empty _ _).
-%trustme %total { } (capset-split-empty _ _).
+%worlds () (set`split-empty _ _).
+%trustme %total { } (set`split-empty _ _).
