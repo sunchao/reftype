@@ -220,7 +220,24 @@ a and b are aliases to each other, then we cannot check the call.
 
 Given this situation doesn't occur very often, and is also illegal in FP,
 here we just simply disallow "duplicated" cap while checking method call effects.
+
+For borrowed parameter type, we'll get back the associated capabilities after
+the method call is checked. Consider:
+
+@write b.f
+foo(@borrow T b): ...
+
+And both x and y are unique reference of type T, and both f and g are unique fields.
+Then,
+
+call foo(if a > 3 then x else y.g)
+
+will need input capabilities (x.f, y.g)
+
+After foo is checked, we should get permissions for x.f and y.g back.
+
 }%
+
 
 argsRefTyping : clsmap -> methmap -> cxt -> env -> args -> methty -> args-result -> type.
 
@@ -228,9 +245,9 @@ argsRefTyping/0 : argsRefTyping _ _ _ V args/0 (methty/base T) (result/args/0 V)
 
 argsRefTyping/+ :
     reftyping CM MM B V0 E (result/expr RT V1) ->
-    subtype CM FS RT V1 T V3 V2 ->
+    subtype CM FS RT V1 T AV V2 ->
     argsRefTyping CM MM B V2 A MT AR ->
-  argsRefTyping CM MM B V0 (args/+ E A) (methty/arg T FS MT) (result/args/+ RT V3 AR).
+  argsRefTyping CM MM B V0 (args/+ E A) (methty/arg T FS MT) (result/args/+ RT AV AR).
 
 
 %{
@@ -276,23 +293,23 @@ callRefTyping/arg/0 :
       (result/expr RT (env/ U2 M2)).
 
 callRefTyping/arg/+/unique :
-    callRefTyping* CM MM V AR A R ->
+    callRefTyping* CM MM V AR MT R ->
   callRefTyping* CM MM V (result/args/+ _ _ AR)
-      (methty/arg (ty/ _ annot/unique _) set/0 A) R.
+      (methty/arg (ty/ _ annot/unique _) set/0 MT) R.
 
 callRefTyping/arg/+/borrow :
     set`union U0 U1 U2 ->
     capset-split M2 M0 M1 ->
     capset-split M4 M2 M3 ->
-    callRefTyping* CM MM (env/ U2 M4) AR A R ->
+    callRefTyping* CM MM (env/ U2 M4) AR MT R ->
   callRefTyping* CM MM (env/ U0 M0)
       (result/args/+ (reftype/ NN C (targets/unique S M1)) (env/ U1 M3) AR)
-      (methty/arg (ty/ _ annot/borrow _) _ A) R.
+      (methty/arg (ty/ _ annot/borrow _) _ MT) R.
 
 callRefTyping/arg/+/shared :
-    callRefTyping* CM MM V AR A R ->
+    callRefTyping* CM MM V AR MT R ->
   callRefTyping* CM MM V (result/args/+ _ empty-env AR)
-      (methty/arg (ty/ _ annot/shared _) set/0 A) R.
+      (methty/arg (ty/ _ annot/shared _) set/0 MT) R.
 
 %abbrev callRefTyping = [CM][MM][AR][A][R] callRefTyping* CM MM empty-env AR A R.
 
