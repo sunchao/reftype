@@ -1,19 +1,19 @@
 %%% Relation between argument permissions
 
-arg-perm-rel : clsmap -> predmap -> cxt ->
+arg-perm-rel : clsmap -> predmap -> cxt -> env ->
   permission -> permission -> permission -> type.
 
-arg-perm-rel/0 : arg-perm-rel _ _ _ empty empty empty.
+arg-perm-rel/0 : arg-perm-rel _ _ _ empty-env empty empty empty.
 
 arg-perm-rel/+ : {O} {R}
     clsmap-cxt-reftype CM B RT ->
     reftype2perm CM PM B RT ([o][r] PF o r) ->
-    make-encumbered CM PM B U PiU ->
-    capset2perm CM PM B M PiM ->
+    env2input CM PM B AV PiV ->
     argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o) ->
-    subtype CM FS RT V1 T (env/ U M) V2 ->
-    arg-perm-rel CM PM B Pi Pi1 Pi2 ->
-  arg-perm-rel CM PM B (((PF O R) , (PiU , PiM)) , Pi)
+    subtype CM FS RT V2 T AV V3 ->
+    restore-cap V0 RT AV T V1 ->
+    arg-perm-rel CM PM B V0 Pi Pi1 Pi2 ->
+  arg-perm-rel CM PM B V1 (((PF O R) , PiV) , Pi)
       ((PF1 O) , Pi1) ((PF2 O) , Pi2).
 
 
@@ -1071,21 +1071,20 @@ arg-perm-format/borrow/unique
 
 
 %theorem arg-perm-implies-input-single
-  : forall* {CM} {PM} {B} {RT} {PF} {U} {M} {PiU} {PiM}
+  : forall* {CM} {PM} {B} {RT} {PF} {AV} {PiV}
     {T} {FS} {PF1} {PF2} {V1} {V2} {PiB} {PiR}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {B=>PiB: cxt2perm CM PM B PiB}
     {CM-B-RT: clsmap-cxt-reftype CM B RT}
-    {SUB: subtype CM FS RT V1 T (env/ U M) V2}
+    {SUB: subtype CM FS RT V1 T AV V2}
     {RT2P: reftype2perm CM PM B RT ([o][r] PF o r)}
-    {U=>PiU: make-encumbered CM PM B U PiU}
-    {M=>PiM: capset2perm CM PM B M PiM}
+    {V=>PiV: env2input CM PM B AV PiV}
     {AT: argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o)}
     exists {Pi}
     {FMT: arg-perm-format CM PM B FS RT T Pi}
     {TRANS: {o}{r} transform
-            (output/args/0 ((PiB , ((PF o r) , (PiU , PiM))) , PiR))
+            (output/args/0 ((PiB , ((PF o r) , PiV)) , PiR))
             (output/args/0 ((PiB , (((PF1 o) , (Pi o r)))) , PiR))}
     true.
 
@@ -1104,8 +1103,8 @@ arg-perm-format/borrow/unique
         (M0-M2=M3:set`split M0 M2 M3) (S<=U0:set`leq set/0 U0)
         (U0-S=U1:set`remove U0 set/0 U1) not-borrowed/unique))
     (reftype2perm/fresh T2PF1)
-    (S=>PiS:make-encumbered CM PM B set/0 PiS)
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/ (S=>PiS:make-encumbered CM PM B set/0 PiS)
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/unique T2PF2)
     _
     (arg-perm-format/unique)
@@ -1129,8 +1128,9 @@ arg-perm-format/borrow/unique
     (reftype2perm/borrow SZ set`size/0
       (ty2perm/ (PML1:predmap`lookup PM C CP1) (NN2P1:nn2perm NN1 _ AF1) annot2perm/borrow)
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
-    (S=>PiS:make-encumbered CM PM B S PiS)
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      (S=>PiS:make-encumbered CM PM B S PiS)
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/unique T2PF4)
     _
     (arg-perm-format/unique)
@@ -1170,8 +1170,9 @@ arg-perm-format/borrow/unique
     (reftype2perm/unique SZ T2PF1
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x)
       (M=>PiM:capset2perm CM PM B M PiM))
-    (S=>PiS:make-encumbered CM PM B S PiS)
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      (S=>PiS:make-encumbered CM PM B S PiS)
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/unique T2PF2)
     _
     (arg-perm-format/unique)
@@ -1214,8 +1215,9 @@ arg-perm-format/borrow/unique
       (sub-annot/borrow (S+FS=>M2:set+set2set set/0 FS M2)
         (M0-M2=M3:set`split M0 M2 M3)))
     (reftype2perm/fresh T2PF)
-    make-encumbered/0
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      make-encumbered/0
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/borrow CML (FM-DM:fldmap`domain FM FS0)
       (FS<=FS0:set`leq FS FS0) FS2P)
     _
@@ -1273,8 +1275,9 @@ arg-perm-format/borrow/unique
         (M0-M2=M3:set`split M0 M2 M3)))
     (reftype2perm/borrow SZ set`size/0 T2PF
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
-    make-encumbered/0
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      make-encumbered/0
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/borrow CML FM-DM LEQ FS2P)
     _
     (arg-perm-format/borrow/borrow M2=>PiM2 S+FS=>M2 FS2CP ([x] S=>GF x) SZ)
@@ -1305,8 +1308,9 @@ arg-perm-format/borrow/unique
     (reftype2perm/unique SZ-M (T2PF:ty2perm PM _ ([x] PF x))
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x)
       (M=>PiM:capset2perm CM PM B M PiM))
-    make-encumbered/0
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      make-encumbered/0
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/borrow (CML:clsmap`lookup CM C FM)
       (FM-DM:fldmap`domain FM FS0)
       (LEQ:set`leq FS FS0)
@@ -1338,8 +1342,9 @@ arg-perm-format/borrow/unique
         (M0-M2=M3:set`split M0 M2 M3) (S<=U0:set`leq set/0 U0)
         (U0-S=U1:set`remove U0 set/0 U1) not-borrowed/shared))
     (reftype2perm/fresh T2PF1)
-    (S=>PiS:make-encumbered CM PM B set/0 PiS)
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      (S=>PiS:make-encumbered CM PM B set/0 PiS)
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/shared (ty2perm/ PML NN2P annot2perm/shared)) _
     arg-perm-format/shared
     ([o][r] transform/trans
@@ -1367,8 +1372,9 @@ arg-perm-format/borrow/unique
     (reftype2perm/borrow SZ set`size/0
       (ty2perm/ (PML1:predmap`lookup PM C CP1) (NN2P1:nn2perm NN1 _ AF1) annot2perm/borrow)
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x))
-    (S=>PiS:make-encumbered CM PM B S PiS)
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      (S=>PiS:make-encumbered CM PM B S PiS)
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/shared (ty2perm/ PML NN2P annot2perm/shared)) _
     arg-perm-format/shared
     ([o][r] transform/trans
@@ -1412,8 +1418,9 @@ arg-perm-format/borrow/unique
     (reftype2perm/unique SZ T2PF1
       ([x] (S=>GF:{x} set2cond B x S (GF x)) x)
       (M=>PiM:capset2perm CM PM B M PiM))
-    (S=>PiS:make-encumbered CM PM B S PiS)
-    (M2=>PiM2:capset2perm CM PM B M2 PiM2)
+    (env2input/
+      (S=>PiS:make-encumbered CM PM B S PiS)
+      (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/shared (ty2perm/ PML (NN2P:nn2perm NN2 _ PK2) annot2perm/shared))
     _
     arg-perm-format/shared
@@ -1456,7 +1463,7 @@ arg-perm-format/borrow/unique
     (clsmap-cxt-reftype/shared _)
     (subtype/ (NN2<=NN1:nonnull`leq NN2 NN1) (sub-annot/shared))
     (reftype2perm/shared T2PF1)
-    make-encumbered/0 capset2perm/0
+    (env2input/ make-encumbered/0 capset2perm/0)
     (argtype2perm/shared T2PF2) _
     arg-perm-format/shared
     ([o][r] transform/args/0
@@ -1466,28 +1473,33 @@ arg-perm-format/borrow/unique
         (implies/reflexive)))
     <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1 T2PF2 IMP.
 
-%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem arg-perm-rel-transform
-  : forall* {CM} {PM} {B} {Pi} {Pi1} {Pi2} {PiB} {PiR}
+  : forall* {CM} {PM} {B} {Pi} {Pi1} {Pi2} {PiB} {PiR} {V} {PiV}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {B=>PiB: cxt2perm CM PM B PiB}
-    {REL: arg-perm-rel CM PM B Pi Pi1 Pi2}
-    exists {PiR'}
+    {REL: arg-perm-rel CM PM B V Pi Pi1 Pi2}
+    {V=>PiV: env2input CM PM B V PiV}
+    exists {Pi1'}
     {TRANS: transform
             (output/args/0 (combine Pi (combine PiB PiR)))
-            (output/args/0 (combine Pi1 (combine PiB PiR')))}
+            (output/args/0 (combine (combine Pi1 Pi1') (combine PiB PiR)))}
+    {IMP: implies (combine Pi2 Pi1') PiV}
     true.
 
+%{
 - : arg-perm-rel-transform CM-CM CM2PM B2P
     arg-perm-rel/0 _
-    (transform/reflexive).
+    (transform/args/0
+      (implies/combine
+        (implies/equiv (equiv/symmetric equiv/identity)) implies/reflexive)).
 
 - : arg-perm-rel-transform CM-CM CM2PM B=>PiB
-    (arg-perm-rel/+ O R CM-B-RT RT2P U=>PiU M=>PiM AT2P SUB REL)
+    (arg-perm-rel/+ O R CM-B-RT RT2P V=>PiV AT2P SUB RC REL)
     _
     (transform/trans3
       (transform/args/0
@@ -1504,24 +1516,174 @@ arg-perm-format/borrow/unique
         (TRANS2 O R)
         (transform/args/0
           (implies/equiv
-            (equiv/transitive5
+            (equiv/transitive6
               (equiv/combine equiv/commute equiv/reflexive)
               (equiv/swap-middle)
               (equiv/combine equiv/swap equiv/reflexive)
               (equiv/symmetric equiv/associate)
-              (equiv/combine equiv/reflexive equiv/reorder))))))
+              (equiv/combine equiv/reflexive equiv/reorder)
+              (equiv/transitive3
+                (equiv/combine equiv/associate equiv/reorder)
+                (equiv/associate)
+                (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)))))))
     <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL _ TRANS1
     <- transform-commutes-envadd* TRANS1 envadd/args/0 envadd/args/0 TRANS1'
     <- arg-perm-implies-input-single CM-CM CM2PM B=>PiB CM-B-RT
-      SUB RT2P U=>PiU M=>PiM AT2P _ FMT ([o][r] TRANS2 o r).
+      SUB RT2P V=>PiV AT2P _ FMT ([o][r] TRANS2 o r).
+}%
 
-%worlds (objvar) (arg-perm-rel-transform _ _ _ _ _ _).
-%total (A) (arg-perm-rel-transform _ _ _ A _ _).
+%worlds (objvar) (arg-perm-rel-transform _ _ _ _ _ _ _ _).
+%trustme %total (A) (arg-perm-rel-transform _ _ _ A _ _ _ _).
 
 
-%theorem reftyping-ok/call
-  : forall* {CM} {MM} {PM} {B} {V} {A}
-    {MT} {AR} {AO} {PT} {W} {Pi} {Pi1} {Pi2}
+%theorem set2cond-no-var2
+  : forall* {B} {S} {GF3: object -> object -> object -> permission}
+    forall {B2GF: {x1}{x2}{x3} set2cond B x3 S (GF3 x1 x2 x3)}
+    exists {GF} {EQ: {x1}{x2}{x3} permission`eq (GF3 x1 x2 x3) (GF x3)}
+    {B2GF: {x} set2cond B x S (GF x)}
+    true.
+
+%worlds (objvar) (set2cond-no-var2 _ _ _ _).
+%trustme %total { } (set2cond-no-var2 _ _ _ _).
+
+
+%theorem capset2perm-no-var2
+  : forall* {CM} {PM} {B} {M} {PiMF: object -> object -> permission}
+    forall {U=>PiUF: {o}{r} capset2perm CM PM B M (PiMF o r)}
+    exists {PiM} {EQ: {o}{r} permission`eq (PiMF o r) PiM}
+    {M=>PiM: capset2perm CM PM B M PiM}
+    true.
+
+%worlds (objvar) (capset2perm-no-var2 _ _ _ _).
+%trustme %total { } (capset2perm-no-var2 _ _ _ _).
+
+
+%theorem reftype2perm-no-var2
+  : forall* {CM} {PM} {B} {RT} {PF4: object -> object -> object -> object -> permission}
+    forall {RT=>RF: {x}{x1} reftype2perm CM PM B RT ([o][r] PF4 x x1 o r)}
+    exists {PF} {EQV: {x}{x1}{o}{r} equiv (PF4 x x1 o r) (PF o r)}
+    {RT=>RF: reftype2perm CM PM B RT ([o][r] PF o r)}
+    true.
+
+%theorem reftype2perm-no-var2/L
+  : forall* {GFF:object -> object -> object -> permission} {GF} {PFF} {PF} {PiMF} {PiM}
+    forall {EQ: {x}{x1}{x2} permission`eq (PFF x x1 x2) (PF x2)}
+    {EQ: {x}{x1}{x2} permission`eq (GFF x x1 x2) (GF x2)}
+    {EQ: {x}{x1} permission`eq (PiMF x x1) PiM}
+    exists {EQV: {x}{x1}{x2}{x3} equiv
+                 (combine (unitperm (conditional (objequal x2 x3) empty (GFF x x1 x2)))
+                   (combine (PFF x x1 x3)
+                     (unitperm (encumbered (PFF x x1 x3) (PiMF x x1)))))
+                 (combine (unitperm (conditional (objequal x2 x3) empty (GF x2)))
+                   (combine (PF x3)
+                     (unitperm (encumbered (PF x3) PiM))))}
+    true.
+
+- : reftype2perm-no-var2/L ([_][_][_] permission`eq/) ([_][_][_] permission`eq/)
+    ([_][_] permission`eq/) ([_][_][_][_] equiv/reflexive).
+
+%worlds (objvar) (reftype2perm-no-var2/L _ _ _ _).
+%total { } (reftype2perm-no-var2/L _ _ _ _).
+
+
+
+- : reftype2perm-no-var2
+    ([x][x1] reftype2perm/shared (T2PF2 x x1))
+    _ ([x][x1][x2][_] (EQV2 x x1 x2)) (reftype2perm/shared T2PF)
+    <- ty2perm-no-var2 T2PF2 _ EQ T2PF
+    <- ({x}{x1}{x2} permission`eq-implies-equiv (EQ x x1 x2) (EQV2 x x1 x2)).
+
+- : reftype2perm-no-var2
+    ([x][x1] reftype2perm/borrow SZ1 SZ2 (T2PF2 x x1) (S2GF2 x x1))
+    _ ([x][x1][x2][x3] (equiv/combine (EQV x x1 x2) (EQV2 x x1 x2)))
+    (reftype2perm/borrow SZ1 SZ2 T2PF S2GF)
+    <- ty2perm-no-var2 T2PF2 _ EQ T2PF
+    <- ({x}{x1}{x2} permission`eq-implies-equiv (EQ x x1 x2) (EQV x x1 x2))
+    <- set2cond-no-var2 S2GF2 _ EQ2 S2GF
+    <- ({x}{x1}{x2} permission`eq-implies-equiv (EQ2 x x1 x2) (EQV2 x x1 x2)).
+
+- : reftype2perm-no-var2
+    ([x][x1] reftype2perm/unique SZ (T2PF2 x x1) (S2GF2 x x1) (M2PF2 x x1))
+    _ ([x][x1][x2][x3] EQV x x1 x2 x3)
+    (reftype2perm/unique SZ T2PF S2GF M2PF)
+    <- ty2perm-no-var2 T2PF2 _ EQ T2PF
+    <- set2cond-no-var2 S2GF2 _ EQ2 S2GF
+    <- capset2perm-no-var2 M2PF2 _ EQ3 M2PF
+    <- reftype2perm-no-var2/L EQ EQ2 EQ3 EQV.
+
+- : reftype2perm-no-var2
+    ([x][x1] reftype2perm/fresh (T2PF2 x x1))
+    _ ([x][x1][x2][x3] EQV x x1 x2)
+    (reftype2perm/fresh T2PF)
+    <- ty2perm-no-var2 T2PF2 _ EQ T2PF
+    <- ({x}{x1}{x2} permission`eq-implies-equiv (EQ x x1 x2) (EQV x x1 x2)).
+
+%worlds (objvar) (reftype2perm-no-var2 _ _ _ _).
+%total { } (reftype2perm-no-var2 _ _ _ _).
+
+
+%theorem result2output-no-var
+  : forall* {CM} {PM} {B} {R} {PF4}
+    forall {R=>O:{x:gterm objectk} {x1:gterm objectk}
+                  result2output CM PM B R
+                  (output/exists
+                    ([o:gterm objectk]
+                      output/exists ([r:gterm objectk] PF4 x x1 o r)))}
+    exists {PF:object -> object -> expr-output}
+    {EQ: {x:object}{x1:object}{o:object}{r:object} transform (PF4 x x1 o r) (PF o r)}
+    {R=>O: result2output CM PM B R
+           (output/exists
+             ([o:gterm objectk]
+               output/exists ([r:gterm objectk] PF o r)))}
+    true.
+
+- : result2output-no-var
+    ([x][x1] result2output/expr (B=>PiBV x x1)
+      (env2input/ (U=>PiUV x x1) (M=>PiMV x x1))
+      (T2PFV x x1))
+    _
+    ([x][x1][o][r]
+      (transform/implies
+        (implies/equiv
+          (equiv/combine
+            (equiv/combine (PiB-EQV x x1)
+              (equiv/combine (PF-EQV x x1 o r)
+                (equiv/combine (PiU-EQV x x1) (PiM-EQV x x1))))
+            (equiv/reflexive)))))
+    (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) T2PF)
+    <- reftype2perm-no-var2 T2PFV _ PF-EQV T2PF
+    <- cxt2perm-no-var2 B=>PiBV _ PiB-EQ B=>PiB
+    <- make-encumbered-no-var2 U=>PiUV _ PiU-EQ U=>PiU
+    <- capset2perm-no-var2 M=>PiMV _ PiM-EQ M=>PiM
+    <- ({o}{r} permission`eq-implies-equiv (PiB-EQ o r) (PiB-EQV o r))
+    <- ({o}{r} permission`eq-implies-equiv (PiU-EQ o r) (PiU-EQV o r))
+    <- ({o}{r} permission`eq-implies-equiv (PiM-EQ o r) (PiM-EQV o r)).
+
+%worlds (objvar) (result2output-no-var _ _ _ _).
+%total { } (result2output-no-var _ _ _ _).
+
+
+%theorem fresh-ty2perm-implies-reftype2perm
+  : forall* {CM} {PM} {B} {T} {RT} {PF}
+    forall {T2PF: ty2perm PM T PF}
+    {T2RT: ty2new-reftype T RT}
+    exists {RPF} {RT2P: reftype2perm CM PM B RT RPF}
+    {IMP: {o}{r} implies (PF o) (RPF o r)}
+    true.
+
+- : fresh-ty2perm-implies-reftype2perm T2PF
+    (ty2new-reftype/shared) _ (reftype2perm/shared T2PF) ([_][_] implies/reflexive).
+
+- : fresh-ty2perm-implies-reftype2perm T2PF
+    (ty2new-reftype/unique) _ (reftype2perm/fresh T2PF) ([_][_] implies/reflexive).
+
+%worlds (objvar) (fresh-ty2perm-implies-reftype2perm _ _ _ _ _).
+%total { } (fresh-ty2perm-implies-reftype2perm _ _ _ _ _).
+
+
+%theorem reftyping-ok/call*
+  : forall* {CM} {MM} {PM} {B} {V} {A} {R}
+    {MT} {AR} {AO} {PT} {W} {Pi} {Pi1} {Pi2} {V0} {PiV0}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM-MM: clsmap-methmap CM MM}
     {CM2PM: clsmap2predmap CM PM}
@@ -1529,39 +1691,18 @@ arg-perm-format/borrow/unique
     {CM-V: clsmap-cxt-env CM B V}
     {RTYP-A: argsRefTyping CM MM B V A MT AR}
     {AR=>AO: result2output* CM PM B Pi AR AO}
-    {REL: arg-perm-rel CM PM B Pi Pi1 Pi2}
+    {REL: arg-perm-rel CM PM B V0 Pi Pi1 Pi2}
+    {V0=>PiV0: env2input CM PM B V0 PiV0}
     {MT=>PT: methty2proctype* CM PM Pi1 Pi2 MT PT}
-    exists {AO'} {O}
+    {CTYP: callRefTyping* CM MM V0 AR MT R}
+    exists {AO'} {O} {O'}
     {TRANS: transform AO AO'}
     {CTYP: callTyping W AO' PT O}
+    {TRANS: transform O O'}
+    {FMT: result2output CM PM B R O'}
     true.
 
-%{
-How To Prove This?
-Everytime argsRefTyping adds a set of permissions, which correspond to
-the actual argument. Also, everytime methty2proc type adds a set of permissions
-as well, which correspond to the formal argument. We need to show that
-from the first set of permissions, we can derive the second set of
-permissions.
-
-But the "+" case really just pass on the permissions to the next (inside)
-argument, and the only interesting case is the "0" case, where the
-permissions are used. This is a little bit tricky to prove since we cannot
-use induction hypothesis as we used to.
-}%
-
-- : reftyping-ok/call CM-CM CM-MM CM2PM MM2W _
-    (argsRefTyping/0)
-    (result2output/args/0
-      (B=>PiB:cxt2perm CM PM B PiB)
-      (env2input/ (U=>PiU:make-encumbered CM PM B U PiU)
-        (M=>PiM:capset2perm CM PM B M PiM)))
-    REL
-    (methty2proctype/base T2RT) _ _ TRANS
-    (callTyping/call (envadd/exists [o] (envadd/expr)))
-    <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL _ TRANS.
-
-- : reftyping-ok/call CM-CM CM-MM (CM2PM:clsmap2predmap CM PM)
+- : reftyping-ok/call* CM-CM CM-MM (CM2PM:clsmap2predmap CM PM)
     (MM2W:methmap2progtype CM PM MM W) CM-B-V
     (argsRefTyping/+
       (RTYP:reftyping CM MM B V0 E (result/expr RT (env/ U1 M1)))
@@ -1573,18 +1714,111 @@ use induction hypothesis as we used to.
       (RT2P:reftype2perm CM PM B RT ([x][o] PF x o))
       ([o][r] AR=>AO o r))
     REL
+    (env2input/ (U4=>PiU4:make-encumbered CM PM B U4 PiU4)
+      (M4=>PiM4:capset2perm CM PM B M4 PiM4))
     (methty2proctype/arg (AT2P:argtype2perm CM PM T FS ([x] PF1 x) ([x] PF2 x))
       ([o] MT=>PT o))
-    _ _
+    (callRefTyping/arg/+ (RC:restore-cap (env/ U4 M4) RT (env/ U3 M3) T (env/ U5 M5)) CRTYP)
+    _ _ _
     (transform/inside [o] (transform/inside [r] (transform/args/+ (TRANS o r))))
     (callTyping/exists [o] (callTyping/exists [r] (callTyping/arg o (CTYP o r))))
+    (transform/trans3
+      (transform/inside [o]
+        (transform/inside [r]
+          (transform/trans
+            (TRANS2 o r)
+            (transform/inside [o1]
+              (transform/inside [r1]
+                (TRANS1 o r o1 r1))))))
+      (transform/rem-unused)
+      (transform/rem-unused))
+    R=>O
     <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B-V RTYP CM-B-R1
     <- clsmap-result/expr-inversion CM-B-R1 CM-B-RT CM-B-U1 CM-B-M1
     <- subtype-consistent (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2
-    <- ({o}{r} reftyping-ok/call CM-CM CM-MM CM2PM MM2W CM-B-V2 ATYP
+    <- restore-cap-preserves-env2input (env2input/ U4=>PiU4 M4=>PiM4)
+      (env2input/ U=>PiU M=>PiM) RC _ (env2input/ U5=>PiU5 M5=>PiM5)
+    <- ({o}{r} reftyping-ok/call* CM-CM CM-MM CM2PM MM2W CM-B-V2 ATYP
          (AR=>AO o r)
-         (arg-perm-rel/+ o r CM-B-RT RT2P U=>PiU M=>PiM AT2P SUB REL)
-         (MT=>PT o) _ _ (TRANS o r) (CTYP o r)).
+         (arg-perm-rel/+ o r CM-B-RT RT2P (env2input/ U=>PiU M=>PiM) AT2P SUB RC REL)
+         (env2input/ U5=>PiU5 M5=>PiM5)
+         (MT=>PT o) CRTYP _ _ _
+         (TRANS o r) (CTYP o r) (TRANS2 o r) (R=>OF o r))
+    <- result2output-no-var R=>OF _ TRANS1 R=>O.
 
-%worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (AT) (reftyping-ok/call _ _ _ _ _ _ AT _ _ _ _ _ _).
+- : reftyping-ok/call* CM-CM CM-MM CM2PM MM2W _
+    (argsRefTyping/0)
+    (result2output/args/0
+      (B=>PiB:cxt2perm CM PM B PiB)
+      (env2input/ (U1=>PiU1:make-encumbered CM PM B U1 PiU1)
+        (M1=>PiM1: capset2perm CM PM B M1 PiM1)))
+    REL
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    (methty2proctype/base T2PF)
+    (callRefTyping/arg/0 (U0+U1=U:set`combine U0 U1 U)
+      (M0+M1=M:set`combine M0 M1 M) T2RT) _ _ _
+    (transform/trans
+      TRANS
+      (transform/args/0 (implies/equiv (equiv/symmetric equiv/associate))))
+    (callTyping/call (envadd/exists [o] (envadd/expr)))
+    (transform/inside [o]
+      (transform/trans
+        (transform/add-unused)
+        (transform/inside [r]
+          (transform/implies
+            (implies/trans4
+              (implies/equiv
+                (equiv/transitive3
+                  (equiv/commute)
+                  (equiv/symmetric equiv/associate)
+                  (equiv/combine equiv/reflexive equiv/associate)))
+              (implies/combine (IMP2 o r)
+                (implies/trans3
+                  (implies/combine IMP implies/reflexive)
+                  (implies/equiv equiv/reorder)
+                  (implies/combine implies/reflexive
+                    (implies/trans
+                      (implies/equiv equiv/swap-middle)
+                      (implies/equiv (equiv/combine (PiU0+PiU1<=>PiU) (PiM0+PiM1<=>PiM)))))))
+              (implies/equiv equiv/reorder)
+              (implies/equiv (equiv/symmetric equiv/identity)))))))
+    (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) T2PRF)
+    <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL
+      (env2input/ U0=>PiU0 M0=>PiM0) _ TRANS IMP
+    <- make-encumbered-combines U0=>PiU0 U1=>PiU1 U0+U1=U PiU U=>PiU PiU0+PiU1<=>PiU
+    <- set`split-implies-permission-combine-converse M0+M1=M M0=>PiM0 M1=>PiM1
+      PiM M=>PiM PiM0+PiM1<=>PiM
+    <- fresh-ty2perm-implies-reftype2perm T2PF T2RT _ T2PRF IMP2.
+
+%worlds (objvar) (reftyping-ok/call* _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (AT) (reftyping-ok/call* _ _ _ _ _ AT _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem reftyping-ok/call
+  : forall* {CM} {MM} {PM} {B} {V} {A}
+    {MT} {AR} {AO} {PT} {W} {R}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM2W: methmap2progtype CM PM MM W}
+    {CM-V: clsmap-cxt-env CM B V}
+    {RTYP-A: argsRefTyping CM MM B V A MT AR}
+    {AR=>AO: result2output CM PM B AR AO}
+    {MT=>PT: methty2proctype CM PM MT PT}
+    {CTYP: callRefTyping CM MM AR MT R}
+    exists {AO'} {O} {O'}
+    {TRANS: transform AO AO'}
+    {CTYP: callTyping W AO' PT O}
+    {TRANS: transform O O'}
+    {R2O: result2output CM PM B R O'}
+    true.
+
+- : reftyping-ok/call CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+    AR=>AO MT=>PT CRTYP _ _ _ TRANS CTYP TRANS2 R2O
+    <- reftyping-ok/call* CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+      AR=>AO arg-perm-rel/0 (env2input/ make-encumbered/0 capset2perm/0)
+      MT=>PT CRTYP _ _ _ TRANS CTYP TRANS2 R2O.
+
+%worlds () (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
