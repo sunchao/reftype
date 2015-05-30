@@ -609,6 +609,65 @@ fldset2condperm/U :
 %total { } (fldset2condperm-bimplies-fldset2perm* _ _ _ _ _ _).
 
 
+%theorem restore-cap-preserves-env2input
+  : forall* {CM} {PM} {B} {PiV0} {PiAV} {V0} {RT} {AV} {T} {V1}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B-RT: clsmap-cxt-reftype CM B RT}
+    {V0=>PiV0: env2input CM PM B V0 PiV0}
+    {AV=>PiAV: env2input CM PM B AV PiAV}
+    {RC: restore-cap V0 RT AV T V1}
+    exists {PiV1}
+    {V1=>PiV1: env2input CM PM B V1 PiV1}
+    true.
+
+- : restore-cap-preserves-env2input _ _ _
+    V=>PiV _ (restore-cap/uniqueORshared _) _ V=>PiV.
+
+- : restore-cap-preserves-env2input CM-CM CM2PM
+    (clsmap-cxt-reftype/unique _ _ (CM-B-MT:clsmap-cxt-capset CM B MT))
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    (env2input/ (UA=>PiUA:make-encumbered CM PM B UA PiUA)
+      (MA=>PiMA:capset2perm CM PM B MA PiMA))
+    (restore-cap/borrow (U0+UA=U1:set`combine U0 UA U1)
+      (M0+MT=M2:set`combine M0 MT M2) (M2+MA=M3:set`combine M2 MA M3))
+    _ (env2input/ U1=>PiU1 M3=>PiM3)
+    <- make-encumbered-combines U0=>PiU0 UA=>PiUA U0+UA=U1 PiU1 U1=>PiU1 PiU0+PiUA<=>PiU1
+    <- clsmap-cxt-capset-implies-capset2perm CM-CM CM2PM CM-B-MT PiMT MT=>PiMT
+    <- set`split-implies-permission-combine-converse
+      M0+MT=M2 M0=>PiM0 MT=>PiMT PiM2 M2=>PiM2 PiM0+PiMT<=>PiM2
+    <- set`split-implies-permission-combine-converse
+      M2+MA=M3 M2=>PiM2 MA=>PiMA PiM3 M3=>PiM3 PiM2+PiMA<=>PiM3.
+
+%worlds (objvar) (restore-cap-preserves-env2input _ _ _ _ _ _ _ _).
+%total { } (restore-cap-preserves-env2input _ _ _ _ _ _ _ _).
+
+
+%theorem restore-cap-preserves-env2input-converse
+  : forall* {CM} {PM} {B} {PiV1} {V0} {RT} {AV} {T} {V1}
+    forall {V1=>PiV1: env2input CM PM B V1 PiV1}
+    {RC: restore-cap V0 RT AV T V1}
+    exists {PiV0}
+    {V0=>PiV0: env2input CM PM B V0 PiV0}
+    true.
+
+- : restore-cap-preserves-env2input-converse
+    V=>PiV (restore-cap/uniqueORshared _) _ V=>PiV.
+
+- : restore-cap-preserves-env2input-converse
+    (env2input/ (U1=>PiU1:make-encumbered CM PM B U1 PiU1)
+      (M3=>PiM3:capset2perm CM PM B M3 PiM3))
+    (restore-cap/borrow (U0+UA=U1:set`combine U0 UA U1)
+      (M0+MT=M2:set`combine M0 MT M2) (M2+MA=M3:set`combine M2 MA M3))
+    _ (env2input/ U0=>PiU0 M0=>PiM0)
+    <- make-encumbered-combines-converse U1=>PiU1 U0+UA=U1 PiU0 PiUA U0=>PiU0 UA=>PiUA _
+    <- set`split-implies-permission-combine M2+MA=M3 M3=>PiM3 PiM2 PiMA M2=>PiM2 _ _
+    <- set`split-implies-permission-combine M0+MT=M2 M2=>PiM2 PiM0 _ M0=>PiM0 _ _.
+
+%worlds (objvar) (restore-cap-preserves-env2input-converse _ _ _ _).
+%total { } (restore-cap-preserves-env2input-converse _ _ _ _).
+
 
 %{
 This lemma shows that suppose for a single argument
@@ -748,6 +807,92 @@ arg-perm-format-helper/2
     <- fldset2condperm CM PM C FS ([o] PFSC2 o)
     <- set+set2set S FS M2
     <- capset2perm CM PM B M2 PiM2.
+
+
+restore-cap-perm : clsmap -> predmap -> cxt -> reftype -> ty -> env -> permission -> type.
+
+restore-cap-perm/uniqueORshared
+  : restore-cap-perm _ _ _ _ (ty/ _ A _) _ empty
+    <- not-borrowed A.
+
+restore-cap-perm/borrow :
+    make-encumbered CM PM B U1 PiU1 ->
+    capset2perm CM PM B M1 PiM1 ->
+    capset2perm CM PM B M3 PiM3 ->
+  restore-cap-perm CM PM B  (reftype/ _ _ (targets/unique _ M1)) (ty/ _ annot/borrow _)
+    (env/ U1 M3) (PiM1 , (PiU1 , PiM3)).
+
+
+%theorem restore-cap-perm-combine
+  : forall* {CM} {PM} {B} {V0} {RT} {AV} {T} {V1} {Pi} {PiV0}
+    forall {RCP: restore-cap-perm CM PM B RT T AV Pi}
+    {RC: restore-cap V0 RT AV T V1}
+    {V0=>PiV0: env2input CM PM B V0 PiV0}
+    exists {PiV1} {V1=>PiV1: env2input CM PM B V1 PiV1}
+    {EQV: equiv (Pi , PiV0) PiV1}
+    true.
+
+- : restore-cap-perm-combine
+    (restore-cap-perm/uniqueORshared _)
+    (restore-cap/uniqueORshared _) V=>PiV
+    _ V=>PiV (equiv/commute-identity).
+
+- : restore-cap-perm-combine
+    (restore-cap-perm/borrow
+      (U1=>PiU1:make-encumbered CM PM B U1 PiU1)
+      (M1=>PiM1:capset2perm CM PM B M1 PiM1)
+      (M3=>PiM3:capset2perm CM PM B M3 PiM3))
+    (restore-cap/borrow (U0+U1=U:set`combine U0 U1 U)
+      (M0+M1=M2:set`combine M0 M1 M2) (M2+M3=M:set`combine M2 M3 M))
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    _ (env2input/ (U=>PiU:make-encumbered CM PM B U PiU)
+        (M=>PiM:capset2perm CM PM B M PiM))
+    (equiv/transitive4
+      (equiv/symmetric equiv/associate)
+      (equiv/combine
+        (equiv/reflexive)
+        (equiv/transitive
+          (equiv/swap-middle)
+          (equiv/combine
+            (equiv/transitive equiv/commute (PiU0+PiU1<=>PiU))
+            (equiv/reflexive))))
+      (equiv/reorder)
+      (equiv/combine equiv/reflexive
+        (equiv/transitive4
+          (equiv/reorder)
+          (equiv/combine equiv/reflexive
+            (equiv/transitive equiv/commute PiM0+PiM1<=>PiM2))
+          (equiv/commute)
+          (PiM2+PiM3<=>PiM))))
+    <- make-encumbered-combines U0=>PiU0 U1=>PiU1 U0+U1=U PiU U=>PiU PiU0+PiU1<=>PiU
+    <- set`split-implies-permission-combine-converse M0+M1=M2
+      M0=>PiM0 M1=>PiM1 PiM2 M2=>PiM2 PiM0+PiM1<=>PiM2
+    <- set`split-implies-permission-combine-converse M2+M3=M
+      M2=>PiM2 M3=>PiM3 PiM M=>PiM PiM2+PiM3<=>PiM.
+
+%worlds (objvar) (restore-cap-perm-combine _ _ _ _ _ _).
+%total { } (restore-cap-perm-combine _ _ _ _ _ _).
+
+
+%theorem restore-cap-perm-combine*
+  : forall* {CM} {PM} {B} {V0} {RT} {AV} {T} {V1} {Pi} {PiV0} {PiV1}
+    forall {RCP: restore-cap-perm CM PM B RT T AV Pi}
+    {RC: restore-cap V0 RT AV T V1}
+    {V0=>PiV0: env2input CM PM B V0 PiV0}
+    {V1=>PiV1: env2input CM PM B V1 PiV1}
+    exists {EQV: equiv (Pi , PiV0) PiV1}
+    true.
+
+- : restore-cap-perm-combine* RCP RC V0=>PiV0 (env2input/ P1 P2)
+    (equiv/transitive EQV' (equiv/combine EQV1 EQV2))
+    <- restore-cap-perm-combine RCP RC V0=>PiV0 _ (env2input/ P1' P2')  EQV'
+    <- make-encumbered-equiv P1' P1 clsmap`eq/ predmap`eq/ cxt`eq/ set`eq/ EQV1
+    <- capset2perm-equiv P2' P2 clsmap`eq/ predmap`eq/ cxt`eq/ set`eq/ EQV2.
+
+%worlds (objvar) (restore-cap-perm-combine* _ _ _ _ _).
+%total { } (restore-cap-perm-combine* _ _ _ _ _).
+
 
 %theorem arg-perm-implies-input-single/L1L
   : forall* {CM} {PM} {B} {S} {FS} {M2} {M} {PiB} {PiM2} {PiM} {GF}
@@ -1081,13 +1226,16 @@ arg-perm-format/borrow/unique
     {RT2P: reftype2perm CM PM B RT ([o][r] PF o r)}
     {V=>PiV: env2input CM PM B AV PiV}
     {AT: argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o)}
-    exists {Pi}
+    exists {Pi} {Pi2} {Pi3}
     {FMT: arg-perm-format CM PM B FS RT T Pi}
+    {RCP: restore-cap-perm CM PM B RT T AV Pi2}
     {TRANS: {o}{r} transform
             (output/args/0 ((PiB , ((PF o r) , PiV)) , PiR))
             (output/args/0 ((PiB , (((PF1 o) , (Pi o r)))) , PiR))}
+    {IMP: {o}{r} implies ((PF2 o) , (Pi o r)) (Pi2 , (Pi3 o r))}
     true.
 
+%{
 %%% unique => unique
 %%% Since we have corresponding permissions in PiU and PiM, we can get
 %%% the whole permissions for the unique argument. For this case, we actually
@@ -1472,9 +1620,10 @@ arg-perm-format/borrow/unique
           (implies/combine (IMP o) implies/reflexive))
         (implies/reflexive)))
     <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1 T2PF2 IMP.
+}%
 
-%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _).
-%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%trustme %total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem arg-perm-rel-transform
@@ -1484,23 +1633,32 @@ arg-perm-format/borrow/unique
     {B=>PiB: cxt2perm CM PM B PiB}
     {REL: arg-perm-rel CM PM B V Pi Pi1 Pi2}
     {V=>PiV: env2input CM PM B V PiV}
-    exists {Pi1'}
+    exists {Pi1'} {Pi3}
     {TRANS: transform
             (output/args/0 (combine Pi (combine PiB PiR)))
             (output/args/0 (combine (combine Pi1 Pi1') (combine PiB PiR)))}
-    {IMP: implies (combine Pi2 Pi1') PiV}
+    {IMP: implies (combine Pi2 Pi1') (PiV , Pi3)}
     true.
 
-%{
 - : arg-perm-rel-transform CM-CM CM2PM B2P
-    arg-perm-rel/0 _
+    arg-perm-rel/0 (env2input/ make-encumbered/0 capset2perm/0) _ _
     (transform/args/0
       (implies/combine
-        (implies/equiv (equiv/symmetric equiv/identity)) implies/reflexive)).
+        (implies/equiv (equiv/symmetric equiv/identity)) implies/reflexive))
+    (implies/equiv (equiv/symmetric equiv/identity)).
 
 - : arg-perm-rel-transform CM-CM CM2PM B=>PiB
-    (arg-perm-rel/+ O R CM-B-RT RT2P V=>PiV AT2P SUB RC REL)
-    _
+    (arg-perm-rel/+ O R
+      (CM-B-RT:clsmap-cxt-reftype CM B RT) RT2P
+      (env2input/ (AU=>PiAU:make-encumbered CM PM B AU PiAU)
+        (AM=>PiAM:capset2perm CM PM B AM PiAM))
+      (AT2P:argtype2perm CM PM T FS ([x] PFFS1 x) ([x] PFFS2 x))
+      (SUB:subtype CM FS RT (env/ U2 M2) T (env/ AU AM) (env/ U3 M3))
+      (RC:restore-cap (env/ U0 M0) RT (env/ AU AM) T (env/ U1 M1))
+      (REL:arg-perm-rel CM PM B (env/ U0 M0) Pi Pi1 Pi2))
+    (env2input/ (U1=>PiU1:make-encumbered CM PM B U1 PiU1)
+      (M1=>PiM1:capset2perm CM PM B M1 PiM1))
+    _ _
     (transform/trans3
       (transform/args/0
         (implies/equiv
@@ -1526,14 +1684,30 @@ arg-perm-format/borrow/unique
                 (equiv/combine equiv/associate equiv/reorder)
                 (equiv/associate)
                 (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)))))))
-    <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL _ TRANS1
+    (implies/trans4
+      (implies/equiv
+        (equiv/transitive (equiv/combine equiv/commute equiv/reflexive)
+          (equiv/swap-middle)))
+      (implies/combine IMP (IMP2 O R))
+      (implies/equiv equiv/swap-middle)
+      (implies/combine
+        (implies/equiv (equiv/transitive equiv/commute EQV))
+        (implies/reflexive)))
+    <- restore-cap-preserves-env2input-converse
+      (env2input/ U1=>PiU1 M1=>PiM1) RC _
+      (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL
+      (env2input/ U0=>PiU0 M0=>PiM0) Pi1' _ TRANS1 IMP
     <- transform-commutes-envadd* TRANS1 envadd/args/0 envadd/args/0 TRANS1'
     <- arg-perm-implies-input-single CM-CM CM2PM B=>PiB CM-B-RT
-      SUB RT2P V=>PiV AT2P _ FMT ([o][r] TRANS2 o r).
-}%
+      SUB RT2P (env2input/ AU=>PiAU AM=>PiAM) AT2P _ _ _ FMT RCP
+      ([o][r] TRANS2 o r) ([o][r] IMP2 o r)
+    <- restore-cap-perm-combine* RCP RC (env2input/ U0=>PiU0 M0=>PiM0)
+      (env2input/ U1=>PiU1 M1=>PiM1) EQV.
 
-%worlds (objvar) (arg-perm-rel-transform _ _ _ _ _ _ _ _).
-%trustme %total (A) (arg-perm-rel-transform _ _ _ A _ _ _ _).
+%worlds (objvar) (arg-perm-rel-transform _ _ _ _ _ _ _ _ _).
+%total (A) (arg-perm-rel-transform _ _ _ A _ _ _ _ _).
 
 
 %theorem cxt`lookup-no-var2
@@ -2002,66 +2176,6 @@ arg-perm-format/borrow/unique
 %total { } (fresh-ty2perm-implies-reftype2perm _ _ _ _ _).
 
 
-%theorem restore-cap-preserves-env2input
-  : forall* {CM} {PM} {B} {PiV0} {PiAV} {V0} {RT} {AV} {T} {V1}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B-RT: clsmap-cxt-reftype CM B RT}
-    {V0=>PiV0: env2input CM PM B V0 PiV0}
-    {AV=>PiAV: env2input CM PM B AV PiAV}
-    {RC: restore-cap V0 RT AV T V1}
-    exists {PiV1}
-    {V1=>PiV1: env2input CM PM B V1 PiV1}
-    true.
-
-- : restore-cap-preserves-env2input _ _ _
-    V=>PiV _ (restore-cap/uniqueORshared _) _ V=>PiV.
-
-- : restore-cap-preserves-env2input CM-CM CM2PM
-    (clsmap-cxt-reftype/unique _ _ (CM-B-MT:clsmap-cxt-capset CM B MT))
-    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
-      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (env2input/ (UA=>PiUA:make-encumbered CM PM B UA PiUA)
-      (MA=>PiMA:capset2perm CM PM B MA PiMA))
-    (restore-cap/borrow (U0+UA=U1:set`combine U0 UA U1)
-      (M0+MT=M2:set`combine M0 MT M2) (M2+MA=M3:set`combine M2 MA M3))
-    _ (env2input/ U1=>PiU1 M3=>PiM3)
-    <- make-encumbered-combines U0=>PiU0 UA=>PiUA U0+UA=U1 PiU1 U1=>PiU1 PiU0+PiUA<=>PiU1
-    <- clsmap-cxt-capset-implies-capset2perm CM-CM CM2PM CM-B-MT PiMT MT=>PiMT
-    <- set`split-implies-permission-combine-converse
-      M0+MT=M2 M0=>PiM0 MT=>PiMT PiM2 M2=>PiM2 PiM0+PiMT<=>PiM2
-    <- set`split-implies-permission-combine-converse
-      M2+MA=M3 M2=>PiM2 MA=>PiMA PiM3 M3=>PiM3 PiM2+PiMA<=>PiM3.
-
-%worlds (objvar) (restore-cap-preserves-env2input _ _ _ _ _ _ _ _).
-%total { } (restore-cap-preserves-env2input _ _ _ _ _ _ _ _).
-
-
-%theorem restore-cap-preserves-env2input-converse
-  : forall* {CM} {PM} {B} {PiV1} {V0} {RT} {AV} {T} {V1}
-    forall {V1=>PiV1: env2input CM PM B V1 PiV1}
-    {RC: restore-cap V0 RT AV T V1}
-    exists {PiV0}
-    {V0=>PiV0: env2input CM PM B V0 PiV0}
-    true.
-
-- : restore-cap-preserves-env2input-converse
-    V=>PiV (restore-cap/uniqueORshared _) _ V=>PiV.
-
-- : restore-cap-preserves-env2input-converse
-    (env2input/ (U1=>PiU1:make-encumbered CM PM B U1 PiU1)
-      (M3=>PiM3:capset2perm CM PM B M3 PiM3))
-    (restore-cap/borrow (U0+UA=U1:set`combine U0 UA U1)
-      (M0+MT=M2:set`combine M0 MT M2) (M2+MA=M3:set`combine M2 MA M3))
-    _ (env2input/ U0=>PiU0 M0=>PiM0)
-    <- make-encumbered-combines-converse U1=>PiU1 U0+UA=U1 PiU0 PiUA U0=>PiU0 UA=>PiUA _
-    <- set`split-implies-permission-combine M2+MA=M3 M3=>PiM3 PiM2 PiMA M2=>PiM2 _ _
-    <- set`split-implies-permission-combine M0+MT=M2 M2=>PiM2 PiM0 _ M0=>PiM0 _ _.
-
-%worlds (objvar) (restore-cap-preserves-env2input-converse _ _ _ _).
-%total { } (restore-cap-preserves-env2input-converse _ _ _ _).
-
-
 %theorem reftyping-ok/call*
   : forall* {CM} {MM} {PM} {B} {V} {A} {R}
     {MT} {AR} {AO} {PT} {W} {Pi} {Pi1} {Pi2} {V0} {PiV0}
@@ -2147,26 +2261,33 @@ arg-perm-format/borrow/unique
       (transform/trans
         (transform/add-unused)
         (transform/inside [r]
-          (transform/implies
-            (implies/trans4
-              (implies/equiv
-                (equiv/transitive3
-                  (equiv/commute)
-                  (equiv/symmetric equiv/associate)
-                  (equiv/combine equiv/reflexive equiv/associate)))
-              (implies/combine (IMP2 o r)
-                (implies/trans3
-                  (implies/combine IMP implies/reflexive)
-                  (implies/equiv equiv/reorder)
-                  (implies/combine implies/reflexive
-                    (implies/trans
-                      (implies/equiv equiv/swap-middle)
-                      (implies/equiv (equiv/combine (PiU0+PiU1<=>PiU) (PiM0+PiM1<=>PiM)))))))
-              (implies/equiv equiv/reorder)
-              (implies/equiv (equiv/symmetric equiv/identity)))))))
+          (transform/trans
+            (transform/implies
+              (implies/trans4
+                (implies/equiv
+                  (equiv/transitive3
+                    (equiv/commute)
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/associate)))
+                (implies/combine (IMP2 o r)
+                  (implies/trans5
+                    (implies/combine IMP implies/reflexive)
+                    (implies/equiv (equiv/combine equiv/commute equiv/reflexive))
+                    (implies/equiv equiv/swap-middle)
+                    (implies/combine implies/reflexive
+                      (implies/equiv
+                        (equiv/transitive
+                          (equiv/swap-middle)
+                          (equiv/combine (PiU0+PiU1<=>PiU) (PiM0+PiM1<=>PiM)))))
+                    (implies/equiv (equiv/symmetric equiv/associate))))
+                (implies/equiv equiv/reorder)
+                (implies/combine implies/reflexive
+                  (implies/equiv
+                    (equiv/transitive equiv/reorder (equiv/symmetric equiv/identity))))))
+            (transform/drop)))))
     (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) T2PRF)
     <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL
-      (env2input/ U0=>PiU0 M0=>PiM0) _ TRANS IMP
+      (env2input/ U0=>PiU0 M0=>PiM0) _ _ TRANS IMP
     <- make-encumbered-combines U0=>PiU0 U1=>PiU1 U0+U1=U PiU U=>PiU PiU0+PiU1<=>PiU
     <- set`split-implies-permission-combine-converse M0+M1=M M0=>PiM0 M1=>PiM1
       PiM M=>PiM PiM0+PiM1<=>PiM
