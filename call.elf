@@ -2531,3 +2531,215 @@ arg-perm-format/borrow/unique
 
 %worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total { } (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem nat`eq-implies-basic-perm-eq
+	: forall* {N1} {N2}
+    forall {EQ: nat`eq N1 N2}
+    exists {EQ: {t} permission`eq
+                (unitperm (basic t N1 null))
+                (unitperm (basic t N2 null))}
+    true.
+
+- : nat`eq-implies-basic-perm-eq nat`eq/ ([_] permission`eq/).
+
+%worlds (objvar) (nat`eq-implies-basic-perm-eq _ _).
+%total { } (nat`eq-implies-basic-perm-eq _ _).
+
+
+%theorem allocFields-unique
+  : forall* {S1} {S2} {OS1} {OS2}
+    forall {AF: {t} allocFields t S1 (OS1 t)}
+		{AF: {t} allocFields t S2 (OS2 t)}
+		{EQ: set`eq S1 S2}
+    exists {EQ: {t} permission`eq (OS1 t) (OS2 t)}
+    true.
+
+- : allocFields-unique
+     ([_] allocFields/0) ([_] allocFields/0) set`eq/ ([_] permission`eq/).
+
+- : allocFields-unique
+     ([t] allocFields/+ SH1 (AF1 t))
+     ([t] allocFields/+ SH2 (AF2 t)) S1=S2 OS1=OS2
+     <- set`map/+-preserves-eq-converse S1=S2 N1=N2 unit`eq/ SP1=SP2
+     <- set`shift-deterministic SH1 SH2 N1=N2 SP1=SP2 SHP1=SHP2
+     <- nat`eq-implies-basic-perm-eq N1=N2 ([t] BP1=BP2 t)
+     <- allocFields-unique AF1 AF2 SHP1=SHP2 ([t] OSP1=OSP2 t)
+     <- ({t} permission`combine-preserves-eq (OSP1=OSP2 t) (BP1=BP2 t) (OS1=OS2 t)).
+
+%worlds (objvar) (allocFields-unique _ _ _ _).
+%total (AF) (allocFields-unique AF _ _ _).
+
+
+%theorem reftyping-ok/const*
+  : forall* {CM} {MM} {PM} {B} {V} {A} {R} {FM} {S} {OS}
+    {CTF} {AR} {AO} {PTF} {W} {Pi} {Pi1} {Pi2} {V0} {PiV0}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM=>W: methmap2progtype CM PM MM W}
+    {CM-V: clsmap-cxt-env CM B V}
+    {RTYP-A: argsRefTyping CM MM B V A CTF AR}
+    {AR=>AO: result2output* CM PM B Pi AR AO}
+    {REL: arg-perm-rel CM PM B V0 Pi Pi1 Pi2}
+    {V0=>PiV0: env2input CM PM B V0 PiV0}
+    {CTF=>PTF: consty2proctype* CM FM PM Pi1 Pi2 CTF PTF}
+    {CTYP: callRefTyping* CM MM V0 AR CTF R}
+    {FM-DM: fldmap`domain FM S}
+    {AF: {t} allocFields t S (OS t)}
+    exists {AO'} {AO''} {O} {O'}
+    {EA: {t} envadd ((obj-ne-null t) , (OS t)) AO (AO' t)}
+    {TRANS: {t} transform (AO' t) (AO'' t) }
+    {CTYP: {t} callTyping W (AO'' t) (PTF t) (O t)}
+    {TRANS: {t} transform (O t) O'}
+    {FMT: result2output CM PM B R O'}
+    true.
+
+- : reftyping-ok/const* CM-CM CM-MM CM2PM MM2W _
+    (argsRefTyping/0)
+    (result2output/args/0
+      (B=>PiB:cxt2perm CM PM B PiB)
+      (env2input/ (U1=>PiU1:make-encumbered CM PM B U1 PiU1)
+        (M1=>PiM1: capset2perm CM PM B M1 PiM1)))
+    REL
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    (consty2proctype/base
+      (FM-DM1:fldmap`domain FM S1)
+      (AF1:{t} allocFields t S1 (OS1 t)) T2PF)
+    (callRefTyping/arg/0 (U0+U1=U:set`combine U0 U1 U)
+      (M0+M1=M:set`combine M0 M1 M) T2RT)
+    (FM-DM:fldmap`domain FM S) (AF:{t} allocFields t S (OS t))
+    _ _ _ _
+    ([t] envadd/args/0)
+    ([t] transform/trans
+      (TRANS' t)
+      (transform/args/0
+        (implies/equiv
+          (equiv/transitive3
+            (equiv/combine
+              (equiv/combine equiv/reflexive (OS<=>OS1 t))
+              (equiv/symmetric equiv/associate))
+            (equiv/associate)
+            (equiv/combine equiv/commute equiv/reflexive)))))
+    ([t] callTyping/call (envadd/exists [o] (envadd/expr)))
+    ([t] transform/inside [o]
+      (transform/trans
+        (transform/add-unused)
+        (transform/inside [r]
+          (transform/trans
+            (transform/implies
+              (implies/trans4
+                (implies/equiv
+                  (equiv/transitive3
+                    (equiv/commute)
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/associate)))
+                (implies/combine (IMP2 o r)
+                  (implies/trans5
+                    (implies/combine IMP implies/reflexive)
+                    (implies/equiv (equiv/combine equiv/commute equiv/reflexive))
+                    (implies/equiv equiv/swap-middle)
+                    (implies/combine implies/reflexive
+                      (implies/equiv
+                        (equiv/transitive
+                          (equiv/swap-middle)
+                          (equiv/combine (PiU0+PiU1<=>PiU) (PiM0+PiM1<=>PiM)))))
+                    (implies/equiv (equiv/symmetric equiv/associate))))
+                (implies/equiv equiv/reorder)
+                (implies/combine implies/reflexive
+                  (implies/equiv
+                    (equiv/transitive equiv/reorder (equiv/symmetric equiv/identity))))))
+            (transform/drop)))))
+    (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) T2PRF)
+    <- arg-perm-rel-transform CM-CM CM2PM B=>PiB REL
+      (env2input/ U0=>PiU0 M0=>PiM0) _ _ TRANS IMP
+    <- make-encumbered-combines U0=>PiU0 U1=>PiU1 U0+U1=U PiU U=>PiU PiU0+PiU1<=>PiU
+    <- set`split-implies-permission-combine-converse M0+M1=M M0=>PiM0 M1=>PiM1
+      PiM M=>PiM PiM0+PiM1<=>PiM
+    <- fresh-ty2perm-implies-reftype2perm T2PF T2RT _ T2PRF IMP2
+    <- ({t:object} transform-commutes-envadd* TRANS envadd/args/0 envadd/args/0 (TRANS' t))
+    <- fldmap`domain-unique FM-DM FM-DM1 fldmap`eq/ S=S1
+    <- allocFields-unique AF AF1 S=S1 OS=OS1
+    <- ({t} permission`eq-implies-equiv (OS=OS1 t) (OS<=>OS1 t)).
+
+- : reftyping-ok/const* CM-CM CM-MM (CM2PM:clsmap2predmap CM PM)
+    (MM2W:methmap2progtype CM PM MM W) CM-B-V
+    (argsRefTyping/+
+      (RTYP:reftyping CM MM B V0 E (result/expr RT (env/ U1 M1)))
+      (SUB:subtype CM FS RT (env/ U1 M1) T (env/ U3 M3) (env/ U2 M2))
+      (ATYP:argsRefTyping CM MM B (env/ U2 M2) AR MT AOut))
+    (result2output/args/+
+      (env2input/ (U=>PiU:make-encumbered CM PM B U3 PiU)
+        (M=>PiM:capset2perm CM PM B M3 PiM))
+      (RT2P:reftype2perm CM PM B RT ([x][o] PF x o))
+      ([o][r] AR=>AO o r))
+    REL
+    (env2input/ (U4=>PiU4:make-encumbered CM PM B U4 PiU4)
+      (M4=>PiM4:capset2perm CM PM B M4 PiM4))
+    (consty2proctype/arg (AT2P:argtype2perm CM PM T FS ([x] PF1 x) ([x] PF2 x))
+      ([o] CTF=>PTF o))
+    (callRefTyping/arg/+ (RC:restore-cap (env/ U4 M4) RT (env/ U3 M3) T (env/ U5 M5)) CRTYP)
+    FM-DM AF
+    _ _ _ _
+    ([t] (envadd/exists [o] (envadd/exists [r] (envadd/args/+ (EA o r t)))))
+    ([t] (transform/inside [o] (transform/inside [r] (transform/args/+ (TRANS o r t)))))
+    ([t] (callTyping/exists [o] (callTyping/exists [r] (callTyping/arg o (CTYP o r t)))))
+    ([t] transform/trans3
+      (transform/inside [o]
+        (transform/inside [r]
+          (transform/trans
+            (TRANS2 o r t)
+            (transform/inside [o1]
+              (transform/inside [r1]
+                (TRANS1 o r o1 r1))))))
+      (transform/rem-unused)
+      (transform/rem-unused))
+    R=>O
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B-V RTYP CM-B-R1
+    <- clsmap-result/expr-inversion CM-B-R1 CM-B-RT CM-B-U1 CM-B-M1
+    <- subtype-consistent (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2
+    <- restore-cap-preserves-env2input CM-CM CM2PM CM-B-RT (env2input/ U4=>PiU4 M4=>PiM4)
+      (env2input/ U=>PiU M=>PiM) RC _ (env2input/ U5=>PiU5 M5=>PiM5)
+    <- ({o}{r} reftyping-ok/const* CM-CM CM-MM CM2PM MM2W CM-B-V2 ATYP
+         (AR=>AO o r)
+         (arg-perm-rel/+ o r CM-B-RT RT2P (env2input/ U=>PiU M=>PiM) AT2P SUB RC REL)
+         (env2input/ U5=>PiU5 M5=>PiM5)
+         (CTF=>PTF o) CRTYP FM-DM AF _ _ _ _ (EA o r)
+         (TRANS o r) (CTYP o r) (TRANS2 o r) (R=>OF o r))
+    <- result2output-no-var R=>OF _ TRANS1 R=>O.
+
+%worlds (objvar) (reftyping-ok/const* _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (AT) (reftyping-ok/const* _ _ _ _ _ AT _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem reftyping-ok/const
+  : forall* {CM} {MM} {PM} {B} {V} {A} {FM} {S}
+    {CTF} {AR} {AO} {PTF} {W} {R} {OS}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM2W: methmap2progtype CM PM MM W}
+    {CM-V: clsmap-cxt-env CM B V}
+    {RTYP-A: argsRefTyping CM MM B V A CTF AR}
+    {AR=>AO: result2output CM PM B AR AO}
+    {MT=>PT: consty2proctype CM FM PM CTF PTF}
+    {CTYP: callRefTyping CM MM AR CTF R}
+    {DM: fldmap`domain FM S}
+    {AF: {t} allocFields t S (OS t)}
+    exists {AO'} {AO''} {O} {O'}
+    {EA: {t} envadd ((obj-ne-null t) , (OS t)) AO (AO' t)}
+    {TRANS: {t} transform (AO' t) (AO'' t)}
+    {CTYP: {t} callTyping W (AO'' t) (PTF t) (O t)}
+    {TRANS: {t} transform (O t) O'}
+    {R2O: result2output CM PM B R O'}
+    true.
+
+- : reftyping-ok/const CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+    AR=>AO MT=>PT CRTYP DM AF _ _ _ _ EA TRANS CTYP TRANS2 R2O
+    <- reftyping-ok/const* CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+      AR=>AO arg-perm-rel/0 (env2input/ make-encumbered/0 capset2perm/0)
+      MT=>PT CRTYP DM AF _ _ _ _ EA TRANS CTYP TRANS2 R2O.
+
+%worlds (objvar) (reftyping-ok/const _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (reftyping-ok/const _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
