@@ -282,30 +282,38 @@ ty2new-reftype/shared :
     ty2new-reftype (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
 
 
-restore-cap : env -> reftype -> env -> ty -> env -> type.
+%%% Look for encumbered capabilities and put them back in the holding capability set
 
-restore-cap/uniqueORshared : not-borrowed A ->
-  restore-cap V _ _ (ty/ _ A _) V.
+restore-cap-targets : env -> targets -> env -> type.
 
-restore-cap/borrow :
-    set`combine U0 U1 U ->
-    set`combine M0 M1 M2 ->
-    set`combine M2 M3 M ->
-  restore-cap (env/ U0 M0) (reftype/ _ _ (targets/unique _ M1)) (env/ U1 M3)
-    (ty/ _ annot/borrow _) (env/ U M).
+restore-cap-targets/shared : restore-cap-targets V targets/shared V.
+
+restore-cap-targets/unique :
+    set`combine M0 M1 M ->
+  restore-cap-targets (env/ U M0) (targets/unique _ M1) (env/ U M).
+
+
+restore-cap-call : env -> reftype -> env -> ty -> env -> type.
+
+restore-cap-call/uniqueORshared :
+    not-borrowed A ->
+  restore-cap-call V _ _ (ty/ _ A _) V.
+
+restore-cap-call/borrow :
+    restore-cap-targets V0 (targets/unique S M) V0' ->
+    env`combine V0' V1 V2 ->
+  restore-cap-call V0 (reftype/ _ _ (targets/unique S M)) V1 (ty/ _ annot/borrow _) V2.
 
 
 callRefTyping* : clsmap -> methmap -> env -> args-result -> methty -> expr-result -> type.
 
 callRefTyping/arg/0 :
-    set`combine U0 U1 U ->
-    set`combine M0 M1 M ->
+    env`combine V0 V1 V ->
     ty2new-reftype T RT ->
-  callRefTyping* CM MM (env/ U0 M0) (result/args/0 (env/ U1 M1)) (methty/base T)
-      (result/expr RT (env/ U M)).
+  callRefTyping* CM MM V0 (result/args/0 V1) (methty/base T) (result/expr RT V).
 
 callRefTyping/arg/+ :
-    restore-cap V0 RT AV T V1 ->
+    restore-cap-call V0 RT AV T V1 ->
     callRefTyping* CM MM V1 AR MT R ->
   callRefTyping* CM MM V0 (result/args/+ RT AV AR) (methty/arg T _ MT) R.
 
@@ -327,22 +335,28 @@ reftyping/const :
     callRefTyping CM MM AR MT R ->
   reftyping CM MM B V (call C (args/+ (alloc C S set/0) A)) R.
 
+
 %{
-reftyping/if
-  : reftyping CM MM B C (result/cond XXC)
+reftyping/if :
+          reftyping CM MM B C (result/cond XXC)
     -> reftyping CM MM B E1 (result/expr RT XXE)
     -> reftyping CM MM B E2 (result/expr RT XXE)
     -> effects`join XXC XXE XX
-    -> reftyping CM MM B (if C E1 E2) (result/expr RT XX).
-}%
+  -> reftyping CM MM B (if C E1 E2) (result/expr RT XX).
 
+}%
 
 %%% Conditionals
 
-% reftyping/eq : reftyping N CM MM B E1 (result/expr _ XX1)
-%                -> reftyping N CM MM B E2 (result/expr _ XX2)
-%                -> effects`join XX1 XX2 XX
-%                -> reftyping N CM MM B (eql E1 E2) (result/cond XX).
+%%% After the "eql" statement, we need to reclaim the capabilities
+%%% encumbered in `RT1` and `RT2`.
+
+reftyping/eq :
+    reftyping CM MM B V0 E1 (result/expr (reftype/ _ _ G1) V1) ->
+    reftyping CM MM B V1 E2 (result/expr (reftype/ _ _ G2) V2) ->
+    restore-cap-targets V2 G1 V3 ->
+    restore-cap-targets V3 G2 V4 ->
+  reftyping CM MM B V0 (eql E1 E2) (result/cond V4).
 
 % reftyping/not : reftyping N CM MM B (not C) R
 %                 -> reftyping N CM MM B C R.
