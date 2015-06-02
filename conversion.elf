@@ -102,16 +102,16 @@ encumbered permission for them. So, the cxt should only
 contain borrowed and shared types.
 }%
 
-cxt2perm : clsmap -> predmap -> cxt -> permission -> type.
+cxt2perm : predmap -> cxt -> permission -> type.
 
-cxt2perm/0 : cxt2perm _ _ cxt/0 empty.
+cxt2perm/0 : cxt2perm _ cxt/0 empty.
 
 cxt2perm/U :
-    cxt2perm CM PM B' Pi2 ->
+    cxt2perm PM B' Pi2 ->
     cxt`fresh B' N ->
     cxt`update B' N (cxt-info/ O T) B ->
     ty2perm2 PM T PF ->
-  cxt2perm CM PM B ((PF O) , Pi2).
+  cxt2perm PM B ((PF O) , Pi2).
 
 
 %%% Create field permission
@@ -216,7 +216,7 @@ reftype2perm/fresh :
 result2output* : clsmap -> predmap -> cxt -> permission -> result K -> output K -> type.
 
 result2output/expr :
-    cxt2perm CM PM B PiB ->
+    cxt2perm PM B PiB ->
     env2input CM PM B V PiV ->
     reftype2perm CM PM B RT PF ->
   result2output* CM PM B Pi (result/expr RT V)
@@ -226,7 +226,7 @@ result2output/expr :
           (combine (combine PiB (combine (PF o r) PiV)) Pi)))).
 
 result2output/args/0 :
-    cxt2perm CM PM B PiB ->
+    cxt2perm PM B PiB ->
     env2input CM PM B V PiV ->
   result2output* CM PM B Pi0 (result/args/0 V) (output/args/0 (Pi0 , (PiB , PiV))).
 
@@ -643,9 +643,7 @@ methmap2progtype/U/m :
 %trustme %total { } (fldset2perm-split-implies-permission-combine _ _ _ _ _ _ _ _ _).
 
 
-%% theorems about cxt2perm
-
-%% 2.1 theorems about ty2perm2
+%% theorems about ty2perm2
 
 %theorem ty2perm2-respects-eq
   : forall* {T1} {T2} {PM1} {PM2} {PF1} {PF2}
@@ -710,55 +708,27 @@ methmap2progtype/U/m :
     forall {T12PF1: ty2perm2 PM1 T1 PF1}
     {T22PF2: ty2perm2 PM2 T2 PF2}
     {E: predmap`eq PM1 PM2} {EQ: ty`eq T1 T2}
-    exists {IMP: {o} implies (PF1 o) (PF2 o)}
-    {IMP: {o} implies (PF2 o) (PF1 o)}
+    exists {EQV: {x} equiv (PF1 x) (PF2 x)}
     true.
 
-% - : ty2perm2-implies
-%     (ty2perm2/unique CML1 PML1 ([x] FM=>PF1 x) T=>Pi1)
-%     (ty2perm2/unique CML2 PML2 ([x] FM=>PF2 x) T=>Pi2)
-%     (CM-EQ:clsmap`eq CM1 CM2) (PM-EQ:predmap`eq PM1 PM2) T-EQ IMP1 IMP2
-%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
-%     <- clsmap`lookup-unique CML1 CML2 CM-EQ C-EQ FM-EQ
-%     <- predmap`lookup-unique PML1 PML2 PM-EQ C-EQ CP-EQ
-%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
-%     <- ty2perm-deterministic T=>Pi1 T=>Pi2 PM-EQ T-EQ2 PF-EQ
-%     <- ({x} fldset2perm2-unique (FM=>PF1 x) (FM=>PF2 x) PM-EQ object`eq/ FM-EQ (EQ x))
-%     <- ({x} permission`eq-implies-equiv (EQ x) (EQV x))
-%     <- ty2perm2-implies/L/unique PF-EQ CP-EQ EQV IMP1 IMP2.
+- : ty2perm2-equiv (ty2perm2/unique T2PF1) (ty2perm2/unique T2PF2) PM-EQ T-EQ EQV
+    <- ty-eq-inversion T-EQ NN-EQ _ C-EQ
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
+    <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 P-EQ
+    <- ({x} permission`eq-implies-equiv (P-EQ x) (EQV x)).
 
-% - : ty2perm2-implies
-%     (ty2perm2/borrow T2PF1) (ty2perm2/borrow T2PF2)
-%     PM-EQ T-EQ ([x] implies/equiv (EQV x))
-%     ([x] implies/equiv (equiv/symmetric (EQV x)))
-%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
-%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
-%     <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
-%     <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
+- : ty2perm2-equiv (ty2perm2/borrow T2PF1) (ty2perm2/borrow T2PF2) PM-EQ T-EQ EQV
+    <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ P-EQ
+    <- ({x} permission`eq-implies-equiv (P-EQ x) (EQV x)).
 
-% - : ty2perm2-implies
-%     (ty2perm2/unique T2PF1) (ty2perm2/unique T2PF2)
-%     PM-EQ T-EQ ([x] implies/equiv (EQV x))
-%     ([x] implies/equiv (equiv/symmetric (EQV x)))
-%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
-%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
-%     <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
-%     <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
+- : ty2perm2-equiv (ty2perm2/shared T2PF1) (ty2perm2/shared T2PF2) PM-EQ T-EQ EQV
+    <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ P-EQ
+    <- ({x} permission`eq-implies-equiv (P-EQ x) (EQV x)).
 
-% - : ty2perm2-implies
-%     (ty2perm2/shared T2PF1) (ty2perm2/shared T2PF2)
-%     PM-EQ T-EQ ([x] implies/equiv (EQV x)).
-%     ([x] implies/equiv (equiv/symmetric (EQV x)))
-%     <- ty-eq-inversion T-EQ NN-EQ A-EQ C-EQ
-%     <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ2
-%     <- ty2perm-deterministic T2PF1 T2PF2 PM-EQ T-EQ2 PF-EQ
-%     <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
+- : ty2perm2-equiv ty2perm2/null ty2perm2/null PM-EQ T-EQ ([_] equiv/reflexive).
 
-% - : ty2perm2-implies ty2perm2/null ty2perm2/null _ _ _ ([_] implies/reflexive)
-%     ([_] implies/reflexive).
-
-%worlds (objvar) (ty2perm2-equiv _ _ _ _ _ _).
-%trustme %total { } (ty2perm2-equiv _ _ _ _ _ _).
+%worlds (objvar) (ty2perm2-equiv _ _ _ _ _).
+%total { } (ty2perm2-equiv _ _ _ _ _).
 
 
 %theorem clsmap-lookup-implies-ty2perm2*
@@ -793,9 +763,40 @@ methmap2progtype/U/m :
 %abbrev clsmap-lookup-implies-ty2perm2 = clsmap-lookup-implies-ty2perm2* _.
 
 
+%theorem ty2perm2-duplicate-notnull-info
+  : forall* {PM} {PF} {A} {C}
+    forall {T2PF: ty2perm2 PM (ty/ nn/yes A C) PF}
+    exists {IMP: {x} implies (PF x)
+                 (combine (unitperm (nonlinear (neg (objequal x null)))) (PF x))}
+    true.
+
+- : ty2perm2-duplicate-notnull-info
+    (ty2perm2/borrow (ty2perm/ _ nn2perm/yes _))
+    ([_] implies/trans
+      (implies/combine implies/duplicate implies/reflexive)
+      (implies/equiv (equiv/symmetric equiv/associate))).
+
+- : ty2perm2-duplicate-notnull-info
+    (ty2perm2/unique (ty2perm/ _ nn2perm/yes _))
+    ([_] implies/trans
+      (implies/combine implies/duplicate implies/reflexive)
+      (implies/equiv (equiv/symmetric equiv/associate))).
+
+- : ty2perm2-duplicate-notnull-info
+    (ty2perm2/shared (ty2perm/ _ nn2perm/yes _))
+    ([_] implies/trans
+      (implies/combine implies/duplicate implies/reflexive)
+      (implies/equiv (equiv/symmetric equiv/associate))).
+
+%worlds (objvar) (ty2perm2-duplicate-notnull-info _ _).
+%total { } (ty2perm2-duplicate-notnull-info _ _).
+
+
+%%% theorems about cxt2perm
+
 %theorem false-implies-cxt2perm
-  : forall* {CM} {PM} {B} {Pi}
-    forall {F:void} exists {B2P: cxt2perm CM PM B Pi}
+  : forall* {PM} {B} {Pi}
+    forall {F:void} exists {B2P: cxt2perm PM B Pi}
     true.
 
 %worlds () (false-implies-cxt2perm _ _).
@@ -803,17 +804,17 @@ methmap2progtype/U/m :
 
 
 %theorem cxt2perm-respects-eq
-  : forall* {CM} {PM} {B} {Pi} {CM'} {PM'} {B'} {Pi'}
-    forall {B2P: cxt2perm CM PM B Pi}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
+  : forall* {PM} {B} {Pi} {PM'} {B'} {Pi'}
+    forall {B2P: cxt2perm PM B Pi}
+    {PME: predmap`eq PM PM'}
     {BE: cxt`eq B B'} {PE: permission`eq Pi Pi'}
-    exists {B2P': cxt2perm CM' PM' B' Pi'}
+    exists {B2P': cxt2perm PM' B' Pi'}
     true.
 
-- : cxt2perm-respects-eq B2P clsmap`eq/ predmap`eq/ cxt`eq/ permission`eq/ B2P.
+- : cxt2perm-respects-eq B2P predmap`eq/ cxt`eq/ permission`eq/ B2P.
 
-%worlds (objvar) (cxt2perm-respects-eq _ _ _ _ _ _).
-%total { } (cxt2perm-respects-eq _ _ _ _ _ _).
+%worlds (objvar) (cxt2perm-respects-eq _ _ _ _ _).
+%total { } (cxt2perm-respects-eq _ _ _ _ _).
 
 
 %theorem clsmap-cxt-implies-cxt2perm
@@ -821,7 +822,8 @@ methmap2progtype/U/m :
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
     {CM-B: clsmap-cxt CM B}
-    exists {Pi:permission} {B=>Pi: cxt2perm CM PM B Pi}
+    exists {Pi:permission}
+    {B=>Pi: cxt2perm PM B Pi}
     true.
 
 - : clsmap-cxt-implies-cxt2perm _ _ clsmap-cxt/0 _ cxt2perm/0.
@@ -837,25 +839,25 @@ methmap2progtype/U/m :
 
 
 %theorem cxt2perm/U-inversion
-  : forall* {CM} {PM} {B} {Pi} {BP} {N} {O} {T}
-    forall {B2P: cxt2perm CM PM B Pi}
+  : forall* {PM} {B} {Pi} {BP} {N} {O} {T}
+    forall {B2P: cxt2perm PM B Pi}
     {F: cxt`fresh BP N}
     {U: cxt`update BP N (cxt-info/ O T) B}
-    exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
+    exists {PiP} {BP2P: cxt2perm PM BP PiP}
     {PF} {T2P: ty2perm2 PM T PF}
     {E: equiv Pi (combine (PF O) PiP)}
     true.
 
 %theorem cxt2perm/U-inversion/L
-  : forall* {CM} {PM} {B} {BP} {N} {O} {T} {B1} {N1} {O1} {T1} {PF1} {Pi1} {P}
-    forall {B2P1: cxt2perm CM PM B1 Pi1}
+  : forall* {PM} {B} {BP} {N} {O} {T} {B1} {N1} {O1} {T1} {PF1} {Pi1} {P}
+    forall {B2P1: cxt2perm PM B1 Pi1}
     {F1: cxt`fresh B1 N1}
     {U1: cxt`update B1 N1 (cxt-info/ O1 T1) B}
     {R1: ty2perm2 PM T1 PF1}
     {F: cxt`fresh BP N}
     {U: cxt`update BP N (cxt-info/ O T) B}
     {E?: nat`eq? N N1 P}
-    exists {PiP} {BP2P: cxt2perm CM PM BP PiP}
+    exists {PiP} {BP2P: cxt2perm PM BP PiP}
     {PF} {R: ty2perm2 PM T PF}
     {E: equiv (combine (PF1 O1) Pi1) (combine (PF O) PiP)}
     true.
@@ -863,7 +865,7 @@ methmap2progtype/U/m :
 - : cxt2perm/U-inversion/L B2P1 F1 U1 R1 F2 U2 nat`eq?/yes _ B2P _ R
     (equiv/combine PEQV equiv/reflexive)
     <- cxt`fresh-update-cancels F1 U1 F2 U2 nat`eq/ cxt`eq/ CIE BE
-    <- cxt2perm-respects-eq B2P1 clsmap`eq/ predmap`eq/ BE permission`eq/ B2P
+    <- cxt2perm-respects-eq B2P1 predmap`eq/ BE permission`eq/ B2P
     <- cxt-info-eq-inversion CIE (OE:object`eq O O') TE
     <- ty2perm2-respects-eq (R1:ty2perm2 PM _ PF)
       predmap`eq/ TE ([_] permission`eq/) R
@@ -889,35 +891,33 @@ methmap2progtype/U/m :
   (cxt2perm/U-inversion/L R0 _ _ _ _ _ _ _ _ _ _ _).
 
 
-%theorem cxt2perm-implies
-  : forall* {CM} {CM'} {PM} {PM'} {B} {B'} {Pi} {Pi'}
-    forall {B=>Pi: cxt2perm CM PM B Pi}
-    {B=>Pi': cxt2perm CM' PM' B' Pi'}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'} {BE: cxt`eq B B'}
-    exists {IMP: implies Pi Pi'} {IMP: implies Pi' Pi}
+%theorem cxt2perm-equiv
+  : forall* {PM} {PM'} {B} {B'} {Pi} {Pi'}
+    forall {B=>Pi: cxt2perm PM B Pi}
+    {B=>Pi': cxt2perm PM' B' Pi'}
+    {PME: predmap`eq PM PM'} {BE: cxt`eq B B'}
+    exists {EQV: equiv Pi Pi'}
     true.
 
-% - : cxt2perm-implies cxt2perm/0 cxt2perm/0 _ _ _ implies/reflexive implies/reflexive.
+- : cxt2perm-equiv cxt2perm/0 cxt2perm/0 _ _ equiv/reflexive.
 
-% - : cxt2perm-implies (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
-%                      (R0:ty2perm2 CM0 PM0 T PF0)) B2P CME PME BE
-%     (implies/trans
-%       (implies/combine (IMP1 O) (IMP3))
-%       (implies/equiv (equiv/symmetric EQV1)))
-%     (implies/trans
-%       (implies/equiv EQV1)
-%       (implies/combine (IMP2 O) (IMP4)))
-%     <- cxt2perm/U-inversion B2P F0 U0 _ B2P1 _ (R1:ty2perm2 CM1 PM1 T PF1) EQV1
-%     <- cxt2perm-implies B2P0 B2P1 CME PME cxt`eq/ IMP3 IMP4
-%     <- ty2perm2-implies R0 R1 CME PME ty`eq/ IMP1 IMP2.
+- : cxt2perm-equiv
+    (cxt2perm/U B2P0 F0 (U0:cxt`update _ _ (cxt-info/ O T) _)
+      (R0:ty2perm2 PM0 T PF0)) B2P PME BE
+    (equiv/transitive
+      (equiv/combine (EQV3 O) EQV2)
+      (equiv/symmetric EQV1))
+    <- cxt2perm/U-inversion B2P F0 U0 _ B2P1 _ (R1:ty2perm2 PM1 T PF1) EQV1
+    <- cxt2perm-equiv B2P0 B2P1 PME cxt`eq/ EQV2
+    <- ty2perm2-equiv R0 R1 PME ty`eq/ EQV3.
 
-%worlds (objvar) (cxt2perm-implies _ _ _ _ _ _ _).
-%trustme %total (T) (cxt2perm-implies T _ _ _ _ _ _).
+%worlds (objvar) (cxt2perm-equiv _ _ _ _ _).
+%total (T) (cxt2perm-equiv T _ _ _ _).
 
 
 %theorem cxt2perm-lookup-not-shared-can-duplicate
-  : forall* {CM} {PM} {B} {PiB} {N} {O} {NN} {A} {C}
-    forall {B=>PiB: cxt2perm CM PM B PiB}
+  : forall* {PM} {B} {PiB} {N} {O} {NN} {A} {C}
+    forall {B=>PiB: cxt2perm PM B PiB}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {U-OR-B: unique-or-borrow A}
     exists {PF} {T2PF: ty2perm PM (ty/ NN annot/borrow C) PF}
@@ -952,38 +952,9 @@ methmap2progtype/U/m :
 %total { } (cxt2perm-lookup-not-shared-can-duplicate _ _ _ _ _ _).
 
 
-%theorem ty2perm2-duplicate-notnull-info
-  : forall* {PM} {PF} {A} {C}
-    forall {T2PF: ty2perm2 PM (ty/ nn/yes A C) PF}
-    exists {IMP: {x} implies (PF x)
-                 (combine (unitperm (nonlinear (neg (objequal x null)))) (PF x))}
-    true.
-
-- : ty2perm2-duplicate-notnull-info
-    (ty2perm2/borrow (ty2perm/ _ nn2perm/yes _))
-    ([_] implies/trans
-      (implies/combine implies/duplicate implies/reflexive)
-      (implies/equiv (equiv/symmetric equiv/associate))).
-
-- : ty2perm2-duplicate-notnull-info
-    (ty2perm2/unique (ty2perm/ _ nn2perm/yes _))
-    ([_] implies/trans
-      (implies/combine implies/duplicate implies/reflexive)
-      (implies/equiv (equiv/symmetric equiv/associate))).
-
-- : ty2perm2-duplicate-notnull-info
-    (ty2perm2/shared (ty2perm/ _ nn2perm/yes _))
-    ([_] implies/trans
-      (implies/combine implies/duplicate implies/reflexive)
-      (implies/equiv (equiv/symmetric equiv/associate))).
-
-%worlds (objvar) (ty2perm2-duplicate-notnull-info _ _).
-%total { } (ty2perm2-duplicate-notnull-info _ _).
-
-
 %theorem cxt2perm-duplicate-notnull-info
-  : forall* {CM} {PM} {N} {Pi} {O} {A} {C} {B}
-    forall {B2P: cxt2perm CM PM B Pi}
+  : forall* {PM} {N} {Pi} {O} {A} {C} {B}
+    forall {B2P: cxt2perm PM B Pi}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ nn/yes A C))}
     exists {IMP: implies Pi (combine (unitperm (nonlinear (neg (objequal O null)))) Pi)}
     true.
@@ -1026,7 +997,226 @@ methmap2progtype/U/m :
 %total { } (create-fldperm-unique _ _ _ _ _ _ _).
 
 
-%% 6, theorems about capset2perm
+%% Theorems about make-encumbered
+
+%theorem false-implies-make-encumbered
+  : forall* {CM} {PM} {B} {S} {Pi}
+    forall {V:void} exists {MF: make-encumbered CM PM B S Pi}
+    true.
+
+%worlds (objvar) (false-implies-make-encumbered _ _).
+%total { } (false-implies-make-encumbered _ _).
+
+
+%theorem make-encumbered-respects-eq
+  : forall* {PM1} {PM2} {CM1} {CM2} {B1} {B2} {S1} {S2} {Pi1} {Pi2}
+    forall {MFP1: make-encumbered CM1 PM1 B1 S1 Pi1}
+    {CME: clsmap`eq CM1 CM2}
+    {PME: predmap`eq PM1 PM2}
+    {BE: cxt`eq B1 B2} {SE: set`eq S1 S2}
+    {PE: permission`eq Pi1 Pi2}
+    exists {MFP2: make-encumbered CM2 PM2 B2 S2 Pi2}
+    true.
+
+- : make-encumbered-respects-eq MFP clsmap`eq/ predmap`eq/ cxt`eq/ set`eq/
+    permission`eq/ MFP.
+
+%worlds (objvar) (make-encumbered-respects-eq _ _ _ _ _ _ _).
+%total {} (make-encumbered-respects-eq _ _ _ _ _ _ _).
+
+
+%theorem make-encumbered/U-inversion
+  : forall* {CM} {PM} {B} {S} {Pi} {SP} {N}
+    forall {MF: make-encumbered CM PM B S Pi}
+    {NM: set`not-member SP N}
+    {UD: set`add SP N S}
+    exists {Pi1} {MFP: make-encumbered CM PM B SP Pi1}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    {FM} {CML: clsmap`lookup CM C FM}
+    {CP} {PML: predmap`lookup PM C CP}
+    {FS} {DM: fldmap`domain FM FS}
+    {PiP} {MF1: {x} fldset2perm PM x FM FS (PiP x)}
+    {EQV: equiv Pi ((encumbered-fldperm O PiP CP), Pi1)}
+    true.
+
+%theorem make-encumbered/U-inversion/L
+  : forall* {CM} {PM} {B} {S} {SP} {N} {S1} {Pi1} {N1} {O1} {NN1}
+    {A1} {C1} {FM1} {FS1} {PiP1} {P} {CP1}
+    forall {MF1: make-encumbered CM PM B S1 Pi1}
+    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
+    {CML1: clsmap`lookup CM C1 FM1}
+    {PML1: predmap`lookup PM C1 CP1}
+    {DM1: fldmap`domain FM1 FS1}
+    {MF11: {x} fldset2perm PM x FM1 FS1 (PiP1 x)}
+    {NM1: set`not-member S1 N1}
+    {U1: set`add S1 N1 S}
+    {NM: set`not-member SP N}
+    {U: set`add SP N S}
+    {E?: nat`eq? N N1 P}
+    exists {Pi} {MFP: make-encumbered CM PM B SP Pi}
+    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
+    {FM} {CML: clsmap`lookup CM C FM}
+    {CP} {PML: predmap`lookup PM C CP}
+    {FS} {DM: fldmap`domain FM FS}
+    {PiP} {MF1: {x} fldset2perm PM x FM FS (PiP x)}
+    {EQV: equiv ((encumbered-fldperm O1 PiP1 CP1) , Pi1)
+          ((encumbered-fldperm O PiP CP) , Pi)}
+    true.
+
+- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1 F2 U2
+    nat`eq?/yes %{=>}% _ MF _ _ _ _ BL1 _ CML1 _ PML1 _ DM1 _ MFO1 equiv/reflexive
+    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ SE
+    <- make-encumbered-respects-eq MF1 clsmap`eq/ predmap`eq/ cxt`eq/ SE
+      permission`eq/ MF.
+
+- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1 F2 U2
+    (nat`eq?/no N<>N1) %{=>}%
+    _ (make-encumbered/U MF2 BL1 CML1 PML1 DM1 MFO1 F4 U4)
+    _ _ _ _ BL2 _ CML2 _ PML2 _ DM2 _ MFO2
+    (equiv/transitive
+      (equiv/combine equiv/reflexive EQV)
+      (equiv/roll2))
+    <- set`add-commutes-converse U2 U1 N<>N1 _ U4 U3
+    <- set`add-preserves-not-member-converse F2 U4 F3
+    <- set`add-preserves-not-member-converse F1 U3 F4
+    <- make-encumbered/U-inversion MF1 F3 U3 _ MF2 _ _ _ _ BL2 _ CML2 _ PML2 _ DM2
+      _ MFO2 EQV.
+
+- : make-encumbered/U-inversion (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1)
+    F2 U2 _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO EQV
+    <- nat`eq?-total E?
+    <- make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1
+      F2 U2 E? _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO EQV.
+
+%worlds (objvar) (make-encumbered/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  (make-encumbered/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (N N0) (make-encumbered/U-inversion N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+  (make-encumbered/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem make-encumbered-equiv
+  : forall* {CM} {PM} {B} {Q} {Pi} {CM'} {PM'} {B'} {Q'} {Pi'}
+    forall {MF: make-encumbered CM PM B Q Pi}
+    {MF': make-encumbered CM' PM' B' Q' Pi'}
+    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
+    {BE: cxt`eq B B'} {QE: set`eq Q Q'}
+    exists {EQV: permission`equiv Pi Pi'}
+    true.
+
+%theorem make-encumbered-equiv/L
+  : forall* {PF1} {PF2} {CP1} {CP2}
+    forall {O1} {O2}
+    {EQ: object`eq O1 O2}
+    {EQ: predicate`eq CP1 CP2}
+    {EQV: {x} permission`eq (PF1 x) (PF2 x)}
+    exists {IMP1: permission`eq (encumbered-fldperm O1 PF1 CP1)
+                  (encumbered-fldperm O2 PF2 CP2)}
+    true.
+
+- : make-encumbered-equiv/L _ _
+    object`eq/ predicate`eq/ ([_] permission`eq/) (permission`eq/).
+
+- : make-encumbered-equiv make-encumbered/0 make-encumbered/0 _ _ _ _ equiv/reflexive.
+
+- : make-encumbered-equiv MF
+    (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1) CME PME BE SE
+    (equiv/transitive
+      (EQV1)
+      (equiv/combine EQV2 EQV))
+    <- make-encumbered/U-inversion MF F1 U1 _ MF0 _ _ _ _ BL0
+      _ CML0 _ PML0 _ DM0 _ MFO0 EQV1
+    <- cxt`lookup-unique BL0 BL1 BE nat`eq/ CIE
+    <- cxt-info-eq-inversion CIE OE TE
+    <- ty-eq-inversion TE NNE AE CE
+    <- clsmap`lookup-unique CML0 CML1 CME CE FME
+    <- predmap`lookup-unique PML0 PML1 PME CE CPE
+    <- fldmap`domain-unique DM0 DM1 FME FSE
+    <- ({x} fldset2perm-unique (MFO0 x) (MFO1 x) PME object`eq/ FME FSE (PEQ x))
+    <- make-encumbered-equiv MF0 MF1 CME PME BE set`eq/ EQV
+    <- make-encumbered-equiv/L _ _ OE CPE PEQ PEQ'
+    <- permission`eq-implies-equiv PEQ' EQV2.
+
+%worlds (objvar) (make-encumbered-equiv/L _ _ _ _ _ _).
+%total { } (make-encumbered-equiv/L _ _ _ _ _ _).
+
+%worlds (objvar) (make-encumbered-equiv _ _ _ _ _ _ _).
+%total (K) (make-encumbered-equiv _ K _ _ _ _ _).
+
+
+%theorem clsmap-cxt-objset-implies-make-encumbered
+  : forall* {CM} {PM} {B} {U}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B-U: clsmap-cxt-objset CM B U}
+    exists {Pi} {U=>Pi: make-encumbered CM PM B U Pi}
+    true.
+
+- : clsmap-cxt-objset-implies-make-encumbered CM-CM CM2PM
+    clsmap-cxt-objset/0 _ make-encumbered/0.
+
+- : clsmap-cxt-objset-implies-make-encumbered CM-CM CM2PM
+    (clsmap-cxt-objset/U CM-B-U' BL CML F U) _
+    (make-encumbered/U U'=>Pi' BL CML PML FM-DM FM=>PF F U)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
+    <- fldmap`domain-total FM-DM
+    <- set`leq-reflexive _ LE
+    <- ({x} fldset2perm-total CM-CM CM2PM CML FM-DM LE _ (FM=>PF x))
+    <- clsmap-cxt-objset-implies-make-encumbered CM-CM CM2PM CM-B-U' _ U'=>Pi'.
+
+%worlds (objvar) (clsmap-cxt-objset-implies-make-encumbered _ _ _ _ _).
+%total (A) (clsmap-cxt-objset-implies-make-encumbered _ _ A _ _).
+
+
+%theorem cxt-fresh-update-preserves-make-encumbered
+  : forall* {CM} {PM} {B0} {B1} {O} {U} {PiU} {N} {CI}
+    forall {ME: make-encumbered CM PM B0 U PiU}
+    {N!<B0: cxt`fresh B0 N}
+    {B0+N=B1: cxt`update B0 N (cxt-info/ O CI) B1}
+    exists {ME: make-encumbered CM PM B1 U PiU}
+    true.
+
+- : cxt-fresh-update-preserves-make-encumbered
+    (make-encumbered/U B0+U'=>PiU' B0-L CML PML FM-DM=FS ([x] FS=>PF x)
+      N!<U' U'+N=U)
+    N!<B0 B0+N=B1
+    (make-encumbered/U B1+U'=>PiU' B1-L CML PML FM-DM=FS ([x] FS=>PF x)
+      N!<U' U'+N=U)
+    <- cxt`fresh-update-preserves-lookup B0-L N!<B0 B0+N=B1 B1-L
+    <- cxt-fresh-update-preserves-make-encumbered B0+U'=>PiU' N!<B0 B0+N=B1 B1+U'=>PiU'.
+
+- : cxt-fresh-update-preserves-make-encumbered make-encumbered/0 _ _ make-encumbered/0.
+
+%worlds (objvar) (cxt-fresh-update-preserves-make-encumbered _ _ _ _).
+%total (ME) (cxt-fresh-update-preserves-make-encumbered ME _ _ _).
+
+
+%theorem make-encumbered-combines
+  : forall* {CM} {PM} {B} {U0} {U1} {U} {PiU0} {PiU1}
+    forall {U0=>PiU0: make-encumbered CM PM B U0 PiU0}
+    {U1=>PiU1: make-encumbered CM PM B U1 PiU1}
+    {U0+U1=U: set`combine U0 U1 U}
+    exists {PiU} {U=>PiU: make-encumbered CM PM B U PiU}
+    {EQV: equiv (PiU0 , PiU1) PiU}
+    true.
+
+%worlds (objvar) (make-encumbered-combines _ _ _ _ _ _).
+%trustme %total { } (make-encumbered-combines _ _ _ _ _ _).
+
+
+%theorem make-encumbered-combines-converse
+  : forall* {CM} {PM} {B} {U0} {U1} {U} {PiU}
+    forall {U=>PiU: make-encumbered CM PM B U PiU}
+    {U0+U1=U: set`combine U0 U1 U}
+    exists {PiU0} {PiU1} {U0=>PiU0: make-encumbered CM PM B U0 PiU0}
+    {U1=>PiU1: make-encumbered CM PM B U1 PiU1}
+    {EQV: equiv (PiU0 , PiU1) PiU}
+    true.
+
+%worlds (objvar) (make-encumbered-combines-converse _ _ _ _ _ _ _).
+%trustme %total { } (make-encumbered-combines-converse _ _ _ _ _ _ _).
+
+
+%% theorems about capset2perm
 
 %theorem false-implies-capset2perm
   : forall* {CM} {PM} {B} {M} {Pi}
@@ -1708,98 +1898,7 @@ methmap2progtype/U/m :
 %total (M2P) (cxt-fresh-update-preserves-capset2perm M2P _ _ _).
 
 
-% %theorem subtype-preserves-capset2perm
-%   : forall* {CM} {PM} {B0} {B1} {M0} {M1} {RT} {M} {Pi} {T}
-%     forall {B0+M=>Pi: capset2perm CM PM B0 M Pi}
-%     {SUB: subtype CM RT (env/ B0 M0) T (env/ B1 M1)}
-%     exists {B1+M=>Pi: capset2perm CM PM B1 M Pi}
-%     true.
-
-% %theorem sub-annot-cap-preserves-capset2perm
-%   : forall* {CM} {PM} {M} {Pi} {B0} {M1} {B1} {M2} {GS} {FS} {A}
-%     forall {B0+M=>Pi: capset2perm CM PM B0 M Pi}
-%     {SUB: sub-annot-cap GS (env/ B0 M1) FS A (env/ B1 M2)}
-%     exists {CM-B2-RT: capset2perm CM PM B1 M Pi}
-%     true.
-
-% - : sub-annot-cap-preserves-capset2perm B0+M=>Pi
-%     (sub-annot-cap/consume _ _ _ R) B1+M=>Pi
-%     <- cxt-remove-unique-preserves-capset2perm B0+M=>Pi R B1+M=>Pi.
-
-% - : sub-annot-cap-preserves-capset2perm B+M=>Pi
-%     sub-annot-cap/shared2shared B+M=>Pi.
-
-% %worlds (objvar) (sub-annot-cap-preserves-capset2perm _ _ _).
-% %total { } (sub-annot-cap-preserves-capset2perm _ _ _).
-
-% - : subtype-preserves-capset2perm B0+M=>Pi
-%     (subtype/ _ _ _ _ SUB-A) B1+M=>Pi
-%     <- sub-annot-cap-preserves-capset2perm B0+M=>Pi SUB-A B1+M=>Pi.
-
-% - : subtype-preserves-capset2perm B+M=>Pi subtype/null B+M=>Pi.
-
-% - : subtype-preserves-capset2perm B+M=>Pi subtype/maynull B+M=>Pi.
-
-% %worlds (objvar) (subtype-preserves-capset2perm _ _ _).
-% %total { } (subtype-preserves-capset2perm _ _ _).
-
-
-% %theorem reftyping-preserves-capset2perm
-%   : forall* {CM} {MM} {PM} {B0} {B1} {M0} {M1} {E} {RT} {M} {Pi}
-%     forall {B0+M=>Pi: capset2perm CM PM B0 M Pi}
-%     {RTYP: reftyping CM MM (env/ B0 M0) E (result/expr RT (env/ B1 M1))}
-%     exists {B1+M=>Pi: capset2perm CM PM B1 M Pi}
-%     true.
-
-% %theorem reftyping-preserves-capset2perm/args
-%   : forall* {CM} {MM} {PM} {B0} {B1} {M} {M0} {Pi} {A} {MT} {M1} {RT}
-%     forall {B0+M=>Pi: capset2perm CM PM B0 M Pi}
-%     {RTYP-A: argsRefTyping CM MM (env/ B0 M0) A MT (result/expr RT (env/ B1 M1))}
-%     exists {B1+M=>Pi: capset2perm CM PM B1 M Pi}
-%     true.
-
-% %theorem reftyping-preserves-capset2perm/args-helper
-%   : forall* {CM} {MM} {PM} {B0} {B1} {M} {M0} {Pi} {A} {MT} {M1} {RT0} {RT1} {T} {N}
-%     forall {B0+M=>Pi: capset2perm CM PM B0 M Pi}
-%     {RTYP-A: argsRefTyping-helper CM MM
-%              (result/expr RT0 (env/ B0 M0)) T N A MT (result/expr RT1 (env/ B1 M1))}
-%     exists {B1+M=>Pi: capset2perm CM PM B1 M Pi}
-%     true.
-
-% - : reftyping-preserves-capset2perm/args-helper B0+M=>Pi
-%     (argsRefTyping-helper/base SUB RTYP-A) B2+M=>Pi
-%     <- subtype-preserves-capset2perm B0+M=>Pi SUB B1+M=>Pi
-%     <- reftyping-preserves-capset2perm/args B1+M=>Pi RTYP-A B2+M=>Pi.
-
-% - : reftyping-preserves-capset2perm/args B0+M=>Pi
-%     (argsRefTyping/+ RTYP-E RTYP-A) B2+M=>Pi
-%     <- reftyping-preserves-capset2perm B0+M=>Pi RTYP-E B1+M=>Pi
-%     <- reftyping-preserves-capset2perm/args-helper B1+M=>Pi RTYP-A B2+M=>Pi.
-
-% - : reftyping-preserves-capset2perm B+M=>Pi (reftyping/lit _ _) B+M=>Pi.
-
-% - : reftyping-preserves-capset2perm B0+M=>Pi
-%     (reftyping/read RTYP-E (readRefTyping/base _ _ _ _ _)) B1+M=>Pi
-%     <- reftyping-preserves-capset2perm B0+M=>Pi RTYP-E B1+M=>Pi.
-
-% - : reftyping-preserves-capset2perm B0+M=>Pi
-%     (reftyping/write RTYP-E1
-%       (writeRefTyping/base _ _ _ RTYP-E2 SUB _)) B3+M=>Pi
-%     <- reftyping-preserves-capset2perm B0+M=>Pi RTYP-E1 B1+M=>Pi
-%     <- reftyping-preserves-capset2perm B1+M=>Pi RTYP-E2 B2+M=>Pi
-%     <- subtype-preserves-capset2perm B2+M=>Pi SUB B3+M=>Pi.
-
-% - : reftyping-preserves-capset2perm B0+M=>Pi
-%     (reftyping/call _ MM-L RTYP-A) B1+M=>Pi
-%     <- reftyping-preserves-capset2perm/args B0+M=>Pi RTYP-A B1+M=>Pi.
-
-% %worlds (objvar) (reftyping-preserves-capset2perm _ _ _)
-%   (reftyping-preserves-capset2perm/args _ _ _)
-%   (reftyping-preserves-capset2perm/args-helper _ _ _).
-% %total (A A1 A2) (reftyping-preserves-capset2perm _ A _)
-%   (reftyping-preserves-capset2perm/args _ A1 _)
-%   (reftyping-preserves-capset2perm/args-helper _ A2 _).
-
+%%% theorems about env2input
 
 %theorem env2input-unique
   : forall* {CM} {PM} {B} {V} {V'} {Pi} {Pi'}
@@ -1832,7 +1931,6 @@ methmap2progtype/U/m :
 
 %worlds (objvar) (result2output-respects-eq _ _ _).
 %total { } (result2output-respects-eq _ _ _).
-
 
 
 % TODO: respects-eq for methty2proctype and consty2proctype..
@@ -1876,226 +1974,6 @@ methmap2progtype/U/m :
 
 %worlds (objvar) (clsmap-cxt-reftype-implies-reftype2perm _ _ _ _ _).
 %total { } (clsmap-cxt-reftype-implies-reftype2perm _ _ _ _ _).
-
-
-
-%% Theorems about make-encumbered
-
-%theorem false-implies-make-encumbered
-  : forall* {CM} {PM} {B} {S} {Pi}
-    forall {V:void} exists {MF: make-encumbered CM PM B S Pi}
-    true.
-
-%worlds (objvar) (false-implies-make-encumbered _ _).
-%total { } (false-implies-make-encumbered _ _).
-
-
-%theorem make-encumbered-respects-eq
-  : forall* {PM1} {PM2} {CM1} {CM2} {B1} {B2} {S1} {S2} {Pi1} {Pi2}
-    forall {MFP1: make-encumbered CM1 PM1 B1 S1 Pi1}
-    {CME: clsmap`eq CM1 CM2}
-    {PME: predmap`eq PM1 PM2}
-    {BE: cxt`eq B1 B2} {SE: set`eq S1 S2}
-    {PE: permission`eq Pi1 Pi2}
-    exists {MFP2: make-encumbered CM2 PM2 B2 S2 Pi2}
-    true.
-
-- : make-encumbered-respects-eq MFP clsmap`eq/ predmap`eq/ cxt`eq/ set`eq/
-    permission`eq/ MFP.
-
-%worlds (objvar) (make-encumbered-respects-eq _ _ _ _ _ _ _).
-%total {} (make-encumbered-respects-eq _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered/U-inversion
-  : forall* {CM} {PM} {B} {S} {Pi} {SP} {N}
-    forall {MF: make-encumbered CM PM B S Pi}
-    {NM: set`not-member SP N}
-    {UD: set`add SP N S}
-    exists {Pi1} {MFP: make-encumbered CM PM B SP Pi1}
-    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {FM} {CML: clsmap`lookup CM C FM}
-    {CP} {PML: predmap`lookup PM C CP}
-    {FS} {DM: fldmap`domain FM FS}
-    {PiP} {MF1: {x} fldset2perm PM x FM FS (PiP x)}
-    {EQV: equiv Pi ((encumbered-fldperm O PiP CP), Pi1)}
-    true.
-
-%theorem make-encumbered/U-inversion/L
-  : forall* {CM} {PM} {B} {S} {SP} {N} {S1} {Pi1} {N1} {O1} {NN1}
-    {A1} {C1} {FM1} {FS1} {PiP1} {P} {CP1}
-    forall {MF1: make-encumbered CM PM B S1 Pi1}
-    {BL1: cxt`lookup B N1 (cxt-info/ O1 (ty/ NN1 A1 C1))}
-    {CML1: clsmap`lookup CM C1 FM1}
-    {PML1: predmap`lookup PM C1 CP1}
-    {DM1: fldmap`domain FM1 FS1}
-    {MF11: {x} fldset2perm PM x FM1 FS1 (PiP1 x)}
-    {NM1: set`not-member S1 N1}
-    {U1: set`add S1 N1 S}
-    {NM: set`not-member SP N}
-    {U: set`add SP N S}
-    {E?: nat`eq? N N1 P}
-    exists {Pi} {MFP: make-encumbered CM PM B SP Pi}
-    {O} {NN} {A} {C} {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
-    {FM} {CML: clsmap`lookup CM C FM}
-    {CP} {PML: predmap`lookup PM C CP}
-    {FS} {DM: fldmap`domain FM FS}
-    {PiP} {MF1: {x} fldset2perm PM x FM FS (PiP x)}
-    {EQV: equiv ((encumbered-fldperm O1 PiP1 CP1) , Pi1)
-          ((encumbered-fldperm O PiP CP) , Pi)}
-    true.
-
-- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1 F2 U2
-    nat`eq?/yes %{=>}% _ MF _ _ _ _ BL1 _ CML1 _ PML1 _ DM1 _ MFO1 equiv/reflexive
-    <- set`not-member-add-cancels F1 U1 F2 U2 nat`eq/ set`eq/ SE
-    <- make-encumbered-respects-eq MF1 clsmap`eq/ predmap`eq/ cxt`eq/ SE
-      permission`eq/ MF.
-
-- : make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1 F2 U2
-    (nat`eq?/no N<>N1) %{=>}%
-    _ (make-encumbered/U MF2 BL1 CML1 PML1 DM1 MFO1 F4 U4)
-    _ _ _ _ BL2 _ CML2 _ PML2 _ DM2 _ MFO2
-    (equiv/transitive
-      (equiv/combine equiv/reflexive EQV)
-      (equiv/roll2))
-    <- set`add-commutes-converse U2 U1 N<>N1 _ U4 U3
-    <- set`add-preserves-not-member-converse F2 U4 F3
-    <- set`add-preserves-not-member-converse F1 U3 F4
-    <- make-encumbered/U-inversion MF1 F3 U3 _ MF2 _ _ _ _ BL2 _ CML2 _ PML2 _ DM2
-      _ MFO2 EQV.
-
-- : make-encumbered/U-inversion (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1)
-    F2 U2 _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO EQV
-    <- nat`eq?-total E?
-    <- make-encumbered/U-inversion/L MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1
-      F2 U2 E? _ MF _ _ _ _ BL _ CML _ PML _ DM _ MFO EQV.
-
-%worlds (objvar) (make-encumbered/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (N N0) (make-encumbered/U-inversion N _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
-  (make-encumbered/U-inversion/L N0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-
-
-%theorem make-encumbered-equiv
-  : forall* {CM} {PM} {B} {Q} {Pi} {CM'} {PM'} {B'} {Q'} {Pi'}
-    forall {MF: make-encumbered CM PM B Q Pi}
-    {MF': make-encumbered CM' PM' B' Q' Pi'}
-    {CME: clsmap`eq CM CM'} {PME: predmap`eq PM PM'}
-    {BE: cxt`eq B B'} {QE: set`eq Q Q'}
-    exists {EQV: permission`equiv Pi Pi'}
-    true.
-
-%theorem make-encumbered-equiv/L
-  : forall* {PF1} {PF2} {CP1} {CP2}
-    forall {O1} {O2}
-    {EQ: object`eq O1 O2}
-    {EQ: predicate`eq CP1 CP2}
-    {EQV: {x} permission`eq (PF1 x) (PF2 x)}
-    exists {IMP1: permission`eq (encumbered-fldperm O1 PF1 CP1)
-                  (encumbered-fldperm O2 PF2 CP2)}
-    true.
-
-- : make-encumbered-equiv/L _ _
-    object`eq/ predicate`eq/ ([_] permission`eq/) (permission`eq/).
-
-- : make-encumbered-equiv make-encumbered/0 make-encumbered/0 _ _ _ _ equiv/reflexive.
-
-- : make-encumbered-equiv MF
-    (make-encumbered/U MF1 BL1 CML1 PML1 DM1 MFO1 F1 U1) CME PME BE SE
-    (equiv/transitive
-      (EQV1)
-      (equiv/combine EQV2 EQV))
-    <- make-encumbered/U-inversion MF F1 U1 _ MF0 _ _ _ _ BL0
-      _ CML0 _ PML0 _ DM0 _ MFO0 EQV1
-    <- cxt`lookup-unique BL0 BL1 BE nat`eq/ CIE
-    <- cxt-info-eq-inversion CIE OE TE
-    <- ty-eq-inversion TE NNE AE CE
-    <- clsmap`lookup-unique CML0 CML1 CME CE FME
-    <- predmap`lookup-unique PML0 PML1 PME CE CPE
-    <- fldmap`domain-unique DM0 DM1 FME FSE
-    <- ({x} fldset2perm-unique (MFO0 x) (MFO1 x) PME object`eq/ FME FSE (PEQ x))
-    <- make-encumbered-equiv MF0 MF1 CME PME BE set`eq/ EQV
-    <- make-encumbered-equiv/L _ _ OE CPE PEQ PEQ'
-    <- permission`eq-implies-equiv PEQ' EQV2.
-
-%worlds (objvar) (make-encumbered-equiv/L _ _ _ _ _ _).
-%total { } (make-encumbered-equiv/L _ _ _ _ _ _).
-
-%worlds (objvar) (make-encumbered-equiv _ _ _ _ _ _ _).
-%total (K) (make-encumbered-equiv _ K _ _ _ _ _).
-
-
-%theorem clsmap-cxt-objset-implies-make-encumbered
-  : forall* {CM} {PM} {B} {U}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B-U: clsmap-cxt-objset CM B U}
-    exists {Pi} {U=>Pi: make-encumbered CM PM B U Pi}
-    true.
-
-- : clsmap-cxt-objset-implies-make-encumbered CM-CM CM2PM
-    clsmap-cxt-objset/0 _ make-encumbered/0.
-
-- : clsmap-cxt-objset-implies-make-encumbered CM-CM CM2PM
-    (clsmap-cxt-objset/U CM-B-U' BL CML F U) _
-    (make-encumbered/U U'=>Pi' BL CML PML FM-DM FM=>PF F U)
-    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
-    <- fldmap`domain-total FM-DM
-    <- set`leq-reflexive _ LE
-    <- ({x} fldset2perm-total CM-CM CM2PM CML FM-DM LE _ (FM=>PF x))
-    <- clsmap-cxt-objset-implies-make-encumbered CM-CM CM2PM CM-B-U' _ U'=>Pi'.
-
-%worlds (objvar) (clsmap-cxt-objset-implies-make-encumbered _ _ _ _ _).
-%total (A) (clsmap-cxt-objset-implies-make-encumbered _ _ A _ _).
-
-
-%theorem cxt-fresh-update-preserves-make-encumbered
-  : forall* {CM} {PM} {B0} {B1} {O} {U} {PiU} {N} {CI}
-    forall {ME: make-encumbered CM PM B0 U PiU}
-    {N!<B0: cxt`fresh B0 N}
-    {B0+N=B1: cxt`update B0 N (cxt-info/ O CI) B1}
-    exists {ME: make-encumbered CM PM B1 U PiU}
-    true.
-
-- : cxt-fresh-update-preserves-make-encumbered
-    (make-encumbered/U B0+U'=>PiU' B0-L CML PML FM-DM=FS ([x] FS=>PF x)
-      N!<U' U'+N=U)
-    N!<B0 B0+N=B1
-    (make-encumbered/U B1+U'=>PiU' B1-L CML PML FM-DM=FS ([x] FS=>PF x)
-      N!<U' U'+N=U)
-    <- cxt`fresh-update-preserves-lookup B0-L N!<B0 B0+N=B1 B1-L
-    <- cxt-fresh-update-preserves-make-encumbered B0+U'=>PiU' N!<B0 B0+N=B1 B1+U'=>PiU'.
-
-- : cxt-fresh-update-preserves-make-encumbered make-encumbered/0 _ _ make-encumbered/0.
-
-%worlds (objvar) (cxt-fresh-update-preserves-make-encumbered _ _ _ _).
-%total (ME) (cxt-fresh-update-preserves-make-encumbered ME _ _ _).
-
-
-%theorem make-encumbered-combines
-  : forall* {CM} {PM} {B} {U0} {U1} {U} {PiU0} {PiU1}
-    forall {U0=>PiU0: make-encumbered CM PM B U0 PiU0}
-    {U1=>PiU1: make-encumbered CM PM B U1 PiU1}
-    {U0+U1=U: set`combine U0 U1 U}
-    exists {PiU} {U=>PiU: make-encumbered CM PM B U PiU}
-    {EQV: equiv (PiU0 , PiU1) PiU}
-    true.
-
-%worlds (objvar) (make-encumbered-combines _ _ _ _ _ _).
-%trustme %total { } (make-encumbered-combines _ _ _ _ _ _).
-
-
-%theorem make-encumbered-combines-converse
-  : forall* {CM} {PM} {B} {U0} {U1} {U} {PiU}
-    forall {U=>PiU: make-encumbered CM PM B U PiU}
-    {U0+U1=U: set`combine U0 U1 U}
-    exists {PiU0} {PiU1} {U0=>PiU0: make-encumbered CM PM B U0 PiU0}
-    {U1=>PiU1: make-encumbered CM PM B U1 PiU1}
-    {EQV: equiv (PiU0 , PiU1) PiU}
-    true.
-
-%worlds (objvar) (make-encumbered-combines-converse _ _ _ _ _ _ _).
-%trustme %total { } (make-encumbered-combines-converse _ _ _ _ _ _ _).
 
 
 %%% Theorems about env2input and result2output
