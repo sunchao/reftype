@@ -753,64 +753,6 @@ to do the job.
 %total { } (arg-perm-implies-input-single/L0 _ _ _ _ _ _ _ _ _ _).
 
 
-%{
-A temporary format restricting the output format for the following lemma.
-This is necessary to restore the permissions in the case unique => borrowed
-}%
-
-arg-perm-format-helper : clsmap -> predmap -> cxt -> set ->
-    reftype -> (object -> object -> permission) -> type.
-
-arg-perm-format-helper/1
-  : arg-perm-format-helper CM PM B FS (reftype/ NN C (targets/unique _ M))
-    ([o][r]
-      (combine
-        (combine (B-PF o)
-          (unitperm
-            (conditional (objequal o null) empty
-              (unitperm (encumbered (PFS o)
-                          (combine (allperm o)
-                            (one-predcall (conj2pred CP) o)))))))
-        (unitperm (encumbered (PF o) PiM))))
-    <- ty2perm PM (ty/ NN annot/borrow C) B-PF
-    <- ty2perm PM (ty/ NN annot/unique C) PF
-    <- predmap`lookup PM C (conj2pred CP)
-    <- ({x} fldset2perm PM x FM FS (PFS x))
-    <- capset2perm CM PM B M PiM.
-
-arg-perm-format-helper/2
-  : arg-perm-format-helper CM PM B FS (reftype/ NN C (targets/unique S M))
-    ([o] [r]
-      unitperm
-      (conditional (objequal o r)
-        (combine
-          (combine
-            (combine (B-PF o)
-              (unitperm
-                (conditional (objequal o null) empty
-                  (unitperm
-                    (encumbered (PFS o)
-                      (combine (allperm o)
-                        (one-predcall
-                          (conj2pred CP) o)))))))
-            (unitperm (encumbered (PF o) PiM)))
-          PiM2)
-        (combine
-          (combine (GF o)
-            (unitperm (encumbered (PFSC2 o) PiM2)))
-          (combine (PF r)
-            (unitperm (encumbered (PF r) PiM))))))
-    <- ty2perm PM (ty/ NN annot/borrow C) B-PF
-    <- ty2perm PM (ty/ NN annot/unique C) PF
-    <- predmap`lookup PM C (conj2pred CP)
-    <- ({o} fldset2perm PM o FM FS (PFS o))
-    <- capset2perm CM PM B M PiM
-    <- ({o} set2cond B o S (GF o))
-    <- fldset2condperm CM PM C FS ([o] PFSC2 o)
-    <- set+set2set S FS M2
-    <- capset2perm CM PM B M2 PiM2.
-
-
 restore-cap-call-perm : clsmap -> predmap -> cxt -> reftype -> ty -> env -> permission -> type.
 
 restore-cap-call-perm/uniqueORshared
@@ -987,7 +929,6 @@ restore-cap-call-perm/borrow :
     {M=>PiM:capset2perm CM PM B M PiM}
     {T2PF:ty2perm PM (ty/ NN annot/unique C) ([x] PF x)}
     exists {Pi} {PiF} {Pi2}
-    {FMT: arg-perm-format-helper CM PM B FS (reftype/ NN C (targets/unique S M)) Pi}
     {C+FS=>PiF:fldset2condperm CM PM C FS ([x] PiF x)}
     {IMP: {o}{r} implies
           (combine PiB
@@ -1009,7 +950,6 @@ restore-cap-call-perm/borrow :
     ([x](S=>GF:{x} set2cond B x set/0 (GF x)) x)
     (M2=>PiM2:capset2perm CM PM B M2 PiM2)
     (M=>PiM:capset2perm CM PM B M PiM) (T2PF:ty2perm _ _ PF) _ _ _
-    (arg-perm-format-helper/1 M=>PiM FS=>PFS PML T2PF T2PFB)
     FS2PFSC
     ([x][o] implies/trans
       (implies/combine implies/reflexive
@@ -1114,8 +1054,6 @@ restore-cap-call-perm/borrow :
     ([x](S=>GF:{x} set2cond B x S (GF x)) x)
     (M2=>PiM2:capset2perm CM PM B M2 PiM2)
     (M=>PiM:capset2perm CM PM B M PiM) (T2PF:ty2perm _ _ PF) _ _ _
-    (arg-perm-format-helper/2 M2=>PiM2 S+FS=>M2 FS2PFSC2 S=>GF M=>PiM FS=>PFS PML
-      T2PF T2PFB)
     FS2PFSC
     ([x][o]
       (implies/combine (implies/reflexive)
@@ -1226,8 +1164,8 @@ restore-cap-call-perm/borrow :
     <- ty2perm-deterministic T2PF' T2PF predmap`eq/ ty`eq/ P-EQ
     <- ({x} permission`eq-implies-equiv (P-EQ x) (EQV2 x)).
 
-%worlds (objvar) (arg-perm-implies-input-single/L1L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (arg-perm-implies-input-single/L1L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (arg-perm-implies-input-single/L1L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single/L1L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem arg-perm-implies-input-single/L1
@@ -1246,7 +1184,6 @@ restore-cap-call-perm/borrow :
     {M=>PiM:capset2perm CM PM B M PiM}
     {T2PF:ty2perm PM (ty/ NN annot/unique C) ([x] PF x)}
     exists {Pi} {PiF} {Pi2}
-    {FMT: arg-perm-format-helper CM PM B FS (reftype/ NN C (targets/unique S M)) Pi}
     {C+FS=>PiF:fldset2condperm CM PM C FS ([x] PiF x)}
     {IMP: {o}{r} implies
           (combine PiB
@@ -1263,13 +1200,13 @@ restore-cap-call-perm/borrow :
     true.
 
 - : arg-perm-implies-input-single/L1 CM-CM CM2PM B-S CML FM-DM FS<=FS0
-    S+FS=>M2 B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ _ FMT FS2CP IMP IMP2
+    S+FS=>M2 B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ _ FS2CP IMP IMP2
     <- set`size-total SZ
     <- arg-perm-implies-input-single/L1L _ SZ CM-CM CM2PM B-S CML FM-DM FS<=FS0 S+FS=>M2
-      B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ _ FMT FS2CP IMP IMP2.
+      B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ _ FS2CP IMP IMP2.
 
-%worlds (objvar) (arg-perm-implies-input-single/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (arg-perm-implies-input-single/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (arg-perm-implies-input-single/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single/L1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem arg-perm-implies-input-single/L
@@ -1330,48 +1267,6 @@ restore-cap-call-perm/borrow :
 %total { } (arg-perm-implies-input-single/L _ _ _ _ _).
 
 
-%{ Format of the remaining permissions for each argument, after we
-converted permissions for the actual argument to the formal argument.
-We only need to put restriction on the unique -> borrowed case.
-}%
-
-arg-perm-format : clsmap -> predmap -> cxt -> set ->
-    reftype -> ty -> (object -> object -> permission) -> type.
-
-arg-perm-format/unique : arg-perm-format _ _ _ _ _ (ty/ _ annot/unique _) _.
-
-arg-perm-format/shared : arg-perm-format _ _ _ _ _ (ty/ _ annot/shared _) _.
-
-arg-perm-format/borrow/fresh
-  : arg-perm-format CM PM B FS
-    (reftype/ NN1 C (targets/unique set/0 set/0)) (ty/ NN annot/borrow C)
-    ([x] [x1]
-      (combine (PF x)
-        (unitperm (conditional (objequal x null) empty (PFS x)))))
-      <- clsmap`lookup CM C FM
-      <- fldmap`domain FM FS0
-      <- ty2perm3 CM PM (ty/ NN1 annot/unique C) ([x] PF x)
-      <- set`remove FS0 FS FS1
-      <- ({x} fldset2perm PM x FM FS1 (PFS x)).
-
-arg-perm-format/borrow/borrow
-  : arg-perm-format CM PM B FS
-    (reftype/ NN1 C (targets/unique S set/0)) (ty/ NN annot/borrow C)
-    ([x:gterm objectk] [x1:gterm objectk]
-      combine (GF x) (unitperm (encumbered (PiF x) PiM2)))
-    <- set`size S (s _)
-    <- ({x} set2cond B x S (GF x))
-    <- fldset2condperm CM PM C FS ([x] PiF x)
-    <- set+set2set S FS M2
-    <- capset2perm CM PM B M2 PiM2.
-
-arg-perm-format/borrow/unique
-  : arg-perm-format CM PM B FS
-    (reftype/ NN1 C (targets/unique S M)) (ty/ NN annot/borrow C) ([x] Pi x)
-    <- set`size M (s _)
-    <- arg-perm-format-helper CM PM B FS (reftype/ NN1 C (targets/unique S M)) Pi.
-
-
 %theorem arg-perm-implies-input-single
   : forall* {CM} {PM} {B} {RT} {PF} {AV} {PiV}
     {T} {FS} {PF1} {PF2} {V1} {V2} {PiB} {PiR}
@@ -1384,7 +1279,6 @@ arg-perm-format/borrow/unique
     {V=>PiV: env2input CM PM B AV PiV}
     {AT: argtype2perm CM PM T FS ([o] PF1 o) ([o] PF2 o)}
     exists {Pi} {Pi2} {Pi3}
-    {FMT: arg-perm-format CM PM B FS RT T Pi}
     {RCP: restore-cap-call-perm CM PM B RT T AV Pi2}
     {TRANS: {o}{r} transform
             (output/args/0 ((PiB , ((PF o r) , PiV)) , PiR))
@@ -1411,7 +1305,6 @@ arg-perm-format/borrow/unique
       (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/unique T2PF2)
     _ _ _
-    (arg-perm-format/unique)
     (restore-cap-call-perm/uniqueORshared not-borrowed/unique)
     ([o][r] transform/args/0
       (implies/combine
@@ -1439,7 +1332,6 @@ arg-perm-format/borrow/unique
       (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/unique T2PF4)
     _ _ _
-    (arg-perm-format/unique)
     (restore-cap-call-perm/uniqueORshared not-borrowed/unique)
     ([o][r] transform/args/0
       (implies/combine
@@ -1483,7 +1375,6 @@ arg-perm-format/borrow/unique
       (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/unique T2PF2)
     _ _ _
-    (arg-perm-format/unique)
     (restore-cap-call-perm/uniqueORshared not-borrowed/unique)
     ([o][r]
       (transform/args/0
@@ -1531,7 +1422,6 @@ arg-perm-format/borrow/unique
     (argtype2perm/borrow CML (FM-DM:fldmap`domain FM FS0)
       (FS<=FS0:set`leq FS FS0) FS2P)
     _ _ _
-    (arg-perm-format/borrow/fresh FS2P2 RM T2PF3 FM-DM CML)
     (restore-cap-call-perm/borrow make-encumbered/0 capset2perm/0 M2=>PiM2)
     ([o][r] transform/args/0
       (implies/combine
@@ -1603,7 +1493,6 @@ arg-perm-format/borrow/unique
       (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/borrow CML FM-DM LEQ FS2P)
     _ _ _
-    (arg-perm-format/borrow/borrow M2=>PiM2 S+FS=>M2 FS2CP ([x] S=>GF x) SZ)
     (restore-cap-call-perm/borrow make-encumbered/0 capset2perm/0 M2=>PiM2)
     ([o][r] transform/args/0
       (implies/combine
@@ -1652,7 +1541,6 @@ arg-perm-format/borrow/unique
       (LEQ:set`leq FS FS0)
       (FS2P:{x}fldset2perm PM x FM FS (PFM x)))
     _ _ _
-    (arg-perm-format/borrow/unique FMT SZ-M)
     (restore-cap-call-perm/borrow make-encumbered/0 M=>PiM M2=>PiM2)
     ([o][r] transform/args/0
       (implies/combine
@@ -1665,7 +1553,7 @@ arg-perm-format/borrow/unique
       (implies/combine (IMP2 o) implies/reflexive)
       (IMP3 o r))
     <- arg-perm-implies-input-single/L1 CM-CM CM2PM B-S CML FM-DM LEQ S+FS=>M2
-      B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ _ FMT FS2CP IMP IMP3
+      B=>PiB S=>GF M2=>PiM2 M=>PiM T2PF _ _ _ FS2CP IMP IMP3
     <- fldset2condperm-bimplies-fldset2perm* CM2PM CML FS2CP FS2P IMP1 IMP2.
 
 %%% unique ==> shared
@@ -1686,7 +1574,6 @@ arg-perm-format/borrow/unique
       (S=>PiS:make-encumbered CM PM B set/0 PiS)
       (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/shared (ty2perm/ PML NN2P annot2perm/shared)) _ _ _
-    (arg-perm-format/shared)
     (restore-cap-call-perm/uniqueORshared not-borrowed/shared)
     ([o][r] transform/trans
       (transform/args/0
@@ -1721,7 +1608,6 @@ arg-perm-format/borrow/unique
       (S=>PiS:make-encumbered CM PM B S PiS)
       (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/shared (ty2perm/ PML NN2P annot2perm/shared)) _ _ _
-    (arg-perm-format/shared)
     (restore-cap-call-perm/uniqueORshared not-borrowed/shared)
     ([o][r] transform/trans
       (transform/args/0
@@ -1773,7 +1659,6 @@ arg-perm-format/borrow/unique
       (M2=>PiM2:capset2perm CM PM B M2 PiM2))
     (argtype2perm/shared (ty2perm/ PML (NN2P:nn2perm NN2 _ PK2) annot2perm/shared))
     _ _ _
-    (arg-perm-format/shared)
     (restore-cap-call-perm/uniqueORshared not-borrowed/shared)
     ([o][r] transform/trans
       (transform/args/0
@@ -1820,7 +1705,6 @@ arg-perm-format/borrow/unique
     (reftype2perm/shared T2PF1)
     (env2input/ make-encumbered/0 capset2perm/0)
     (argtype2perm/shared T2PF2) _ _ _
-    (arg-perm-format/shared)
     (restore-cap-call-perm/uniqueORshared not-borrowed/shared)
     ([o][r] transform/args/0
       (implies/combine
@@ -1833,8 +1717,8 @@ arg-perm-format/borrow/unique
         (equiv/commute)))
     <- nn-leq-implies-permission-leq* T2PF1 NN2<=NN1 T2PF2 IMP.
 
-%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (arg-perm-implies-input-single _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem arg-perm-rel-transform
@@ -1912,7 +1796,7 @@ arg-perm-format/borrow/unique
       (env2input/ U0=>PiU0 M0=>PiM0) Pi1' _ TRANS1 IMP
     <- transform-commutes-envadd* TRANS1 envadd/args/0 envadd/args/0 TRANS1'
     <- arg-perm-implies-input-single CM-CM CM2PM B=>PiB CM-B-RT
-      SUB RT2P (env2input/ AU=>PiAU AM=>PiAM) AT2P _ _ _ FMT RCP
+      SUB RT2P (env2input/ AU=>PiAU AM=>PiAM) AT2P _ _ _ RCP
       ([o][r] TRANS2 o r) ([o][r] IMP2 o r)
     <- restore-cap-call-perm-combine* RCP RC (env2input/ U0=>PiU0 M0=>PiM0)
       (env2input/ U1=>PiU1 M1=>PiM1) EQV.
