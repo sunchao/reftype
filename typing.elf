@@ -78,12 +78,14 @@ reftyping/read :
 writeRefTyping : clsmap -> methmap -> cxt -> expr-result -> nat -> expr ->
     targets -> ty -> expr-result -> type.
 
+%%% In subtype, we don't care about FS, since it's impossible for
+%%% a field to be borrowed.
 writeRefTyping/base :
     clsmap`lookup CM C FM ->
     fldmap`lookup FM F (ty/ NN A FC) ->
     make-tgts-and-caps M0 G0 F G1 M1 ->
     reftyping CM MM B (env/ U0 M1) E (result/expr RT V2) ->
-    subtype CM FS RT V2 (ty/ NN A FC) _ (env/ U1 M3) ->
+    subtype CM _ RT V2 (ty/ NN A FC) _ (env/ U1 M3) ->
     consider-ftype G1 M3 A G2 M4 ->
   writeRefTyping CM MM B (result/expr (reftype/ nn/yes C G0) (env/ U0 M0))
     F E G1 (ty/ NN A FC) (result/expr (reftype/ NN FC G2) (env/ U1 M4)).
@@ -372,179 +374,187 @@ reftyping/and :
 
 % Checking method type against func
 
-% methtymatch* : efxmap -> set ->
-% 	clsmap -> methmap -> cxt -> func -> methty -> type.
+methtymatch* : env -> env -> clsmap -> methmap -> cxt -> func -> methty -> type.
 
-% if we have sub rule, then RT should match T,
-% hence subtype will not be needed.
+%%% if we have sub rule, then RT should match T,
+%%% hence subtype will not be needed.
 
-% methtymatch/base
-%   : methtymatch* M S CM MM B (func/0 E) (methty/base T SX)
-%     <- reftype2ty RT T
-%     <- reftyping CM MM B E (result/expr RT (effects/ M SX)).
+methtymatch/base :
+    ty2new-reftype T RT ->
+    reftyping CM MM B Vin E (result/expr RT Vout) ->
+  methtymatch* Vin Vout CM MM B (func/0 E) (methty/base T).
 
-% methtymatch/args/unique
-%   : methtymatch* M S CM MM B (func/+ F)
-%     (methty/arg (ty/ NN annot/unique C) set/0 set/0 MT)
-%     <- ({n} set`add S n (SF n))
-%     <- ({n}{x}{_:object-index x n} methtymatch*
-%          M (SF n) CM MM (cxt/cons x (ty/ N annot/unique C) B) (F x) MT).
+methtymatch/args/shared :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} methtymatch* Vin Vout CM MM (B1 x) (F x) MT) ->
+  methtymatch* Vin Vout CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/shared C) _ MT).
 
-% methtymatch/args/borrow
-%   : methtymatch* M S CM MM B (func/+ F)
-%     (methty/arg (ty/ NN annot/borrow C) Rs Ws MT)
-%     <- ({n} nat+set2set n Rs (R n))
-%     <- ({n} nat+set2set n Ws (W n))
-%     <- ({n} set2efxmap (R n) efx/read (MR n))
-%     <- ({n} set2efxmap (W n) efx/read (MW n))
-%     <- ({n} efxmap`join (MR n) (MW n) (MF n))
-%     <- ({n}{x}{_:object-index x n} methtymatch*
-%          (MF n) S CM MM (cxt/cons x (ty/ NN annot/borrow C) B) (F x) MT).
+methtymatch/args/unique :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
+    clsmap`lookup CM C FM ->
+    fldmap`domain FM FS ->
+    nat+set2set N FS Mf ->
+    set`add Uin N Uin' ->
+    set`union Min Mf Min' ->
+    ({x} methtymatch* (env/ Uin' Min') Vout CM MM (B1 x) (F x) MT) ->
+  methtymatch* (env/ Uin Min) Vout CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/unique C) _ MT).
 
-% methtymatch/args/shared
-%   : methtymatch* M S CM MM B (func/+ F)
-%     (methty/arg (ty/ NN annot/shared C) set/0 set/0 MT)
-%     <- ({x} methtymatch* M S CM MM (cxt/cons x (ty/ NN annot/shared C) B) (F x) MT).
+methtymatch/args/borrow :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
+    nat+set2set N FS Mf ->
+    set`union Min Mf Min' ->
+    set`union Mout Mf Mout' ->
+    ({x} methtymatch* (env/ Uin Min') (env/ Uout Mout') CM MM (B1 x) (F x) MT) ->
+  methtymatch* (env/ Uin Min) (env/ Uout Mout) CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/borrow C) FS MT).
 
-% %abbrev methtymatch = [CM][MM][F][MT] methtymatch* efxmap/0 set/0 CM MM cxt/0 F MT.
-
-
-% constyping* : effects -> clsmap -> methmap -> fldmap
-%     -> cxt -> set -> (object -> expr) -> effects -> type.
-
-% constyping/0 : constyping* XX _ _ _ _ set/0 ([t] lit t) XX.
-
-% constyping/nn
-%   : constyping* XX1 CM MM FM B S ([t] seq (write (lit t) F E) (EF t)) XX
-%     <- fldmap`lookup FM F (ty/ nn/yes A C)
-%     <- set`remove S (set/1 F) SP
-%     <- reftype2ty RT (ty/ nn/yes A C)
-%     <- reftyping CM MM B E (result/expr RT XX2)
-%     <- effects`join XX1 XX2 XX12
-%     <- constyping* XX12 CM MM FM B SP ([t] EF t) XX.
-
-% constyping/mn
-%   : constyping* XX1 CM MM FM B S ([t] seq (write (lit t) F E) (EF t)) XX
-%     <- fldmap`lookup FM F (ty/ nn/may A C)
-%     <- reftype2ty RT (ty/ nn/may A C)
-%     <- reftyping CM MM B E (result/expr RT XX2)
-%     <- effects`join XX1 XX2 XX12
-%     <- constyping* XX12 CM MM FM B S ([t] EF t) XX.
-
-% %abbrev constyping
-%   = [CM][MM][FM][B][S][E][XX] constyping* no-effect CM MM FM B S E XX.
+%abbrev methtymatch = [CM][MM][F][MT] methtymatch* empty-env empty-env CM MM cxt/0 F MT.
 
 
-% the first set is accumulated consumed objects, the second set is all nonnull fields.
+constyping* : clsmap -> methmap -> fldmap
+    -> cxt -> env -> set -> (object -> expr) -> env -> type.
 
-% constymatch*
-%   : efxmap -> set -> clsmap -> methmap -> fldmap
-%     -> cxt -> set -> (object -> func) -> methty -> type.
+constyping/0 : constyping* _ _ _ _ V set/0 ([t] lit t) V.
 
-% constymatch/base
-%   : constymatch* M S CM MM FM B FS ([t] func/0 (E t))
-%     (methty/base (ty/ nn/yes annot/unique C) SX)
-%     <- constyping CM MM FM B FS ([t] E t) (effects/ M SX).
+constyping/nn :
+    fldmap`lookup FM F (ty/ nn/yes A C) ->
+    set`remove S (set/1 F) SP ->
+    reftyping CM MM B V0 E (result/expr RT V1) ->
+    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
+    constyping* CM MM FM B V2 SP ([t] EF t) V3 ->
+  constyping* CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
 
-% constymatch/args/unique
-%   : constymatch* M S CM MM FM B FS ([t] (func/+ ([o] F t o)))
-%     (methty/arg (ty/ NN annot/unique C) set/0 set/0 CT)
-%     <- ({n} set`add S n (SF n))
-%     <- ({n}{x}{_:object-index x n} constymatch* M (SF n)
-%          CM MM FM (cxt/cons x (ty/ NN annot/unique C) B) FS ([t] (F t x)) CT).
+constyping/mn :
+    fldmap`lookup FM F (ty/ nn/yes A C) ->
+    reftyping CM MM B V0 E (result/expr RT V1) ->
+    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
+    constyping* CM MM FM B V2 S ([t] EF t) V3 ->
+  constyping* CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
 
-% constymatch/args/borrow
-%   : constymatch* M S CM MM FM B FS ([t] (func/+ ([o] F t o)))
-%     (methty/arg (ty/ NN annot/borrow C) set/0 set/0 CT)
-%     <- ({n} nat+set2set n Rs (R n))
-%     <- ({n} nat+set2set n Ws (W n))
-%     <- ({n} set2efxmap (R n) efx/read (MR n))
-%     <- ({n} set2efxmap (W n) efx/read (MW n))
-%     <- ({n} efxmap`join (MR n) (MW n) (MF n))
-%     <- ({n}{x}{_:object-index x n} constymatch* (MF n) S CM MM FM
-%          (cxt/cons x (ty/ NN annot/borrow C) B) FS ([t] (F t x)) CT).
 
-% constymatch/args/shared
-%   : constymatch* M S CM MM FM B FS ([t] (func/+ ([o] F t o)))
-%     (methty/arg (ty/ NN annot/shared C) set/0 set/0 CT)
-%     <- ({x} constymatch* M S CM MM FM
-%          (cxt/cons x (ty/ NN annot/shared C) B) FS ([t] (F t x)) CT).
+%%% the first set is accumulated consumed objects, the second set is all nonnull fields.
 
-% %abbrev constymatch
-%   = [CM][MM][FM][S][F][CT] constymatch* efxmap/0 set/0 CM MM FM cxt/0 S F CT.
+methtymatch/base :
+    ty2new-reftype T RT ->
+    reftyping CM MM B Vin E (result/expr RT Vout) ->
+  methtymatch* Vin Vout CM MM B (func/0 E) (methty/base T).
 
+methtymatch/args/shared :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} methtymatch* Vin Vout CM MM (B1 x) (F x) MT) ->
+  methtymatch* Vin Vout CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/shared C) _ MT).
+
+methtymatch/args/borrow :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
+    nat+set2set N FS Mf ->
+    set`union Min Mf Min' ->
+    set`union Mout Mf Mout' ->
+    ({x} methtymatch* (env/ Uin Min') (env/ Uout Mout') CM MM (B1 x) (F x) MT) ->
+  methtymatch* (env/ Uin Min) (env/ Uout Mout) CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/borrow C) FS MT).
+
+methtymatch/args/unique :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
+    clsmap`lookup CM C FM ->
+    fldmap`domain FM FS ->
+    nat+set2set N FS Mf ->
+    set`add Uin N Uin' ->
+    set`union Min Mf Min' ->
+    ({x} methtymatch* (env/ Uin' Min') Vout CM MM (B1 x) (F x) MT) ->
+  methtymatch* (env/ Uin Min) Vout CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/unique C) _ MT).
+
+constymatch* : env -> env -> clsmap -> methmap -> fldmap -> cxt -> set ->
+    (object -> func) -> methty -> type.
+
+constymatch/base :
+    ty2new-reftype (ty/ nn/yes annot/unique C) RT ->
+    constyping* CM MM FM B Vin FS ([t] E t) Vout ->
+  constymatch* Vin Vout CM MM FM B FS ([t] func/0 (E t))
+    (methty/base (ty/ nn/yes annot/unique C)).
+
+constymatch/args/shared :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} constymatch* Vin Vout CM MM FM (B1 x) FS ([t] F t x) CT) ->
+  constymatch* Vin Vout CM MM FM B0 FS ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/shared C) set/0 CT).
+
+constymatch/args/borrow :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
+    nat+set2set N FS Mf ->
+    set`union Min Mf Min' ->
+    set`union Mout Mf Mout' ->
+    ({x} constymatch* (env/ Uin Min') (env/ Uout Mout') CM MM FM (B1 x) S ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) (env/ Uout Mout) CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/borrow C) FS CT).
+
+constymatch/args/unique :
+    cxt`fresh B0 N ->
+    ({x} cxt`update B0 N (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
+    clsmap`lookup CM C FFM ->
+    fldmap`domain FFM FFS ->
+    nat+set2set N FFS Mf ->
+    set`add Uin N Uin' ->
+    set`union Min Mf Min' ->
+    ({x} constymatch* (env/ Uin' Min') Vout CM MM FM (B1 x) S ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) Vout CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/unique C) set/0 CT).
+
+%abbrev constymatch
+  = [CM][MM][FM][S][F][CT] constymatch* empty-env empty-env CM MM FM cxt/0 S F CT.
 
 
 %%% Program Typing: checking method map against prog
 
+select-fields : fldmap -> set -> type.
 
-% select-fields : fldmap -> set -> type.
+select-fields/0 : select-fields fldmap/0 set`set/0.
 
-% select-fields/0 : select-fields fldmap/0 set`set/0.
+select-fields/+/in
+ : select-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-fields M' S'
+    <- set`union S' (set/1 F) S.
 
-% select-fields/+/in
-%   : select-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
-%     <- fldmap`shift F M M'
-%     <- select-fields M' S'
-%     <- set`union S' (set/1 F) S.
-
-% select-fields/+/result
-%   : select-fields (fldmap/+ F (ty/ nn/may _ _) M) S
-%     <- fldmap`shift F M M'
-%     <- select-fields M' S.
-
-
-% methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
-
-% methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
-
-% methmapmatch/+/const
-%   : methmapmatch* CM MM0
-%     (methmap/+ C (methty/arg (ty/ nn/yes _ C) _ CT) MM)
-%     (prog`map/+ C (func/+ ([t] FF t)) M)
-%     <- clsmap`lookup CM C FM
-%     <- select-fields FM S
-%     <- constymatch CM MM0 FM S FF CT
-%     <- methmap`shift C MM MM'
-%     <- prog`shift C M M'
-%     <- methmapmatch* CM MM0 MM' M'.
-
-% methmapmatch/+/meth
-%   : methmapmatch* CM MM0
-%     (methmap/+ N MT MM) (prog`map/+ N FUN M)
-%     <- clsmap`fresh CM N
-%     <- methtymatch CM MM0 FUN MT
-%     <- methmap`shift N MM MM'
-%     <- prog`shift N M M'
-%     <- methmapmatch* CM MM0 MM' M'.
-
-% %abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
+select-fields/+/result
+  : select-fields (fldmap/+ F (ty/ nn/may _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-fields M' S.
 
 
-%%% Theorems
+methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
 
-% %theorem result/expr-respects-eq
-%   : forall* {RT1} {RT2} {X1} {X2}
-%     forall {TE: reftype`eq RT1 RT2} {XE: effects`eq X1 X2}
-%     exists {RE: result`eq (result/expr RT1 X1) (result/expr RT2 X2)}
-%     true.
+methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
 
-% - : result/expr-respects-eq reftype`eq/ effects`eq/ result`eq/.
+methmapmatch/+/const
+  : methmapmatch* CM MM0
+    (methmap/+ C (methty/arg (ty/ nn/yes _ C) _ CT) MM)
+    (prog`map/+ C (func/+ ([t] FF t)) M)
+    <- clsmap`lookup CM C FM
+    <- select-fields FM S
+    <- constymatch CM MM0 FM S FF CT
+    <- methmap`shift C MM MM'
+    <- prog`shift C M M'
+    <- methmapmatch* CM MM0 MM' M'.
 
-% %worlds () (result/expr-respects-eq _ _ _).
-% %total {} (result/expr-respects-eq _ _ _).
+methmapmatch/+/meth
+  : methmapmatch* CM MM0
+    (methmap/+ N MT MM) (prog`map/+ N FUN M)
+    <- clsmap`fresh CM N
+    <- methtymatch CM MM0 FUN MT
+    <- methmap`shift N MM MM'
+    <- prog`shift N M M'
+    <- methmapmatch* CM MM0 MM' M'.
 
-
-% %theorem reftyping-respects-eq
-%   : forall* {N} {N'} {CM} {CM'} {MM} {MM'} {B} {B'} {E:expr} {E':expr} {R} {R'}
-%     forall {RTYP: reftyping N CM MM B E R} {NE: nat`eq N N'}
-%     {CME: clsmap`eq CM CM'} {MME: methmap`eq MM MM'}
-%     {BE: cxt`eq B B'} {EE: expr`eq E E'} {RE: result`eq R R'}
-%     exists {RTYP': reftyping N' CM' MM' B' E' R'}
-%     true.
-
-% - : reftyping-respects-eq RTYP nat`eq/ clsmap`eq/ methmap`eq/ cxt`eq/
-%     expr`eq/ result`eq/ RTYP.
-
-% %worlds () (reftyping-respects-eq _ _ _ _ _ _ _ _).
-% %total {} (reftyping-respects-eq _ _ _ _ _ _ _ _).
+%abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
