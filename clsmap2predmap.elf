@@ -32,10 +32,12 @@ nn2perm : nonnull -> (object -> permission)
 nn2perm/yes
   : nn2perm nonnull/yes PF
     ([p][r]
-      (combine
+      (combine (unitperm (nonlinear (neg (objequal r null))))
         (unitperm
-          (nonlinear (neg (objequal r null))))
-        (combine (PF r) (one-predcall p r)))).
+          (conditional
+            (objequal r null)
+            (empty)
+            (combine (PF r) (one-predcall p r)))))).
 
 nn2perm/may
   : nn2perm nonnull/may PF
@@ -46,6 +48,29 @@ nn2perm/may
           (empty)
           (combine (PF r) (one-predcall p r))))).
 
+%abbrev convert-to-old-nn2perm/yes :
+  {p}{r} implies
+    (combine (unitperm (nonlinear (neg (objequal r null))))
+      (unitperm
+        (conditional
+          (objequal r null)
+          (empty)
+          (combine (PF r) (one-predcall p r)))))
+    (combine (unitperm (nonlinear (neg (objequal r null))))
+      (combine (PF r) (one-predcall p r)))
+  = ([p][r] implies/trans3
+      (implies/combine implies/duplicate implies/cond-neg)
+      (implies/symmetric-associate)
+      (implies/combine implies/reflexive implies/cond-elim)).
+
+%abbrev nn-yes-perm : (object -> permission) -> (clspred -> object -> permission)
+  = [PF][p][r]
+      (combine (unitperm (nonlinear (neg (objequal r null))))
+        (unitperm
+          (conditional
+            (objequal r null)
+            (empty)
+            (combine (PF r) (one-predcall p r))))).
 
 ty2perm : predmap -> ty -> (object -> permission) -> type.
 
@@ -206,11 +231,7 @@ clsmap2predmap/out
 %theorem nn2perm-deterministic/L1 :
     forall* {PF1} {PF2}
     forall  {FEQ: {o} permission`eq (PF1 o) (PF2 o)}
-    exists  {PEQ: {p}{r:object} permission`eq
-		  (unitperm (nonlinear (neg (objequal r null))) ,
-                    ((PF1 r) , (one-predcall p r)))
-                  (unitperm (nonlinear (neg (objequal r null))) ,
-                    ((PF2 r) , (one-predcall p r)))}
+    exists  {PEQ: {p}{r:object} permission`eq (nn-yes-perm PF1 p r) (nn-yes-perm PF2 p r)}
     true.
 
 - : nn2perm-deterministic/L1 ([_] permission`eq/) ([_][_] permission`eq/).
@@ -1472,25 +1493,27 @@ clsmap-predmap/+
 
 - : can-duplicate-borrow
     (ty2perm/ _ nn2perm/yes annot2perm/borrow)
-    ([_] implies/trans5
+    ([r] implies/trans7
+      (implies/combine implies/duplicate implies/cond-neg)
+      (implies/symmetric-associate)
+      (implies/combine implies/reflexive implies/cond-elim)
+      (implies/combine implies/reflexive
+        (implies/combine implies/reflexive implies/duplicate))
+      (implies/combine implies/duplicate implies/associate)
+      (implies/equiv equiv/swap-middle)
       (implies/combine
-        (implies/duplicate)
-        (implies/combine
-          (implies/reflexive)
-          (implies/duplicate)))
-      (implies/equiv (equiv/symmetric equiv/associate))
-      (implies/combine
-        (implies/reflexive)
-        (implies/equiv equiv/roll3))
-      (implies/equiv equiv/associate)
-      (implies/combine
-        (implies/combine
-          (implies/reflexive)
-          (implies/equiv
-            (equiv/transitive
-              (equiv/symmetric equiv/identity)
-              (equiv/commute))))
-        (implies/reflexive))).
+        (implies/trans3
+          (implies/combine implies/duplicate implies/reflexive)
+          (implies/symmetric-associate)
+          (implies/combine implies/reflexive
+            (implies/trans implies/cond-intro implies/cond-unneg)))
+        (implies/trans3
+          (implies/combine implies/duplicate
+            (implies/equiv
+              (equiv/transitive (equiv/symmetric equiv/identity) equiv/commute)))
+          (implies/symmetric-associate)
+          (implies/combine implies/reflexive
+            (implies/trans implies/cond-intro implies/cond-unneg))))).
 
 - : can-duplicate-borrow
     (ty2perm/ _ nn2perm/may annot2perm/borrow)
@@ -1548,23 +1571,26 @@ clsmap-predmap/+
 
 - : can-duplicate-shared
     (ty2perm/ _ nn2perm/yes annot2perm/shared)
-    ([_] implies/trans4
-      (implies/combine
-        (implies/reflexive)
-        (implies/combine2conj))
-      (implies/combine2conj)
-      (implies/duplicate)
-      (implies/combine
+    ([r] implies/trans6
+      (implies/combine implies/duplicate implies/cond-neg)
+      (implies/symmetric-associate)
+      (implies/combine implies/reflexive implies/cond-elim)
+      (implies/combine implies/duplicate
         (implies/trans
-          (implies/conj2combine)
-          (implies/combine
-            (implies/reflexive)
-            (implies/conj2combine)))
-        (implies/trans
-          (implies/conj2combine)
-          (implies/combine
-            (implies/reflexive)
-            (implies/conj2combine))))).
+          (implies/combine implies/duplicate implies/duplicate)
+          (implies/equiv equiv/swap-middle)))
+      (implies/equiv equiv/swap-middle)
+      (implies/combine
+        (implies/trans3
+          (implies/combine implies/duplicate implies/reflexive)
+          (implies/symmetric-associate)
+          (implies/combine implies/reflexive
+            (implies/trans implies/cond-intro implies/cond-unneg)))
+        (implies/trans3
+          (implies/combine implies/duplicate implies/reflexive)
+          (implies/symmetric-associate)
+          (implies/combine implies/reflexive
+            (implies/trans implies/cond-intro implies/cond-unneg))))).
 
 %worlds (objvar) (can-duplicate-shared _ _).
 %total {} (can-duplicate-shared _ _).
@@ -1716,50 +1742,8 @@ the nesting fact about F from the predicate. }%
     exists {IMP: {r} implies (PF CP r) ((PF CP r) , (PF CP r))}
     true.
 
-- : sharedperm-can-be-duplicated annot2perm/shared
-    nn2perm/yes _
-    ([r]
-      (implies/trans4
-        (implies/combine
-          (implies/reflexive)
-          (implies/combine2conj))
-        (implies/combine2conj)
-        (implies/duplicate)
-        (implies/combine
-          (implies/trans
-            (implies/conj2combine)
-            (implies/combine
-              (implies/reflexive)
-              (implies/conj2combine)))
-          (implies/trans
-            (implies/conj2combine)
-            (implies/combine
-              (implies/reflexive)
-              (implies/conj2combine)))))).
-
-- : sharedperm-can-be-duplicated annot2perm/shared
-    nn2perm/may _
-    ([r]
-      (implies/trans3
-        (implies/cond-inner
-          (bimplies/reflexive)
-          (bimplies/reflexive)
-          (implies/equiv (equiv/symmetric equiv/identity))
-          (implies/trans
-            (implies/combine2conj)
-            (implies/duplicate)))
-        (implies/cond-distribute)
-        (implies/combine
-          (implies/cond-inner
-            (bimplies/reflexive)
-            (bimplies/reflexive)
-            (implies/reflexive)
-            (implies/conj2combine))
-          (implies/cond-inner
-            (bimplies/reflexive)
-            (bimplies/reflexive)
-            (implies/reflexive)
-            (implies/conj2combine))))).
+- : sharedperm-can-be-duplicated A2P NN2P PML IMP
+    <- can-duplicate-shared (ty2perm/ PML NN2P A2P) IMP.
 
 %worlds (objvar) (sharedperm-can-be-duplicated _ _ _ _).
 %total {} (sharedperm-can-be-duplicated _ _ _ _).
@@ -1872,75 +1856,32 @@ the nesting fact about F from the predicate. }%
 %total {} (can-carve-out-of-shared _ _).
 
 
-%{
- The following two lemmas say if we have a permission converted from
- either unique or borrowed type, then we can "scale from" the permission,
- and remove the fraction (since the permission is actually formule).
-}%
-
-%theorem can-scale-from-shared
-  : forall* {PM} {PF} {C} {NN} {Q}
-    forall {T2PF: ty2perm PM (ty/ NN annot/shared C) PF}
+%theorem can-scale-from-not-unique
+  : forall* {PM} {PF} {C} {NN} {Q} {A}
+    forall {T2PF: ty2perm PM (ty/ NN A C) PF}
+    {NA: not-unique A}
     exists {IMP: {v} implies (scale Q (PF v)) (PF v)}
     true.
 
-- : can-scale-from-shared
-    (ty2perm/ _ nn2perm/yes annot2perm/shared)
+- : can-scale-from-not-unique
+    (ty2perm/ _ nn2perm/yes annot2perm/borrow) not-unique/borrow
     ([_] implies/trans
-      (implies/equiv
-        (equiv/transitive
-          (equiv/distribute)
-          (equiv/combine
-            (equiv/reflexive)
-            (equiv/distribute))))
-      (implies/combine
-        (implies/scale-from-formula)
-        (implies/combine
-          (implies/scale-from-formula)
-          (implies/scale-from-formula)))).
-
-- : can-scale-from-shared
-    (ty2perm/ _ nn2perm/may annot2perm/shared)
-    ([_] implies/trans
-      (implies/scale-distribute-cond)
-      (implies/cond-inner
-        (bimplies/reflexive)
-        (bimplies/reflexive)
-        (implies/equiv equiv/zero)
+      (implies/equiv equiv/distribute)
+      (implies/combine implies/scale-from-formula
         (implies/trans
-          (implies/equiv equiv/distribute)
-          (implies/combine
-            (implies/scale-from-formula)
-            (implies/scale-from-formula))))).
+          (implies/scale-distribute-cond)
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/equiv equiv/zero)
+            (implies/trans
+              (implies/equiv equiv/distribute)
+              (implies/combine
+                (implies/equiv equiv/zero)
+                (implies/scale-from-formula))))))).
 
-%worlds (objvar) (can-scale-from-shared _ _).
-%total {} (can-scale-from-shared _ _).
-
-
-%theorem can-scale-from-borrow
-  : forall* {PM} {PF} {C} {NN} {Q}
-    forall {T2PF: ty2perm PM (ty/ NN annot/borrow C) PF}
-    exists {IMP: {v} implies (scale Q (PF v)) (PF v)}
-    true.
-
-- : can-scale-from-borrow
-    (ty2perm/ _ nn2perm/yes annot2perm/borrow)
-    ([v] implies/trans
-      (implies/equiv
-        (equiv/transitive
-          (equiv/distribute)
-          (equiv/combine
-            (equiv/reflexive)
-            (equiv/distribute))))
-      (implies/combine
-        (implies/scale-from-formula)
-        (implies/combine
-          (implies/equiv
-            (equiv/zero))
-          (implies/scale-from-formula)))).
-
-- : can-scale-from-borrow
-    (ty2perm/ _ nn2perm/may annot2perm/borrow)
+- : can-scale-from-not-unique
+    (ty2perm/ _ nn2perm/may annot2perm/borrow)not-unique/borrow
     ([_] implies/trans
       (implies/scale-distribute-cond)
       (implies/cond-inner
@@ -1953,37 +1894,39 @@ the nesting fact about F from the predicate. }%
             (implies/equiv equiv/zero)
             (implies/scale-from-formula))))).
 
-%worlds (objvar) (can-scale-from-borrow _ _).
-%total {} (can-scale-from-borrow _ _).
-
-
-%theorem borrow-permission-to-empty
-  : forall* {PM} {NN} {C} {PF}
-    forall {T2PF: ty2perm PM (ty/ NN annot/borrow C) PF}
-    exists {IMP: {x} implies (PF x) empty}
-    true.
-
-- : borrow-permission-to-empty (ty2perm/ _ nn2perm/yes annot2perm/borrow)
+- : can-scale-from-not-unique
+    (ty2perm/ _ nn2perm/yes annot2perm/shared) not-unique/shared
     ([_] implies/trans
-      (implies/combine implies/nonlinear2empty
+      (implies/equiv equiv/distribute)
+      (implies/combine implies/scale-from-formula
         (implies/trans
-          (implies/combine implies/reflexive implies/nonlinear2empty)
-          (implies/equiv equiv/identity)))
-      (implies/equiv equiv/identity)).
+          (implies/scale-distribute-cond)
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/equiv equiv/zero)
+            (implies/trans
+              (implies/equiv equiv/distribute)
+              (implies/combine
+                (implies/scale-from-formula)
+                (implies/scale-from-formula))))))).
 
-- : borrow-permission-to-empty (ty2perm/ _ nn2perm/may annot2perm/borrow)
+- : can-scale-from-not-unique
+    (ty2perm/ _ nn2perm/may annot2perm/shared) not-unique/shared
     ([_] implies/trans
+      (implies/scale-distribute-cond)
       (implies/cond-inner
         (bimplies/reflexive)
         (bimplies/reflexive)
-        (implies/reflexive)
+        (implies/equiv equiv/zero)
         (implies/trans
-          (implies/combine implies/reflexive implies/nonlinear2empty)
-          (implies/equiv equiv/identity)))
-      (implies/cond-equal)).
+          (implies/equiv equiv/distribute)
+          (implies/combine
+            (implies/scale-from-formula)
+            (implies/scale-from-formula))))).
 
-%worlds (objvar) (borrow-permission-to-empty _ _).
-%total { } (borrow-permission-to-empty _ _).
+%worlds (objvar) (can-scale-from-not-unique _ _ _).
+%total { } (can-scale-from-not-unique _ _ _).
 
 
 %%% We should be able to get a borrowed permission from a unique permission.
@@ -1997,25 +1940,23 @@ the nesting fact about F from the predicate. }%
 - : can-duplicate-borrow-from-unique
     (ty2perm/ PML nn2perm/yes annot2perm/unique)
     _ (ty2perm/ PML nn2perm/yes annot2perm/borrow)
-    ([o] implies/trans5
-      (implies/combine
-        (implies/duplicate)
-        (implies/combine
-          (implies/reflexive)
-          (implies/duplicate)))
-      (implies/equiv (equiv/symmetric equiv/associate))
-      (implies/combine
-        (implies/reflexive)
-        (implies/equiv equiv/roll3))
-      (implies/equiv equiv/associate)
-      (implies/combine
-        (implies/combine
-          (implies/reflexive)
-          (implies/equiv
-            (equiv/transitive
-              (equiv/symmetric equiv/identity)
-              (equiv/commute))))
-        (implies/reflexive))).
+    ([x] implies/trans
+      (implies/combine implies/duplicate
+        (implies/trans3
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/equiv (equiv/symmetric equiv/identity))
+            (implies/trans4
+              (implies/combine
+                (implies/equiv (equiv/symmetric equiv/identity))
+                (implies/duplicate))
+              (implies/equiv (equiv/symmetric equiv/associate))
+              (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+              (implies/equiv equiv/associate)))
+          (implies/cond-distribute)
+          (implies/equiv equiv/commute)))
+      (implies/equiv equiv/swap-middle)).
 
 - : can-duplicate-borrow-from-unique
     (ty2perm/ PML nn2perm/may annot2perm/unique)
@@ -2048,15 +1989,21 @@ the nesting fact about F from the predicate. }%
     exists {IMP: {x} implies (PF x) empty}
     true.
 
-- : not-unique-perm-implies-empty (ty2perm/ PML nn2perm/yes annot2perm/borrow) _
+- : not-unique-perm-implies-empty (ty2perm/ _ nn2perm/yes annot2perm/borrow) _
     ([_] implies/trans
       (implies/combine implies/nonlinear2empty
         (implies/trans
-          (implies/combine implies/reflexive implies/nonlinear2empty)
-          (implies/equiv equiv/identity)))
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/reflexive)
+            (implies/trans
+              (implies/combine implies/reflexive implies/nonlinear2empty)
+              (implies/equiv equiv/identity)))
+          (implies/cond-equal)))
       (implies/equiv equiv/identity)).
 
-- : not-unique-perm-implies-empty (ty2perm/ PML nn2perm/may annot2perm/borrow) _
+- : not-unique-perm-implies-empty (ty2perm/ _ nn2perm/may annot2perm/borrow) _
     ([_] implies/trans
       (implies/cond-inner
         (bimplies/reflexive)
@@ -2071,9 +2018,15 @@ the nesting fact about F from the predicate. }%
     ([_] implies/trans
       (implies/combine implies/nonlinear2empty
         (implies/trans
-          (implies/combine implies/nonlinear2empty implies/nonlinear2empty)
-          (implies/equiv equiv/identity)))
-      (implies/equiv equiv/identity)).
+          (implies/cond-inner
+            (bimplies/reflexive)
+            (bimplies/reflexive)
+            (implies/reflexive)
+            (implies/trans
+              (implies/combine implies/nonlinear2empty implies/nonlinear2empty)
+              (implies/equiv equiv/identity)))
+          (implies/cond-equal)))
+      (implies/identity)).
 
 - : not-unique-perm-implies-empty (ty2perm/ PML nn2perm/may annot2perm/shared) _
     ([_] implies/trans
@@ -2103,7 +2056,9 @@ the nesting fact about F from the predicate. }%
 
 - : nonnull-sub-implies-permission-implies (nonnull`leq/<)
     (ty2perm/ PML nn2perm/yes A2P) _ (ty2perm/ PML nn2perm/may A2P)
-    ([_] implies/cond-intro-neg).
+    ([_] implies/trans
+      (implies/combine implies/nonlinear2empty implies/reflexive)
+      (implies/equiv (equiv/transitive equiv/commute equiv/identity))).
 
 %worlds (objvar) (nonnull-sub-implies-permission-implies _ _ _ _ _).
 %total { } (nonnull-sub-implies-permission-implies _ _ _ _ _).
