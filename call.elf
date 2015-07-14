@@ -625,7 +625,7 @@ fldset2condperm/U :
     V=>PiV _ (restore-cap-call/uniqueORshared _) _ V=>PiV.
 
 - : restore-cap-call-preserves-env2input CM-CM CM2PM
-    (clsmap-cxt-reftype/unique _ _ (CM-B-MT:clsmap-cxt-capset CM B MT))
+    (clsmap-cxt-reftype/unique _ _ (CM-B-MT:clsmap-cxt-unique-capset CM B _ _ MT))
     (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
     (env2input/ (UA=>PiUA:make-encumbered CM PM B UA PiUA)
@@ -635,7 +635,7 @@ fldset2condperm/U :
       (env`combine/ (U0+UA=U1:set`combine U0 UA U1) (M2+MA=M3:set`combine M2 MA M3)))
     _ (env2input/ U1=>PiU1 M3=>PiM3)
     <- make-encumbered-combines U0=>PiU0 UA=>PiUA U0+UA=U1 PiU1 U1=>PiU1 PiU0+PiUA<=>PiU1
-    <- clsmap-cxt-capset-implies-capset2perm CM-CM CM2PM CM-B-MT PiMT MT=>PiMT
+    <- clsmap-cxt-unique-capset-implies-capset2perm CM-CM CM2PM CM-B-MT PiMT MT=>PiMT
     <- set`split-implies-permission-combine-converse
       M0+MT=M2 M0=>PiM0 MT=>PiMT PiM2 M2=>PiM2 PiM0+PiMT<=>PiM2
     <- set`split-implies-permission-combine-converse
@@ -2284,6 +2284,7 @@ restore-cap-call-perm/borrow :
     {MT} {AR} {AO} {PT} {W} {Pi} {Pi1} {Pi2} {V0} {PiV0}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM-MM: clsmap-methmap CM MM}
+    {CM-B: clsmap-cxt CM B}
     {CM2PM: clsmap2predmap CM PM}
     {MM=>W: methmap2progtype CM PM MM W}
     {CM-V: clsmap-cxt-env CM B V}
@@ -2300,7 +2301,7 @@ restore-cap-call-perm/borrow :
     {FMT: result2output CM PM B R O'}
     true.
 
-- : reftyping-ok/call* CM-CM CM-MM (CM2PM:clsmap2predmap CM PM)
+- : reftyping-ok/call* CM-CM CM-MM CM-B (CM2PM:clsmap2predmap CM PM)
     (MM2W:methmap2progtype CM PM MM W) CM-B-V
     (argsRefTyping/+
       (RTYP:reftyping CM MM B V0 E (result/expr RT (env/ U1 M1)))
@@ -2331,12 +2332,12 @@ restore-cap-call-perm/borrow :
       (transform/rem-unused)
       (transform/rem-unused))
     R=>O
-    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B-V RTYP CM-B-R1
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-B-V RTYP CM-B-R1
     <- clsmap-result/expr-inversion CM-B-R1 CM-B-RT (clsmap-cxt-env/ CM-B-U1 CM-B-M1)
-    <- subtype-consistent (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2
+    <- subtype-consistent CM-B-RT (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2 _
     <- restore-cap-call-preserves-env2input CM-CM CM2PM CM-B-RT (env2input/ U4=>PiU4 M4=>PiM4)
       (env2input/ U=>PiU M=>PiM) RC _ (env2input/ U5=>PiU5 M5=>PiM5)
-    <- ({o}{r} reftyping-ok/call* CM-CM CM-MM CM2PM MM2W CM-B-V2 ATYP
+    <- ({o}{r} reftyping-ok/call* CM-CM CM-MM CM-B CM2PM MM2W CM-B-V2 ATYP
          (AR=>AO o r)
          (arg-perm-rel/+ o r CM-B-RT RT2P (env2input/ U=>PiU M=>PiM) AT2P SUB RC REL)
          (env2input/ U5=>PiU5 M5=>PiM5)
@@ -2344,7 +2345,7 @@ restore-cap-call-perm/borrow :
          (TRANS o r) (CTYP o r) (TRANS2 o r) (R=>OF o r))
     <- result2output-no-var R=>OF _ TRANS1 R=>O.
 
-- : reftyping-ok/call* CM-CM CM-MM CM2PM MM2W _
+- : reftyping-ok/call* CM-CM CM-MM CM-B CM2PM MM2W _
     (argsRefTyping/0)
     (result2output/args/0
       (B=>PiB:cxt2perm PM B PiB)
@@ -2396,8 +2397,8 @@ restore-cap-call-perm/borrow :
       PiM M=>PiM PiM0+PiM1<=>PiM
     <- fresh-ty2perm-implies-reftype2perm T2PF T2RT _ T2PRF IMP2.
 
-%worlds (objvar) (reftyping-ok/call* _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (AT) (reftyping-ok/call* _ _ _ _ _ AT _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (reftyping-ok/call* _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (AT) (reftyping-ok/call* _ _ _ _ _ _ AT _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem reftyping-ok/call
@@ -2405,6 +2406,7 @@ restore-cap-call-perm/borrow :
     {MT} {AR} {AO} {PT} {W} {R}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM-MM: clsmap-methmap CM MM}
+    {CM-B: clsmap-cxt CM B}
     {CM2PM: clsmap2predmap CM PM}
     {MM2W: methmap2progtype CM PM MM W}
     {CM-V: clsmap-cxt-env CM B V}
@@ -2419,14 +2421,14 @@ restore-cap-call-perm/borrow :
     {R2O: result2output CM PM B R O'}
     true.
 
-- : reftyping-ok/call CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+- : reftyping-ok/call CM-CM CM-MM CM-B CM2PM MM2W CM-V RTYP-A
     AR=>AO MT=>PT CRTYP _ _ _ TRANS CTYP TRANS2 R2O
-    <- reftyping-ok/call* CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+    <- reftyping-ok/call* CM-CM CM-MM CM-B CM2PM MM2W CM-V RTYP-A
       AR=>AO arg-perm-rel/0 (env2input/ make-encumbered/0 capset2perm/0)
       MT=>PT CRTYP _ _ _ TRANS CTYP TRANS2 R2O.
 
-%worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (reftyping-ok/call _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem reftyping-ok/const*
@@ -2434,6 +2436,7 @@ restore-cap-call-perm/borrow :
     {CTF} {AR} {AO} {PTF} {W} {Pi} {Pi1} {Pi2} {V0} {PiV0}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM-MM: clsmap-methmap CM MM}
+    {CM-B: clsmap-cxt CM B}
     {CM2PM: clsmap2predmap CM PM}
     {MM=>W: methmap2progtype CM PM MM W}
     {CM-V: clsmap-cxt-env CM B V}
@@ -2453,7 +2456,7 @@ restore-cap-call-perm/borrow :
     {FMT: result2output CM PM B R O'}
     true.
 
-- : reftyping-ok/const* CM-CM CM-MM CM2PM MM2W _
+- : reftyping-ok/const* CM-CM CM-MM CM-B CM2PM MM2W _
     (argsRefTyping/0)
     (result2output/args/0
       (B=>PiB:cxt2perm PM B PiB)
@@ -2521,7 +2524,7 @@ restore-cap-call-perm/borrow :
     <- allocFields-unique AF AF1 S=S1 OS=OS1
     <- ({t} permission`eq-implies-equiv (OS=OS1 t) (OS<=>OS1 t)).
 
-- : reftyping-ok/const* CM-CM CM-MM (CM2PM:clsmap2predmap CM PM)
+- : reftyping-ok/const* CM-CM CM-MM CM-B (CM2PM:clsmap2predmap CM PM)
     (MM2W:methmap2progtype CM PM MM W) CM-B-V
     (argsRefTyping/+
       (RTYP:reftyping CM MM B V0 E (result/expr RT (env/ U1 M1)))
@@ -2554,12 +2557,12 @@ restore-cap-call-perm/borrow :
       (transform/rem-unused)
       (transform/rem-unused))
     R=>O
-    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B-V RTYP CM-B-R1
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-B-V RTYP CM-B-R1
     <- clsmap-result/expr-inversion CM-B-R1 CM-B-RT (clsmap-cxt-env/ CM-B-U1 CM-B-M1)
-    <- subtype-consistent (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2
+    <- subtype-consistent CM-B-RT (clsmap-cxt-env/ CM-B-U1 CM-B-M1) SUB CM-B-V2 _
     <- restore-cap-call-preserves-env2input CM-CM CM2PM CM-B-RT (env2input/ U4=>PiU4 M4=>PiM4)
       (env2input/ U=>PiU M=>PiM) RC _ (env2input/ U5=>PiU5 M5=>PiM5)
-    <- ({o}{r} reftyping-ok/const* CM-CM CM-MM CM2PM MM2W CM-B-V2 ATYP
+    <- ({o}{r} reftyping-ok/const* CM-CM CM-MM CM-B CM2PM MM2W CM-B-V2 ATYP
          (AR=>AO o r)
          (arg-perm-rel/+ o r CM-B-RT RT2P (env2input/ U=>PiU M=>PiM) AT2P SUB RC REL)
          (env2input/ U5=>PiU5 M5=>PiM5)
@@ -2567,8 +2570,8 @@ restore-cap-call-perm/borrow :
          (TRANS o r) (CTYP o r) (TRANS2 o r) (R=>OF o r))
     <- result2output-no-var R=>OF _ TRANS1 R=>O.
 
-%worlds (objvar) (reftyping-ok/const* _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total (AT) (reftyping-ok/const* _ _ _ _ _ AT _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (reftyping-ok/const* _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (AT) (reftyping-ok/const* _ _ _ _ _ _ AT _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %theorem reftyping-ok/const
@@ -2576,6 +2579,7 @@ restore-cap-call-perm/borrow :
     {CTF} {AR} {AO} {PTF} {W} {R} {OS}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM-MM: clsmap-methmap CM MM}
+    {CM-B: clsmap-cxt CM B}
     {CM2PM: clsmap2predmap CM PM}
     {MM2W: methmap2progtype CM PM MM W}
     {CM-V: clsmap-cxt-env CM B V}
@@ -2593,11 +2597,11 @@ restore-cap-call-perm/borrow :
     {R2O: result2output CM PM B R O'}
     true.
 
-- : reftyping-ok/const CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+- : reftyping-ok/const CM-CM CM-MM CM-B CM2PM MM2W CM-V RTYP-A
     AR=>AO MT=>PT CRTYP DM AF _ _ _ _ EA TRANS CTYP TRANS2 R2O
-    <- reftyping-ok/const* CM-CM CM-MM CM2PM MM2W CM-V RTYP-A
+    <- reftyping-ok/const* CM-CM CM-MM CM-B CM2PM MM2W CM-V RTYP-A
       AR=>AO arg-perm-rel/0 (env2input/ make-encumbered/0 capset2perm/0)
       MT=>PT CRTYP DM AF _ _ _ _ EA TRANS CTYP TRANS2 R2O.
 
-%worlds (objvar) (reftyping-ok/const _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
-%total { } (reftyping-ok/const _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (objvar) (reftyping-ok/const _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (reftyping-ok/const _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
