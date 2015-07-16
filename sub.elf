@@ -424,6 +424,149 @@
 %total { } (reftype-sub-transform/L6 _ _).
 
 
+%%% This theorem says if we have a clsmap-cxt-unique-capset relation and
+%%% a set of permissions from capset2perm, then we can pull out a field permission
+%%% from the permissions.
+
+%theorem reftype-sub-transform/L7
+  : forall* {CM} {PM} {B} {NN} {C} {M} {Pi} {O} {Pi'}
+    forall {N} {SZ: set`size M (s N)}
+    {CM-B-NN-C-M: clsmap-cxt-unique-capset CM B NN C M}
+    {M=>Pi: capset2perm CM PM B M Pi}
+    exists {PF} {T2P: ty2perm PM (ty/ NN annot/unique C) PF}
+    {IMP: transform (output/expr O (Pi , Pi'))
+          (output/exists [o]
+            (output/expr O
+              ((PF o) , ((unitperm (encumbered (PF o) Pi)) , Pi'))))}
+    true.
+
+
+%theorem reftype-sub-transform/L7/L1
+  : forall* {PF0} {PM} {NN0} {NN1} {A} {C} {Pi}
+    forall {T2PF0: ty2perm PM (ty/ NN0 A C) PF0}
+    {NN0<=NN1: nonnull`sub NN0 NN1}
+    exists {PF1} {T2PF1: ty2perm PM (ty/ NN1 A C) PF1}
+    {IMP: {x} implies ((PF0 x) , (unitperm (encumbered (PF0 x) Pi)))
+          ((PF1 x) , (unitperm (encumbered (PF1 x) Pi)))}
+    true.
+
+- : reftype-sub-transform/L7/L1
+    T2PF (nonnull`leq/= nonnull`eq/) _ T2PF ([_] implies/reflexive).
+
+- : reftype-sub-transform/L7/L1
+    (ty2perm/ PML nn2perm/yes A2P) nonnull`leq/< _
+    (ty2perm/ PML nn2perm/may A2P)
+    ([x] implies/trans3
+      (implies/combine implies/commute implies/combine-assoc-encumbered)
+      (implies/symmetric-associate)
+      (implies/combine implies/reflexive implies/linear-modus-ponens)).
+
+%worlds (objvar) (reftype-sub-transform/L7/L1 _ _ _ _ _).
+%total { } (reftype-sub-transform/L7/L1 _ _ _ _ _).
+
+
+%theorem reftype-sub-transform/L7/L2
+  : forall* {CM} {PM} {B} {NN} {C} {K} {O1} {Pi}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {CM-B-K-NN-C: clsmap-cxt-unique-cap CM B (s K) NN C}
+    exists {N} {F} {O} {NN0} {A0} {C0} {PF} {PF2}
+    {N2P: nat2pair (s K) (pair/ N F)}
+    {BL: cxt`lookup B N (cxt-info/ O (ty/ NN0 A0 C0))}
+    {CF: create-fldperm CM PM C0 F PF}
+    {T2PF: ty2perm PM (ty/ NN annot/unique C) PF2}
+    {TRANS: transform
+          (output/expr O1 ((fldperm O F PF) , Pi))
+          (output/exists [x]
+            (output/expr O1
+              (((PF2 x) , (unitperm (encumbered (PF2 x) (fldperm O F ([v] PF v))))) , Pi)))}
+    true.
+
+- : reftype-sub-transform/L7/L2 CM-CM CM2PM
+    (clsmap-cxt-unique-cap/nest (CML:clsmap`lookup CM C FM)
+      (FML: fldmap`lookup FM F (ty/ FNN annot/unique FC))
+      (CM-B-K-NN-C:clsmap-cxt-unique-cap CM B (s K) nonnull/yes C))
+    _ _ _ _ _ _ _ _ N2P BL CF (ty2perm/ PM-FL NN2P annot2perm/unique)
+    (transform/trans3
+      (TRANS)
+      (transform/inside [o]
+        (transform/trans3
+          (transform/implies
+            (implies/trans3
+              (implies/combine
+                (implies/trans3
+                  (implies/combine implies/reflexive
+                    (implies/equiv (equiv/symmetric equiv/identity)))
+                  (IMP2 o)
+                  (implies/combine implies/reflexive implies/identity))
+                (implies/reflexive))
+              (implies/symmetric-associate)
+              (implies/combine (implies/equiv (equiv/symmetric equiv/one))
+                (implies/reflexive))))
+          (transform/skolem)
+          (transform/inside [r]
+            (transform/implies
+              (implies/trans4
+                (implies/combine
+                  (implies/trans5
+                    (implies/equiv equiv/one)
+                    (implies/equiv (equiv/symmetric equiv/identity))
+                    (implies/combine implies/commute
+                      (implies/trans
+                        (implies/gen-pack-encumber r)
+                        (implies/combine-assoc-encumbered)))
+                    (implies/symmetric-associate)
+                    (implies/combine implies/reflexive implies/linear-modus-ponens))
+                  (implies/reflexive))
+                (implies/symmetric-associate)
+                (implies/combine implies/reflexive
+                  (implies/trans
+                    (implies/associate)
+                    (implies/combine implies/chain-implication implies/reflexive)))
+                (implies/associate))))))
+      (transform/rem-unused))
+    <- reftype-sub-transform/L7/L2 CM-CM CM2PM CM-B-K-NN-C N F0 O NN0 A0 C0 PF _
+      N2P BL CF (ty2perm/ PML nn2perm/yes annot2perm/unique) TRANS
+    <- fldperm-can-lookup CM2PM PML CML FML _ _ _ A2P NN2P PM-FL IMP
+    <- pullout-fldperm IMP IMP2.
+
+- : reftype-sub-transform/L7/L2 CM-CM CM2PM
+    (clsmap-cxt-unique-cap/base (N2P:pair2nat (pair/ N F) (s K))
+      (BL: cxt`lookup B N (cxt-info/ O (ty/ NN0 A0 C0))) (NA: not-shared A0)
+      (CML: clsmap`lookup CM C0 FM) (FML: fldmap`lookup FM F (ty/ FNNP annot/unique FC))
+      (NN-LEQ: nonnull`leq FNN FNNP))
+    _ _ _ _ _ _ _ _
+    N2P BL (create-fldperm/ CML FML T2PF0) T2PF
+    (transform/trans3
+      (transform/implies
+        (implies/combine
+          (implies/equiv (equiv/symmetric equiv/one))
+          (implies/reflexive)))
+      (transform/skolem)
+      (transform/inside [o]
+        (transform/implies
+          (implies/trans
+            (implies/combine
+              (implies/trans5
+                (implies/equiv equiv/one)
+                (implies/equiv (equiv/symmetric equiv/identity))
+                (implies/combine implies/commute
+                  (implies/trans
+                    (implies/gen-pack-encumber o)
+                    (implies/combine-assoc-encumbered)))
+                (implies/symmetric-associate)
+                (implies/combine implies/reflexive implies/linear-modus-ponens))
+              (implies/reflexive))
+            (implies/combine (IMP o) implies/reflexive)))))
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML CM-FT
+    <- clsmap-ty-implies-ty2perm CM2PM CM-FT PF0 T2PF0
+    <- reftype-sub-transform/L7/L1 T2PF0 NN-LEQ PF T2PF IMP.
+
+%worlds (objvar) (reftype-sub-transform/L7/L2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (A) (reftype-sub-transform/L7/L2 _ _ A _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
 %%% When converting targets/unique to targets/shared, or from one
 %%% targets/unique to another targets/unique, we need to make sure:
 %%% 1. we have enough capabilities for the object targets, in the case
