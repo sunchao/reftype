@@ -602,30 +602,119 @@
 %%% from the permissions.
 
 %theorem reftype-sub-transform/L7
-  : forall* {CM} {PM} {B} {NN} {C} {M} {Pi} {O} {Pi'}
+  : forall* {CM} {PM} {B} {NN} {C} {M} {Pi} {O} {Pi'} {PiB}
     forall {N} {SZ: set`size M (s N)}
+    {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+    {Z!<M: set`not-member M shared}
     {CM-B-NN-C-M: clsmap-cxt-unique-capset CM B NN C M}
+    {B=>Pi: cxt2perm PM B PiB}
     {M=>Pi: capset2perm CM PM B M Pi}
     exists {PF} {T2P: ty2perm PM (ty/ NN annot/unique C) PF}
-    {IMP: transform (output/expr O (Pi , Pi'))
+    {IMP: transform (output/expr O (PiB , (Pi , Pi')))
           (output/exists [o]
             (output/expr O
-              ((PF o) , ((unitperm (encumbered (PF o) Pi)) , Pi'))))}
+              (PiB , ((PF o) , ((unitperm (encumbered (PF o) Pi)) , Pi')))))}
     true.
 
-- : reftype-sub-transform/L7 _ SZ
+%theorem reftype-sub-transform/L7/F
+  : forall* {PM} {NN} {C} {PiB} {Pi} {Pi'} {O}
+    forall {V: void}
+    exists {PF} {T2P: ty2perm PM (ty/ NN annot/unique C) PF}
+    {IMP: transform (output/expr O (PiB , (Pi , Pi')))
+          (output/exists [o]
+            (output/expr O
+              (PiB , ((PF o) , ((unitperm (encumbered (PF o) Pi)) , Pi')))))}
+    true.
+
+
+- : reftype-sub-transform/L7 _ SZ CM-CM CM2PM NM
     (CM-B-NN-C-M:clsmap-cxt-unique-capset CM B NN C _)
-    M=>Pi _ T2PF
+    B=>PiB M=>Pi _ T2PF TRANS
+    <- set`lookup-implies-not-member-update (set`lookup/= nat`eq/) MP
+      (K!<MP:set`not-member MP shared) MP+K=M
+    <- set`add-implies-member MP+K=M MB
+    <- set`member-not-member-contradiction MB NM V
+    <- reftype-sub-transform/L7/F V _ T2PF TRANS.
+
+- : reftype-sub-transform/L7 _ SZ CM-CM CM2PM NM
+    (CM-B-NN-C-M:clsmap-cxt-unique-capset CM B NN C _)
+    B=>PiB M=>Pi _ T2PF
     (transform/trans3
       (transform/implies
-        (implies/combine (implies/equiv (equiv/symmetric EQV)) implies/reflexive))
-      (KK)
-      (KK1))
+        (implies/trans4
+          (implies/combine (implies/trans IMP implies/commute)
+            (implies/combine (implies/equiv (equiv/symmetric EQV)) implies/reflexive))
+          (implies/equiv equiv/symmetric-associate)
+          (implies/combine implies/reflexive
+            (implies/trans
+              (implies/associate)
+              (implies/combine
+                (implies/trans
+                  (implies/associate)
+                  (implies/combine
+                    (implies/trans
+                      (implies/combine implies/reflexive implies/cond-neg)
+                      (implies/cond-elim))
+                    (implies/reflexive)))
+                (implies/reflexive))))
+          (implies/equiv
+            (equiv/transitive4
+              (equiv/combine equiv/reflexive
+                (equiv/symmetric-associate))
+              (equiv/reorder)
+              (equiv/associate)
+              (equiv/commute)))))
+      (TRANS')
+      (transform/inside [o]
+        (transform/implies
+          (implies/trans11
+            (implies/equiv
+              (equiv/transitive
+                (equiv/commute)
+                (equiv/symmetric-associate)))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/symmetric-associate)
+                (equiv/roll3)))
+            (implies/combine
+              (implies/trans
+                (IMP)
+                (implies/combine
+                  (implies/gen-false-encumbered) implies/reflexive))
+              (implies/reflexive))
+            (implies/symmetric-associate)
+            (implies/combine implies/reflexive (implies/equiv equiv/roll3))
+            (implies/associate)
+            (implies/combine
+              (implies/trans implies/commute implies/chain-implication)
+              (implies/reflexive))
+            (implies/combine implies/reflexive (implies/equiv equiv/roll3))
+            (implies/associate)
+            (implies/combine
+              (implies/trans
+                add-encumber
+                (implies/equiv-encumbered
+                  (equiv/reflexive)
+                  (EQV)))
+              implies/reflexive)
+            (implies/equiv
+              (equiv/transitive
+                (equiv/roll2)
+                (equiv/combine equiv/reflexive equiv/roll2)))))))
     <- set`lookup-implies-not-member-update (set`lookup/= nat`eq/) MP K!<MP MP+K=M
     <- clsmap-cxt-unique-capset/U-inversion CM-B-NN-C-M K!<MP MP+K=M
       CM-B-NN-C-MP (CM-B-K-NN-C:clsmap-cxt-unique-cap CM B (s K) NN C)
-    <- reftype-sub-transform/L7/L2 CM-CM CM2PM CM-B-K-NN-C _ _ _ _ _ _ _ N2P BL CF T2PF TRANS.
-    <- capset2perm/U-inversion M=>Pi K!<MP MP+K=M _ _ N2P _ _ _ _ BL _ CF _ MP=>PiP EQV.
+    <- reftype-sub-transform/L7/L2 CM-CM CM2PM CM-B-K-NN-C _ _ _ _ _ _ _ N2P BL CF T2PF TRANS
+    <- capset2perm/U-inversion* M=>Pi K!<MP MP+K=M N2P BL CF PiP MP=>PiP EQV
+    <- transform-commutes-envadd* TRANS envadd/expr (envadd/exists [_] envadd/expr) TRANS'
+    <- cxt2perm-duplicate-notnull-info B=>PiB BL IMP.
+
+%worlds (objvar) (reftype-sub-transform/L7/F _ _ _ _).
+%total { } (reftype-sub-transform/L7/F _ _ _ _).
+
+%worlds (objvar) (reftype-sub-transform/L7 _ _ _ _ _ _ _ _ _ _ _).
+%total { } (reftype-sub-transform/L7 _ _ _ _ _ _ _ _ _ _ _).
 
 
 
