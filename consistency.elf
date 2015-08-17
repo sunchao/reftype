@@ -209,6 +209,21 @@ clsmap-cxt-capset/U :
   clsmap-cxt-capset CM B M.
 
 
+wf-unique-targets : set -> set -> bool -> type.
+
+wf-unique-targets/borrow :
+    set`size S (s _) ->
+    set`size M z ->
+  wf-unique-targets S M false.
+
+wf-unique-targets/unique :
+    set`size M (s _) ->
+  wf-unique-targets _ M false.
+
+wf-unique-targets/unique+fresh :
+  wf-unique-targets _ _ true.
+
+
 %%% Well-formed reftype
 %%% 1, The objset should contain all unique objects, which have the same class
 %%% ID, and conform to the least nonnull-ness
@@ -222,11 +237,16 @@ clsmap-cxt-reftype/shared :
     clsmap`lookup CM C _ ->
   clsmap-cxt-reftype CM _ (reftype/ NN C targets/shared).
 
+clsmap-cxt-reftype/fresh :
+    clsmap`lookup CM C _ ->
+  clsmap-cxt-reftype CM _ (reftype/ NN C targets/fresh).
+
 clsmap-cxt-reftype/unique :
     clsmap`lookup CM C _ ->
     cxt-unique-objset B NN C S ->
     clsmap-cxt-unique-capset CM B NN C M ->
-  clsmap-cxt-reftype CM B (reftype/ NN C (targets/unique S M)).
+    wf-unique-targets S M W ->
+  clsmap-cxt-reftype CM B (reftype/ NN C (targets/unique S M W)).
 
 
 clsmap-cxt-env : clsmap -> cxt -> env -> type.
@@ -267,7 +287,7 @@ clsmap-result/args/+ :
 
 - : clsmap-ty-respects-eq D clsmap`eq/ ty`eq/ D.
 
-%worlds (objvar) (clsmap-ty-respects-eq _ _ _ _).
+%worlds (gtermvar) (clsmap-ty-respects-eq _ _ _ _).
 %total {} (clsmap-ty-respects-eq _ _ _ _).
 
 
@@ -284,7 +304,7 @@ clsmap-result/args/+ :
 
 % - : clsmap-ty-respects-leq clsmap-ty/null _ clsmap-ty/null.
 
-%worlds (objvar) (clsmap-ty-respects-leq _ _ _).
+%worlds (gtermvar) (clsmap-ty-respects-leq _ _ _).
 %total {} (clsmap-ty-respects-leq _ _ _).
 
 
@@ -302,7 +322,7 @@ clsmap-result/args/+ :
     <- clsmap-ty-respects-leq CM0-T CM0<=CM1 CM1-T
     <- clsmap-fldmap-respects-leq CM0-FM CM0<=CM1 CM1-FM.
 
-%worlds (objvar) (clsmap-fldmap-respects-leq _ _ _).
+%worlds (gtermvar) (clsmap-fldmap-respects-leq _ _ _).
 %total (CM-FM) (clsmap-fldmap-respects-leq CM-FM _ _).
 
 
@@ -323,7 +343,7 @@ clsmap-result/args/+ :
     <- clsmap-fldmap-respects-leq CM0-FM CM0<=CM1 CM1-FM
     <- clsmap-clsmap-respects-leq CM0-CMS CM0<=CM1 CM1-CMS.
 
-%worlds (objvar) (clsmap-clsmap-respects-leq _ _ _).
+%worlds (gtermvar) (clsmap-clsmap-respects-leq _ _ _).
 %total (CM-CM) (clsmap-clsmap-respects-leq CM-CM _ _).
 
 
@@ -339,7 +359,7 @@ clsmap-result/args/+ :
 - : shift-preserves-clsmap-fldmap
     (clsmap-fldmap/+ CM-FM CM-T NB) SH (clsmap-fldmap/+ CM-FM CM-T NB).
 
-%worlds (objvar) (shift-preserves-clsmap-fldmap _ _ _).
+%worlds (gtermvar) (shift-preserves-clsmap-fldmap _ _ _).
 %total {} (shift-preserves-clsmap-fldmap _ _ _).
 
 
@@ -364,7 +384,7 @@ clsmap-result/args/+ :
      <- clsmap`shift-preserves-lookup* L SH P2 L2
      <- lookup-implies-clsmap-fldmap M-CMP L2 M-FM.
 
-%worlds (objvar) (lookup-implies-clsmap-fldmap _ _ _).
+%worlds (gtermvar) (lookup-implies-clsmap-fldmap _ _ _).
 %total (M-CM) (lookup-implies-clsmap-fldmap M-CM _ _).
 
 
@@ -377,7 +397,7 @@ clsmap-result/args/+ :
     {CM-FM: clsmap-fldmap CM FM'}
     true.
 
-%worlds (objvar) (clsmap-fldmap/U-inversion _ _ _ _ _).
+%worlds (gtermvar) (clsmap-fldmap/U-inversion _ _ _ _ _).
 %trustme %total { } (clsmap-fldmap/U-inversion _ _ _ _ _).
 
 
@@ -395,7 +415,7 @@ clsmap-result/args/+ :
     (fldmap`lookup/> LP _) CM-T
     <- lookup-implies-clsmap-ty CM-FM LP CM-T.
 
-%worlds (objvar) (lookup-implies-clsmap-ty _ _ _).
+%worlds (gtermvar) (lookup-implies-clsmap-ty _ _ _).
 %total (CM-FM) (lookup-implies-clsmap-ty CM-FM _ _).
 
 
@@ -413,7 +433,7 @@ clsmap-result/args/+ :
     (fldmap`lookup/> LP _) CM-T
     <- lookup-implies-not-borrow CM-FM LP CM-T.
 
-%worlds (objvar) (lookup-implies-not-borrow _ _ _).
+%worlds (gtermvar) (lookup-implies-not-borrow _ _ _).
 %total (CM-FM) (lookup-implies-not-borrow CM-FM _ _).
 
 
@@ -447,7 +467,7 @@ clsmap-result/args/+ :
      <- methmap`shift-preserves-lookup* MML N<<MM=MMP P3 MMPL
      <- lookup-implies-clsmap-methty CM-MMP MMPL CM-MT.
 
-%worlds (objvar) (lookup-implies-clsmap-methty _ _ _).
+%worlds (gtermvar) (lookup-implies-clsmap-methty _ _ _).
 %total (L) (lookup-implies-clsmap-methty L _ _).
 
 
@@ -459,7 +479,7 @@ clsmap-result/args/+ :
     exists {CM-B: clsmap-cxt CM B}
     true.
 
-%worlds (objvar) (false-implies-clsmap-cxt _ _).
+%worlds (gtermvar) (false-implies-clsmap-cxt _ _).
 %total { } (false-implies-clsmap-cxt _ _).
 
 
@@ -520,7 +540,7 @@ clsmap-result/args/+ :
     <- nat`eq?-total EQ?
     <- cxt-lookup-implies-clsmap-ty/L CM-B' CM-T' U BL EQ? CM-T.
 
-%worlds (objvar) (cxt-lookup-implies-clsmap-ty _ _ _)
+%worlds (gtermvar) (cxt-lookup-implies-clsmap-ty _ _ _)
   (cxt-lookup-implies-clsmap-ty/L _ _ _ _ _ _).
 %total (CM-B CM-B') (cxt-lookup-implies-clsmap-ty CM-B _ _)
   (cxt-lookup-implies-clsmap-ty/L CM-B' _ _ _ _ _).
@@ -536,7 +556,7 @@ clsmap-result/args/+ :
 - : cxt-lookup-obj-implies-clsmap-ty CM-B (cxt`lookup-obj/ BL) CM-T
     <- cxt-lookup-implies-clsmap-ty CM-B BL CM-T.
 
-%worlds (objvar) (cxt-lookup-obj-implies-clsmap-ty _ _ _).
+%worlds (gtermvar) (cxt-lookup-obj-implies-clsmap-ty _ _ _).
 %total (CM-B) (cxt-lookup-obj-implies-clsmap-ty CM-B _ _).
 
 
@@ -549,7 +569,7 @@ clsmap-result/args/+ :
     forall {F:void} exists {CBS2: clsmap-cxt-objset CM B S}
     true.
 
-%worlds (objvar) (false-implies-clsmap-cxt-objset _ _).
+%worlds (gtermvar) (false-implies-clsmap-cxt-objset _ _).
 %total { } (false-implies-clsmap-cxt-objset _ _).
 
 
@@ -563,7 +583,7 @@ clsmap-result/args/+ :
 
 - : clsmap-cxt-objset-respects-eq A clsmap`eq/ cxt`eq/ set`eq/ A.
 
-%worlds (objvar) (clsmap-cxt-objset-respects-eq _ _ _ _ _).
+%worlds (gtermvar) (clsmap-cxt-objset-respects-eq _ _ _ _ _).
 %total {} (clsmap-cxt-objset-respects-eq _ _ _ _ _).
 
 
@@ -584,7 +604,7 @@ clsmap-result/args/+ :
     <- cxt-fresh-update-preserves-clsmap-cxt-objset CM-B-OS' N!<B B+N+CI=BP CM-BP-OS'
     <- cxt`fresh-update-preserves-lookup BL N!<B B+N+CI=BP BPL.
 
-%worlds (objvar) (cxt-fresh-update-preserves-clsmap-cxt-objset _ _ _ _).
+%worlds (gtermvar) (cxt-fresh-update-preserves-clsmap-cxt-objset _ _ _ _).
 %total (CM-OS) (cxt-fresh-update-preserves-clsmap-cxt-objset CM-OS _ _ _).
 
 
@@ -632,7 +652,7 @@ clsmap-result/args/+ :
     <- clsmap-cxt-objset/U-inversion/L CM-B-S0 F0 U0 BL0 CML
       F1 U1 E? CM-B-S1 _ _ _ BL1 _ CML1.
 
-%worlds (objvar) (clsmap-cxt-objset/U-inversion _ _ _ _ _ _ _ _ _ _)
+%worlds (gtermvar) (clsmap-cxt-objset/U-inversion _ _ _ _ _ _ _ _ _ _)
 	(clsmap-cxt-objset/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (C0 C1) (clsmap-cxt-objset/U-inversion C0 _ _ _ _ _ _ _ _ _)
 	(clsmap-cxt-objset/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _).
@@ -676,7 +696,7 @@ clsmap-result/args/+ :
     <- set`member?-total MB?
     <- clsmap-cxt-objset-respects-geq/U _ MB? NM UD BL CML B-SS S<=SP B-S.
 
-%worlds (objvar) (clsmap-cxt-objset-respects-geq _ _ _)
+%worlds (gtermvar) (clsmap-cxt-objset-respects-geq _ _ _)
 	(clsmap-cxt-objset-respects-geq/U _ _ _ _ _ _ _ _ _).
 %total (L1 L2) (clsmap-cxt-objset-respects-geq L1 _ _)
 	(clsmap-cxt-objset-respects-geq/U _ _ _ _ _ _ L2 _ _).
@@ -767,7 +787,7 @@ clsmap-result/args/+ :
     <- set`member?-total D2?
     <- join-preserves-clsmap-cxt-objset/LL (s N) Z CBS1 CBS2 SU F U D1? D2? CBS.
 
-%worlds (objvar) (join-preserves-clsmap-cxt-objset/LL _ _ _ _ _ _ _ _ _ _)
+%worlds (gtermvar) (join-preserves-clsmap-cxt-objset/LL _ _ _ _ _ _ _ _ _ _)
   (join-preserves-clsmap-cxt-objset/L _ _ _ _ _ _).
 %total (N1 N2) (join-preserves-clsmap-cxt-objset/LL N1 _ _ _ _ _ _ _ _ _)
   (join-preserves-clsmap-cxt-objset/L N2 _ _ _ _ _).
@@ -776,7 +796,7 @@ clsmap-result/args/+ :
     <- set`size-total Z
     <- join-preserves-clsmap-cxt-objset/L _ Z CBS1 CBS2 U CBS.
 
-%worlds (objvar) (join-preserves-clsmap-cxt-objset _ _ _ _).
+%worlds (gtermvar) (join-preserves-clsmap-cxt-objset _ _ _ _).
 %total {} (join-preserves-clsmap-cxt-objset _ _ _ _).
 
 
@@ -788,7 +808,7 @@ clsmap-result/args/+ :
   : forall* {CM} {B} {S} forall {F:void} exists {CBS: clsmap-cxt-capset CM B S}
     true.
 
-%worlds (objvar) (false-implies-clsmap-cxt-capset _ _).
+%worlds (gtermvar) (false-implies-clsmap-cxt-capset _ _).
 %total { } (false-implies-clsmap-cxt-capset _ _).
 
 
@@ -801,7 +821,7 @@ clsmap-result/args/+ :
 
 - : clsmap-cxt-capset-respects-eq A clsmap`eq/ cxt`eq/ set`eq/ A.
 
-%worlds (objvar) (clsmap-cxt-capset-respects-eq _ _ _ _ _).
+%worlds (gtermvar) (clsmap-cxt-capset-respects-eq _ _ _ _ _).
 %total {} (clsmap-cxt-capset-respects-eq _ _ _ _ _).
 
 
@@ -832,7 +852,7 @@ clsmap-result/args/+ :
     (clsmap-cxt-capset/z CM-BP-M' K!<M' M'+K=M)
     <- cxt-fresh-update-preserves-clsmap-cxt-capset CM-B-M' N!<B B+N+CI=BP CM-BP-M'.
 
-%worlds (objvar) (cxt-fresh-update-preserves-clsmap-cxt-capset _ _ _ _).
+%worlds (gtermvar) (cxt-fresh-update-preserves-clsmap-cxt-capset _ _ _ _).
 %total (CM-M) (cxt-fresh-update-preserves-clsmap-cxt-capset CM-M _ _ _).
 
 
@@ -858,7 +878,7 @@ clsmap-result/args/+ :
     <- set`not-member-add-cancels F1 U1 F U nat`eq/ set`eq/ S1=S
     <- clsmap-cxt-capset-respects-eq CM-B-S clsmap`eq/ cxt`eq/ S1=S CM-B-S'.
 
-%worlds (objvar) (clsmap-cxt-capset/z-inversion _ _ _ _).
+%worlds (gtermvar) (clsmap-cxt-capset/z-inversion _ _ _ _).
 %total (A) (clsmap-cxt-capset/z-inversion A _ _ _).
 
 
@@ -930,7 +950,7 @@ clsmap-result/args/+ :
     <- clsmap-cxt-capset/U-inversion/L CM-B-S0 F0 U0 N2P0 BL0 NS0 CML0 FML0
       F1 U1 E? CM-B-S1 _ _ N2P1 _ _ _ _ BL1 NS1 _ CML1 _ FML1.
 
-%worlds (objvar) (clsmap-cxt-capset/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+%worlds (gtermvar) (clsmap-cxt-capset/U-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 	(clsmap-cxt-capset/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (C0 C1) (clsmap-cxt-capset/U-inversion C0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 	(clsmap-cxt-capset/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
@@ -1004,7 +1024,7 @@ clsmap-result/args/+ :
     <- set`member?-total MB?
     <- clsmap-cxt-capset-respects-geq/U _ MB? NM UD NP BL NS CML FML B-SS S<=SP B-S.
 
-%worlds (objvar) (clsmap-cxt-capset-respects-geq _ _ _)
+%worlds (gtermvar) (clsmap-cxt-capset-respects-geq _ _ _)
   (clsmap-cxt-capset-respects-geq/U _ _ _ _ _ _ _ _ _ _ _ _)
   (clsmap-cxt-capset-respects-geq/z _ _ _ _ _ _ _).
 %total (L1 L2 L3) (clsmap-cxt-capset-respects-geq L1 _ _)
@@ -1144,7 +1164,7 @@ clsmap-result/args/+ :
     <- set`member?-total D2?
     <- join-preserves-clsmap-cxt-capset/LL (s N) Z CBS1 CBS2 SU F U D1? D2? CBS.
 
-%worlds (objvar) (join-preserves-clsmap-cxt-capset/LL _ _ _ _ _ _ _ _ _ _)
+%worlds (gtermvar) (join-preserves-clsmap-cxt-capset/LL _ _ _ _ _ _ _ _ _ _)
   (join-preserves-clsmap-cxt-capset/L _ _ _ _ _ _).
 %total (N1 N2) (join-preserves-clsmap-cxt-capset/LL N1 _ _ _ _ _ _ _ _ _)
   (join-preserves-clsmap-cxt-capset/L N2 _ _ _ _ _).
@@ -1153,7 +1173,7 @@ clsmap-result/args/+ :
     <- set`size-total Z
     <- join-preserves-clsmap-cxt-capset/L _ Z CBS1 CBS2 U CBS.
 
-%worlds (objvar) (join-preserves-clsmap-cxt-capset _ _ _ _).
+%worlds (gtermvar) (join-preserves-clsmap-cxt-capset _ _ _ _).
 %total {} (join-preserves-clsmap-cxt-capset _ _ _ _).
 
 
@@ -1193,7 +1213,7 @@ clsmap-result/args/+ :
     <- fldmap`domain-preserves-lookup-converse F<-FS0 FM-DM _ FML
     <- nat+set2set-preserves-not-member N+FSP=QP F!<FSP N+F=K K!<QP.
 
-%worlds (objvar) (nat+set2set-implies-clsmap-cxt-capset/L _ _ _ _ _ _ _).
+%worlds (gtermvar) (nat+set2set-implies-clsmap-cxt-capset/L _ _ _ _ _ _ _).
 %total (A) (nat+set2set-implies-clsmap-cxt-capset/L _ _ _ _ _ A _).
 
 
@@ -1211,7 +1231,7 @@ clsmap-result/args/+ :
     <- set`leq-reflexive _ LE
     <- nat+set2set-implies-clsmap-cxt-capset/L CML DM LE BL NS N+FS=M CM-B-M.
 
-%worlds (objvar) (nat+set2set-implies-clsmap-cxt-capset _ _ _ _ _ _).
+%worlds (gtermvar) (nat+set2set-implies-clsmap-cxt-capset _ _ _ _ _ _).
 %total { } (nat+set2set-implies-clsmap-cxt-capset _ _ _ _ _ _).
 
 
@@ -1229,7 +1249,7 @@ clsmap-result/args/+ :
 
 - : cxt-unique-objset-respects-eq A cxt`eq/ set`eq/ nonnull`eq/ nat`eq/ A.
 
-%worlds (objvar) (cxt-unique-objset-respects-eq _ _ _ _ _ _).
+%worlds (gtermvar) (cxt-unique-objset-respects-eq _ _ _ _ _ _).
 %total { } (cxt-unique-objset-respects-eq _ _ _ _ _ _).
 
 
@@ -1282,7 +1302,7 @@ clsmap-result/args/+ :
     <- cxt-unique-objset/U-inversion/L B-S0 F0 U0 BL0 UA0 LE
       F1 U1 E? B-S1 _ _ _ BL1 UA1 LE1.
 
-%worlds (objvar) (cxt-unique-objset/U-inversion _ _ _ _ _ _ _ _ _ _)
+%worlds (gtermvar) (cxt-unique-objset/U-inversion _ _ _ _ _ _ _ _ _ _)
 	(cxt-unique-objset/U-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (C0 C1) (cxt-unique-objset/U-inversion C0 _ _ _ _ _ _ _ _ _)
 	(cxt-unique-objset/U-inversion/L C1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
@@ -1301,7 +1321,7 @@ clsmap-result/args/+ :
     <- set`add-preserves-member-converse ZMB AD (nat`ne/< GT) ZMBP
     <- cxt-unique-objset-no-zero B-SP ZMBP V.
 
-%worlds (objvar) (cxt-unique-objset-no-zero _ _ _).
+%worlds (gtermvar) (cxt-unique-objset-no-zero _ _ _).
 %total (B) (cxt-unique-objset-no-zero B _ _).
 
 
@@ -1357,10 +1377,10 @@ clsmap-result/args/+ :
     <- cxt-fresh-update-preserves-cxt-unique-objset/L B0-S' B0-L UA NN-LEQ FS UD FS1 UD1
       EQ? B1-S.
 
-%worlds (objvar) (cxt-fresh-update-preserves-cxt-unique-objset/F _ _).
+%worlds (gtermvar) (cxt-fresh-update-preserves-cxt-unique-objset/F _ _).
 %total { } (cxt-fresh-update-preserves-cxt-unique-objset/F _ _).
 
-%worlds (objvar) (cxt-fresh-update-preserves-cxt-unique-objset _ _ _ _)
+%worlds (gtermvar) (cxt-fresh-update-preserves-cxt-unique-objset _ _ _ _)
    (cxt-fresh-update-preserves-cxt-unique-objset/L _ _ _ _ _ _ _ _ _ _).
 %total (A B) (cxt-fresh-update-preserves-cxt-unique-objset A _ _ _)
    (cxt-fresh-update-preserves-cxt-unique-objset/L B _ _ _ _ _ _ _ _ _).
@@ -1397,7 +1417,7 @@ clsmap-result/args/+ :
     <- cxt-unique-objset/U-inversion B-S N!<S' S'+N=S B-S' _ _ _ BL NS NN-LEQ
     <- set+nat2set-implies-clsmap-cxt-capset CML FML B-S' S'=>M' CM-B-M'.
 
-%worlds (objvar) (set+nat2set-implies-clsmap-cxt-capset _ _ _ _ _).
+%worlds (gtermvar) (set+nat2set-implies-clsmap-cxt-capset _ _ _ _ _).
 %total (B) (set+nat2set-implies-clsmap-cxt-capset _ _ _ B _).
 
 
@@ -1427,7 +1447,7 @@ clsmap-result/args/+ :
     <- nat+set2set-implies-clsmap-cxt-capset CML FM-DM BL NS N+FS=Q1 CM-B-Q1
     <- join-preserves-clsmap-cxt-capset CM-B-Q0 CM-B-Q1 Q0+Q1=Q2 CM-B-Q2.
 
-%worlds (objvar) (set+set2set-implies-clsmap-cxt-capset _ _ _ _ _).
+%worlds (gtermvar) (set+set2set-implies-clsmap-cxt-capset _ _ _ _ _).
 %total (A) (set+set2set-implies-clsmap-cxt-capset _ _ A _ _).
 
 
@@ -1453,7 +1473,7 @@ clsmap-result/args/+ :
     (clsmap-cxt-unique-cap/nest CML FML CM-B1-FG)
     <- cxt-fresh-update-preserves-clsmap-cxt-unique-cap CM-B0-FG F U CM-B1-FG.
 
-%worlds (objvar) (cxt-fresh-update-preserves-clsmap-cxt-unique-cap _ _ _ _).
+%worlds (gtermvar) (cxt-fresh-update-preserves-clsmap-cxt-unique-cap _ _ _ _).
 %total (A) (cxt-fresh-update-preserves-clsmap-cxt-unique-cap A _ _ _).
 
 
@@ -1481,7 +1501,7 @@ clsmap-result/args/+ :
     (clsmap-cxt-unique-capset/z CM-BP-M' K!<M' M'+K=M)
     <- cxt-fresh-update-preserves-clsmap-cxt-unique-capset CM-B-M' N!<B B+N+CI=BP CM-BP-M'.
 
-%worlds (objvar) (cxt-fresh-update-preserves-clsmap-cxt-unique-capset _ _ _ _).
+%worlds (gtermvar) (cxt-fresh-update-preserves-clsmap-cxt-unique-capset _ _ _ _).
 %total (CM-M) (cxt-fresh-update-preserves-clsmap-cxt-unique-capset CM-M _ _ _).
 
 
@@ -1498,7 +1518,7 @@ clsmap-result/args/+ :
 
 - : clsmap-cxt-unique-capset-respects-eq A clsmap`eq/ cxt`eq/ nonnull`eq/ nat`eq/ set`eq/ A.
 
-%worlds (objvar) (clsmap-cxt-unique-capset-respects-eq _ _ _ _ _ _ _).
+%worlds (gtermvar) (clsmap-cxt-unique-capset-respects-eq _ _ _ _ _ _ _).
 %total {} (clsmap-cxt-unique-capset-respects-eq _ _ _ _ _ _ _).
 
 
@@ -1508,7 +1528,7 @@ clsmap-result/args/+ :
     exists {CBS: clsmap-cxt-unique-capset CM B NN C S}
     true.
 
-%worlds (objvar) (false-implies-clsmap-cxt-unique-capset _ _).
+%worlds (gtermvar) (false-implies-clsmap-cxt-unique-capset _ _).
 %total { } (false-implies-clsmap-cxt-unique-capset _ _).
 
 
@@ -1535,7 +1555,7 @@ clsmap-result/args/+ :
     <- clsmap-cxt-unique-capset-respects-eq CM-B-S clsmap`eq/ cxt`eq/ nonnull`eq/ nat`eq/
       S1=S CM-B-S'.
 
-%worlds (objvar) (clsmap-cxt-unique-capset/z-inversion _ _ _ _).
+%worlds (gtermvar) (clsmap-cxt-unique-capset/z-inversion _ _ _ _).
 %total (A) (clsmap-cxt-unique-capset/z-inversion A _ _ _).
 
 
@@ -1573,7 +1593,7 @@ clsmap-result/args/+ :
     <- cxt-unique-objset/U-inversion B-S N!<S' S'+N=S B-S' _ _ _ BL NS _
     <- set+nat2set-implies-clsmap-cxt-unique-capset CML FML B-S' S'=>M' CM-B-M'.
 
-%worlds (objvar) (set+nat2set-implies-clsmap-cxt-unique-capset _ _ _ _ _).
+%worlds (gtermvar) (set+nat2set-implies-clsmap-cxt-unique-capset _ _ _ _ _).
 %total (B) (set+nat2set-implies-clsmap-cxt-unique-capset _ _ _ B _).
 
 
@@ -1627,7 +1647,7 @@ clsmap-result/args/+ :
     <- clsmap-cxt-unique-capset/U-inversion/L CM-B-S0 F0 U0 CM-B-CP0
       F1 U1 E? CM-B-S1 CM-B-CP1.
 
-%worlds (objvar) (clsmap-cxt-unique-capset/U-inversion _ _ _ _ _)
+%worlds (gtermvar) (clsmap-cxt-unique-capset/U-inversion _ _ _ _ _)
 	(clsmap-cxt-unique-capset/U-inversion/L _ _ _ _ _ _ _ _ _).
 %total (C0 C1) (clsmap-cxt-unique-capset/U-inversion C0 _ _ _ _)
 	(clsmap-cxt-unique-capset/U-inversion/L C1 _ _ _ _ _ _ _ _).
@@ -1761,7 +1781,7 @@ clsmap-result/args/+ :
     <- set`member?-total D2?
     <- join-preserves-clsmap-cxt-unique-capset/LL (s N) Z CBS1 CBS2 SU F U D1? D2? CBS.
 
-%worlds (objvar) (join-preserves-clsmap-cxt-unique-capset/LL _ _ _ _ _ _ _ _ _ _)
+%worlds (gtermvar) (join-preserves-clsmap-cxt-unique-capset/LL _ _ _ _ _ _ _ _ _ _)
   (join-preserves-clsmap-cxt-unique-capset/L _ _ _ _ _ _).
 %total (N1 N2) (join-preserves-clsmap-cxt-unique-capset/LL N1 _ _ _ _ _ _ _ _ _)
   (join-preserves-clsmap-cxt-unique-capset/L N2 _ _ _ _ _).
@@ -1770,7 +1790,7 @@ clsmap-result/args/+ :
     <- set`size-total Z
     <- join-preserves-clsmap-cxt-unique-capset/L _ Z CBS1 CBS2 U CBS.
 
-%worlds (objvar) (join-preserves-clsmap-cxt-unique-capset _ _ _ _).
+%worlds (gtermvar) (join-preserves-clsmap-cxt-unique-capset _ _ _ _).
 %total {} (join-preserves-clsmap-cxt-unique-capset _ _ _ _).
 
 
@@ -1799,7 +1819,7 @@ clsmap-result/args/+ :
       (clsmap-cxt-unique-cap/nest CML FML CM-B-C) FS UD)
     <- can-extend-clsmap-cxt-unique-capset CM-B-C-M0 CML FML CM-B-FC-M0.
 
-%worlds (objvar) (can-extend-clsmap-cxt-unique-capset _ _ _ _).
+%worlds (gtermvar) (can-extend-clsmap-cxt-unique-capset _ _ _ _).
 %total (A) (can-extend-clsmap-cxt-unique-capset A _ _ _).
 
 
@@ -1820,7 +1840,7 @@ clsmap-result/args/+ :
     (clsmap-cxt-objset/U CM-B-S' BL CML FS UD)
     <- cxt-unique-objset-implies-clsmap-cxt-objset CML B-NN-C-S' CM-B-S'.
 
-%worlds (objvar) (cxt-unique-objset-implies-clsmap-cxt-objset _ _ _).
+%worlds (gtermvar) (cxt-unique-objset-implies-clsmap-cxt-objset _ _ _).
 %trustme %total (A) (cxt-unique-objset-implies-clsmap-cxt-objset _ A _).
 
 
@@ -1844,7 +1864,7 @@ clsmap-result/args/+ :
     <- clsmap-cxt-unique-capset-implies-clsmap-cxt-capset/L
       CM-B-C _ _ _ _ _ _ _ _ K2P BL NS CML FML.
 
-%worlds (objvar)
+%worlds (gtermvar)
   (clsmap-cxt-unique-capset-implies-clsmap-cxt-capset/L _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total (A)
   (clsmap-cxt-unique-capset-implies-clsmap-cxt-capset/L A _ _ _ _ _ _ _ _ _ _ _ _ _).
@@ -1871,7 +1891,7 @@ clsmap-result/args/+ :
       CM-B-C _ _ _ _ _ _ _ _ K2P BL NS CML FML
     <- clsmap-cxt-unique-capset-implies-clsmap-cxt-capset CM-B-C-S CM-B-S.
 
-%worlds (objvar) (clsmap-cxt-unique-capset-implies-clsmap-cxt-capset _ _).
+%worlds (gtermvar) (clsmap-cxt-unique-capset-implies-clsmap-cxt-capset _ _).
 %total (A) (clsmap-cxt-unique-capset-implies-clsmap-cxt-capset A _).
 
 
@@ -1896,7 +1916,7 @@ clsmap-result/args/+ :
     <- join-preserves-clsmap-cxt-objset CM-B-U0 CM-B-U1 U0+U1=U CM-B-U
     <- join-preserves-clsmap-cxt-capset CM-B-M0 CM-B-M1 M0+M1=M CM-B-M.
 
-%worlds (objvar) (combine-preserves-clsmap-cxt-env _ _ _ _).
+%worlds (gtermvar) (combine-preserves-clsmap-cxt-env _ _ _ _).
 %total { } (combine-preserves-clsmap-cxt-env _ _ _ _).
 
 
@@ -1909,15 +1929,18 @@ clsmap-result/args/+ :
     true.
 
 - : cxt-fresh-update-preserves-clsmap-cxt-reftype
-    (clsmap-cxt-reftype/unique CML B0-OS CM-B0-M)
-    N!<B0 B0+N=B1 (clsmap-cxt-reftype/unique CML B1-OS CM-B1-M)
+    (clsmap-cxt-reftype/unique CML B0-OS CM-B0-M WF)
+    N!<B0 B0+N=B1 (clsmap-cxt-reftype/unique CML B1-OS CM-B1-M WF)
     <- cxt-fresh-update-preserves-cxt-unique-objset B0-OS N!<B0 B0+N=B1 B1-OS
     <- cxt-fresh-update-preserves-clsmap-cxt-unique-capset CM-B0-M N!<B0 B0+N=B1 CM-B1-M.
 
 - : cxt-fresh-update-preserves-clsmap-cxt-reftype
     (clsmap-cxt-reftype/shared CML) _ _ (clsmap-cxt-reftype/shared CML).
 
-%worlds (objvar) (cxt-fresh-update-preserves-clsmap-cxt-reftype _ _ _ _).
+- : cxt-fresh-update-preserves-clsmap-cxt-reftype
+    (clsmap-cxt-reftype/fresh CML) _ _ (clsmap-cxt-reftype/fresh CML).
+
+%worlds (gtermvar) (cxt-fresh-update-preserves-clsmap-cxt-reftype _ _ _ _).
 %total { } (cxt-fresh-update-preserves-clsmap-cxt-reftype _ _ _ _).
 
 
@@ -1931,13 +1954,13 @@ clsmap-result/args/+ :
 - : clsmap-result/expr-inversion (clsmap-result/expr CM-B-RT CM-B-V)
     CM-B-RT CM-B-V.
 
-%worlds (objvar) (clsmap-result/expr-inversion _ _ _).
+%worlds (gtermvar) (clsmap-result/expr-inversion _ _ _).
 %total { } (clsmap-result/expr-inversion _ _ _).
 
 
 %theorem make-tgts-and-caps-implies-empty-objset
-  : forall* {G1} {M1} {N} {S} {M} {M2}
-    forall {MG: make-tgts-and-caps M1 G1 N (targets/unique S M) M2}
+  : forall* {G1} {M1} {N} {S} {M} {W} {M2}
+    forall {MG: make-tgts-and-caps M1 G1 N (targets/unique S M W) M2}
     exists {S=0: set`eq S set/0}
     true.
 
@@ -1946,6 +1969,9 @@ clsmap-result/args/+ :
 
 - : make-tgts-and-caps-implies-empty-objset
     (make-tgts-and-caps/shared _) set`eq/.
+
+- : make-tgts-and-caps-implies-empty-objset
+    (make-tgts-and-caps/fresh) set`eq/.
 
 %worlds () (make-tgts-and-caps-implies-empty-objset _ _).
 %total { } (make-tgts-and-caps-implies-empty-objset _ _).
@@ -1964,7 +1990,7 @@ clsmap-result/args/+ :
 
 - : make-tgts-and-caps-consistent/1 CM-CM CML FML
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1')
+      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1' WF)
       (clsmap-cxt-env/
         (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B0 M0)))
@@ -1994,7 +2020,15 @@ clsmap-result/args/+ :
 
 - : make-tgts-and-caps-consistent/1 CM-CM CML FML
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1')
+      (clsmap-cxt-reftype/fresh _)
+      (clsmap-cxt-env/ (CM-B0:clsmap-cxt-objset CM _ U0)
+        (CM-B0-M0:clsmap-cxt-capset CM B M0)))
+    (make-tgts-and-caps/fresh)
+    (clsmap-cxt-env/ CM-B0 CM-B0-M0).
+
+- : make-tgts-and-caps-consistent/1 CM-CM CML FML
+    (clsmap-result/expr
+      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1' _)
       (clsmap-cxt-env/
         (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B0 M0)))
@@ -2022,7 +2056,7 @@ clsmap-result/args/+ :
     <- set`union-implies-leq X+M1=M0 _ M1<=M0
     <- clsmap-cxt-capset-respects-geq CM-B0-M0 M1<=M0 CM-B0-M1.
 
-%worlds (objvar) (make-tgts-and-caps-consistent/1 _ _ _ _ _ _).
+%worlds (gtermvar) (make-tgts-and-caps-consistent/1 _ _ _ _ _ _).
 %total { } (make-tgts-and-caps-consistent/1 _ _ _ _ _ _).
 
 
@@ -2039,9 +2073,43 @@ clsmap-result/args/+ :
     exists {CM-B-R: clsmap-result CM B (result/expr (reftype/ FNN FC G2) (env/ U2 M4))}
     true.
 
+%theorem make-tgts-and-caps-consistent/2/L
+  : forall* {S} {M1} {M2} {M} {W} {F}
+    forall {WF: wf-unique-targets S M1 W}
+    {S+F=M2: set+nat2set S F M2}
+    {M1+M2=M: set`union M1 M2 M}
+    exists {WF: wf-unique-targets set/0 M W}
+    true.
+
+- : make-tgts-and-caps-consistent/2/L
+    (wf-unique-targets/borrow SZ-S _) S+F=M2 M1+M2=M
+    (wf-unique-targets/unique SZ-M')
+    <- set+nat2set-preserves-size S+F=M2 SZ-S SZ-M2
+    <- set`union-implies-leq M1+M2=M _ M2<=M
+    <- set`size-total SZ-M
+    <- set`leq-implies-size-le M2<=M SZ-M2 SZ-M GE
+    <- ge-succ-implies-succ GE _ EQ
+    <- set`size-respects-eq SZ-M set`eq/ EQ SZ-M'.
+
+- : make-tgts-and-caps-consistent/2/L
+    (wf-unique-targets/unique SZ-M1) _ M1+M2=M
+    (wf-unique-targets/unique SZ-M')
+    <- set`union-implies-leq M1+M2=M M1<=M _
+    <- set`size-total SZ-M
+    <- set`leq-implies-size-le M1<=M SZ-M1 SZ-M GE
+    <- ge-succ-implies-succ GE _ EQ
+    <- set`size-respects-eq SZ-M set`eq/ EQ SZ-M'.
+
+- : make-tgts-and-caps-consistent/2/L
+    (wf-unique-targets/unique+fresh) _ _ (wf-unique-targets/unique+fresh).
+
+%worlds (gtermvar) (make-tgts-and-caps-consistent/2/L _ _ _ _).
+%total { } (make-tgts-and-caps-consistent/2/L _ _ _ _).
+
+
 - : make-tgts-and-caps-consistent/2 CM-CM CML FML
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1')
+      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1' WF)
       (clsmap-cxt-env/
         (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B0 M0)))
@@ -2051,8 +2119,9 @@ clsmap-result/args/+ :
       (set`split/ M2^M3 (M2+M3=M0:set`union M2 M3 M0)))
     (consider-ftype/unique)
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0 CM-B0-M)
+      (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0 CM-B0-M WF')
       (clsmap-cxt-env/ CM-B-U2 CM-B-M3))
+    <- make-tgts-and-caps-consistent/2/L WF S+F+X=>M2 M1+M2=M WF'
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0)
     <- set`union-implies-leq M2+M3=M0 M2<=M0 M3<=M0
@@ -2082,7 +2151,21 @@ clsmap-result/args/+ :
 
 - : make-tgts-and-caps-consistent/2 CM-CM CML FML
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1')
+      (clsmap-cxt-reftype/fresh _)
+      (clsmap-cxt-env/ (CM-B0:clsmap-cxt-objset CM _ U0)
+        (CM-B0-M0:clsmap-cxt-capset CM B M0)))
+    (clsmap-cxt-env/ CM-B-U2 CM-B-M3)
+    (make-tgts-and-caps/fresh)
+    (consider-ftype/shared (set`split/ _ U))
+    (clsmap-result/expr
+      (clsmap-cxt-reftype/shared CML0)
+      (clsmap-cxt-env/ CM-B-U2 CM-B-M3))
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0).
+
+- : make-tgts-and-caps-consistent/2 CM-CM CML FML
+    (clsmap-result/expr
+      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1' WF)
       (clsmap-cxt-env/
         (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B0 M0)))
@@ -2094,6 +2177,7 @@ clsmap-result/args/+ :
     (clsmap-result/expr
       (clsmap-cxt-reftype/shared CML0)
       (clsmap-cxt-env/ CM-B-U2 (CM-B0-M6:clsmap-cxt-capset CM B0 M6)))
+    <- make-tgts-and-caps-consistent/2/L WF S+F+X=>M2 M1+M2=M WF'
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0)
     <- set`union-implies-leq M2+M3=M0 M2<=M0 M3<=M0
@@ -2113,14 +2197,30 @@ clsmap-result/args/+ :
     (consider-ftype/unique)
     (clsmap-result/expr
       (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0
-        (clsmap-cxt-unique-capset/z clsmap-cxt-unique-capset/0 set`not-member/0 set`update/0))
+        (clsmap-cxt-unique-capset/z clsmap-cxt-unique-capset/0 set`not-member/0 set`update/0)
+        (wf-unique-targets/unique (set`size/+ set`size/0)))
       (clsmap-cxt-env/ CM-B-U2 CM-B0-M5))
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0)
     <- set`union-implies-leq X+M1=M0 _ M1<=M0
     <- clsmap-cxt-capset-respects-geq CM-B0-M0 M1<=M0 CM-B0-M1.
 
-%worlds (objvar) (make-tgts-and-caps-consistent/2 _ _ _ _ _ _ _ _).
+- : make-tgts-and-caps-consistent/2 CM-CM CML FML
+    (clsmap-result/expr
+      (clsmap-cxt-reftype/fresh _)
+      (clsmap-cxt-env/ (CM-B0:clsmap-cxt-objset CM _ U0)
+        (CM-B0-M0:clsmap-cxt-capset CM B M0)))
+    (clsmap-cxt-env/ CM-B-U2 (CM-B0-M5:clsmap-cxt-capset CM B M5))
+    (make-tgts-and-caps/fresh)
+    (consider-ftype/unique)
+    (clsmap-result/expr
+      (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0 clsmap-cxt-unique-capset/0
+        wf-unique-targets/unique+fresh)
+      (clsmap-cxt-env/ CM-B-U2 CM-B0-M5))
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0).
+
+%worlds (gtermvar) (make-tgts-and-caps-consistent/2 _ _ _ _ _ _ _ _).
 %total { } (make-tgts-and-caps-consistent/2 _ _ _ _ _ _ _ _).
 
 
@@ -2134,7 +2234,7 @@ clsmap-result/args/+ :
     true.
 
 - : subtype-consistent
-    (clsmap-cxt-reftype/unique _ B-NN-C-S _)
+    (clsmap-cxt-reftype/unique _ B-NN-C-S _ _)
     (clsmap-cxt-env/ CM-U0 CM-B-M0)
     (subtype/ _ (sub-annot/unique CML FM-DM (S+FS=M2:set+set2set S FS M2)
       (set`split/ M2^M3 (M2+M3=M0:set`union M2 M3 M0))
@@ -2147,6 +2247,13 @@ clsmap-result/args/+ :
     <- set`union-implies-leq M2+M3=M0 M2<=M0 M3<=M0
     <- clsmap-cxt-capset-respects-geq CM-B-M0 M3<=M0 CM-B-M3
     <- set+set2set-implies-clsmap-cxt-capset CML FM-DM B-NN-C-S S+FS=M2 CM-B-M2.
+
+- : subtype-consistent
+    (clsmap-cxt-reftype/fresh _)
+    (clsmap-cxt-env/ CM-U0 CM-B-M0)
+    (subtype/ _ (sub-annot/fresh _))
+    (clsmap-cxt-env/ CM-U0 CM-B-M0)
+    (clsmap-cxt-env/ clsmap-cxt-objset/0 clsmap-cxt-capset/0).
 
 - : subtype-consistent _
     (clsmap-cxt-env/ (CM-U0:clsmap-cxt-objset CM B U0) CM-B-M0)
@@ -2161,7 +2268,7 @@ clsmap-result/args/+ :
 - : subtype-consistent _ CM-V0 (subtype/ _ sub-annot/shared) CM-V0
     (clsmap-cxt-env/ clsmap-cxt-objset/0 clsmap-cxt-capset/0).
 
-%worlds (objvar) (subtype-consistent _ _ _ _ _).
+%worlds (gtermvar) (subtype-consistent _ _ _ _ _).
 %total { } (subtype-consistent _ _ _ _ _).
 
 
@@ -2185,7 +2292,7 @@ clsmap-result/args/+ :
     exists {CM-B0-RT: clsmap-cxt-reftype CM B0 (reftype/ NN C G)}
     true.
 
-%worlds (objvar) (reftyping-implies-clsmap-result/L1 _ _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L1 _ _ _ _ _).
 %trustme %total { } (reftyping-implies-clsmap-result/L1 _ _ _ _ _).
 
 
@@ -2199,7 +2306,7 @@ clsmap-result/args/+ :
     exists {CM-B0-: clsmap-cxt-objset CM B0 U4}
     true.
 
-%worlds (objvar) (reftyping-implies-clsmap-result/L2 _ _ _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L2 _ _ _ _ _ _).
 %trustme %total { } (reftyping-implies-clsmap-result/L2 _ _ _ _ _ _).
 
 
@@ -2213,7 +2320,7 @@ clsmap-result/args/+ :
     exists {CM-B0-: clsmap-cxt-capset CM B0 M7}
     true.
 
-%worlds (objvar) (reftyping-implies-clsmap-result/L3 _ _ _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L3 _ _ _ _ _ _).
 %trustme %total { } (reftyping-implies-clsmap-result/L3 _ _ _ _ _ _).
 
 
@@ -2225,7 +2332,7 @@ clsmap-result/args/+ :
     exists {CM-B0-: clsmap-cxt-env CM B0 V}
     true.
 
-%worlds (objvar) (reftyping-implies-clsmap-result/L4 _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L4 _ _ _ _).
 %trustme %total { } (reftyping-implies-clsmap-result/L4 _ _ _ _).
 
 
@@ -2241,9 +2348,9 @@ clsmap-result/args/+ :
 
 - : ty2new-reftype-implies-clsmap-cxt-reftype
     (clsmap-ty/ CML) ty2new-reftype/unique
-    (clsmap-cxt-reftype/unique CML cxt-unique-objset/0 clsmap-cxt-unique-capset/0).
+    (clsmap-cxt-reftype/fresh CML).
 
-%worlds (objvar) (ty2new-reftype-implies-clsmap-cxt-reftype _ _ _).
+%worlds (gtermvar) (ty2new-reftype-implies-clsmap-cxt-reftype _ _ _).
 %total { } (ty2new-reftype-implies-clsmap-cxt-reftype _ _ _).
 
 
@@ -2261,7 +2368,8 @@ clsmap-result/args/+ :
       (cxt-unique-objset/U cxt-unique-objset/0
         (BL x) not-shared/unique (nonnull`leq/= nonnull`eq/) set`not-member/0
         (set`update/0))
-      clsmap-cxt-unique-capset/0)
+      clsmap-cxt-unique-capset/0
+      (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0))
     <- ({x} cxt`update-implies-lookup (BU x) (BL x)).
 
 - : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
@@ -2270,13 +2378,14 @@ clsmap-result/args/+ :
       (cxt-unique-objset/U cxt-unique-objset/0
         (BL x) not-shared/borrow (nonnull`leq/= nonnull`eq/) set`not-member/0
         (set`update/0))
-      clsmap-cxt-unique-capset/0)
+      clsmap-cxt-unique-capset/0
+      (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0))
     <- ({x} cxt`update-implies-lookup (BU x) (BL x)).
 
 - : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
     ty2reftype/shared _ ([_] clsmap-cxt-reftype/shared CML).
 
-%worlds (objvar) (ty2reftype-implies-clsmap-cxt-reftype _ _ _ _).
+%worlds (gtermvar) (ty2reftype-implies-clsmap-cxt-reftype _ _ _ _).
 %total { } (ty2reftype-implies-clsmap-cxt-reftype _ _ _ _).
 
 
@@ -2297,15 +2406,17 @@ clsmap-result/args/+ :
       (clsmap-cxt-reftype/unique
         (CML1:clsmap`lookup CM C FM1)
         (B-S: cxt-unique-objset B nn/yes C S)
-        (CM-B-C-GM1': clsmap-cxt-unique-capset CM B nn/yes C GM1))
+        (CM-B-C-GM1': clsmap-cxt-unique-capset CM B nn/yes C GM1)
+        WF)
       (clsmap-cxt-env/ (CM-B-U0: clsmap-cxt-objset CM B U0)
         (CM-B-M0: clsmap-cxt-capset CM B M0)))
     (make-tgts-and-caps/unique (S+F=GM2:set+nat2set S F GM2)
       (set`split/ _ (GM1+GM2=GM:set`union GM1 GM2 GM)) (M0-GM2=M1:set`split M0 GM2 M1))
     consider-ftype/unique
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique CM-FL cxt-unique-objset/0 CM-B-C-GM)
+      (clsmap-cxt-reftype/unique CM-FL cxt-unique-objset/0 CM-B-C-GM WF')
       (clsmap-cxt-env/ CM-B-U0 CM-B-M1))
+    <- make-tgts-and-caps-consistent/2/L WF S+F=GM2 GM1+GM2=GM WF'
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CM-FL)
     <- set+nat2set-implies-clsmap-cxt-unique-capset CML FML B-S S+F=GM2 CM-B-C-GM2
@@ -2320,7 +2431,8 @@ clsmap-result/args/+ :
       (clsmap-cxt-reftype/unique
         (CML1:clsmap`lookup CM C FM1)
         (B-S: cxt-unique-objset B nn/yes C S)
-        (CM-B-C-GM1: clsmap-cxt-unique-capset CM B nn/yes C GM1))
+        (CM-B-C-GM1: clsmap-cxt-unique-capset CM B nn/yes C GM1)
+        WF)
       (clsmap-cxt-env/ (CM-B-U0: clsmap-cxt-objset CM B U0)
         (CM-B-M0: clsmap-cxt-capset CM B M0)))
     (make-tgts-and-caps/unique (S+F=GM2:set+nat2set S F GM2)
@@ -2348,7 +2460,8 @@ clsmap-result/args/+ :
     consider-ftype/unique
     (clsmap-result/expr
       (clsmap-cxt-reftype/unique CM-FL cxt-unique-objset/0
-        (clsmap-cxt-unique-capset/z clsmap-cxt-unique-capset/0 set`not-member/0 set`update/0))
+        (clsmap-cxt-unique-capset/z clsmap-cxt-unique-capset/0 set`not-member/0 set`update/0)
+        (wf-unique-targets/unique (set`size/+ set`size/0)))
       (clsmap-cxt-env/ CM-B-U0 CM-B-M1))
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CM-FL)
@@ -2369,7 +2482,33 @@ clsmap-result/args/+ :
     <- set`combine-unique M0=M2+M1 M0P=M2+M1 set`eq/ set`eq/ M0=M0P
     <- clsmap-cxt-capset-respects-eq CM-B-M0 clsmap`eq/ cxt`eq/ M0=M0P CM-B-M0P.
 
-%worlds (objvar) (reftyping-implies-clsmap-result/read/helper _ _ _ _ _ _ _).
+- : reftyping-implies-clsmap-result/read/helper CM-CM CML
+    (FML:fldmap`lookup FM F (ty/ FNN annot/shared FC))
+    (clsmap-result/expr (clsmap-cxt-reftype/fresh _)
+      (clsmap-cxt-env/ (CM-B-U0: clsmap-cxt-objset CM B U0)
+        (CM-B-M0: clsmap-cxt-capset CM B M0)))
+    make-tgts-and-caps/fresh
+    (consider-ftype/shared _)
+    (clsmap-result/expr (clsmap-cxt-reftype/shared CM-FL)
+      (clsmap-cxt-env/ CM-B-U0 CM-B-M0))
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CM-FL).
+
+- : reftyping-implies-clsmap-result/read/helper CM-CM CML
+    (FML:fldmap`lookup FM F (ty/ FNN annot/unique FC))
+    (clsmap-result/expr (clsmap-cxt-reftype/fresh _)
+      (clsmap-cxt-env/ (CM-B-U0: clsmap-cxt-objset CM B U0)
+        (CM-B-M0: clsmap-cxt-capset CM B M0)))
+    make-tgts-and-caps/fresh
+    consider-ftype/unique
+    (clsmap-result/expr
+      (clsmap-cxt-reftype/unique CM-FL cxt-unique-objset/0 clsmap-cxt-unique-capset/0
+        (wf-unique-targets/unique+fresh))
+      (clsmap-cxt-env/ CM-B-U0 CM-B-M0))
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CM-FL).
+
+%worlds (gtermvar) (reftyping-implies-clsmap-result/read/helper _ _ _ _ _ _ _).
 %total { } (reftyping-implies-clsmap-result/read/helper _ _ _ _ _ _ _).
 
 
@@ -2385,7 +2524,7 @@ clsmap-result/args/+ :
     (readRefTyping/base CML FML MG CF _) CM-R1
     <- reftyping-implies-clsmap-result/read/helper CM-CM CML FML CM-R0 MG CF CM-R1.
 
-%worlds (objvar) (reftyping-implies-clsmap-result/read _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/read _ _ _ _).
 %total (CM-R) (reftyping-implies-clsmap-result/read _ CM-R _ _).
 
 
@@ -2396,7 +2535,7 @@ clsmap-result/args/+ :
     exists {CM-B-V1: clsmap-cxt-env CM B V1}
     true.
 
-%worlds (objvar) (restore-cap-call-preserves-clsmap-cxt-env _ _ _).
+%worlds (gtermvar) (restore-cap-call-preserves-clsmap-cxt-env _ _ _).
 %trustme %total { } (restore-cap-call-preserves-clsmap-cxt-env _ _ _).
 
 %theorem reftyping-implies-clsmap-result/let
@@ -2512,7 +2651,7 @@ clsmap-result/args/+ :
 
 - : reftyping-implies-clsmap-result/let CM-CM CM-MM CM-B0
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique _ _ CM-B0-NN-C-M1)
+      (clsmap-cxt-reftype/unique _ _ CM-B0-NN-C-M1 _)
       (clsmap-cxt-env/
         (CM-B0-U0:clsmap-cxt-objset CM B0 U0)
         (CM-B0-M0:clsmap-cxt-capset CM B0 M0)))
@@ -2594,7 +2733,8 @@ clsmap-result/args/+ :
       (clsmap-cxt-reftype/unique CML
         (cxt-unique-objset/U cxt-unique-objset/0 BL not-shared/unique
           (nonnull`leq/= nonnull`eq/) set`not-member/0 set`update/0)
-        clsmap-cxt-unique-capset/0)
+        clsmap-cxt-unique-capset/0
+        (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0))
       CM-B-V)
     <- cxt`lookup-obj-implies-lookup BL0 BL
     <- cxt-lookup-implies-clsmap-ty CM-B BL (clsmap-ty/ CML).
@@ -2605,7 +2745,8 @@ clsmap-result/args/+ :
       (clsmap-cxt-reftype/unique CML
         (cxt-unique-objset/U cxt-unique-objset/0 BL not-shared/borrow
           (nonnull`leq/= nonnull`eq/) set`not-member/0 set`update/0)
-        clsmap-cxt-unique-capset/0)
+        clsmap-cxt-unique-capset/0
+        (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0))
       CM-B-V)
     <- cxt`lookup-obj-implies-lookup BL0 BL
     <- cxt-lookup-implies-clsmap-ty CM-B BL (clsmap-ty/ CML).
@@ -2629,7 +2770,7 @@ clsmap-result/args/+ :
     <- reftyping-implies-clsmap-result/call CM-CM CM-MM CM-B
       (clsmap-cxt-env/ clsmap-cxt-objset/0 clsmap-cxt-capset/0) CM-AR CM-MT RTYP-C CM-R.
 
-%worlds (objvar) (reftyping-implies-clsmap-result _ _ _ _ _ _)
+%worlds (gtermvar) (reftyping-implies-clsmap-result _ _ _ _ _ _)
   (reftyping-implies-clsmap-result/let _ _ _ _ _ _)
   (reftyping-implies-clsmap-result/write _ _ _ _ _ _)
   (reftyping-implies-clsmap-result/args _ _ _ _ _ _ _)

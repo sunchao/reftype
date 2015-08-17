@@ -51,14 +51,18 @@ make-tgts-and-caps : set -> targets -> nat -> targets -> set -> type.
 %%% When the result is shared, we can claim back the encumbered capabilities.
 make-tgts-and-caps/shared :
     set`split M0 (set/1 shared-tgt) M1 ->
- make-tgts-and-caps M0 targets/shared _
-   (targets/unique set/0 (set/1 shared-tgt)) M1.
+  make-tgts-and-caps M0 targets/shared _
+    (targets/unique set/0 (set/1 shared-tgt) false) M1.
+
+make-tgts-and-caps/fresh :
+  make-tgts-and-caps M0 targets/fresh _
+    (targets/unique set/0 set/0 true) M0.
 
 make-tgts-and-caps/unique :
-    set+nat2set S F M2 ->
+    set+nat2set U F M2 ->
     set`combine M1 M2 M ->
     set`split M0 M2 M3 ->
-  make-tgts-and-caps M0 (targets/unique S M1) F (targets/unique set/0 M) M3.
+  make-tgts-and-caps M0 (targets/unique U M1 W) F (targets/unique set/0 M W) M3.
 
 
 % Consider field annotation, and returns either the input unique
@@ -67,9 +71,11 @@ make-tgts-and-caps/unique :
 
 consider-ftype : targets -> set -> annot -> targets -> set -> type.
 
+%%% We return the capabilities encumbered in M now, but for the fresh capability
+%%% represented by W, we just throw it away.
 consider-ftype/shared :
     set`combine M M0 M1 ->
-  consider-ftype (targets/unique set/0 M) M0 annot/shared targets/shared M1.
+  consider-ftype (targets/unique set/0 M W) M0 annot/shared targets/shared M1.
 
 consider-ftype/unique : consider-ftype G M annot/unique G M.
 
@@ -81,10 +87,10 @@ ty2reftype : nat -> ty -> reftype -> type.
 ty2reftype/shared : ty2reftype L (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
 
 ty2reftype/borrow : ty2reftype L (ty/ NN annot/borrow C)
-    (reftype/ NN C (targets/unique (set/1 L) set/0)).
+    (reftype/ NN C (targets/unique (set/1 L) set/0 false)).
 
 ty2reftype/unique : ty2reftype L (ty/ NN annot/unique C)
-    (reftype/ NN C (targets/unique (set/1 L) set/0)).
+    (reftype/ NN C (targets/unique (set/1 L) set/0 false)).
 
 
 reftype2ty : reftype -> ty -> type.
@@ -92,7 +98,7 @@ reftype2ty : reftype -> ty -> type.
 reftype2ty/shared : reftype2ty (reftype/ NN C targets/shared) (ty/ NN annot/shared C).
 
 %% TODO: maybe annot/borrow more making sense?
-reftype2ty/unique : reftype2ty (reftype/ NN C (targets/unique _ _)) (ty/ NN annot/unique C).
+reftype2ty/unique : reftype2ty (reftype/ NN C (targets/unique _ _ _)) (ty/ NN annot/unique C).
 
 
 % sub-annotation rule with side effects.
@@ -106,6 +112,7 @@ reftype2ty/unique : reftype2ty (reftype/ NN C (targets/unique _ _)) (ty/ NN anno
 
 sub-annot : clsmap -> set -> targets -> env -> ty -> env -> env -> type.
 
+%%% TODO: change leq + remove to split.
 sub-annot/unique :
     clsmap`lookup CM C FM ->
     fldmap`domain FM FS ->
@@ -114,15 +121,18 @@ sub-annot/unique :
     set`leq S U0 ->
     set`remove U0 S U1 ->
     not-borrow A ->
-  sub-annot CM _ (targets/unique S _) (env/ U0 M0) (ty/ _ A C) (env/ S M2) (env/ U1 M3).
+  sub-annot CM _ (targets/unique S _ _) (env/ U0 M0) (ty/ _ A C) (env/ S M2) (env/ U1 M3).
 
+sub-annot/fresh :
+    not-borrow A ->
+  sub-annot CM _ targets/fresh (env/ U0 M0) (ty/ _ A C) (env/ set/0 set/0) (env/ U0 M0).
 
 %%% unique => borrow, we don't need to pass down the encumbered permissions.
 
 sub-annot/borrow :
     set+set2set S FS M2 ->
     set`split M0 M2 M3 ->
-  sub-annot _ FS (targets/unique S _) (env/ U0 M0) (ty/ _ annot/borrow _)
+  sub-annot _ FS (targets/unique S _ _) (env/ U0 M0) (ty/ _ annot/borrow _)
     (env/ set/0 M2) (env/ U0 M3).
 
 sub-annot/shared : sub-annot _ _ targets/shared V (ty/ _ annot/shared _) empty-env V.
@@ -131,31 +141,71 @@ sub-annot/shared : sub-annot _ _ targets/shared V (ty/ _ annot/shared _) empty-e
 subtype : clsmap -> set -> reftype -> env -> ty -> env -> env -> type.
 
 subtype/ :
-    nonnull`leq NN2 NN1 ->
-    sub-annot CM FS G V1 (ty/ NN2 A2 C) V3 V2 ->
-  subtype CM FS (reftype/ NN1 C G) V1 (ty/ NN2 A2 C) V3 V2.
+    sub-nonnull NN1 NN2 ->
+    sub-annot CM FS G V1 (ty/ NN2 A2 C) V2 V3 ->
+  subtype CM FS (reftype/ NN1 C G) V1 (ty/ NN2 A2 C) V2 V3.
 
 
 %%% Sub-relation on targets
 
 targets`sub : set -> env -> targets -> targets -> env -> type.
 
+targets`sub/ss : targets`sub _ V targets/shared targets/shared V.
+
+%%% For the unique => shared case, all the object targets and field targets
+%%% are consumed.
 targets`sub/us :
     set+set2set S FS M ->
     set`split U0 S U1 ->
     set`split M0 M M1 ->
-  targets`sub FS (env/ U0 M0) (targets/unique S _) targets/shared (env/ U1 M1).
+  targets`sub FS (env/ U0 M0) (targets/unique S _ _) targets/shared (env/ U1 M1).
 
-targets`sub/ss : targets`sub _ V targets/shared targets/shared V.
+%{
+It's tricky to handle the case when either M1 or M2 contains shared. This is
+because it's hard to add the information that the shared field is from
+which class. It's not impossible though, just requires many changes.
 
+This doesn't work for cases like
+if (...) (new C).f else a
+as well, since on the right hand side you can't get the fresh permissions.
 targets`sub/uu :
     set`leq U1 U2 ->
     set`split M2 M1 Q ->
     set`split Q0 Q Q1 ->
     set`not-member M1 shared ->
     set`not-member M2 shared ->
-  targets`sub _ (env/ U Q0) (targets/unique U1 M1) (targets/unique U2 M2) (env/ U Q1).
+    bool`leq W1 W2 ->
+  targets`sub _ (env/ U Q0) (targets/unique U1 M1 W1) (targets/unique U2 M2 W2) (env/ U Q1).
+}%
 
+targets`sub/bb :
+    set`leq S0 S1 ->
+  targets`sub _ V (targets/unique S0 set/0 false) (targets/unique S1 set/0 false) V.
+
+
+has-encumbered : set -> bool -> type.
+
+has-encumbered/1 : has-encumbered M false <- set`size M (s _).
+
+has-encumbered/2 : has-encumbered _ true.
+
+
+targets`sub/uu :
+    set`leq S0 S1 ->
+    has-encumbered M0 W0 ->
+    set`split Q0 M Q1 ->
+    set`combine M M0 M1 ->
+    bool`leq W0 W1 ->
+  targets`sub _ (env/ U0 Q0) (targets/unique S0 M0 W0)
+    (targets/unique S1 M1 W1) (env/ U0 Q1).
+
+targets`sub/fu :
+    set`split Q0 M Q1 ->
+  targets`sub _ (env/ U Q0) targets/fresh (targets/unique _ M true) (env/ U Q1).
+
+targets`sub/fs : targets`sub _ V targets/fresh targets/shared V.
+
+targets`sub/ff : targets`sub _ V targets/fresh targets/fresh V.
 
 %%% Sub-relation between reftypes
 
@@ -179,7 +229,7 @@ reftype`sub/ :
 
 - : env`eq-inversion env`eq/ set`eq/ set`eq/.
 
-%worlds (objvar) (env`eq-inversion _ _ _).
+%worlds (gtermvar) (env`eq-inversion _ _ _).
 %total { } (env`eq-inversion _ _ _).
 
 
@@ -191,7 +241,7 @@ reftype`sub/ :
 
 - : env`eq-preserves-eq set`eq/ set`eq/ env`eq/.
 
-%worlds (objvar) (env`eq-preserves-eq _ _ _).
+%worlds (gtermvar) (env`eq-preserves-eq _ _ _).
 %total { } (env`eq-preserves-eq _ _ _).
 
 
@@ -203,7 +253,7 @@ reftype`sub/ :
 
 - : set`split-implies-disjoint-union (set`split/ D U) D U.
 
-%worlds (objvar) (set`split-implies-disjoint-union _ _ _).
+%worlds (gtermvar) (set`split-implies-disjoint-union _ _ _).
 %total { } (set`split-implies-disjoint-union _ _ _).
 
 
@@ -216,7 +266,7 @@ reftype`sub/ :
 - : set`split-implies-leq (set`split/ _ U) L1 L2
     <- set`union-implies-leq U L1 L2.
 
-%worlds (objvar) (set`split-implies-leq _ _ _).
+%worlds (gtermvar) (set`split-implies-leq _ _ _).
 %total { } (set`split-implies-leq _ _ _).
 
 
@@ -264,7 +314,7 @@ reftype`sub/ :
     exists {SE: set`eq S SP}
     true.
 
-%worlds (objvar) (set`combine-unique _ _ _ _ _).
+%worlds (gtermvar) (set`combine-unique _ _ _ _ _).
 %trustme %total { } (set`combine-unique _ _ _ _ _).
 
 
@@ -284,7 +334,7 @@ reftype`sub/ :
     exists {M1=M: set`eq M M1}
     true.
 
-%worlds (objvar) (set`combine-empty-right _ _).
+%worlds (gtermvar) (set`combine-empty-right _ _).
 %trustme %total { } (set`combine-empty-right _ _).
 
 
@@ -295,5 +345,18 @@ reftype`sub/ :
     {S0-S1=S2: set`remove S0 S1 S2}
     true.
 
-%worlds (objvar) (set`split-implies-leq-remove _ _ _).
+%worlds (gtermvar) (set`split-implies-leq-remove _ _ _).
 %trustme %total { } (set`split-implies-leq-remove _ _ _).
+
+
+%theorem set`can-split-empty*
+  : forall {M}
+    exists {SP: set`split M set/0 M}
+    true.
+
+- : set`can-split-empty* _ (set`split/ set`disjoint/L set`union/L).
+
+%worlds (gtermvar) (set`can-split-empty* _ _).
+%total { } (set`can-split-empty* _ _).
+
+%abbrev set`can-split-empty = set`can-split-empty* _.

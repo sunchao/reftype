@@ -7,23 +7,24 @@
     {RT1=>PF1: reftype2perm CM PM B (reftype/ NN1 C1 G1) PF1}
     {RT2=>PF2: reftype2perm CM PM B (reftype/ NN2 C2 G2) PF2}
     exists {PiV2} {V2=>PiV2: env2input CM PM B V2 PiV2}
-    {TRANS: {o1}{r1}{o2}{r2}
+    {TRANS: {o1}{r1}{p1}{o2}{r2}{p2}
             transform
             (output/expr o2
-              (combine (PF1 o1 r1)
+              (combine (PF1 o1 r1 p1)
                 (combine
-                  (combine PiB (combine (PF2 o2 r2) PiV0))
+                  (combine PiB (combine (PF2 o2 r2 p2) PiV0))
                   (empty))))
             (output/expr o2
               (combine PiB PiV2))}
     true.
 
+%%% shared - shared
 - : reftyping-ok/eq/L1
     restore-cap-targets/shared restore-cap-targets/shared
     (V0=>PiV0:env2input CM PM B V0 PiV0)
     (reftype2perm/shared T2PF1) (reftype2perm/shared T2PF2)
     _ V0=>PiV0
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/equiv
@@ -33,26 +34,7 @@
               (equiv/associate))))
         (transform/drop))).
 
-- : reftyping-ok/eq/L1
-    (restore-cap-targets/unique (M0+H0=M:set`combine M0 set/0 M))
-    (restore-cap-targets/shared)
-    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
-      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (reftype2perm/fresh T2PF1) (reftype2perm/shared T2PF2)
-    _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
-      (transform/trans
-        (transform/implies
-          (implies/equiv
-            (equiv/transitive3
-              (equiv/combine equiv/reflexive equiv/identity)
-              (equiv/combine equiv/reflexive equiv/reorder)
-              (equiv/associate))))
-        (transform/drop)))
-    <- set`combine-empty-right M0+H0=M M0=M
-    <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/
-      cxt`eq/ M0=M permission`eq/ M=>PiM0.
-
+%%% borrow - shared
 - : reftyping-ok/eq/L1
     (restore-cap-targets/unique (M0+H0=M:set`combine M0 set/0 M))
     (restore-cap-targets/shared)
@@ -60,7 +42,7 @@
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
     (reftype2perm/borrow _ set`size/0 T2PF1 S2G1) (reftype2perm/shared T2PF2)
     _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/equiv
@@ -73,6 +55,7 @@
     <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/
       cxt`eq/ M0=M permission`eq/ M=>PiM0.
 
+%%% unique - shared
 - : reftyping-ok/eq/L1
     (restore-cap-targets/unique (M0+H0=M:set`combine M0 H0 M))
     (restore-cap-targets/shared)
@@ -80,7 +63,7 @@
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
     (reftype2perm/unique _ T2PF1 S2G1 H0=>PiH0) (reftype2perm/shared T2PF2)
     _ (env2input/ U0=>PiU0 M=>PiM)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/trans5
@@ -103,26 +86,49 @@
     <- set`split-implies-permission-combine-converse M0+H0=M
       M0=>PiM0 H0=>PiH0 PiM M=>PiM PiM0+PiH0<=>PiM.
 
+%%% unique+fresh - shared
 - : reftyping-ok/eq/L1
+    (restore-cap-targets/unique (M0+H0=M:set`combine M0 H0 M))
     (restore-cap-targets/shared)
-    (restore-cap-targets/unique (M0+H1=M:set`combine M0 set/0 M))
     (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (reftype2perm/shared T2PF1) (reftype2perm/fresh T2PF2)
-    _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
+    (reftype2perm/unique+fresh T2PF1 S2G1 H0=>PiH0) (reftype2perm/shared T2PF2)
+    _ (env2input/ U0=>PiU0 M=>PiM)
+    ([o1][r1][p1][o2][r2][p2]
       (transform/trans
         (transform/implies
-          (implies/equiv
-            (equiv/transitive3
-              (equiv/combine equiv/reflexive equiv/identity)
-              (equiv/combine equiv/reflexive equiv/reorder)
-              (equiv/associate))))
+          (implies/trans6
+            (implies/equiv
+              (equiv/combine equiv/reflexive equiv/identity))
+            (implies/combine
+              (implies/combine implies/reflexive implies/linear-modus-ponens)
+              (implies/reflexive))
+            (implies/equiv (equiv/symmetric equiv/associate))
+            (implies/combine implies/reflexive
+              (implies/equiv
+                (equiv/transitive3
+                  (equiv/move-to-back-5)
+                  (equiv/reorder)
+                  (equiv/combine equiv/reflexive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive
+                        (equiv/transitive
+                          (equiv/associate)
+                          (equiv/combine (PiM0+PiH0<=>PiM) equiv/reflexive))))))))
+            (implies/equiv equiv/associate)
+            (implies/equiv
+              (equiv/transitive
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute))
+                    (equiv/roll3)))
+                (equiv/associate)))))
         (transform/drop)))
-    <- set`combine-empty-right M0+H1=M M0=M
-    <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/
-      cxt`eq/ M0=M permission`eq/ M=>PiM0.
+    <- set`split-implies-permission-combine-converse M0+H0=M
+      M0=>PiM0 H0=>PiH0 PiM M=>PiM PiM0+PiH0<=>PiM.
 
+%%% shared - borrow
 - : reftyping-ok/eq/L1
     (restore-cap-targets/shared)
     (restore-cap-targets/unique (M0+H1=M:set`combine M0 set/0 M))
@@ -130,7 +136,7 @@
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
     (reftype2perm/shared T2PF1) (reftype2perm/borrow _ set`size/0 T2PF2 B2G2)
     _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/equiv
@@ -143,6 +149,7 @@
     <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/
       cxt`eq/ M0=M permission`eq/ M=>PiM0.
 
+%%% shared - unique
 - : reftyping-ok/eq/L1
     (restore-cap-targets/shared)
     (restore-cap-targets/unique (M0+H1=M:set`combine M0 H1 M))
@@ -150,7 +157,7 @@
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
     (reftype2perm/shared T2PF1) (reftype2perm/unique _ T2PF2 B2G2 H1=>PiH1)
     _ (env2input/ U0=>PiU0 M=>PiM)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/trans
@@ -177,64 +184,18 @@
     <- set`split-implies-permission-combine-converse M0+H1=M
       M0=>PiM0 H1=>PiH1 PiM M=>PiM PiM0+PiH1<=>PiM.
 
-%%% fresh - fresh
+%%% shared - unique+fresh
 - : reftyping-ok/eq/L1
-    (restore-cap-targets/unique (M0+H0=M':set`combine M0 set/0 M'))
-    (restore-cap-targets/unique (M'+H1=M:set`combine M' set/0 M))
+    (restore-cap-targets/shared)
+    (restore-cap-targets/unique (M0+H1=M:set`combine M0 H1 M))
     (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (reftype2perm/fresh T2PF1) (reftype2perm/fresh T2PF2)
-    _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
-      (transform/trans
-        (transform/implies
-          (implies/equiv
-            (equiv/transitive3
-              (equiv/combine equiv/reflexive equiv/identity)
-              (equiv/combine equiv/reflexive equiv/reorder)
-              (equiv/associate))))
-        (transform/drop)))
-    <- set`combine-empty-right M0+H0=M' M0=M'
-    <- set`combine-empty-right M'+H1=M M'=M
-    <- set`eq-transitive M0=M' M'=M M0=M
-    <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/
-      cxt`eq/ M0=M permission`eq/ M=>PiM0.
-
-%%% fresh - borrow
-- : reftyping-ok/eq/L1
-    (restore-cap-targets/unique (M0+H0=M':set`combine M0 set/0 M'))
-    (restore-cap-targets/unique (M'+H1=M:set`combine M' set/0 M))
-    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
-      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (reftype2perm/fresh T2PF1) (reftype2perm/borrow _ set`size/0 T2PF2 B2G2)
-    _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
-      (transform/trans
-        (transform/implies
-          (implies/equiv
-            (equiv/transitive3
-              (equiv/combine equiv/reflexive equiv/identity)
-              (equiv/combine equiv/reflexive equiv/reorder)
-              (equiv/associate))))
-        (transform/drop)))
-    <- set`combine-empty-right M0+H0=M' M0=M'
-    <- set`combine-empty-right M'+H1=M M'=M
-    <- set`eq-transitive M0=M' M'=M M0=M
-    <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/
-      cxt`eq/ M0=M permission`eq/ M=>PiM0.
-
-%%% fresh - unique
-- : reftyping-ok/eq/L1
-    (restore-cap-targets/unique (M0+H0=M':set`combine M0 set/0 M'))
-    (restore-cap-targets/unique (M'+H1=M:set`combine M' H1 M))
-    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
-      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (reftype2perm/fresh T2PF1) (reftype2perm/unique _ T2PF2 B2G2 H1=>PiH1)
+    (reftype2perm/shared T2PF1) (reftype2perm/unique+fresh T2PF2 B2G2 H1=>PiH1)
     _ (env2input/ U0=>PiU0 M=>PiM)
-    ([o1][r1][o2][r2]
+    ([o1][r1][p1][o2][r2][p2]
       (transform/trans
         (transform/implies
-          (implies/trans
+          (implies/trans3
             (implies/combine implies/reflexive
               (implies/trans
                 (implies/equiv equiv/identity)
@@ -249,40 +210,25 @@
                         (equiv/transitive
                           (equiv/reorder)
                           (equiv/combine equiv/reflexive
-                            (equiv/transitive equiv/commute (PiM0+PiH1<=>PiM))))))))))
+                            (equiv/transitive equiv/commute
+                              (equiv/transitive
+                                (equiv/associate)
+                                (equiv/combine (PiM0+PiH1<=>PiM) equiv/reflexive)))))))))))
             (implies/equiv
               (equiv/transitive
                 (equiv/combine equiv/reflexive equiv/reorder)
+                (equiv/associate)))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute))
+                    (equiv/roll3)))
                 (equiv/associate)))))
         (transform/drop)))
-    <- set`combine-empty-right M0+H0=M' M0=M'
-    <- set`eq-symmetric M0=M' M'=M0
-    <- set`split-respects-eq M'+H1=M set`eq/ M'=M0 set`eq/ M0+H1=M
     <- set`split-implies-permission-combine-converse M0+H1=M
       M0=>PiM0 H1=>PiH1 PiM M=>PiM PiM0+PiH1<=>PiM.
-
-%%% borrow - fresh
-- : reftyping-ok/eq/L1
-    (restore-cap-targets/unique (M0+H0=M':set`combine M0 set/0 M'))
-    (restore-cap-targets/unique (M'+H1=M:set`combine M' set/0 M))
-    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
-      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (reftype2perm/borrow _ set`size/0 T2PF1 S2G1) (reftype2perm/fresh T2PF2)
-    _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
-      (transform/trans
-        (transform/implies
-          (implies/equiv
-            (equiv/transitive3
-              (equiv/combine equiv/reflexive equiv/identity)
-              (equiv/combine equiv/reflexive equiv/reorder)
-              (equiv/associate))))
-        (transform/drop)))
-    <- set`combine-empty-right M0+H0=M' M0=M'
-    <- set`combine-empty-right M'+H1=M M'=M
-    <- set`eq-transitive M0=M' M'=M M0=M
-    <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/
-      cxt`eq/ M0=M permission`eq/ M=>PiM0.
 
 %%% borrow - borrow
 - : reftyping-ok/eq/L1
@@ -293,7 +239,7 @@
     (reftype2perm/borrow _ set`size/0 T2PF1 S2G1)
     (reftype2perm/borrow _ set`size/0 T2PF2 S2G2)
     _ (env2input/ U0=>PiU0 M=>PiM0)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/equiv
@@ -318,7 +264,7 @@
     (reftype2perm/borrow _ set`size/0 T2PF1 B2G1)
     (reftype2perm/unique _ T2PF2 B2G2 H1=>PiH1)
     _ (env2input/ U0=>PiU0 M=>PiM)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/trans
@@ -348,16 +294,66 @@
     <- set`split-implies-permission-combine-converse M0+H1=M
       M0=>PiM0 H1=>PiH1 PiM M=>PiM PiM0+PiH1<=>PiM.
 
-%%% unique - fresh
+%%% borrow - unique+fresh
+- : reftyping-ok/eq/L1
+    (restore-cap-targets/unique (M0+H0=M':set`combine M0 set/0 M'))
+    (restore-cap-targets/unique (M'+H1=M:set`combine M' H1 M))
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    (reftype2perm/borrow _ set`size/0 T2PF1 B2G1)
+    (reftype2perm/unique+fresh T2PF2 B2G2 H1=>PiH1)
+    _ (env2input/ U0=>PiU0 M=>PiM)
+    ([o1][r1][p1][o2][r2][p2]
+      (transform/trans
+        (transform/implies
+          (implies/trans3
+            (implies/combine implies/reflexive
+              (implies/trans
+                (implies/equiv equiv/identity)
+                (implies/combine implies/reflexive
+                  (implies/trans3
+                    (implies/combine
+                      (implies/combine implies/reflexive implies/linear-modus-ponens)
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive
+                      (implies/equiv
+                        (equiv/transitive
+                          (equiv/reorder)
+                          (equiv/combine equiv/reflexive
+                            (equiv/transitive equiv/commute
+                              (equiv/transitive
+                                (equiv/associate)
+                                (equiv/combine (PiM0+PiH1<=>PiM) equiv/reflexive)))))))))))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/combine equiv/reflexive equiv/reorder)
+                (equiv/associate)))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute))
+                    (equiv/roll3)))
+                (equiv/associate)))))
+        (transform/drop)))
+    <- set`combine-empty-right M0+H0=M' M0=M'
+    <- set`eq-symmetric M0=M' M'=M0
+    <- set`split-respects-eq M'+H1=M set`eq/ M'=M0 set`eq/ M0+H1=M
+    <- set`split-implies-permission-combine-converse M0+H1=M
+      M0=>PiM0 H1=>PiH1 PiM M=>PiM PiM0+PiH1<=>PiM.
+
+%%% unique - borrow
 - : reftyping-ok/eq/L1
     (restore-cap-targets/unique (M0+H0=M':set`combine M0 H0 M'))
     (restore-cap-targets/unique (M'+H1=M:set`combine M' set/0 M))
     (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
     (reftype2perm/unique _ T2PF1 S2G1 H0=>PiH0)
-    (reftype2perm/fresh T2PF2)
+    (reftype2perm/borrow _ set`size/0 T2PF2 B2G2)
     _ (env2input/ U0=>PiU0 M=>PiM)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/trans5
@@ -382,19 +378,19 @@
     <- set`split-implies-permission-combine-converse M0+H0=M
       M0=>PiM0 H0=>PiH0 PiM M=>PiM PiM0+PiH0<=>PiM.
 
-%%% unique - borrow
+%%% unique+fresh - borrow
 - : reftyping-ok/eq/L1
     (restore-cap-targets/unique (M0+H0=M':set`combine M0 H0 M'))
     (restore-cap-targets/unique (M'+H1=M:set`combine M' set/0 M))
     (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
       (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-    (reftype2perm/unique _ T2PF1 S2G1 H0=>PiH0)
+    (reftype2perm/unique+fresh T2PF1 S2G1 H0=>PiH0)
     (reftype2perm/borrow _ set`size/0 T2PF2 B2G2)
     _ (env2input/ U0=>PiU0 M=>PiM)
-    ([o1][r1][o2][r2]
+    ([o1][r1][p1][o2][r2][p2]
       (transform/trans
         (transform/implies
-          (implies/trans5
+          (implies/trans6
             (implies/equiv
               (equiv/combine equiv/reflexive equiv/identity))
             (implies/combine
@@ -408,8 +404,19 @@
                   (equiv/reorder)
                   (equiv/combine equiv/reflexive
                     (equiv/combine equiv/reflexive
-                      (equiv/combine equiv/reflexive (PiM0+PiH0<=>PiM)))))))
-            (implies/equiv equiv/associate)))
+                      (equiv/combine equiv/reflexive
+                        (equiv/transitive
+                          (equiv/associate)
+                          (equiv/combine (PiM0+PiH0<=>PiM) equiv/reflexive))))))))
+            (implies/equiv equiv/associate)
+            (implies/equiv
+              (equiv/transitive
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute))
+                    (equiv/roll3)))
+                (equiv/associate)))))
         (transform/drop)))
     <- set`combine-empty-right M'+H1=M M'=M
     <- set`split-respects-eq M0+H0=M' M'=M set`eq/ set`eq/ M0+H0=M
@@ -425,7 +432,7 @@
     (reftype2perm/unique _ T2PF1 B2G1 H0=>PiH0)
     (reftype2perm/unique _ T2PF2 B2G2 H1=>PiH1)
     _ (env2input/ U0=>PiU0 M=>PiM)
-    ([o1][r1][o2][r2]
+    ([o1][r1][_][o2][r2][_]
       (transform/trans
         (transform/implies
           (implies/trans
@@ -468,7 +475,201 @@
     <- set`split-implies-permission-combine-converse M'+H1=M
       M'=>PiM' H1=>PiH1 PiM M=>PiM PiM'+PiH1<=>PiM.
 
-%worlds (objvar) (reftyping-ok/eq/L1 _ _ _ _ _ _ _ _).
+%%% unique+fresh - unique
+- : reftyping-ok/eq/L1
+    (restore-cap-targets/unique (M0+H0=M':set`combine M0 H0 M'))
+    (restore-cap-targets/unique (M'+H1=M:set`combine M' H1 M))
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    (reftype2perm/unique+fresh T2PF1 B2G1 H0=>PiH0)
+    (reftype2perm/unique _ T2PF2 B2G2 H1=>PiH1)
+    _ (env2input/ U0=>PiU0 M=>PiM)
+    ([o1][r1][p1][o2][r2][p2]
+      (transform/trans
+        (transform/implies
+          (implies/trans3
+            (implies/combine
+              (implies/combine implies/reflexive implies/linear-modus-ponens)
+              (implies/trans
+                (implies/equiv equiv/identity)
+                (implies/combine implies/reflexive
+                  (implies/trans3
+                    (implies/combine
+                      (implies/combine implies/reflexive implies/linear-modus-ponens)
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive
+                      (implies/equiv
+                        (equiv/transitive
+                          (equiv/reorder)
+                          (equiv/combine equiv/reflexive
+                            (equiv/transitive equiv/commute equiv/reflexive)))))))))
+            (implies/equiv
+              (equiv/transitive5
+                (equiv/combine equiv/reflexive equiv/reorder)
+                (equiv/associate)
+                (equiv/combine equiv/swap equiv/reflexive)
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive5
+                    (equiv/combine equiv/reflexive equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine
+                      (equiv/transitive3
+                        (equiv/commute)
+                        (equiv/associate)
+                        (equiv/combine PiM0+PiH0<=>PiM' equiv/reflexive))
+                      (equiv/reflexive))
+                    (equiv/move-to-back-4)
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive
+                        (equiv/transitive equiv/commute
+                          (equiv/transitive
+                            (equiv/swap)
+                            (equiv/combine PiM'+PiH1<=>PiM equiv/reflexive)))))))))
+            (implies/equiv
+              (equiv/transitive
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute))
+                    (equiv/roll3)))
+                (equiv/associate)))))
+        (transform/drop)))
+    <- set`split-implies-permission-combine-converse M0+H0=M'
+      M0=>PiM0 H0=>PiH0 PiM' M'=>PiM' PiM0+PiH0<=>PiM'
+    <- set`split-implies-permission-combine-converse M'+H1=M
+      M'=>PiM' H1=>PiH1 PiM M=>PiM PiM'+PiH1<=>PiM.
+
+%%% unique - unique+fresh
+- : reftyping-ok/eq/L1
+    (restore-cap-targets/unique (M0+H0=M':set`combine M0 H0 M'))
+    (restore-cap-targets/unique (M'+H1=M:set`combine M' H1 M))
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    (reftype2perm/unique _ T2PF1 B2G1 H0=>PiH0)
+    (reftype2perm/unique+fresh T2PF2 B2G2 H1=>PiH1)
+    _ (env2input/ U0=>PiU0 M=>PiM)
+    ([o1][r1][p1][o2][r2][p2]
+      (transform/trans
+        (transform/implies
+          (implies/trans
+            (implies/combine
+              (implies/combine implies/reflexive implies/linear-modus-ponens)
+              (implies/trans
+                (implies/equiv equiv/identity)
+                (implies/combine implies/reflexive
+                  (implies/trans3
+                    (implies/combine
+                      (implies/combine implies/reflexive implies/linear-modus-ponens)
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive
+                      (implies/equiv
+                        (equiv/transitive
+                          (equiv/reorder)
+                          (equiv/combine equiv/reflexive
+                            (equiv/transitive equiv/commute equiv/reflexive)))))))))
+            (implies/equiv
+              (equiv/transitive7
+                (equiv/combine equiv/reflexive equiv/reorder)
+                (equiv/associate)
+                (equiv/combine equiv/swap equiv/reflexive)
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive5
+                    (equiv/combine equiv/reflexive equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine
+                      (equiv/transitive equiv/commute (PiM0+PiH0<=>PiM'))
+                      (equiv/reflexive))
+                    (equiv/move-to-back-4)
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive
+                        (equiv/transitive3
+                          (equiv/commute)
+                          (equiv/associate)
+                          (equiv/combine
+                            (PiM'+PiH1<=>PiM)
+                            (equiv/reflexive)))))))
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute))
+                    (equiv/roll3)))
+                (equiv/associate)))))
+        (transform/drop)))
+    <- set`split-implies-permission-combine-converse M0+H0=M'
+      M0=>PiM0 H0=>PiH0 PiM' M'=>PiM' PiM0+PiH0<=>PiM'
+    <- set`split-implies-permission-combine-converse M'+H1=M
+      M'=>PiM' H1=>PiH1 PiM M=>PiM PiM'+PiH1<=>PiM.
+
+%%% unique+fresh - unique+fresh
+- : reftyping-ok/eq/L1
+    (restore-cap-targets/unique (M0+H0=M':set`combine M0 H0 M'))
+    (restore-cap-targets/unique (M'+H1=M:set`combine M' H1 M))
+    (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+    (reftype2perm/unique+fresh T2PF1 B2G1 H0=>PiH0)
+    (reftype2perm/unique+fresh T2PF2 B2G2 H1=>PiH1)
+    _ (env2input/ U0=>PiU0 M=>PiM)
+    ([o1][r1][p1][o2][r2][p2]
+      (transform/trans
+        (transform/implies
+          (implies/trans
+            (implies/combine
+              (implies/combine implies/reflexive implies/linear-modus-ponens)
+              (implies/trans
+                (implies/equiv equiv/identity)
+                (implies/combine implies/reflexive
+                  (implies/trans3
+                    (implies/combine
+                      (implies/combine implies/reflexive implies/linear-modus-ponens)
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive
+                      (implies/equiv
+                        (equiv/transitive
+                          (equiv/reorder)
+                          (equiv/combine equiv/reflexive
+                            (equiv/transitive equiv/commute equiv/reflexive)))))))))
+            (implies/equiv
+              (equiv/transitive7
+                (equiv/combine equiv/reflexive equiv/reorder)
+                (equiv/associate)
+                (equiv/combine equiv/swap equiv/reflexive)
+                (equiv/symmetric equiv/associate)
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive5
+                    (equiv/combine equiv/reflexive equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine
+                      (equiv/transitive3
+                        (equiv/commute)
+                        (equiv/associate)
+                        (equiv/combine PiM0+PiH0<=>PiM' equiv/reflexive))
+                      (equiv/reflexive))
+                    (equiv/move-to-back-4)
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive
+                        (equiv/transitive
+                          (equiv/swap-middle)
+                          (equiv/combine
+                            (equiv/transitive equiv/commute PiM'+PiH1<=>PiM)
+                            (equiv/reflexive)))))))
+                (equiv/combine equiv/reflexive
+                  (equiv/transitive
+                    (equiv/combine equiv/reflexive
+                      (equiv/combine equiv/reflexive equiv/commute))
+                    (equiv/roll3)))
+                (equiv/associate)))))
+        (transform/drop)))
+    <- set`split-implies-permission-combine-converse M0+H0=M'
+      M0=>PiM0 H0=>PiH0 PiM' M'=>PiM' PiM0+PiH0<=>PiM'
+    <- set`split-implies-permission-combine-converse M'+H1=M
+      M'=>PiM' H1=>PiH1 PiM M=>PiM PiM'+PiH1<=>PiM.
+
+%worlds (gtermvar) (reftyping-ok/eq/L1 _ _ _ _ _ _ _ _).
 %total { } (reftyping-ok/eq/L1 _ _ _ _ _ _ _ _).
 
 
@@ -504,54 +705,63 @@
           (TYP1)
           (transform/inside [o1]
             (transform/inside [r1]
-              (transform/implies
-                (implies/equiv
-                  (equiv/transitive3
-                    (equiv/identity)
-                    (equiv/reorder)
-                    (equiv/combine equiv/reflexive
-                      (equiv/combine PiB1<=>PiB PiV1'<=>PiV1))))))))
+              (transform/inside [p1]
+                (transform/implies
+                  (implies/equiv
+                    (equiv/transitive3
+                      (equiv/identity)
+                      (equiv/reorder)
+                      (equiv/combine equiv/reflexive
+                        (equiv/combine PiB1<=>PiB PiV1'<=>PiV1)))))))))
         (letTyping/exists [o1]
           (letTyping/exists [r1]
-            (letTyping/base o1
-              (tEql2
-                (tTrans2
-                  (TYP2' o1 r1)
-                  (transform/inside [o2]
-                    (transform/inside [r2]
-                      (TRANS o1 r1 o2 r2))))
-                (letTyping/exists [o2]
-                  (letTyping/exists [r2]
-                    (letTyping/base o2 (tEql)))))))))
+            (letTyping/exists [p1]
+              (letTyping/base o1
+                (tEql2
+                  (tTrans2
+                    (TYP2' o1 r1 p1)
+                    (transform/inside [o2]
+                      (transform/inside [r2]
+                        (transform/inside [p2]
+                          (TRANS o1 r1 p1 o2 r2 p2)))))
+                  (letTyping/exists [o2]
+                    (letTyping/exists [r2]
+                      (letTyping/exists [p2]
+                        (letTyping/base o2 (tEql)))))))))))
       (transform/inside [o1]
-        (transform/trans
+        (transform/trans3
           (transform/inside [r1]
-            (transform/inside [o2]
-              (transform/trans
-                (transform/inside [r2]
-                  (transform/cond
-                    (bimplies/reflexive)
-                    (bimplies/reflexive)
-                    (implies/trans
-                      (implies/combine implies/nonlinear2empty implies/reflexive)
-                      (implies/equiv
-                        (equiv/transitive equiv/commute equiv/identity)))
-                    (implies/trans
-                      (implies/combine implies/nonlinear2empty implies/reflexive)
-                      (implies/equiv
-                        (equiv/transitive equiv/commute equiv/identity)))))
-                (transform/rem-unused))))
-          (transform/rem-unused))))
+            (transform/inside [p1]
+              (transform/inside [o2]
+                (transform/trans
+                  (transform/inside [r2]
+                    (transform/inside [p2]
+                      (transform/cond
+                        (bimplies/reflexive)
+                        (bimplies/reflexive)
+                        (implies/trans
+                          (implies/combine implies/nonlinear2empty implies/reflexive)
+                          (implies/equiv
+                            (equiv/transitive equiv/commute equiv/identity)))
+                        (implies/trans
+                          (implies/combine implies/nonlinear2empty implies/reflexive)
+                          (implies/equiv
+                            (equiv/transitive equiv/commute equiv/identity))))))
+                  (transform/rem-unused)))))
+          (transform/rem-unused))
+        (transform/rem-unused)))
       (result2output/exists [o]
         (result2output/exists [r]
-          (result2output/cond B=>PiB2 V4=>PiV4)))
+          (result2output/exists [p:permission]
+            (result2output/cond B=>PiB2 V4=>PiV4))))
     <- cxt2perm-equiv B=>PiB1 B=>PiB predmap`eq/ cxt`eq/ PiB1<=>PiB
     <- env2input-unique V1=>PiV1' V1=>PiV1 env`eq/ PiV1'<=>PiV1
-    <- ({o1:object}{r1:object} typing-frame* TYP2
-         (envadd/exists [o1] (envadd/exists [r2] envadd/expr)) (TYP2' o1 r1))
+    <- ({o1:object}{r1:object}{p1:permission} typing-frame* TYP2
+         (envadd/exists [o1] (envadd/exists [r2] (envadd/exists [p2] envadd/expr)))
+         (TYP2' o1 r1 p1))
     <- reftyping-ok/eq/L1 RCT1 RCT2 V2=>PiV2 RTYP1 RTYP2 PiV4 V4=>PiV4 TRANS.
 
-%worlds (objvar) (reftyping-ok/eq _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%worlds (gtermvar) (reftyping-ok/eq _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 %total { } (reftyping-ok/eq _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
@@ -569,5 +779,5 @@
     _ (notEnv/exists [v] (NV v)) (result2output/exists [v] (R=>O' v))
     <- ({v} reftyping-ok/not/L (R=>O v) _ (NV v) (R=>O' v)).
 
-%worlds (objvar) (reftyping-ok/not/L _ _ _ _).
+%worlds (gtermvar) (reftyping-ok/not/L _ _ _ _).
 %total (A) (reftyping-ok/not/L A _ _ _).
