@@ -264,6 +264,10 @@ clsmap-result/expr :
     clsmap-cxt-env CM B V ->
   clsmap-result CM B (result/expr RT V).
 
+clsmap-result/cond :
+    clsmap-cxt-env CM B V ->
+  clsmap-result CM B (result/cond V).
+
 clsmap-result/args/0 :
     clsmap-cxt-env CM B V ->
   clsmap-result CM B (result/args/0 V).
@@ -2273,13 +2277,13 @@ clsmap-result/args/+ :
 
 
 %theorem reftyping-implies-clsmap-result
-  : forall* {CM} {MM} {E: expr} {R} {B} {V}
+  : forall* {CM} {MM} {K} {E: term K} {R} {B} {V}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM-MM: clsmap-methmap CM MM}
     {CM-B: clsmap-cxt CM B}
     {CM-ENV: clsmap-cxt-env CM B V}
     {TYP: reftyping CM MM B V E R}
-    exists {CM-Rslt: clsmap-result CM B R}
+    exists {CM-R: clsmap-result CM B R}
     true.
 
 
@@ -2538,6 +2542,27 @@ clsmap-result/args/+ :
 %worlds (gtermvar) (restore-cap-call-preserves-clsmap-cxt-env _ _ _).
 %trustme %total { } (restore-cap-call-preserves-clsmap-cxt-env _ _ _).
 
+
+%theorem restore-cap-targets-preserves-clsmap-cxt-env
+  : forall* {CM} {B} {V0} {G} {V1} {NN} {C}
+    forall {CM-B-V0: clsmap-cxt-env CM B V0}
+    {CM-B-G: clsmap-cxt-reftype CM B (reftype/ NN C G)}
+    {RCT: restore-cap-targets V0 G V1}
+    exists {CM-B-V1: clsmap-cxt-env CM B V1}
+    true.
+
+- : restore-cap-targets-preserves-clsmap-cxt-env CM-V _ restore-cap-targets/shared CM-V.
+
+- : restore-cap-targets-preserves-clsmap-cxt-env (clsmap-cxt-env/ CM-B-U CM-B-M0)
+    (clsmap-cxt-reftype/unique _ _ CM-B-NN-C-M1 _)
+    (restore-cap-targets/unique (set`split/ _ M0+M1=M)) (clsmap-cxt-env/ CM-B-U CM-B-M)
+    <- clsmap-cxt-unique-capset-implies-clsmap-cxt-capset CM-B-NN-C-M1 CM-B-M1
+    <- join-preserves-clsmap-cxt-capset CM-B-M0 CM-B-M1 M0+M1=M CM-B-M.
+
+%worlds (gtermvar) (restore-cap-targets-preserves-clsmap-cxt-env _ _ _ _).
+%total { } (restore-cap-targets-preserves-clsmap-cxt-env _ _ _ _).
+
+
 %theorem reftyping-implies-clsmap-result/let
   : forall* {CM} {MM} {R} {K} {F: object -> term K} {R2: result K} {B}
     forall {CM-CM: clsmap-clsmap CM CM}
@@ -2769,6 +2794,26 @@ clsmap-result/args/+ :
     <- reftyping-implies-clsmap-result/args CM-CM CM-MM CM-B CM-V CM-MT RTYP-A CM-AR
     <- reftyping-implies-clsmap-result/call CM-CM CM-MM CM-B
       (clsmap-cxt-env/ clsmap-cxt-objset/0 clsmap-cxt-capset/0) CM-AR CM-MT RTYP-C CM-R.
+
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V0
+    (reftyping/eq RTYP-E1 RTYP-E2 RCT1 RCT2) (clsmap-result/cond CM-V4)
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V0 RTYP-E1
+      (clsmap-result/expr CM-B-RT1 CM-V1)
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V1 RTYP-E2
+      (clsmap-result/expr CM-B-RT2 CM-V2)
+    <- restore-cap-targets-preserves-clsmap-cxt-env CM-V2 CM-B-RT1 RCT1 CM-V3
+    <- restore-cap-targets-preserves-clsmap-cxt-env CM-V3 CM-B-RT2 RCT2 CM-V4.
+
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V
+    (reftyping/and RTYP-C1 RTYP-C2) (clsmap-result/cond CM-V2)
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V RTYP-C1
+      (clsmap-result/cond CM-V1)
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V1 RTYP-C2
+      (clsmap-result/cond CM-V2).
+
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V
+    (reftyping/not RTYP-C) CM-R
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V RTYP-C CM-R.
 
 %worlds (gtermvar) (reftyping-implies-clsmap-result _ _ _ _ _ _)
   (reftyping-implies-clsmap-result/let _ _ _ _ _ _)
