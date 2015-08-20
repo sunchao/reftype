@@ -786,14 +786,86 @@
 %%% AND
 
 %theorem reftyping-ok/and/L
-  : forall* {W} {CM} {MM} {PM} {B} {V0} {V1} {V2} {C0} {C1} {COut1} {COut2}
-    forall {RTYP-C0: reftyping CM MM B V0 C0 (result/cond V1)}
-    {RTYP-C1: reftyping CM MM B V1 C1 (result/cond V2)}
-    {R=>O: result2output CM PM B (result/cond V1) COut1}
-    {R=>O: result2output CM PM B (result/cond V2) COut2}
-    exists {COut1'} {AND-HELP: andHelp1 W COut1 C1 COut1'}
-    {COut1'=>COut2: transform COut1' COut2}
+  : forall* {G} {CM} {PM} {B} {V1} {COut1} {PiB} {PiV1}
+    forall {B=>PiB: cxt2perm PM B PiB}
+    {V=>PiV: env2input CM PM B V1 PiV1}
+    {R=>O1: result2output CM PM B (result/cond V1) COut1}
+    exists {COut1'} {COut2'} {AND-HELP: andHelp2 G COut1 (PiB , PiV1) COut1'}
+    {COut1'=>COut2: transform COut1' COut2'}
+    {R=>O: result2output CM PM B (result/cond V1) COut2'}
     true.
 
-%worlds (gtermvar) (reftyping-ok/and/L _ _ _ _ _ _ _).
-%trustme %total { } (reftyping-ok/and/L _ _ _ _ _ _ _).
+- : reftyping-ok/and/L (B=>PiB:cxt2perm PM B PiB)
+    (V1=>PiV1:env2input CM PM B V1 PiV1)
+    (result2output/exists ([x] R2O x))
+    _ _
+    (andHelp2/exists [x] (AH x))
+    (transform/inside [x] (TRANS x))
+    (result2output/exists [x] (R2O' x))
+    <- ({x: gterm V} reftyping-ok/and/L B=>PiB V1=>PiV1 (R2O x) _ _ (AH x) (TRANS x) (R2O' x)).
+
+- : reftyping-ok/and/L (B=>PiB:cxt2perm PM B PiB)
+    (V1=>PiV1:env2input CM PM B V1 PiV1)
+    (result2output/cond (B=>PiB0:cxt2perm PM B PiB0) (V1=>PiV1':env2input CM PM B V1 PiV1'))
+    _ _
+    (andHelp2/base)
+    (transform/cond
+      (bimplies/reflexive)
+      (bimplies/reflexive)
+      (implies/equiv (equiv/combine PiB0<=>PiB PiV1'<=>PiV1))
+      (implies/trans
+        (implies/cond-inner
+          (bimplies/reflexive)
+          (bimplies/reflexive)
+          (implies/equiv (equiv/combine PiB0<=>PiB PiV1'<=>PiV1))
+          (implies/reflexive))
+        (implies/cond-equal)))
+    (result2output/cond B=>PiB V1=>PiV1)
+    <- cxt2perm-equiv B=>PiB0 B=>PiB predmap`eq/ cxt`eq/ PiB0<=>PiB
+    <- env2input-unique V1=>PiV1' V1=>PiV1 env`eq/ PiV1'<=>PiV1.
+
+%worlds (gtermvar) (reftyping-ok/and/L _ _ _ _ _ _ _ _).
+%total (A) (reftyping-ok/and/L _ _ A _ _ _ _ _).
+
+
+%theorem reftyping-ok/and
+  : forall* {W} {CM} {PM} {B} {V1} {C1} {COut1} {PiB} {PiV1} {COut2}
+    forall {B=>PiB: cxt2perm PM B PiB}
+    {V1=>PiV1: env2input CM PM B V1 PiV1}
+    {R=>O1: result2output CM PM B (result/cond V1) COut1}
+    {R=>O1: result2output CM PM B (result/cond V1) COut2}
+    {TYP-C1: typing W (PiB , PiV1) C1 COut2}
+    exists {COut1'} {COut2'} {AND-HELP: andHelp1 W COut1 C1 COut1'}
+    {COut1'=>COut2: transform COut1' COut2'}
+    {R=>O: result2output CM PM B (result/cond V1) COut2'}
+    true.
+
+- : reftyping-ok/and B=>PiB V1=>PiV1
+    (result2output/exists [x] (R2O1 x))
+    R2O2 TYP-C1 _ _
+    (andHelp1/exists [x] (AH1 x))
+    (transform/inside [x] (TRANS x))
+    (result2output/exists [x] (R2O x))
+    <- ({x} reftyping-ok/and B=>PiB V1=>PiV1 (R2O1 x)
+         R2O2 TYP-C1 _ _ (AH1 x) (TRANS x) (R2O x)).
+
+- : reftyping-ok/and (B=>PiB:cxt2perm PM B PiB)
+    (V1=>PiV1:env2input CM PM B V1 PiV1)
+    (result2output/cond (B=>PiB':cxt2perm PM B PiB')
+      (V1=>PiV1':env2input CM PM B V1 PiV1'))
+    R2O1 TYP-C1
+    _ _
+    (andHelp1/base
+      (tTrans
+        (transform/implies
+          (implies/equiv
+            (equiv/combine PiB'<=>PiB PiV1'<=>PiV1)))
+        (letTyping/base null TYP-C1)
+        (transform/reflexive))
+      AH2) TRANS R2O
+    <- reftyping-ok/and/L B=>PiB' V1=>PiV1' R2O1 _ _ AH2 TRANS R2O
+    <- cxt2perm-equiv B=>PiB' B=>PiB predmap`eq/ cxt`eq/ PiB'<=>PiB
+    <- env2input-unique V1=>PiV1' V1=>PiV1 env`eq/ PiV1'<=>PiV1.
+
+%worlds (gtermvar) (reftyping-ok/and _ _ _ _ _ _ _ _ _ _).
+%total (A) (reftyping-ok/and _ _ A _ _ _ _ _ _ _).
