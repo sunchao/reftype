@@ -2054,9 +2054,9 @@ methmap2progtype/U/m :
 
 %theorem result2output-respects-eq
   : forall* {CM} {PM} {B} {K} {Rslt: result K} {Rslt': result K} {Out}
-    forall {XX2O: result2output CM PM B Rslt Out}
+    forall {R2O: result2output CM PM B Rslt Out}
     {EQ: result`eq Rslt Rslt'}
-    exists {XX2O: result2output CM PM B Rslt' Out}
+    exists {R2O: result2output CM PM B Rslt' Out}
     true.
 
 - : result2output-respects-eq XX result`eq/ XX.
@@ -2065,44 +2065,236 @@ methmap2progtype/U/m :
 %total { } (result2output-respects-eq _ _ _).
 
 
-%{
-%theorem clsmap-cxt-reftype-implies-reftype2perm
-  : forall* {CM} {PM} {B} {RT}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B-GS: clsmap-cxt-reftype CM B RT}
-    exists {PF}
-    {RT=>Pi: reftype2perm CM PM B RT PF}
+%%% Can't get equivalence due to set2cond.
+%theorem reftype2perm-implies
+  : forall* {CM} {PM} {B} {RT} {RT'} {PF} {PF'}
+    forall {T2P: reftype2perm CM PM B RT PF}
+    {T2P: reftype2perm CM PM B RT' PF'}
+    {EQ: reftype`eq RT RT'}
+    exists {IMP1: {o}{r}{p} implies (PF o r p) (PF' o r p)}
+    {IMP2: {o}{r}{p} implies (PF' o r p) (PF o r p)}
     true.
 
-- : clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM
-    (clsmap-cxt-reftype/unique CML CM-B-S CM-B-M)
-    _ (reftype2perm/fresh T2PF)
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
+- : reftype2perm-implies
+    (reftype2perm/fresh T2PF0) (reftype2perm/fresh T2PF1) RT-EQ
+    ([x][_][_] (implies/equiv (EQV x)))
+    ([x][_][_] (implies/equiv (equiv/symmetric (EQV x))))
+    <- reftype-eq-inversion RT-EQ NN-EQ C-EQ G-EQ
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ
+    <- ty2perm-deterministic T2PF0 T2PF1 predmap`eq/ T-EQ PF-EQ
+    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
 
-- : clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM
-    (clsmap-cxt-reftype/unique CML CM-B-S CM-B-M)
-    _ (reftype2perm/unique T2PF ([x] S=>G x) M=>PiM)
-    <- ({r} cxt-unique-objset-implies-set2cond CM-B-S _ (S=>G r))
-    <- clsmap-cxt-unique-capset-implies-capset2perm CM-CM CM2PM CM-B-M _ M=>PiM
-    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
+- : reftype2perm-implies
+    (reftype2perm/shared T2PF0) (reftype2perm/shared T2PF1) RT-EQ
+    ([x][_][_] (implies/equiv (EQV x)))
+    ([x][_][_] (implies/equiv (equiv/symmetric (EQV x))))
+    <- reftype-eq-inversion RT-EQ NN-EQ C-EQ G-EQ
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ
+    <- ty2perm-deterministic T2PF0 T2PF1 predmap`eq/ T-EQ PF-EQ
+    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x)).
 
-- : clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM
-    (clsmap-cxt-reftype/unique CML CM-B-S CM-B-M)
-    _ (reftype2perm/borrow (set`size/+ SZ) set`size/0 T2PF ([x] S=>G x))
-    <- set`size-total SZ
-    <- ({r} cxt-unique-objset-implies-set2cond CM-B-S _ (S=>G r))
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
+- : reftype2perm-implies
+    (reftype2perm/borrow _ _ T2PF0 S2G0) (reftype2perm/borrow _ _ T2PF1 S2G1) RT-EQ
+    ([o][_][_] (implies/combine (implies/equiv (EQV o)) (IMP1 o)))
+    ([o][_][_] (implies/combine
+                 (implies/equiv (equiv/symmetric (EQV o))) (IMP2 o)))
+    <- reftype-eq-inversion RT-EQ NN-EQ C-EQ G-EQ
+    <- targets/unique-eq-inversion G-EQ S-EQ M-EQ _
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ
+    <- ty2perm-deterministic T2PF0 T2PF1 predmap`eq/ T-EQ PF-EQ
+    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x))
+    <- ({x} set2cond-implies (S2G0 x) (S2G1 x) object`eq/ S-EQ (IMP1 x) (IMP2 x)).
 
-- : clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM
-    (clsmap-cxt-reftype/shared CML)
-    _ (reftype2perm/shared T2PF)
-    <- clsmap-ty-implies-ty2perm CM2PM (clsmap-ty/ CML) _ T2PF.
+- : reftype2perm-implies
+    (reftype2perm/unique _ T2PF0 S2G0 M2P0) (reftype2perm/unique _ T2PF1 S2G1 M2P1)
+    RT-EQ
+    ([o][r][_] implies/combine
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (IMP1 o))
+      (implies/combine
+        (implies/equiv (EQV r))
+        (implies/equiv-encumbered (EQV r) EQV1)))
+    ([o][r][_] implies/combine
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (IMP2 o))
+      (implies/combine
+        (implies/equiv (equiv/symmetric (EQV r)))
+        (implies/equiv-encumbered (equiv/symmetric (EQV r)) (equiv/symmetric EQV1))))
+    <- reftype-eq-inversion RT-EQ NN-EQ C-EQ G-EQ
+    <- targets/unique-eq-inversion G-EQ S-EQ M-EQ _
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ
+    <- ty2perm-deterministic T2PF0 T2PF1 predmap`eq/ T-EQ PF-EQ
+    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x))
+    <- ({x} set2cond-implies (S2G0 x) (S2G1 x) object`eq/ S-EQ (IMP1 x) (IMP2 x))
+    <- capset2perm-equiv M2P0 M2P1 clsmap`eq/ predmap`eq/ cxt`eq/ M-EQ EQV1.
 
-%worlds (gtermvar) (clsmap-cxt-reftype-implies-reftype2perm _ _ _ _ _).
-%total { } (clsmap-cxt-reftype-implies-reftype2perm _ _ _ _ _).
-}%
+- : reftype2perm-implies
+    (reftype2perm/unique+fresh T2PF0 S2G0 M2P0) (reftype2perm/unique+fresh T2PF1 S2G1 M2P1)
+    RT-EQ
+    ([o][r][_] implies/combine
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (IMP1 o))
+      (implies/combine
+        (implies/equiv (EQV r))
+        (implies/equiv-encumbered (EQV r) (equiv/combine EQV1 equiv/reflexive))))
+    ([o][r][_] implies/combine
+      (implies/cond-inner
+        (bimplies/reflexive)
+        (bimplies/reflexive)
+        (implies/reflexive)
+        (IMP2 o))
+      (implies/combine
+        (implies/equiv (equiv/symmetric (EQV r)))
+        (implies/equiv-encumbered (equiv/symmetric (EQV r))
+          (equiv/combine (equiv/symmetric EQV1) equiv/reflexive))))
+    <- reftype-eq-inversion RT-EQ NN-EQ C-EQ G-EQ
+    <- targets/unique-eq-inversion G-EQ S-EQ M-EQ _
+    <- ty-preserves-eq NN-EQ annot`eq/ C-EQ T-EQ
+    <- ty2perm-deterministic T2PF0 T2PF1 predmap`eq/ T-EQ PF-EQ
+    <- ({x} permission`eq-implies-equiv (PF-EQ x) (EQV x))
+    <- ({x} set2cond-implies (S2G0 x) (S2G1 x) object`eq/ S-EQ (IMP1 x) (IMP2 x))
+    <- capset2perm-equiv M2P0 M2P1 clsmap`eq/ predmap`eq/ cxt`eq/ M-EQ EQV1.
+
+%worlds (gtermvar) (reftype2perm-implies _ _ _ _ _).
+%total { } (reftype2perm-implies _ _ _ _ _).
+
+
+%%% We couldn't prove this for result/cond since the nonlinear
+%%% permission is unbound.
+
+%theorem result2output/expr-trans*
+  : forall* {CM} {PM} {B} {Pi} {Pi'}
+    {Rslt: expr-result} {Rslt'} {Out} {Out'}
+    forall {R2O: result2output* CM PM B Pi Rslt Out}
+    {R2O: result2output* CM PM B Pi' Rslt' Out'}
+    {IMP1: implies Pi Pi'} {IMP1: implies Pi' Pi}
+    {RE: result`eq Rslt Rslt'}
+    exists {TRANS1: transform Out Out'}  {TRANS2: transform Out' Out}
+    true.
+
+- : result2output/expr-trans*
+    (result2output/expr B2P0 V2P0 T2P0)
+    (result2output/expr B2P1 V2P1 T2P1)
+    IMP1 IMP2 RE
+    (transform/inside [o]
+      (transform/inside [r]
+        (transform/inside [p]
+          (transform/implies
+            (implies/combine
+              (implies/combine (implies/equiv EQV0)
+                (implies/combine (IMP3 o r p) (implies/equiv EQV1)))
+              (IMP1))))))
+    (transform/inside [o]
+      (transform/inside [r]
+        (transform/inside [p]
+          (transform/implies
+            (implies/combine
+              (implies/combine (implies/equiv (equiv/symmetric EQV0))
+                (implies/combine (IMP4 o r p) (implies/equiv (equiv/symmetric EQV1))))
+              (IMP2))))))
+    <- result/expr-eq-inversion RE RT-EQ V-EQ
+    <- cxt2perm-equiv B2P0 B2P1 predmap`eq/ cxt`eq/ EQV0
+    <- env2input-unique V2P0 V2P1 V-EQ EQV1
+    <- reftype2perm-implies T2P0 T2P1 RT-EQ IMP3 IMP4.
+
+%worlds (gtermvar) (result2output/expr-trans* _ _ _ _ _ _ _).
+%total (R) (result2output/expr-trans* R _ _ _ _ _ _).
+
+
+%theorem result2output/expr-trans
+  : forall* {CM} {PM} {B} {Rslt: expr-result} {Rslt'} {Out} {Out'}
+    forall {R2O: result2output CM PM B Rslt Out}
+    {R2O: result2output CM PM B Rslt' Out'}
+    {RE: result`eq Rslt Rslt'}
+    exists {TRANS1: transform Out Out'}  {TRANS2: transform Out' Out}
+    true.
+
+- : result2output/expr-trans R2O1 R2O2 RE TRANS1 TRANS2
+    <- result2output/expr-trans* R2O1 R2O2
+      implies/reflexive implies/reflexive RE TRANS1 TRANS2.
+
+%worlds (gtermvar) (result2output/expr-trans _ _ _ _ _).
+%total { } (result2output/expr-trans _ _ _ _ _).
+
+
+%theorem result2output/args-trans*
+  : forall* {CM} {PM} {B} {Pi} {Pi'}
+    {Rslt: args-result} {Rslt'} {Out} {Out'}
+    forall {R2O: result2output* CM PM B Pi Rslt Out}
+    {R2O: result2output* CM PM B Pi' Rslt' Out'}
+    {IMP1: implies Pi Pi'} {IMP1: implies Pi' Pi}
+    {RE: result`eq Rslt Rslt'}
+    exists {TRANS1: transform Out Out'}  {TRANS2: transform Out' Out}
+    true.
+
+- : result2output/args-trans*
+    (result2output/args/0 B2P0 V2P0)
+    (result2output/args/0 B2P1 V2P1)
+    IMP1 IMP2 RE
+    (transform/args/0
+      (implies/combine IMP1
+        (implies/equiv (equiv/combine EQV0 EQV1))))
+    (transform/args/0
+      (implies/combine IMP2
+        (implies/equiv
+          (equiv/combine (equiv/symmetric EQV0)
+            (equiv/symmetric EQV1)))))
+    <- result/args/0-eq-inversion RE V-EQ
+    <- cxt2perm-equiv B2P0 B2P1 predmap`eq/ cxt`eq/ EQV0
+    <- env2input-unique V2P0 V2P1 V-EQ EQV1.
+
+- : result2output/args-trans*
+    (result2output/args/+ V2P0 T2P0 A2P0)
+    (result2output/args/+ V2P1 T2P1 A2P1)
+    IMP1 IMP2 RE
+    (transform/inside [o]
+      (transform/inside [r]
+        (transform/inside [p]
+          (transform/args/+
+            (TRANS0 o r p)))))
+    (transform/inside [o]
+      (transform/inside [r]
+        (transform/inside [p]
+          (transform/args/+
+            (TRANS1 o r p)))))
+    <- result/args/+-eq-inversion RE RT-EQ V-EQ A-EQ
+    <- env2input-unique V2P0 V2P1 V-EQ EQV1
+    <- reftype2perm-implies T2P0 T2P1 RT-EQ IMP3 IMP4
+    <- ({o}{r}{p} result2output/args-trans* (A2P0 o r p) (A2P1 o r p)
+         (implies/combine
+           (implies/combine (IMP3 o r p) (implies/equiv EQV1)) IMP1)
+         (implies/combine
+           (implies/combine (IMP4 o r p)
+             (implies/equiv (equiv/symmetric EQV1))) IMP2)
+         A-EQ (TRANS0 o r p) (TRANS1 o r p)).
+
+%worlds (gtermvar) (result2output/args-trans* _ _ _ _ _ _ _).
+%total (R) (result2output/args-trans* R _ _ _ _ _ _).
+
+
+%theorem result2output/args-trans
+  : forall* {CM} {PM} {B} {Rslt: args-result} {Rslt'} {Out} {Out'}
+    forall {R2O: result2output CM PM B Rslt Out}
+    {R2O: result2output CM PM B Rslt' Out'}
+    {RE: result`eq Rslt Rslt'}
+    exists {TRANS1: transform Out Out'}  {TRANS2: transform Out' Out}
+    true.
+
+- : result2output/args-trans R2O1 R2O2 RE TRANS1 TRANS2
+    <- result2output/args-trans* R2O1 R2O2
+      implies/reflexive implies/reflexive RE TRANS1 TRANS2.
+
+%worlds (gtermvar) (result2output/args-trans _ _ _ _ _).
+%total { } (result2output/args-trans _ _ _ _ _).
 
 
 %%% Theorems about env2input and result2output
@@ -2123,32 +2315,6 @@ methmap2progtype/U/m :
 
 %worlds (gtermvar) (clsmap-cxt-env-implies-env2input _ _ _ _ _).
 %total { } (clsmap-cxt-env-implies-env2input _ _ _ _ _).
-
-%{
-
-%theorem clsmap-cxt-capset-implies-result2output
-  : forall* {CM} {PM} {B} {V} {RT}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM2PM: clsmap2predmap CM PM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-B-RT: clsmap-cxt-reftype CM B RT}
-    {CM-B-V: clsmap-cxt-env CM B V}
-    exists {Out}
-    {XX=>Out: result2output CM PM B (result/expr RT V) Out}
-    true.
-
-- : clsmap-cxt-capset-implies-result2output
-    CM-CM CM2PM CM-B CM-B-RT (clsmap-cxt-env/ CM-B-U CM-B-M)
-    _ (result2output/expr B=>PiB (env2input/ U=>PiU M=>PiM) RT=>Pi)
-    <- clsmap-cxt-implies-cxt2perm CM-CM CM2PM CM-B _ B=>PiB
-    <- clsmap-cxt-objset-implies-make-encumbered CM-CM CM2PM CM-B-U _ U=>PiU
-    <- clsmap-cxt-capset-implies-capset2perm CM-CM CM2PM CM-B-M _ M=>PiM
-    <- clsmap-cxt-reftype-implies-reftype2perm CM-CM CM2PM CM-B-RT _ RT=>Pi.
-
-%worlds (gtermvar) (clsmap-cxt-capset-implies-result2output _ _ _ _ _ _ _).
-%total {} (clsmap-cxt-capset-implies-result2output _ _ _ _ _ _ _).
-
-}%
 
 
 %{
