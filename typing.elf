@@ -75,6 +75,87 @@ result`eq/ : result`eq R R.
 %total { } (result/args/+-eq-inversion _ _ _ _).
 
 
+%%% Sub-relation for results
+
+
+%%% Sub-relation on targets
+
+targets`sub : set -> targets -> env -> targets -> env -> type.
+
+targets`sub/ss : targets`sub _ targets/shared V targets/shared V.
+
+%%% For the unique => shared case, all the object targets and field targets
+%%% are consumed.
+targets`sub/us :
+    set+set2set S FS M ->
+    set`split U0 S U1 ->
+    set`split M0 M M1 ->
+  targets`sub FS (targets/unique S _ _) (env/ U0 M0) targets/shared (env/ U1 M1).
+
+%{
+It's tricky to handle the case when either M1 or M2 contains shared. This is
+because it's hard to add the information that the shared field is from
+which class. It's not impossible though, just requires many changes.
+
+This doesn't work for cases like
+if (...) (new C).f else a
+as well, since on the right hand side you can't get the fresh permissions.
+targets`sub/uu :
+    set`leq U1 U2 ->
+    set`split M2 M1 Q ->
+    set`split Q0 Q Q1 ->
+    set`not-member M1 shared ->
+    set`not-member M2 shared ->
+    bool`leq W1 W2 ->
+  targets`sub _ (env/ U Q0) (targets/unique U1 M1 W1) (targets/unique U2 M2 W2) (env/ U Q1).
+}%
+
+targets`sub/bb :
+    set`leq S0 S1 ->
+  targets`sub _ (targets/unique S0 set/0 false) V (targets/unique S1 set/0 false) V.
+
+
+%%% Whether a reftype has encumbered permission.
+
+has-encumbered : set -> bool -> type.
+
+has-encumbered/1 : has-encumbered M false <- set`size M (s _).
+
+has-encumbered/2 : has-encumbered _ true.
+
+
+targets`sub/uu :
+    set`leq S0 S1 ->
+    has-encumbered M0 W0 ->
+    set`split Q0 M Q1 ->
+    set`combine M M0 M1 ->
+    bool`leq W0 W1 ->
+  targets`sub _ (targets/unique S0 M0 W0) (env/ U0 Q0)
+    (targets/unique S1 M1 W1) (env/ U0 Q1).
+
+targets`sub/fu :
+    set`split Q0 M Q1 ->
+  targets`sub _ targets/fresh (env/ U Q0) (targets/unique _ M true) (env/ U Q1).
+
+targets`sub/fs : targets`sub _ targets/fresh V targets/shared V.
+
+targets`sub/ff : targets`sub _ targets/fresh V targets/fresh V.
+
+
+%%% Sub-relation between reftypes
+
+expr-result-sub : clsmap -> expr-result -> expr-result -> type.
+
+expr-result-sub/ :
+    clsmap`lookup CM C FM ->
+    fldmap`domain FM FS ->
+    nonnull`sub NN1 NN2 ->
+    targets`sub FS G0 V0 G1 V1 ->
+  expr-result-sub CM (result/expr (reftype/ NN1 C G0) V0) (result/expr (reftype/ NN2 C G1) V1).
+
+%%% TODO: for other result kinds?
+
+
 %%% Type Checking Rules
 
 reftyping : clsmap -> methmap -> cxt -> env -> term K -> result K -> type.
@@ -374,6 +455,10 @@ callRefTyping/arg/+ :
 %abbrev callRefTyping = [CM][MM][AR][MT][R] callRefTyping* CM MM empty-env AR MT R.
 
 
+%%% This is defined in consistency.elf
+clsmap-result : clsmap -> cxt -> result K -> type.
+
+
 reftyping/call :
     clsmap`fresh CM M ->
     methmap`lookup MM M MT ->
@@ -389,6 +474,11 @@ reftyping/const :
     callRefTyping CM MM AR MT R ->
   reftyping CM MM B V (call C (args/+ (alloc C S set/0) A)) R.
 
+reftyping/sub :
+    reftyping CM MM B V0 E R0 ->
+    expr-result-sub CM R0 R1 ->
+    clsmap-result CM B R1 ->
+  reftyping CM MM B V0 E R1.
 
 reftyping/if :
     reftyping CM MM B V0 C (result/cond V1) ->
