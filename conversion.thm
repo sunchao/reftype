@@ -761,3 +761,360 @@
 %total (T WT AT) (reftyping-ok _ _ _ _ _ _ T _ _ _ _ _ _ _)
 (reftyping-ok/expr/write _ _ _ _ _ _ _ WT _ _ _ _ _ _ _)
 (reftyping-ok/args _ _ _ _ _ _ _ AT _ _ _ _ _ _ _).
+
+
+%%% Theorems about matching methmap with proctype
+
+%theorem methtymatch-implies-proctypematch*/L1
+  : forall* {CM} {PM} {B} {T} {RT} {PF}
+    forall {T=>RT: ty2new-reftype T RT}
+    {RT=>PF: reftype2perm CM PM B RT ([o][r][p] PF o r p)}
+    exists {PF'} {T=>PF': ty2perm PM T ([x] PF' x)}
+    {EQ: {o}{r}{p} permission`eq (PF o r p) (PF' o)}
+    true.
+
+- : methtymatch-implies-proctypematch*/L1
+    ty2new-reftype/unique (reftype2perm/fresh T2PF) _ T2PF ([_][_][_] permission`eq/).
+
+- : methtymatch-implies-proctypematch*/L1
+    ty2new-reftype/shared (reftype2perm/shared T2PF) _ T2PF ([_][_][_] permission`eq/).
+
+%worlds (gtermvar) (methtymatch-implies-proctypematch*/L1 _ _ _ _ _).
+%total { } (methtymatch-implies-proctypematch*/L1 _ _ _ _ _).
+
+
+%theorem methtymatch-implies-proctypematch*/L2
+  : forall* {CM} {B} {M0} {N} {FS} {M1}
+    forall {CM-B-OS: clsmap-cxt-capset CM B M0}
+    {N!<B: cxt`fresh B (s N)}
+    {N+FS=>M1: nat+set2set (s N) FS M1}
+    exists {DJ: set`disjoint M0 M1}
+    true.
+
+%theorem methtymatch-implies-proctypematch*/L2L
+  : forall* {N} {FS} {M}
+    forall {N+FS=>M: nat+set2set (s N) FS M}
+    exists {NM: set`not-member M z}
+    true.
+
+%theorem methtymatch-implies-proctypematch*/L2L/L
+  : forall* {N} {FS} {M}
+    forall {N+FS=>M: nat+set2set (s N) FS M}
+    {B} {MB?: set`member? M z B}
+    exists {NM: set`not-member M z}
+    true.
+
+- : methtymatch-implies-proctypematch*/L2L/L N+FS=>M true (set`member?/in Z<-M) NM
+    <- set`lookup-implies-not-member-update Z<-M M' Z!<M' M'+Z=M
+    <- nat+set2set/UP-inversion N+FS=>M Z!<M' M'+Z=M FSP _ _ N+F=Z _
+    <- nat2pair-deterministic/0 N+F=Z PE
+    <- pair-eq-implies-eq PE EQ' _
+    <- nat`eq-symmetric EQ' EQ
+    <- nat`eq-contradiction EQ V
+    <- set`false-implies-not-member V NM.
+
+- : methtymatch-implies-proctypematch*/L2L/L _ false (set`member?/out NM) NM.
+
+%worlds (gtermvar) (methtymatch-implies-proctypematch*/L2L/L _ _ _ _).
+%total { } (methtymatch-implies-proctypematch*/L2L/L _ _ _ _).
+
+- : methtymatch-implies-proctypematch*/L2L N+FS=>M NM
+    <- set`member?-total MB?
+    <- methtymatch-implies-proctypematch*/L2L/L N+FS=>M _ MB? NM.
+
+%worlds (gtermvar) (methtymatch-implies-proctypematch*/L2L _ _).
+%total { } (methtymatch-implies-proctypematch*/L2L _ _).
+
+
+- : methtymatch-implies-proctypematch*/L2 clsmap-cxt-capset/0 _ _ set`disjoint/L.
+
+- : methtymatch-implies-proctypematch*/L2 _ _ nat+set2set/0 set`disjoint/R.
+
+- : methtymatch-implies-proctypematch*/L2 (clsmap-cxt-capset/z CM-B-M0P Z!<M0P M0P+Z=M0)
+    N!<B N+FS=>M1 M0^M1
+    <- methtymatch-implies-proctypematch*/L2 CM-B-M0P N!<B N+FS=>M1 M0P^M1
+    <- methtymatch-implies-proctypematch*/L2L N+FS=>M1 Z!<M1
+    <- set`disjoint-symmetric M0P^M1 M1^M0P
+    <- set`not-member-add-preserves-disjoint M1^M0P Z!<M1 M0P+Z=M0 M1^M0
+    <- set`disjoint-symmetric M1^M0 M0^M1.
+
+- : methtymatch-implies-proctypematch*/L2
+    (clsmap-cxt-capset/U CM-B-M0P N+F=K BL _ CML FML K!<M0P M0P+K=M0)
+    N!<B N+FS=>M1 M0^M1
+    <- cxt`fresh-lookup-not-equal N!<B BL (NE:nat`ne (s N) N0)
+    <- nat+set2set-nat-ne-implies-disjoint/L N+FS=>M1 NE N+F=K K!<M1
+    <- methtymatch-implies-proctypematch*/L2 CM-B-M0P N!<B N+FS=>M1 M0P^M1
+    <- set`disjoint-symmetric M0P^M1 M1^M0P
+    <- set`not-member-add-preserves-disjoint M1^M0P K!<M1 M0P+K=M0 M1^M0
+    <- set`disjoint-symmetric M1^M0 M0^M1.
+
+%worlds (gtermvar) (methtymatch-implies-proctypematch*/L2 _ _ _ _).
+%total (A) (methtymatch-implies-proctypematch*/L2 A _ _ _).
+
+
+%%% Here Piin should be PiB + PiVin, and Piout should be PiB + PiVout
+%theorem methtymatch-implies-proctypematch*
+  : forall* {CM} {MM} {PM} {B} {W} {MT} {F} {Vin} {Vout}
+    {PT} {PiB} {Piin} {Piout} {PiVin} {PiVout}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM2W: methmap2progtype CM PM MM W}
+    {CM-B: clsmap-cxt CM B}
+    {CM-B-Vin: clsmap-cxt-env CM B Vin}
+    {CM-B-Vout: clsmap-cxt-env CM B Vout}
+    {B=>PiB: cxt2perm PM B PiB}
+    {Vin=>Piin: env2input CM PM B Vin PiVin}
+    {Vout=>Piout: env2input CM PM B Vout PiVout}
+    {IMP: implies Piin (PiB , PiVin)}
+    {IMP: implies (PiB , PiVout) Piout}
+    {CM-MT: clsmap-methty CM MT}
+    {MC: methtymatch* Vin Vout CM MM B F MT}
+    {MT=>PT: methty2proctype* CM PM Piin Piout MT PT}
+    exists {PC: proctypematch W F PT}
+    true.
+
+- : methtymatch-implies-proctypematch*
+    CM-CM CM-MM CM2PM MM2W CM-B CM-B-Vin CM-B-Vout
+    (B=>PiB:cxt2perm PM B PiB)
+    (Vin=>PiVin:env2input CM PM B Vin PiVin)
+    (Vout=>PiVout:env2input CM PM B Vout PiVout)
+    IMP0 IMP1
+    (clsmap-methty/base CM-T)
+    (methtymatch/base T=>RT RTYP)
+    (methty2proctype/base (T2PF:ty2perm PM T PF))
+    (proctypematch/base
+      (tTrans
+        (transform/implies
+          (implies/trans IMP0
+            (implies/equiv (equiv/combine PiB<=>PiB' PiVin<=>PiVin'))))
+        (letTyping/base null TYP)
+        (transform/inside [o]
+          (transform/trans3
+            (transform/inside [r]
+              (transform/inside [p]
+                (transform/implies
+                  (implies/trans4
+                    (implies/equiv equiv/identity)
+                    (implies/combine implies/reflexive
+                      (implies/equiv
+                        (equiv/combine
+                          (equiv/transitive (EQV o r p) (PF'<=>PF o))
+                          (PiVout'<=>PiVout))))
+                    (implies/equiv equiv/reorder)
+                    (implies/combine implies/reflexive
+                      (implies/trans
+                        (implies/combine (implies/equiv PiB''<=>PiB) implies/reflexive)
+                        (IMP1)))))))
+            (transform/rem-unused)
+            (transform/rem-unused)))))
+    <- reftyping-ok CM-CM CM-MM CM2PM MM2W CM-B CM-B-Vin RTYP PiB' PiVin' _ B=>PiB'
+      Vin=>PiVin'
+      (result2output/expr
+        (B=>PiB'':cxt2perm PM B PiB'')
+        (Vout=>PiVout':env2input CM PM B Vout PiVout')
+        RT=>PF) TYP
+    <- env2input-unique Vin=>PiVin Vin=>PiVin' env`eq/ PiVin<=>PiVin'
+    <- methtymatch-implies-proctypematch*/L1 T=>RT RT=>PF PF' T2PF' EQ
+    <- ({o}{r}{p} permission`eq-implies-equiv (EQ o r p) (EQV o r p))
+    <- cxt2perm-equiv B=>PiB B=>PiB' predmap`eq/ cxt`eq/ PiB<=>PiB'
+    <- cxt2perm-equiv B=>PiB'' B=>PiB predmap`eq/ cxt`eq/ PiB''<=>PiB
+    <- env2input-unique Vout=>PiVout' Vout=>PiVout env`eq/ PiVout'<=>PiVout
+    <- ty2perm-deterministic T2PF' T2PF predmap`eq/ ty`eq/ PF'=PF
+    <- ({x} permission`eq-implies-equiv (PF'=PF x) (PF'<=>PF x)).
+
+- : methtymatch-implies-proctypematch* CM-CM CM-MM CM2PM MM2W
+    (CM-B0:clsmap-cxt CM B0)
+    (CM-B0-Vin:clsmap-cxt-env CM B0 Vin)
+    (CM-B0-Vout:clsmap-cxt-env CM B0 Vout)
+    (B0=>PiB0:cxt2perm PM B0 PiB0)
+    (B0+Vin=>PiVin:env2input CM PM B0 Vin PiVin)
+    (B0+Vout=>PiVout:env2input CM PM B0 Vout PiVout)
+    (IMP0:implies Piin (PiB0 , PiVin))
+    (IMP1:implies (PiB0 , PiVout) Piout)
+    (clsmap-methty/args CM-MT CML DM LE)
+    (methtymatch/args/shared N!<B0
+      ([x] (B0+N=B1: {x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) x)
+      ([x] MC x))
+    (methty2proctype/arg
+      (argtype2perm/shared T2PF) MT=>PT)
+    (proctypematch/arg PC)
+    <- cxt`fresh-update-preserves-env2input B0+Vin=>PiVin N!<B0 B0+N=B1 B1+Vin=>PiVin
+    <- cxt`fresh-update-preserves-env2input B0+Vout=>PiVout N!<B0 B0+N=B1 B1+Vout=>PiVout
+    <- cxt`fresh-update-preserves-clsmap-cxt-env CM-B0-Vin N!<B0 B0+N=B1 CM-B1-Vin
+    <- cxt`fresh-update-preserves-clsmap-cxt-env CM-B0-Vout N!<B0 B0+N=B1 CM-B1-Vout
+    <- ({x} methtymatch-implies-proctypematch*
+         CM-CM CM-MM CM2PM MM2W
+         (clsmap-cxt/U CM-B0 (clsmap-ty/ CML) N!<B0 (B0+N=B1 x))
+         (CM-B1-Vin x) (CM-B1-Vout x)
+         (cxt2perm/U B0=>PiB0 N!<B0 (B0+N=B1 x) (ty2perm2/shared T2PF))
+         (B1+Vin=>PiVin x) (B1+Vout=>PiVout x)
+         (implies/trans
+           (implies/combine implies/reflexive (IMP0))
+           (implies/associate))
+         (implies/trans
+           (implies/symmetric-associate)
+           (implies/combine implies/reflexive IMP1))
+         (CM-MT) (MC x) (MT=>PT x)
+         (PC x)).
+
+- : methtymatch-implies-proctypematch* CM-CM CM-MM CM2PM MM2W
+    (CM-B0:clsmap-cxt CM B0)
+    (clsmap-cxt-env/ CM-B0-Uin CM-B0-Min)
+    (clsmap-cxt-env/ CM-B0-Uout CM-B0-Mout)
+    (B0=>PiB0:cxt2perm PM B0 PiB0)
+    (env2input/ (B0+Uin=>PiUin:make-encumbered CM PM B0 Uin PiUin)
+      (B0+Min=>PiMin:capset2perm CM PM B0 Min PiMin))
+    (env2input/ (B0+Uout=>PiUout:make-encumbered CM PM B0 Uout PiUout)
+      (B0+Mout=>PiMout:capset2perm CM PM B0 Mout PiMout))
+    (IMP0) (IMP1)
+    (clsmap-methty/args CM-MT (CML2:clsmap`lookup CM C FM2)
+      (DM2:fldmap`domain FM2 FS2) LE2)
+    (methtymatch/args/borrow N!<B0
+      ([x] (B0+N=B1: {x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) x)
+      (N+FS=>Mf:nat+set2set (s N) FS3 Mf) (Min+Mf=Min':set`union Min Mf Min')
+      (Mout+Mf=Mout':set`union Mout Mf Mout')
+      ([x] MC x))
+    (methty2proctype/arg
+      (argtype2perm/borrow (CML:clsmap`lookup CM C FM)
+        (DM:fldmap`domain FM FS) LE FS=>PF T2PFB) MT=>PT)
+    (proctypematch/arg PC)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
+    <- cxt`fresh-update-preserves-make-encumbered B0+Uin=>PiUin N!<B0 B0+N=B1 B1+Uin=>PiUin
+    <- cxt`fresh-update-preserves-capset2perm B0+Min=>PiMin N!<B0 B0+N=B1 B1+Min=>PiMin
+    <- cxt`fresh-update-preserves-make-encumbered B0+Uout=>PiUout N!<B0 B0+N=B1 B1+Uout=>PiUout
+    <- cxt`fresh-update-preserves-capset2perm B0+Mout=>PiMout N!<B0 B0+N=B1 B1+Mout=>PiMout
+    <- cxt`fresh-update-preserves-clsmap-cxt-objset CM-B0-Uin N!<B0 B0+N=B1 CM-B1-Uin
+    <- cxt`fresh-update-preserves-clsmap-cxt-capset CM-B0-Min N!<B0 B0+N=B1 CM-B1-Min
+    <- cxt`fresh-update-preserves-clsmap-cxt-objset CM-B0-Uout N!<B0 B0+N=B1 CM-B1-Uout
+    <- cxt`fresh-update-preserves-clsmap-cxt-capset CM-B0-Mout N!<B0 B0+N=B1 CM-B1-Mout
+    <- ({x} cxt`update-implies-lookup (B0+N=B1 x) (B1-L x))
+      %%% FIX HERE
+    <- ({x} nat+set2set-implies-clsmap-cxt-capset/L CML DM LE (B1-L x) not-shared/borrow
+         N+FS=>Mf (CM-B1-Mf x))
+    <- ({x} join-preserves-clsmap-cxt-capset (CM-B1-Min x) (CM-B1-Mf x) Min+Mf=Min'
+         (CM-B1-Min' x))
+    <- ({x} join-preserves-clsmap-cxt-capset (CM-B1-Mout x) (CM-B1-Mf x) Mout+Mf=Mout'
+         (CM-B1-Mout' x))
+    <- letRefTyping-helper/base/unique/L4L2* CML FS=>PF B1-L N+FS=>Mf _ B1+Mf=>PiMf IMP5 IMP6
+    <- methtymatch-implies-proctypematch*/L2 CM-B0-Min N!<B0 N+FS=>Mf Min^Mf
+    <- methtymatch-implies-proctypematch*/L2 CM-B0-Mout N!<B0 N+FS=>Mf Mout^Mf
+    <- ({x} set`split-implies-permission-combine-converse (set`split/ Min^Mf Min+Mf=Min')
+         (B1+Min=>PiMin x) (B1+Mf=>PiMf x) _ (B1+Min'=>PiMin' x) (EQV1 x))
+    <- ({x} set`split-implies-permission-combine-converse (set`split/ Mout^Mf Mout+Mf=Mout')
+         (B1+Mout=>PiMout x) (B1+Mf=>PiMf x) _ (B1+Mout'=>PiMout' x) (EQV2 x))
+    <- not-unique-perm-implies-empty T2PFB not-unique/borrow IMP7
+    <- ({x} methtymatch-implies-proctypematch*
+         CM-CM CM-MM CM2PM MM2W
+         (clsmap-cxt/U CM-B0 (clsmap-ty/ CML) N!<B0 (B0+N=B1 x))
+         (clsmap-cxt-env/ (CM-B1-Uin x) (CM-B1-Min' x))
+         (clsmap-cxt-env/ (CM-B1-Uout x) (CM-B1-Mout' x))
+         (cxt2perm/U B0=>PiB0 N!<B0 (B0+N=B1 x) (ty2perm2/borrow T2PFB))
+         (env2input/ (B1+Uin=>PiUin x) (B1+Min'=>PiMin' x))
+         (env2input/ (B1+Uout=>PiUout x) (B1+Mout'=>PiMout' x))
+         (implies/trans3
+           (implies/combine implies/reflexive (IMP0))
+           (implies/equiv equiv/swap-middle)
+           (implies/combine implies/reflexive
+             (implies/trans3
+               (implies/combine (IMP5 x) implies/reflexive)
+               (implies/equiv equiv/reorder)
+               (implies/combine implies/reflexive
+                 (implies/trans implies/commute (implies/equiv (EQV1 x)))))))
+         (implies/trans4
+           (implies/combine
+             (implies/trans
+               (implies/combine (IMP7 x) implies/reflexive)
+               (implies/commute-identity))
+             (implies/trans
+               (implies/combine
+                 (implies/reflexive)
+                 (implies/trans
+                   (implies/equiv (equiv/symmetric (EQV2 x)))
+                   (implies/combine implies/reflexive (IMP6 x))))
+               (implies/associate)))
+           (implies/associate)
+           (implies/combine (IMP1) implies/reflexive)
+           (implies/commute))
+         (CM-MT) (MC x) (MT=>PT x)
+         (PC x)).
+
+- : methtymatch-implies-proctypematch* CM-CM CM-MM CM2PM MM2W
+    (CM-B0:clsmap-cxt CM B0)
+    (clsmap-cxt-env/ CM-B0-Uin CM-B0-Min)
+    CM-B0-Vout
+    (B0=>PiB0:cxt2perm PM B0 PiB0)
+    (env2input/ (B0+Uin=>PiUin:make-encumbered CM PM B0 Uin PiUin)
+      (B0+Min=>PiMin:capset2perm CM PM B0 Min PiMin))
+    (B0+Vout=>PiVout:env2input CM PM B0 Vout PiVout)
+    (IMP0)
+    (IMP1:implies (PiB0 , PiVout) Piout)
+    (clsmap-methty/args CM-MT (CML2:clsmap`lookup CM C FM2)
+      (DM2:fldmap`domain FM2 FS2) LE)
+    (methtymatch/args/unique N!<B0
+      ([x] (B0+N=B1: {x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) x)
+      (CML:clsmap`lookup CM C FM) (DM:fldmap`domain FM FS)
+      (N+FS=>Mf:nat+set2set (s N) FS Mf) (Uin+N=Uin':set`add Uin (s N) Uin')
+      (Min+Mf=Min':set`union Min Mf Min')
+      ([x] MC x))
+    (methty2proctype/arg
+      (argtype2perm/unique T2PF) MT=>PT)
+    (proctypematch/arg PC)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CML _ PML
+    <- cxt`fresh-update-preserves-make-encumbered B0+Uin=>PiUin N!<B0 B0+N=B1 B1+Uin=>PiUin
+    <- cxt`fresh-update-preserves-capset2perm B0+Min=>PiMin N!<B0 B0+N=B1 B1+Min=>PiMin
+    <- cxt`fresh-update-preserves-env2input B0+Vout=>PiVout N!<B0 B0+N=B1 B1+Vout=>PiVout
+    <- cxt`fresh-update-preserves-clsmap-cxt-objset CM-B0-Uin N!<B0 B0+N=B1 CM-B1-Uin
+    <- cxt`fresh-update-preserves-clsmap-cxt-capset CM-B0-Min N!<B0 B0+N=B1 CM-B1-Min
+    <- cxt`fresh-update-preserves-clsmap-cxt-env CM-B0-Vout N!<B0 B0+N=B1 CM-B1-Vout
+    <- ({x} cxt`update-implies-lookup (B0+N=B1 x) (B1-L x))
+    <- cxt`domain-total (DM-B0=BS0:cxt`domain B0 BS0)
+    <- clsmap-cxt-objset-implies-domain-leq CM-B0-Uin DM-B0=BS0 Uin<=BS0
+    <- cxt`domain-preserves-fresh N!<B0 DM-B0=BS0 N!<BS0
+    <- set`not-member-respects-geq N!<BS0 Uin<=BS0 N!<Uin
+    <- ({x} nat+set2set-implies-clsmap-cxt-capset CML DM (B1-L x) not-shared/unique
+         N+FS=>Mf (CM-B1-Mf x))
+    <- ({x} join-preserves-clsmap-cxt-capset (CM-B1-Min x) (CM-B1-Mf x) Min+Mf=Min'
+         (CM-B1-Min' x))
+    <- letRefTyping-helper/base/unique/L4L1** CM-CM CM2PM CML PML DM T2PF _ _ FS=>PF T2PFB IMP4
+    <- letRefTyping-helper/base/unique/L4L2* CML FS=>PF B1-L N+FS=>Mf _ B1+Mf=>PiMf IMP5 _
+    <- methtymatch-implies-proctypematch*/L2 CM-B0-Min N!<B0 N+FS=>Mf Min^Mf
+    <- ({x} set`split-implies-permission-combine-converse (set`split/ Min^Mf Min+Mf=Min')
+         (B1+Min=>PiMin x) (B1+Mf=>PiMf x) _ (B1+Min'=>PiMin' x) (EQV x))
+    <- not-unique-perm-implies-empty T2PFB not-unique/borrow IMP7
+    <- ({x} methtymatch-implies-proctypematch*
+         CM-CM CM-MM CM2PM MM2W
+         (clsmap-cxt/U CM-B0 (clsmap-ty/ CML) N!<B0 (B0+N=B1 x))
+         (clsmap-cxt-env/
+           (clsmap-cxt-objset/U (CM-B1-Uin x) (B1-L x) CML N!<Uin Uin+N=Uin')
+           (CM-B1-Min' x))
+         (CM-B1-Vout x)
+         (cxt2perm/U B0=>PiB0 N!<B0 (B0+N=B1 x) (ty2perm2/unique T2PFB))
+         (env2input/
+           (make-encumbered/U (B1+Uin=>PiUin x) (B1-L x) CML PML DM
+             FS=>PF N!<Uin Uin+N=Uin')
+           (B1+Min'=>PiMin' x))
+         (B1+Vout=>PiVout x)
+         (implies/trans5
+           (implies/combine (IMP4 x) (IMP0))
+           (implies/equiv equiv/swap-middle)
+           (implies/combine
+             (implies/equiv equiv/swap) (implies/reflexive))
+           (implies/symmetric-associate)
+           (implies/combine implies/reflexive
+             (implies/trans3
+               (implies/combine implies/reflexive implies/reorder)
+               (implies/associate)
+               (implies/combine implies/reflexive
+                 (implies/trans3
+                   (implies/commute)
+                   (implies/combine implies/reflexive (IMP5 x))
+                   (implies/equiv (EQV x)))))))
+         (implies/trans
+           (implies/symmetric-associate)
+           (implies/combine (IMP7 x) (IMP1)))
+         (CM-MT) (MC x) (MT=>PT x)
+         (PC x)).
+
+%worlds (gtermvar) (methtymatch-implies-proctypematch* _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (M) (methtymatch-implies-proctypematch* _ _ _ _ _ _ _ _ _ _ _ _ _ M _ _).
