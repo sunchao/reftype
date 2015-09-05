@@ -59,21 +59,23 @@ clsmap-methmap : clsmap -> methmap -> type.
 
 clsmap-methmap/0 : clsmap-methmap _ methmap`map/0.
 
-clsmap-methmap/meth :
-    clsmap-methmap CM MMS ->
-    methmap`shift N MM MMS ->
+clsmap-methmap/U/meth :
+    clsmap-methmap CM MM' ->
     clsmap-methty CM MT ->
     clsmap`fresh CM N ->
-  clsmap-methmap CM (methmap`map/+ N MT MM).
+    methmap`fresh MM' N ->
+    methmap`update MM' N MT MM ->
+  clsmap-methmap CM MM.
 
-clsmap-methmap/const :
-    clsmap-methmap CM MMS ->
-    methmap`shift N MM MMS ->
+clsmap-methmap/U/const :
+    clsmap-methmap CM MM' ->
     clsmap-methty CM MT ->
     clsmap`lookup CM N FM ->
     fldmap`domain FM FS ->
     set`leq S FS ->
-  clsmap-methmap CM (methmap`map/+ N (methty/arg (ty/ nonnull/yes _ N) S MT) MM).
+    methmap`fresh MM' N ->
+    methmap`update MM' N (methty/arg (ty/ nn/yes _ N) S MT) MM ->
+  clsmap-methmap CM MM.
 
 
 %%% Consistency between clsmap and explicit context.
@@ -443,6 +445,170 @@ clsmap-result/args/+ :
 %total (CM-FM) (lookup-implies-not-borrow CM-FM _ _).
 
 
+%theorem clsmap-methty-respects-eq
+  : forall* {CM0} {MT0} {CM1} {MT1}
+    forall {CM0-MT0: clsmap-methty CM0 MT0}
+    {CM0=CM1: clsmap`eq CM0 CM1} {MT0=MT1: methty`eq MT0 MT1}
+    exists {CM1-MT1: clsmap-methty CM1 MT1}
+    true.
+
+- : clsmap-methty-respects-eq CM-MT clsmap`eq/ methty`eq/ CM-MT.
+
+%worlds (gtermvar) (clsmap-methty-respects-eq _ _ _ _).
+%total { } (clsmap-methty-respects-eq _ _ _ _).
+
+
+%theorem clsmap-methmap-respects-eq
+  : forall* {CM0} {MM0} {CM1} {MM1}
+    forall {CM0-MM0: clsmap-methmap CM0 MM0}
+    {CM0=CM1: clsmap`eq CM0 CM1} {MM0=MM1: methmap`eq MM0 MM1}
+    exists {CM1-MM1: clsmap-methmap CM1 MM1}
+    true.
+
+- : clsmap-methmap-respects-eq CM-MM clsmap`eq/ methmap`eq/ CM-MM.
+
+%worlds (gtermvar) (clsmap-methmap-respects-eq _ _ _ _).
+%total { } (clsmap-methmap-respects-eq _ _ _ _).
+
+
+%theorem clsmap-methmap/U/meth-inversion
+  : forall* {CM} {MM} {MM'} {N} {MT}
+    forall {CM-MM: clsmap-methmap CM MM}
+    {N!<CM: clsmap`fresh CM N}
+    {N!<MM': methmap`fresh MM' N}
+     {MM'+N=MM: methmap`update MM' N MT MM}
+    exists {CM-MT: clsmap-methty CM MT}
+    {CM-MM': clsmap-methmap CM MM'}
+    true.
+
+%theorem clsmap-methmap/U/meth-inversion/L
+  : forall* {CM} {MM} {MM'} {N} {MT} {MM0} {N0} {MT0} {P}
+    forall {CM-MM0: clsmap-methmap CM MM0}
+    {CM-MT0: clsmap-methty CM MT0}
+    {N0!<CM: clsmap`fresh CM N0}
+    {N0!<MM0: methmap`fresh MM0 N0}
+    {MM0+N0=MM: methmap`update MM0 N0 MT0 MM}
+    {N!<CM: clsmap`fresh CM N}
+    {N!<MM': methmap`fresh MM' N}
+    {MM'+N=MM: methmap`update MM' N MT MM}
+    {EQ?: nat`eq? N N0 P}
+    exists {CM-MT: clsmap-methty CM MT}
+    {CM-MM': clsmap-methmap CM MM'}
+    true.
+
+- : clsmap-methmap/U/meth-inversion/L
+    CM-MM0 CM-MT0 CM-FS0 F0 U0 CM-FS F U nat`eq?/yes CM-MT CM-MM
+    <- methmap`fresh-update-cancels F0 U0 F U nat`eq/ methmap`eq/ MT-EQ MM-EQ
+    <- clsmap-methmap-respects-eq CM-MM0 clsmap`eq/ MM-EQ CM-MM
+    <- clsmap-methty-respects-eq CM-MT0 clsmap`eq/ MT-EQ CM-MT.
+
+- : clsmap-methmap/U/meth-inversion/L
+    CM-MM0 CM-MT0 CM-FS0 F0 U0 CM-FS F U (nat`eq?/no (N<>N0:nat`ne N N0)) CM-MT
+    (clsmap-methmap/U/meth CM-MM CM-MT0 CM-FS0 F4 U4)
+    <- methmap`update-commutes-converse U U0 N<>N0 _ U4 U3
+    <- methmap`update-preserves-fresh-converse F U4 F3
+    <- methmap`update-preserves-fresh-converse F0 U3 F4
+    <- clsmap-methmap/U/meth-inversion CM-MM0 CM-FS F3 U3 CM-MT CM-MM.
+
+- : clsmap-methmap/U/meth-inversion
+    (clsmap-methmap/U/meth CM-MM0 CM-MT0 N0!<CM F0 U0) N!<CM F U CM-MT CM-MM
+    <- nat`eq?-total EQ?
+    <- clsmap-methmap/U/meth-inversion/L CM-MM0 CM-MT0 N0!<CM F0 U0
+      N!<CM F U EQ? CM-MT CM-MM.
+
+- : clsmap-methmap/U/meth-inversion
+    (clsmap-methmap/U/const CM-MM0 CM-MT0 CML0 DM LE F0 U0)
+    N!<CM F U CM-MT (clsmap-methmap/U/const CM-MM CM-MT0 CML0 DM LE F3 U3)
+    <- clsmap`fresh-lookup-not-equal N!<CM CML0 NE
+    <- methmap`update-commutes-converse U U0 NE _ U3 U2
+    <- methmap`update-preserves-fresh-converse F U3 F2
+    <- methmap`update-preserves-fresh-converse F0 U2 F3
+    <- clsmap-methmap/U/meth-inversion CM-MM0 N!<CM F2 U2 CM-MT CM-MM.
+
+%worlds (gtermvar) (clsmap-methmap/U/meth-inversion _ _ _ _ _ _)
+  (clsmap-methmap/U/meth-inversion/L _ _ _ _ _ _ _ _ _ _ _).
+%total (A A0) (clsmap-methmap/U/meth-inversion A _ _ _ _ _)
+  (clsmap-methmap/U/meth-inversion/L A0 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem clsmap-methmap/U/const-inversion
+  : forall* {CM} {MM} {MM'} {N} {MT} {FM}
+    forall {CM-MM: clsmap-methmap CM MM}
+    {CML: clsmap`lookup CM N FM}
+    {N!<MM': methmap`fresh MM' N}
+    {MM'+N=MM: methmap`update MM' N MT MM}
+    exists {FS} {A} {MT0} {S}
+    {EQ: methty`eq (methty/arg (ty/ nn/yes A N) S MT0) MT}
+    {CM-MT: clsmap-methty CM MT0}
+    {DM: fldmap`domain FM FS}
+    {LE: set`leq S FS}
+    {CM-MM': clsmap-methmap CM MM'}
+    true.
+
+%theorem clsmap-methmap/U/const-inversion/L
+  : forall* {CM} {MM} {MM'} {N} {MT} {FM}
+    {MM0} {MT00} {N0} {FM0} {FS0} {S0} {A0} {P}
+    forall {CM-MM0: clsmap-methmap CM MM0}
+    {CM-MT0: clsmap-methty CM MT00}
+    {CML0: clsmap`lookup CM N0 FM0}
+    {DM0: fldmap`domain FM0 FS0}
+    {LE0: set`leq S0 FS0}
+    {N0!<MM0: methmap`fresh MM0 N0}
+    {MM0+N0=MM: methmap`update MM0 N0 (methty/arg (ty/ nn/yes A0 N0) S0 MT00) MM}
+    {CML: clsmap`lookup CM N FM}
+    {N!<MM': methmap`fresh MM' N}
+    {MM'+N=MM: methmap`update MM' N MT MM}
+    {EQ?: nat`eq? N N0 P}
+    exists {FS} {A} {MT0} {S}
+    {EQ: methty`eq (methty/arg (ty/ nn/yes A N) S MT0) MT}
+    {CM-MT: clsmap-methty CM MT0}
+    {DM: fldmap`domain FM FS}
+    {LE: set`leq S FS}
+    {CM-MM': clsmap-methmap CM MM'}
+    true.
+
+- : clsmap-methmap/U/const-inversion/L
+    CM-MM0 CM-MT0 CML0 DM0 LE0 F0 U0 CML F U nat`eq?/yes
+    _ _ _ _ MT-EQ CM-MT0 DM1 LE0 CM-MM
+    <- methmap`fresh-update-cancels F0 U0 F U nat`eq/ methmap`eq/ MT-EQ MM-EQ
+    <- clsmap-methmap-respects-eq CM-MM0 clsmap`eq/ MM-EQ CM-MM
+    <- clsmap`lookup-unique CML0 CML clsmap`eq/ nat`eq/ FM-EQ
+    <- fldmap`domain-respects-eq DM0 FM-EQ set`eq/ DM1.
+
+- : clsmap-methmap/U/const-inversion/L
+    CM-MM0 CM-MT0 CML0 DM0 LE0 F0 U0
+    CML F U (nat`eq?/no (N<>N0:nat`ne N N0))
+    FS A MT0 S MT-EQ CM-MT DM LE
+    (clsmap-methmap/U/const CM-MM CM-MT0 CML0 DM0 LE0 F4 U4)
+    <- methmap`update-commutes-converse U U0 N<>N0 _ U4 U3
+    <- methmap`update-preserves-fresh-converse F U4 F3
+    <- methmap`update-preserves-fresh-converse F0 U3 F4
+    <- clsmap-methmap/U/const-inversion CM-MM0 CML F3 U3 _ _ _ _ MT-EQ CM-MT DM LE CM-MM.
+
+
+- : clsmap-methmap/U/const-inversion
+    (clsmap-methmap/U/meth CM-MM0 CM-MT0 N0!<CM F0 U0) CML F U
+    _ _ _ _ MT-EQ CM-MT DM LE (clsmap-methmap/U/meth CM-MM CM-MT0 N0!<CM F3 U3)
+    <- clsmap`fresh-lookup-not-equal N0!<CM CML NE'
+    <- nat`ne-symmetric NE' NE
+    <- methmap`update-commutes-converse U U0 NE _ U3 U2
+    <- methmap`update-preserves-fresh-converse F U3 F2
+    <- methmap`update-preserves-fresh-converse F0 U2 F3
+    <- clsmap-methmap/U/const-inversion CM-MM0 CML F2 U2 _ _ _ _ MT-EQ CM-MT DM LE CM-MM.
+
+- : clsmap-methmap/U/const-inversion
+    (clsmap-methmap/U/const CM-MM0 CM-MT0 CML0 DM0 LE0 F0 U0)
+    CML F U _ _ _ _ MT-EQ CM-MT DE LE CM-MM
+    <- nat`eq?-total EQ?
+    <- clsmap-methmap/U/const-inversion/L CM-MM0 CM-MT0 CML0 DM0 LE0 F0 U0
+      CML F U EQ? _ _ _ _ MT-EQ CM-MT DE LE CM-MM.
+
+%worlds (gtermvar) (clsmap-methmap/U/const-inversion _ _ _ _ _ _ _ _ _ _ _ _ _)
+  (clsmap-methmap/U/const-inversion/L _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (A A0) (clsmap-methmap/U/const-inversion A _ _ _ _ _ _ _ _ _ _ _ _)
+  (clsmap-methmap/U/const-inversion/L A0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
 %theorem lookup-implies-clsmap-methty
   : forall* {CM} {MM} {MT} {M}
     forall {CM-MM: clsmap-methmap CM MM}
@@ -450,31 +616,36 @@ clsmap-result/args/+ :
     exists {CM-MT: clsmap-methty CM MT}
     true.
 
-- : lookup-implies-clsmap-methty
-     (clsmap-methmap/meth _ _ CM-MT _) (methmap`lookup/= _) CM-MT.
+%theorem lookup-implies-clsmap-methty/L
+  : forall* {CM} {MM} {MT} {N}
+    forall {CM-MM: clsmap-methmap CM MM}
+    {MML: methmap`lookup MM N MT}
+    {B} {MB?: clsmap`domain? CM N B}
+    exists {CM-MT: clsmap-methty CM MT}
+    true.
 
-- : lookup-implies-clsmap-methty
-     (clsmap-methmap/const _ _ CM-MT CML DM LE) (methmap`lookup/= _)
-     (clsmap-methty/args CM-MT CML DM LE).
+- : lookup-implies-clsmap-methty/L CM-MM MM-L
+    false (clsmap`domain?/out N!<CM) CM-MT
+    <- methmap`lookup-implies-fresh-update MM-L _ MM-F MM-U
+    <- clsmap-methmap/U/meth-inversion CM-MM N!<CM MM-F MM-U CM-MT _.
 
-- : lookup-implies-clsmap-methty
-     (clsmap-methmap/meth CM-MMP N<<MM=MMP _ _)
-     (methmap`lookup/> MML P1) CM-MT
-     <- nat`plus-swap-succ P1 P2
-     <- nat`plus-commutative P2 P3
-     <- methmap`shift-preserves-lookup* MML N<<MM=MMP P3 MMPL
-     <- lookup-implies-clsmap-methty CM-MMP MMPL CM-MT.
+- : lookup-implies-clsmap-methty/L CM-MM MM-L
+    true (clsmap`domain?/in CML) CM-MT
+    <- methmap`lookup-implies-fresh-update MM-L _ MM-F MM-U
+    <- clsmap-methmap/U/const-inversion CM-MM CML MM-F MM-U
+      _ _ _ _ MT-EQ CM-MT0 DM LE _
+    <- clsmap-methty-respects-eq (clsmap-methty/args CM-MT0 CML DM LE)
+      clsmap`eq/ MT-EQ CM-MT.
 
-- : lookup-implies-clsmap-methty
-     (clsmap-methmap/const CM-MMP N<<MM=MMP _ _ _ _)
-     (methmap`lookup/> MML P1) CM-MT
-     <- nat`plus-swap-succ P1 P2
-     <- nat`plus-commutative P2 P3
-     <- methmap`shift-preserves-lookup* MML N<<MM=MMP P3 MMPL
-     <- lookup-implies-clsmap-methty CM-MMP MMPL CM-MT.
+%worlds (gtermvar) (lookup-implies-clsmap-methty/L _ _ _ _ _).
+%total { } (lookup-implies-clsmap-methty/L _ _ _ _ _).
+
+- : lookup-implies-clsmap-methty CM-MM MM-L CM-MT
+    <- clsmap`domain?-total CM-DM?
+    <- lookup-implies-clsmap-methty/L CM-MM MM-L _ CM-DM? CM-MT.
 
 %worlds (gtermvar) (lookup-implies-clsmap-methty _ _ _).
-%total (L) (lookup-implies-clsmap-methty L _ _).
+%total { } (lookup-implies-clsmap-methty _ _ _).
 
 
 %%% clsmap-cxt
