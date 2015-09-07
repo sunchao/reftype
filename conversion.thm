@@ -763,7 +763,236 @@
 (reftyping-ok/args _ _ _ _ _ _ _ AT _ _ _ _ _ _ _).
 
 
+
+%%% Method Typing
+
+% Checking method type against func
+
+methtymatch* : env -> env -> clsmap -> methmap -> cxt -> func -> methty -> type.
+
+%%% if we have sub rule, then RT should match T,
+%%% hence subtype will not be needed.
+
+methtymatch/base :
+    ty2new-reftype T RT ->
+    reftyping CM MM B Vin E (result/expr RT Vout) ->
+  methtymatch* Vin Vout CM MM B (func/0 E) (methty/base T).
+
+methtymatch/args/shared :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} methtymatch* Vin Vout CM MM (B1 x) (F x) MT) ->
+  methtymatch* Vin Vout CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/shared C) _ MT).
+
+methtymatch/args/unique :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
+    clsmap`lookup CM C FM ->
+    fldmap`domain FM FS ->
+    nat+set2set (s N) FS Mf ->
+    set`add Uin (s N) Uin' ->
+    set`union Min Mf Min' ->
+    ({x} methtymatch* (env/ Uin' Min') Vout CM MM (B1 x) (F x) MT) ->
+  methtymatch* (env/ Uin Min) Vout CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/unique C) _ MT).
+
+methtymatch/args/borrow :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
+    nat+set2set (s N) FS Mf ->
+    set`union Min Mf Min' ->
+    set`union Mout Mf Mout' ->
+    ({x} methtymatch* (env/ Uin Min') (env/ Uout Mout') CM MM (B1 x) (F x) MT) ->
+  methtymatch* (env/ Uin Min) (env/ Uout Mout) CM MM B0 (func/+ F)
+    (methty/arg (ty/ NN annot/borrow C) FS MT).
+
+%abbrev methtymatch = [CM][MM][F][MT] methtymatch* empty-env empty-env CM MM cxt/0 F MT.
+
+
+constyping* : clsmap -> methmap -> fldmap
+    -> cxt -> env -> set -> (object -> expr) -> env -> type.
+
+constyping/0 : constyping* _ _ _ _ V set/0 ([t] lit t) V.
+
+constyping/nn :
+    fldmap`lookup FM F (ty/ nn/yes A C) ->
+    set`remove S (set/1 F) SP ->
+    reftyping CM MM B V0 E (result/expr RT V1) ->
+    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
+    constyping* CM MM FM B V2 SP ([t] EF t) V3 ->
+  constyping* CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
+
+constyping/mn :
+    fldmap`lookup FM F (ty/ nn/yes A C) ->
+    reftyping CM MM B V0 E (result/expr RT V1) ->
+    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
+    constyping* CM MM FM B V2 S ([t] EF t) V3 ->
+  constyping* CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
+
+
+
+constymatch* : env -> env -> clsmap -> methmap -> fldmap -> cxt -> set ->
+    (object -> func) -> methty -> type.
+
+constymatch/base :
+    ty2new-reftype (ty/ nn/yes annot/unique C) RT ->
+    constyping* CM MM FM B Vin FS ([t] E t) Vout ->
+  constymatch* Vin Vout CM MM FM B FS ([t] func/0 (E t))
+    (methty/base (ty/ nn/yes annot/unique C)).
+
+constymatch/args/shared :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} constymatch* Vin Vout CM MM FM (B1 x) FS ([t] F t x) CT) ->
+  constymatch* Vin Vout CM MM FM B0 FS ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/shared C) set/0 CT).
+
+constymatch/args/borrow :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
+    nat+set2set (s N) FS Mf ->
+    set`union Min Mf Min' ->
+    set`union Mout Mf Mout' ->
+    ({x} constymatch* (env/ Uin Min') (env/ Uout Mout') CM MM FM (B1 x) S ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) (env/ Uout Mout) CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/borrow C) FS CT).
+
+constymatch/args/unique :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
+    clsmap`lookup CM C FFM ->
+    fldmap`domain FFM FFS ->
+    nat+set2set (s N) FFS Mf ->
+    set`add Uin (s N) Uin' ->
+    set`union Min Mf Min' ->
+    ({x} constymatch* (env/ Uin' Min') Vout CM MM FM (B1 x) S ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) Vout CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/unique C) set/0 CT).
+
+%abbrev constymatch
+  = [CM][MM][FM][S][F][CT] constymatch* empty-env empty-env CM MM FM cxt/0 S F CT.
+
+
+%%% Program Typing: checking method map against prog
+
+select-fields : fldmap -> set -> type.
+
+select-fields/0 : select-fields fldmap/0 set`set/0.
+
+select-fields/+/in
+ : select-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-fields M' S'
+    <- set`union S' (set/1 F) S.
+
+select-fields/+/result
+  : select-fields (fldmap/+ F (ty/ nn/may _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-fields M' S.
+
+
+methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
+
+methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
+
+methmapmatch/U/const :
+    methmapmatch* CM MM0 MM' G' ->
+    clsmap`lookup CM C FM ->
+    select-fields FM S ->
+    constymatch CM MM0 FM S FF CT ->
+    methmap`fresh MM' C ->
+    methmap`update MM' C (methty/arg (ty/ nn/yes _ C) _ CT) MM ->
+    prog`update G' C (func/+ ([t] FF t)) G ->
+  methmapmatch* CM MM0 MM G.
+
+methmapmatch/U/meth :
+    methmapmatch* CM MM0 MM' G' ->
+    clsmap`fresh CM N ->
+    methtymatch CM MM0 F MT ->
+    methmap`fresh MM' N ->
+    methmap`update MM' N MT MM ->
+    prog`update G' N F G ->
+  methmapmatch* CM MM0 MM G.
+
+%abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
+
+
 %%% Theorems about matching methmap with proctype
+
+%theorem methtymatch-respects-eq
+  : forall* {CM} {MM} {F1} {F2} {MT1} {MT2}
+    forall {F1-MT1: methtymatch CM MM F1 MT1}
+    {F1=F2: func`eq F1 F2}
+    {MT1=MT2: methty`eq MT1 MT2}
+    exists {F2-MT2: methtymatch CM MM F2 MT2}
+    true.
+
+- : methtymatch-respects-eq M func`eq/ methty`eq/ M.
+
+%worlds (gtermvar) (methtymatch-respects-eq _ _ _ _).
+%total { } (methtymatch-respects-eq _ _ _ _).
+
+
+%theorem shift-preserves-progtypematch
+  : forall* {W} {W1} {W2} {G1} {G2} {N}
+    forall {PM: progtypematch* W W1 G1}
+    {SH: progtype`shift N W1 W2}
+    {SH: prog`shift N G1 G2}
+    exists {PM: progtypematch* W W2 G2}
+    true.
+
+- : shift-preserves-progtypematch PM progtype`shift/0 prog`shift/0 PM.
+
+- : shift-preserves-progtypematch (progtypematch/+ PM PTM) _ _ (progtypematch/+ PM PTM).
+
+%worlds (gtermvar) (shift-preserves-progtypematch _ _ _ _).
+%total { } (shift-preserves-progtypematch _ _ _ _).
+
+
+%theorem shift-preserves-progtypematch-converse/L
+  : forall* {W} {W1} {G1} {FUN} {PT} {N1} {N2}
+    forall {W1-G1: progtypematch* W W1 G1}
+		{F-P: proctypematch W FUN PT}
+		{N1=N2: nat`eq N1 N2}
+    exists {W2-G2: progtypematch* W (progtype`map/+ N1 PT W1) (prog`map/+ N2 FUN G1)}
+    true.
+
+- : shift-preserves-progtypematch-converse/L W1-G1 F-P nat`eq/ (progtypematch/+ W1-G1 F-P).
+
+%worlds (gtermvar) (shift-preserves-progtypematch-converse/L _ _ _ _).
+%total { } (shift-preserves-progtypematch-converse/L _ _ _ _).
+
+
+%theorem shift-preserves-progtypematch-converse
+  : forall* {W} {W1} {W2} {G1} {G2} {N}
+    forall {PM: progtypematch* W W2 G2}
+    {SH: progtype`shift N W1 W2}
+    {SH: prog`shift N G1 G2}
+    exists {PM: progtypematch* W W1 G1}
+    true.
+
+- : shift-preserves-progtypematch-converse PM progtype`shift/0 prog`shift/0 PM.
+
+- : shift-preserves-progtypematch-converse
+    (progtypematch/+ W1-G1 F-P) (progtype`shift/+ P1) (prog`shift/+ P2) W2-G2
+    <- nat`plus-left-cancels P1 P2 nat`eq/ nat`eq/ N1=N2
+    <- shift-preserves-progtypematch-converse/L W1-G1 F-P N1=N2 W2-G2.
+
+%worlds (gtermvar) (shift-preserves-progtypematch-converse _ _ _ _).
+%total (PM) (shift-preserves-progtypematch-converse PM _ _ _).
+
+
+%theorem methmap2progtype-preserves-fresh
+  : forall* {PM} {CM} {MM} {W} {N}
+    forall {MM2W: methmap2progtype PM CM MM W}
+    {FS: methmap`fresh MM N}
+    exists {FS: progtype`fresh W N}
+    true.
+
+%worlds (gtermvar) (methmap2progtype-preserves-fresh _ _ _).
+%trustme %total { } (methmap2progtype-preserves-fresh MW _ _).
+
 
 %theorem methtymatch-implies-proctypematch*/L1
   : forall* {CM} {PM} {B} {T} {RT} {PF}
@@ -989,7 +1218,6 @@
     <- cxt`fresh-update-preserves-clsmap-cxt-objset CM-B0-Uout N!<B0 B0+N=B1 CM-B1-Uout
     <- cxt`fresh-update-preserves-clsmap-cxt-capset CM-B0-Mout N!<B0 B0+N=B1 CM-B1-Mout
     <- ({x} cxt`update-implies-lookup (B0+N=B1 x) (B1-L x))
-      %%% FIX HERE
     <- ({x} nat+set2set-implies-clsmap-cxt-capset/L CML DM LE (B1-L x) not-shared/borrow
          N+FS=>Mf (CM-B1-Mf x))
     <- ({x} join-preserves-clsmap-cxt-capset (CM-B1-Min x) (CM-B1-Mf x) Min+Mf=Min'
@@ -1151,3 +1379,67 @@
 
 %worlds (gtermvar) (methtymatch-implies-proctypematch _ _ _ _ _ _ _ _).
 %total { } (methtymatch-implies-proctypematch _ _ _ _ _ _ _ _).
+
+
+%theorem false-implies-progtypematch
+  : forall* {W0} {W} {G}
+    forall {V: void}
+    exists {W-G: progtypematch* W0 W G}
+    true.
+
+%worlds (gtermvar) (false-implies-progtypematch _ _).
+%total { } (false-implies-progtypematch _ _).
+
+
+%theorem fresh-update-preserves-progtypematch
+  : forall* {W0} {W'} {G'} {FUN} {PT} {N} {W} {G}
+    forall {W'-G': progtypematch* W0 W' G'}
+    {FUN-PT: proctypematch W0 FUN PT}
+    {WF: progtype`fresh W' N}
+    {WU: progtype`update W' N PT W}
+    {GU: prog`update G' N FUN G}
+    exists {W-G: progtypematch* W0 W G}
+    true.
+
+%worlds (gtermvar) (fresh-update-preserves-progtypematch _ _ _ _ _ _).
+%trustme %total { } (fresh-update-preserves-progtypematch _ _ _ _ _ _).
+
+
+%theorem methmapmatch-implies-progtypematch
+  : forall* {CM} {MM} {G} {PM} {MM0} {W0} {W}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM=>PM: clsmap2predmap CM PM}
+		{CM-MM0: clsmap-methmap CM MM0}
+    {MM0=>W0: methmap2progtype CM PM MM0 W0}
+    {CM-MM: clsmap-methmap CM MM}
+    {MM-G: methmapmatch* CM MM0 MM G}
+    {MM=>W: methmap2progtype CM PM MM W}
+    exists {W-G: progtypematch* W0 W G}
+    true.
+
+- : methmapmatch-implies-progtypematch CM-CM CM2PM CM-MM0 MM0=>W0
+    _ methmapmatch/0 methmap2progtype/0 progtypematch/0.
+
+- : methmapmatch-implies-progtypematch CM-CM
+    (CM2PM:clsmap2predmap CM PM)
+    (CM-MM0:clsmap-methmap CM MM0)
+    (MM0=>W0: methmap2progtype CM PM MM0 W0)
+    (CM-MM:clsmap-methmap CM _)
+    (methmapmatch/U/meth
+      (MM'-G':methmapmatch* CM MM0 MM' G')
+      (CMF:clsmap`fresh CM N)
+      (FUN-MT: methtymatch CM MM0 FUN MT)
+      (N!<MM': methmap`fresh MM' N)
+      (MM'+N=MM: methmap`update MM' N MT MM)
+      (G'+N=G: prog`update G' N FUN G))
+    (MM=>W:methmap2progtype CM PM _ W) W-G
+    <- methmap2progtype/U/m-inversion MM=>W CMF N!<MM' MM'+N=MM W' PT MM'=>W' MT=>PT W'+PT=W
+    <- clsmap-methmap/U/meth-inversion CM-MM CMF N!<MM' MM'+N=MM CM-MT CM-MM'
+    <- methtymatch-implies-proctypematch CM-CM CM-MM0 CM2PM MM0=>W0 CM-MT FUN-MT MT=>PT FUN-PT
+    <- methmapmatch-implies-progtypematch CM-CM CM2PM CM-MM0 MM0=>W0 CM-MM'
+      MM'-G' MM'=>W' W'-G'
+    <- methmap2progtype-preserves-fresh MM'=>W' N!<MM' N!<W'
+    <- fresh-update-preserves-progtypematch W'-G' FUN-PT N!<W' W'+PT=W G'+N=G W-G.
+
+%worlds (gtermvar) (methmapmatch-implies-progtypematch _ _ _ _ _ _ _ _).
+%total (M) (methmapmatch-implies-progtypematch _ _ _ _ _ M _ _).
