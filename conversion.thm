@@ -766,6 +766,7 @@
 
 %%% Method Typing
 
+
 % Checking method type against func
 
 methtymatch* : env -> env -> clsmap -> methmap -> cxt -> func -> methty -> type.
@@ -808,114 +809,6 @@ methtymatch/args/borrow :
     (methty/arg (ty/ NN annot/borrow C) FS MT).
 
 %abbrev methtymatch = [CM][MM][F][MT] methtymatch* empty-env empty-env CM MM cxt/0 F MT.
-
-
-constyping* : clsmap -> methmap -> fldmap
-    -> cxt -> env -> set -> (object -> expr) -> env -> type.
-
-constyping/0 : constyping* _ _ _ _ V set/0 ([t] lit t) V.
-
-constyping/nn :
-    fldmap`lookup FM F (ty/ nn/yes A C) ->
-    set`remove S (set/1 F) SP ->
-    reftyping CM MM B V0 E (result/expr RT V1) ->
-    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
-    constyping* CM MM FM B V2 SP ([t] EF t) V3 ->
-  constyping* CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
-
-constyping/mn :
-    fldmap`lookup FM F (ty/ nn/yes A C) ->
-    reftyping CM MM B V0 E (result/expr RT V1) ->
-    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
-    constyping* CM MM FM B V2 S ([t] EF t) V3 ->
-  constyping* CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
-
-
-
-constymatch* : env -> env -> clsmap -> methmap -> fldmap -> cxt -> set ->
-    (object -> func) -> methty -> type.
-
-constymatch/base :
-    ty2new-reftype (ty/ nn/yes annot/unique C) RT ->
-    constyping* CM MM FM B Vin FS ([t] E t) Vout ->
-  constymatch* Vin Vout CM MM FM B FS ([t] func/0 (E t))
-    (methty/base (ty/ nn/yes annot/unique C)).
-
-constymatch/args/shared :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-    ({x} constymatch* Vin Vout CM MM FM (B1 x) FS ([t] F t x) CT) ->
-  constymatch* Vin Vout CM MM FM B0 FS ([t] (func/+ ([o] F t o)))
-    (methty/arg (ty/ NN annot/shared C) set/0 CT).
-
-constymatch/args/borrow :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
-    nat+set2set (s N) FS Mf ->
-    set`union Min Mf Min' ->
-    set`union Mout Mf Mout' ->
-    ({x} constymatch* (env/ Uin Min') (env/ Uout Mout') CM MM FM (B1 x) S ([t] F t x) CT) ->
-  constymatch* (env/ Uin Min) (env/ Uout Mout) CM MM FM B0 S ([t] (func/+ ([o] F t o)))
-    (methty/arg (ty/ NN annot/borrow C) FS CT).
-
-constymatch/args/unique :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
-    clsmap`lookup CM C FFM ->
-    fldmap`domain FFM FFS ->
-    nat+set2set (s N) FFS Mf ->
-    set`add Uin (s N) Uin' ->
-    set`union Min Mf Min' ->
-    ({x} constymatch* (env/ Uin' Min') Vout CM MM FM (B1 x) S ([t] F t x) CT) ->
-  constymatch* (env/ Uin Min) Vout CM MM FM B0 S ([t] (func/+ ([o] F t o)))
-    (methty/arg (ty/ NN annot/unique C) set/0 CT).
-
-%abbrev constymatch
-  = [CM][MM][FM][S][F][CT] constymatch* empty-env empty-env CM MM FM cxt/0 S F CT.
-
-
-%%% Program Typing: checking method map against prog
-
-select-fields : fldmap -> set -> type.
-
-select-fields/0 : select-fields fldmap/0 set`set/0.
-
-select-fields/+/in
- : select-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
-    <- fldmap`shift F M M'
-    <- select-fields M' S'
-    <- set`union S' (set/1 F) S.
-
-select-fields/+/result
-  : select-fields (fldmap/+ F (ty/ nn/may _ _) M) S
-    <- fldmap`shift F M M'
-    <- select-fields M' S.
-
-
-methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
-
-methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
-
-methmapmatch/U/const :
-    methmapmatch* CM MM0 MM' G' ->
-    clsmap`lookup CM C FM ->
-    select-fields FM S ->
-    constymatch CM MM0 FM S FF CT ->
-    methmap`fresh MM' C ->
-    methmap`update MM' C (methty/arg (ty/ nn/yes _ C) _ CT) MM ->
-    prog`update G' C (func/+ ([t] FF t)) G ->
-  methmapmatch* CM MM0 MM G.
-
-methmapmatch/U/meth :
-    methmapmatch* CM MM0 MM' G' ->
-    clsmap`fresh CM N ->
-    methtymatch CM MM0 F MT ->
-    methmap`fresh MM' N ->
-    methmap`update MM' N MT MM ->
-    prog`update G' N F G ->
-  methmapmatch* CM MM0 MM G.
-
-%abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
 
 
 %%% Theorems about matching methmap with proctype
@@ -1380,6 +1273,502 @@ methmapmatch/U/meth :
 %worlds (gtermvar) (methtymatch-implies-proctypematch _ _ _ _ _ _ _ _).
 %total { } (methtymatch-implies-proctypematch _ _ _ _ _ _ _ _).
 
+
+
+%%% A set of helper relations to prove the case of constymatch
+
+%%% Bijection between raw field permissions and set members
+
+set-rawfldperm : set -> (object -> permission) -> type.
+
+set-rawfldperm/0 : set-rawfldperm set/0 ([_] empty).
+
+set-rawfldperm/+
+  : set-rawfldperm S ([t] (unitperm (basic t F null)) , (B t))
+    <- set`union S1 (set/1 F) S
+    <- set`not-member S1 F
+    <- set-rawfldperm S1 B.
+
+
+%%% Bijection between assembled field permissions and set members
+
+set-fldpred : predmap -> fldmap -> set -> (object -> permission) -> type.
+
+set-fldpred/0 : set-fldpred _ _ set/0 ([_] empty).
+
+set-fldpred/+
+  : set-fldpred PM FM S ([t] ((unitperm (precise-exists t F PF)) , (R t)))
+    <- fldmap`lookup FM F T
+    <- ty2perm PM T PF
+    <- set`union S1 (set/1 F) S
+    <- set`not-member S1 F
+    <- set-fldpred PM FM S1 ([t] R t).
+
+
+%%% Relation between set of fields and expr in constructor
+%%% it simply says all fields appeared in the expr must be
+%%% in the set.
+
+set-expr : set -> (object -> expr) -> type.
+
+set-expr/0 : set-expr _ ([t] lit t).
+
+set-expr/+
+  : set-expr S ([t] (seq (write (lit t) F _)) (B t))
+    <- set`member S F
+    <- set-expr S B.
+
+
+%%% Property of nonnull set
+
+nonnull-set : fldmap -> set -> type.
+
+nonnull-set/0 : nonnull-set _ set/0.
+
+nonnull-set/+
+  : nonnull-set FM S
+    <- fldmap`lookup FM F (ty/ nn/yes _ _)
+    <- set`not-member SP F % this is not necessary, but will make proof easier
+    <- set`add SP F S
+    <- nonnull-set FM SP.
+
+
+maynull-set : fldmap -> set -> type.
+
+maynull-set/0 : maynull-set _ set/0.
+
+maynull-set/+
+  : maynull-set FM S
+    <- fldmap`lookup FM F (ty/ nn/may _ _)
+    <- set`not-member SP F
+    <- set`add SP F S
+    <- maynull-set FM SP.
+
+
+%%% Select nonnull fields
+
+select-nn-fields : fldmap -> set -> type.
+
+select-nn-fields/0 : select-nn-fields fldmap/0 set`set/0.
+
+select-nn-fields/+/in
+ : select-nn-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-nn-fields M' S'
+    <- set`union S' (set/1 F) S.
+
+select-nn-fields/+/result
+  : select-nn-fields (fldmap/+ F (ty/ nn/may _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-nn-fields M' S.
+
+
+%%% Some Lemmas
+
+%theorem fldmap-shift-preserves-fresh
+  : forall* {M1} {M2} {N} {F} {T}
+    forall {NM: fldmap`fresh (fldmap`map/+ F T M1) N}
+    {SH: fldmap`shift F M1 M2}
+    exists {NM: fldmap`fresh M2 N}
+    true.
+
+- : fldmap-shift-preserves-fresh _ fldmap`shift/0 fldmap`fresh/0.
+
+- : fldmap-shift-preserves-fresh FS (fldmap`shift/+ SF+N2=N3) FS1
+    <- nat`plus-swap-succ SF+N2=N3 F+SN2=N3
+    <- nat`plus-commutative F+SN2=N3 SN2+F=N3
+    <- fldmap`update-preserves-fresh-converse FS (fldmap`update/< SN2+F=N3) FS1.
+
+%worlds () (fldmap-shift-preserves-fresh _ _ _).
+%total (SH) (fldmap-shift-preserves-fresh _ SH _).
+
+
+%%% Theorems about set-rawfldperm
+
+%theorem set-rawfldperm-respects-eq
+  : forall* {S1} {P1} {S2} {P2}
+    forall {SR: set-rawfldperm S1 ([t] P1 t)}
+		{EQ: set`eq S1 S2} {EQ: {t} permission`eq (P1 t) (P2 t)}
+    exists {SR: set-rawfldperm S2 ([t] P2 t)}
+    true.
+
+- : set-rawfldperm-respects-eq SR set`eq/ ([_] permission`eq/) SR.
+
+%worlds (gtermvar) (set-rawfldperm-respects-eq _ _ _ _).
+%total { } (set-rawfldperm-respects-eq _ _ _ _).
+
+
+%theorem allocfields-implies-set-rawfldperm
+  :	forall* {FM} {S} {P1}
+    forall {DM: fldmap`domain FM S}
+		{SR: {t} allocFields t S (P1 t)}
+    exists {P2} {I: {t} implies (P1 t) (P2 t)}
+    {SR: set-rawfldperm S ([t] P2 t)}
+    true.
+
+- : allocfields-implies-set-rawfldperm
+    fldmap`domain/0 ([_] allocFields/0) _ ([_] implies/reflexive) set-rawfldperm/0.
+
+
+- : allocfields-implies-set-rawfldperm
+    (fldmap`domain/+ DM-FM) ([t] allocFields/+ F<<S=SP (SP->PP t))
+    _ ([t] implies/trans
+        (implies/equiv equiv/commute)
+        (implies/combine
+          (implies/reflexive)
+          (I t)))
+    (set-rawfldperm/+ SP-B F/SP SPUF=S)
+    <- fldmap`shift-total F<<FM=FMP
+    <- fldmap`shift-preserves-domain* DM-FM F<<FM=FMP F<<S=SP DM-FMP
+    <- allocfields-implies-set-rawfldperm DM-FMP SP->PP _ ([t] I t) SP-B
+    <- set`shift-implies-not-member F<<S=SP F/SP
+    <- set`shift-implies-update F<<S=SP SP+N=S
+    <- set`add-implies-unit-union SP+N=S SPUF=S.
+
+%worlds (gtermvar) (allocfields-implies-set-rawfldperm _ _ _ _ _).
+%total (SR) (allocfields-implies-set-rawfldperm _ SR _ _ _).
+
+
+%%% Theorems about set-fldpred
+
+%theorem set-fldpred-respects-eq
+  :	forall* {PM1} {PM2} {FM1} {FM2} {S1} {S2} {P1} {P2}
+    forall {SF: set-fldpred PM1 FM1 S1 ([t] P1 t)}
+		{EQ: predmap`eq PM1 PM2} {EQ: fldmap`eq FM1 FM2}
+		{EQ: set`eq S1 S2} {EQ: {o} permission`eq (P1 o) (P2 o)}
+    exists {SF: set-fldpred PM2 FM2 S2 ([t] P2 t)}
+    true.
+
+- : set-fldpred-respects-eq SF predmap`eq/ fldmap`eq/ set`eq/ ([_] permission`eq/) SF.
+
+%worlds () (set-fldpred-respects-eq _ _ _ _ _ _).
+%total { } (set-fldpred-respects-eq _ _ _ _ _ _).
+
+
+%theorem set-fldpred-shrink-fldmap
+  : forall* {PM} {FM1} {FM} {S} {R} {F} {T}
+    forall {SF: set-fldpred PM FM1 S ([t] (R t))}
+    {FS: set`not-member S F}
+    {U: fldmap`update FM F T FM1}
+    exists {SF: set-fldpred PM FM S ([t] (R t))}
+    true.
+
+- : set-fldpred-shrink-fldmap set-fldpred/0 _ _ set-fldpred/0.
+
+- : set-fldpred-shrink-fldmap
+    (set-fldpred/+ S1-R N/S1 S1UN=S T2PF FM1-L) F/S FM+F=FM1
+    (set-fldpred/+ S1-R1 N/S1 S1UN=S T2PF FM-L)
+    <- set`union-preserves-not-member-converse* F/S S1UN=S F/S1 _
+    <- set-fldpred-shrink-fldmap S1-R F/S1 FM+F=FM1 S1-R1
+    <- set`union-left-preserves-member* (set`lookup/= nat`eq/) S1UN=S N#S
+    <- set`not-member-lookup-not-equal F/S N#S F!=N
+    <- nat`ne-symmetric F!=N N!=F
+    <- fldmap`update-preserves-lookup-converse FM1-L FM+F=FM1 N!=F FM-L.
+
+%worlds (objvar) (set-fldpred-shrink-fldmap _ _ _ _).
+%total (SF) (set-fldpred-shrink-fldmap SF _ _ _).
+
+
+%theorem false-implies-implies-var
+  : forall* {P1: object -> permission} {P2}
+    forall {V:void}
+    exists {IMP: {o} implies (P1 o) (P2 o)}
+    true.
+
+%worlds (objvar) (false-implies-implies-var _ _).
+%total { } (false-implies-implies-var _ _).
+
+
+%theorem set-fldpred-implies-fldmap2conj/L1
+  : forall* {FM} {S1} {S} {F} {T} {N}
+    forall {SZ: fldmap`size FM (s N)}
+    {DM: fldmap`domain FM S}
+    {L: fldmap`lookup FM F T}
+    {U: set`union S1 (set/+ F set/0) S}
+    {FS: set`not-member S1 F}
+    exists {FM1} {SZ: fldmap`size FM1 N}
+    {DM: fldmap`domain FM1 S1}
+    {FS: fldmap`fresh FM1 F}
+    {U: fldmap`update FM1 F T FM}
+    true.
+
+- : set-fldpred-implies-fldmap2conj/L1 SZ-FM DM-FM=S FM-L S1UF=S F/S1 %{=>}%
+    FM1 SZ-FM1=N DM-FM1=S1 F/FM1 FM1+F=FM
+    <- fldmap`can-remove SZ-FM FM-L %{=>}% FM1 N1 SZ-FM1=N1 SN1=SN FM1+F=FM F/FM1
+    <- nat`succ-cancels SN1=SN N1=N
+    <- fldmap`size-respects-eq SZ-FM1=N1 fldmap`eq/ N1=N SZ-FM1=N
+    <- fldmap`domain-total DM-FM1=S2
+    <- fldmap`domain-preserves-fresh F/FM1 DM-FM1=S2 F/S2
+    <- fldmap`update-commute-domain FM1+F=FM DM-FM1=S2 DM-FM=S S2+F=S
+    <- set`not-member-update-implies-unit-union F/S2 S2+F=S S2UF=S
+    <- set`union-implies-leq S1UF=S S1<=S F<=S
+    <- set`union-implies-leq S2UF=S S2<=S _
+    <- set`not-member-implies-unit-disjoint F/S1 S1XF
+    <- set`not-member-implies-unit-disjoint F/S2 S2XF
+    <- set`disjoint-symmetric S1XF FXS1
+    <- set`disjoint-symmetric S2XF FXS2
+    <- set`union-commutative S1UF=S FUS1=S
+    <- set`union-commutative S2UF=S FUS2=S
+    <- set`leq-reflexive _ S<=S
+    <- set`remove-characterization S1<=S FXS1 FUS1=S S<=S S/F=S1
+    <- set`remove-characterization S2<=S FXS2 FUS2=S S<=S S/F=S2
+    <- set`remove-deterministic S/F=S1 S/F=S2 set`eq/ set`eq/ S1=S2
+    <- set`eq-symmetric S1=S2 S2=S1
+    <- fldmap`domain-respects-eq DM-FM1=S2 fldmap`eq/ S2=S1 DM-FM1=S1.
+
+%worlds () (set-fldpred-implies-fldmap2conj/L1 _ _ _ _ _ _ _ _ _ _).
+%total { } (set-fldpred-implies-fldmap2conj/L1 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem set-fldpred-implies-fldmap2conj/L2
+  : forall* {CM} {PM} {FM} {FM1} {G1} {F} {T} {PF}
+    forall {F2C: fldmap2conj CM PM FM1 ([o] G1 o) PM}
+    {FS: fldmap`fresh FM1 F}
+    {U: fldmap`update FM1 F T FM}
+    {T2PF: ty2perm PM T PF}
+    exists {G} {F2C: fldmap2conj CM PM FM ([t] G t) PM}
+    {IMP: {o} implies (combine (unitperm (precise-exists o F PF)) (G1 o)) (G o)}
+    true.
+
+- : set-fldpred-implies-fldmap2conj/L2
+    fldmap2conj/0 fldmap`fresh/0 fldmap`update/0 (ty2perm/ PM-L NN2P A2P) _
+    (fldmap2conj/in fldmap2conj/0 NN2P A2P fldmap`shift/0 PM-L)
+    ([_] implies/reflexive).
+
+- : set-fldpred-implies-fldmap2conj/L2 F2C
+    F/FM1 (fldmap`update/< SN3+F=N) (ty2perm/ PM-L NN2P A2P) _
+    (fldmap2conj/in F2C NN2P A2P (fldmap`shift/+ SF+N3=N) PM-L)
+    ([_] implies/reflexive)
+    <- nat`plus-swap-succ SN3+F=N N3+SF=N
+    <- nat`plus-commutative N3+SF=N SF+N3=N.
+
+- : set-fldpred-implies-fldmap2conj/L2
+    (fldmap2conj/in F2C-FM3 NN2P1 A2P1 N<<FM2=FM3 PM-L1) F/FM1
+    (fldmap`update/> FM2+N0=FM4 SN0+N=F) (ty2perm/ PM-L2 NN2P2 A2P2) _
+    (fldmap2conj/in F2C-FM5 NN2P1 A2P1 N<<FM4=FM5 PM-L1)
+    ([o] implies/trans
+      (implies/reorder)
+      (implies/combine implies/reflexive (IMP o)))
+    <- fldmap`shift-total N<<FM4=FM5
+    <- fldmap-shift-preserves-fresh F/FM1 N<<FM2=FM3 F/FM3
+    <- nat`plus-swap-succ SN0+N=F N0+SN=F
+    <- nat`plus-commutative N0+SN=F SN+N0=F
+    <- fldmap`shift-preserves-update* FM2+N0=FM4 N<<FM2=FM3 SN+N0=F N<<FM4=FM5 FM3+F=FM5
+    <- set-fldpred-implies-fldmap2conj/L2
+      F2C-FM3 F/FM3 FM3+F=FM5 (ty2perm/ PM-L2 NN2P2 A2P2) _ F2C-FM5 ([t] IMP t).
+
+% - : set-fldpred-implies-fldmap2conj/L2 (fldmap2conj/null F2C-FM3 N<<FM2=FM3)
+%      F/FM1 (fldmap`update/> FM2+N0=FM4 SN0+N=F) PM-L FNN2P _
+%      (fldmap2conj/null F2C-FM5 N<<FM4=FM5) ([t] IMP t)
+%      <- fldmap`shift-total N<<FM4=FM5
+%      <- fldmap-shift-preserves-fresh F/FM1 N<<FM2=FM3 F/FM3
+%      <- nat`plus-swap-succ SN0+N=F N0+SN=F
+%      <- nat`plus-commutative N0+SN=F SN+N0=F
+%      <- fldmap`shift-preserves-update* FM2+N0=FM4 N<<FM2=FM3 SN+N0=F N<<FM4=FM5 FM3+F=FM5
+%      <- set-fldpred-implies-fldmap2conj/L2
+% 	F2C-FM3 F/FM3 FM3+F=FM5 PM-L FNN2P _ F2C-FM5 ([t] IMP t).
+
+
+%%% impossible cases
+
+%theorem set-fldpred-implies-fldmap2conj/L2L
+  : forall* {CM} {PMin} {FM} {PMout}
+    forall {F:void}
+    exists {G} {F2C: fldmap2conj CM PMin FM ([t] G t) PMout}
+    true.
+
+%worlds (objvar) (set-fldpred-implies-fldmap2conj/L2L _ _ _).
+%total { } (set-fldpred-implies-fldmap2conj/L2L _ _ _).
+
+
+- : set-fldpred-implies-fldmap2conj/L2 _ F/FM1 (fldmap`update/= N=F) _ _ F2C BIMP
+    <- nat`eq-symmetric N=F F=N
+    <- fldmap`fresh-respects-eq F/FM1 fldmap`eq/ F=N N/FM1
+    <- fldmap`fresh-contradiction N/FM1 V
+    <- set-fldpred-implies-fldmap2conj/L2L V G F2C
+    <- false-implies-implies-var V ([o] BIMP o).
+
+- : set-fldpred-implies-fldmap2conj/L2
+    (fldmap2conj/out F2C1
+      (F2CF:{p:clspred} fldmap2conj _ _ _ ([o:object] CJ p o) _)
+      ([p] PM-U p) _ _ _ _ PM-FS) _ _ _ %{=>}% G F2C IMP
+    <- ({p} predmap`update-implies-lookup (PM-U p) (PME-L p))
+    <- ({p} fldmap2conj-implies-predmap-leq (F2CF p) (PME<=PMF p))
+    <- ({p} predmap`lookup-respects-leq (PME-L p) (PME<=PMF p) _ (PMF-L p) _)
+    <- fldmap2conj-implies-predmap-leq F2C1 PMF<=PM
+    <- predmap`lookup-respects-leq (PMF-L (conj2pred CJ)) PMF<=PM _ PM-L _
+    <- predmap`fresh-lookup-not-equal PM-FS PM-L NE
+    <- nat`eq-ne-implies-false nat`eq/ NE V
+    <- set-fldpred-implies-fldmap2conj/L2L V G F2C
+    <- false-implies-implies-var V ([o] IMP o).
+
+%worlds (objvar) (set-fldpred-implies-fldmap2conj/L2 _ _ _ _ _ _ _).
+%total (F2C) (set-fldpred-implies-fldmap2conj/L2 F2C _ _ _ _ _ _).
+
+
+%theorem set-fldpred-implies-fldmap2conj/L
+  : forall* {CM} {PM} {FM:fldmap} {S} {FP}
+    forall {N} {SZ: fldmap`size FM N} {DM: fldmap`domain FM S}
+		{SF: set-fldpred PM FM S ([t] FP t)}
+    exists {G} {F2C: fldmap2conj CM PM FM ([t] G t) PM}
+    {TAS: {t} transform
+          (output/expr t (FP t))
+          (output/expr t (G t))}
+    true.
+
+- : set-fldpred-implies-fldmap2conj/L z _
+     fldmap`domain/0 set-fldpred/0 %{=>}%
+    _ fldmap2conj/0 ([t] transform/reflexive).
+
+- : set-fldpred-implies-fldmap2conj/L (s N) SZ DM
+    (set-fldpred/+ S1-R F/S1 S1UF=S T2PF FM-L) %{=>}% _ F2C
+    ([t] transform/trans
+      (TAS1 t)
+      (transform/implies (IMP t)))
+    <- set-fldpred-implies-fldmap2conj/L1 SZ DM FM-L S1UF=S F/S1 _ SZ1 DM1 F/FM1 FM1+F=FM
+    <- set-fldpred-shrink-fldmap S1-R F/S1 FM1+F=FM S1-R1
+    <- set-fldpred-implies-fldmap2conj/L N SZ1 DM1 S1-R1 _ F2C1 ([t] TAS t)
+    <- set-fldpred-implies-fldmap2conj/L2 F2C1 F/FM1 FM1+F=FM T2PF _ F2C IMP
+    <- ({t} transform-commutes-envadd* (TAS t) envadd/expr envadd/expr (TAS1 t)).
+
+%worlds (objvar) (set-fldpred-implies-fldmap2conj/L _ _ _ _ _ _ _).
+%total (N) (set-fldpred-implies-fldmap2conj/L N _ _ _ _ _ _).
+
+
+%theorem set-fldpred-implies-fldmap2conj
+  : forall* {CM} {PM} {FM} {S} {FP}
+    forall {CM2PM: clsmap2predmap CM PM}
+		{DM: fldmap`domain FM S}
+		{SF: set-fldpred PM FM S ([t] FP t)}
+    exists {G} {F2C: fldmap2conj CM PM FM ([t] G t) PM}
+    {TAS: {t} transform
+          (output/expr t (FP t))
+          (output/expr t (G t))}
+    true.
+
+- : set-fldpred-implies-fldmap2conj _ DM SF G F2C TAS
+    <- fldmap`size-total SZ
+    <- set-fldpred-implies-fldmap2conj/L _ SZ DM SF G F2C TAS.
+
+%worlds (objvar) (set-fldpred-implies-fldmap2conj _ _ _ _ _ _).
+%total { } (set-fldpred-implies-fldmap2conj _ _ _ _ _ _).
+
+
+%%% Constructor Typing
+
+seconstyping : clsmap -> methmap -> fldmap
+    -> cxt -> env -> set -> (object -> expr) -> env -> type.
+
+constyping/0 : constyping _ _ _ _ V set/0 ([t] lit t) V.
+
+constyping/nn :
+    fldmap`lookup FM F (ty/ nn/yes A C) ->
+    set`remove S (set/1 F) SP ->
+    reftyping CM MM B V0 E (result/expr RT V1) ->
+    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
+    constyping CM MM FM B V2 SP ([t] EF t) V3 ->
+  constyping CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
+
+constyping/mn :
+    fldmap`lookup FM F (ty/ nn/yes A C) ->
+    reftyping CM MM B V0 E (result/expr RT V1) ->
+    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
+    constyping CM MM FM B V2 S ([t] EF t) V3 ->
+  constyping CM MM FM B V0 SP ([t] seq (write (lit t) F E) (EF t)) V3.
+
+
+constymatch* : env -> env -> clsmap -> methmap -> fldmap -> cxt -> set ->
+    (object -> func) -> methty -> type.
+
+constymatch/base :
+    ty2new-reftype (ty/ nn/yes annot/unique C) RT ->
+    constyping CM MM FM B Vin FS ([t] E t) Vout ->
+  constymatch* Vin Vout CM MM FM B FS ([t] func/0 (E t))
+    (methty/base (ty/ nn/yes annot/unique C)).
+
+constymatch/args/shared :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
+    ({x} constymatch* Vin Vout CM MM FM (B1 x) FS ([t] F t x) CT) ->
+  constymatch* Vin Vout CM MM FM B0 FS ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/shared C) set/0 CT).
+
+constymatch/args/borrow :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
+    nat+set2set (s N) FS Mf ->
+    set`union Min Mf Min' ->
+    set`union Mout Mf Mout' ->
+    ({x} constymatch* (env/ Uin Min') (env/ Uout Mout') CM MM FM (B1 x) S ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) (env/ Uout Mout) CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/borrow C) FS CT).
+
+constymatch/args/unique :
+    cxt`fresh B0 (s N) ->
+    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
+    clsmap`lookup CM C FFM ->
+    fldmap`domain FFM FFS ->
+    nat+set2set (s N) FFS Mf ->
+    set`add Uin (s N) Uin' ->
+    set`union Min Mf Min' ->
+    ({x} constymatch* (env/ Uin' Min') Vout CM MM FM (B1 x) S ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) Vout CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    (methty/arg (ty/ NN annot/unique C) set/0 CT).
+
+%abbrev constymatch
+  = [CM][MM][FM][S][F][CT] constymatch* empty-env empty-env CM MM FM cxt/0 S F CT.
+
+
+%%% Theorems about consty
+
+%theorem constyping-implies-typing
+  : forall* {CM} {PM} {MM} {W} {C} {FM} {FS} {S} {B}
+    {Vin} {Vout} {E} {PiB}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM2W: methmap2progtype CM PM MM W}
+    {CML: clsmap`lookup CM C FM}
+    {FM-DM: fldmap`domain FM FS}
+    {FM=>S: select-nn-fields FM S}
+    {B=>PiB: cxt2perm PM B PiB}
+    {CTYP: constyping CM MM FM B Vin S ([t] E t) Vout}
+    exists {RFP} {AF: {t} allocFields t S (RFP t)}
+    {PF} {T2PF: ty2perm PM (ty/ nn/yes annot/unique C) PF}
+    {TYP: {t} typing W ((obj-ne-null t) , ((RFP t) , PiB)) (E t)
+          (output/exists ([t] (output/expr t (PiB , (PF t)))))}
+    true.
+
+
+%%% Program Typing: checking method map against prog
+
+methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
+
+methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
+
+methmapmatch/U/const :
+    methmapmatch* CM MM0 MM' G' ->
+    clsmap`lookup CM C FM ->
+    select-nn-fields FM S ->
+    constymatch CM MM0 FM S FF CT ->
+    methmap`fresh MM' C ->
+    methmap`update MM' C (methty/arg (ty/ nn/yes _ C) _ CT) MM ->
+    prog`update G' C (func/+ ([t] FF t)) G ->
+  methmapmatch* CM MM0 MM G.
+
+methmapmatch/U/meth :
+    methmapmatch* CM MM0 MM' G' ->
+    clsmap`fresh CM N ->
+    methtymatch CM MM0 F MT ->
+    methmap`fresh MM' N ->
+    methmap`update MM' N MT MM ->
+    prog`update G' N F G ->
+  methmapmatch* CM MM0 MM G.
+
+%abbrev methmapmatch = [CM][MM][G] methmapmatch* CM MM MM G.
+
+
+%%% Theorems about methmapmatch
 
 %theorem false-implies-progtypematch
   : forall* {W0} {W} {G}
