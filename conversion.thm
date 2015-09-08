@@ -1469,6 +1469,137 @@ select-nn-fields/+/result
 %total (SF) (set-fldpred-shrink-fldmap SF _ _ _).
 
 
+%%% Similar theorem as set-rawfldperm-reorder, except the relation
+%%% is between set and sequence of packed field permissions
+
+%theorem set-fldpred-reorder
+  : forall* {PM} {FM} {FP} {S} {F}
+    forall {S-FP: set-fldpred PM FM S ([t] FP t)}
+    {IN: set`member S F}
+    exists {RP}
+    {TAS: {r}{t} transform
+          (output/expr r (FP t))
+          (output/exists [o]
+            (output/expr r
+              ((unitperm (basic t F o)) , (RP t))))}
+    {S1} {S1-RP: set-fldpred PM FM S1 ([t] RP t)}
+    {NM: set`not-member S1 F} {U: set`union S1 (set/1 F) S}
+    true.
+
+%theorem set-fldpred-reorder/L
+  : forall* {PM} {FM} {S} {F} {A}
+    {S1} {N} {R} {NN} {PF} {D}
+    forall {C} {CMP: nat`compare N F C}
+    {S1-R: set-fldpred PM FM S1 ([t] R t)}
+    {N/S1: set`not-member S1 N}
+    {U: set`union S1 (set/1 N) S}
+    {IN: set`member S F}
+    {T2PF: ty2perm PM (ty/ NN A D) PF}
+    {FM-L: fldmap`lookup FM N (ty/ NN A D)}
+    exists {RP}
+    {TAS: {r}{t} transform
+          (output/expr r ((unitperm (precise-exists t N PF)) , (R t)))
+          (output/exists [o]
+            (output/expr r ((unitperm (basic t F o)) , (RP t))))}
+    {S2} {S2-RP: set-fldpred PM FM S2 ([t] RP t)}
+    {F/S2: set`not-member S2 F} {U: set`union S2 (set/1 F) S}
+    true.
+
+- : set-fldpred-reorder/L equal
+    _ S1-R N/S1 S1UN=S _ (ty2perm/ PM-L nn2perm/yes _) _ _
+    ([r][t] transform/trans3
+      (transform/implies
+        (implies/combine
+          (implies/equiv (equiv/symmetric equiv/one))
+          (implies/reflexive)))
+      (transform/skolem)
+      (transform/inside [v]
+        (transform/trans
+          (transform/implies
+            (implies/trans
+              (implies/combine
+                (implies/trans
+                  (implies/equiv equiv/one)
+                  (implies/equiv equiv/commute))
+                (implies/reflexive))
+              (implies/symmetric-associate)))
+          (transform/drop))))
+    _ S1-R N/S1 S1UN=S.
+
+- : set-fldpred-reorder/L equal
+     _ S1-R N/S1 S1UN=S _ (ty2perm/ _ nn2perm/may _) _ _
+    ([r][t] transform/trans3
+      (transform/implies
+        (implies/combine
+          (implies/equiv (equiv/symmetric equiv/one))
+          (implies/reflexive)))
+      (transform/skolem)
+      (transform/inside [v]
+        (transform/trans
+          (transform/implies
+            (implies/trans
+              (implies/combine
+                (implies/trans
+                  (implies/equiv equiv/one)
+                  (implies/equiv equiv/commute))
+                (implies/reflexive))
+              (implies/symmetric-associate)))
+          (transform/drop))))
+     _ S1-R N/S1 S1UN=S.
+
+- : set-fldpred-reorder/L less
+    C S1-R N/S1 S1UN=S F&S T2PF FM-L _
+    ([r][t] transform/trans
+      (TAS' r t)
+      (transform/inside [_]
+        (transform/implies
+          (implies/equiv equiv/roll2))))
+    S3 (set-fldpred/+ S2-RP N/S2 S2UN=S3 T2PF FM-L) F/S3 S3UF=S
+    <- nat`less-implies-lt C F>N
+    <- set`ne-implies-unit-map-not-member (nat`ne/< F>N) F/N
+    <- set`not-member-union-right-preserves-lookup-converse F&S F/N S1UN=S F&S1
+    <- set-fldpred-reorder S1-R F&S1 RP ([r][t] TAS r t) E2 S2-RP F/S2 S2UF=S1
+    <- ({r}{t} transform-commutes-envadd*
+         (TAS r t) envadd/expr (envadd/exists [o] envadd/expr) (TAS' r t))
+    <- set`union-preserves-not-member-converse* N/S1 S2UF=S1 N/S2 _
+    <- set`union-commutative S2UF=S1 FUS2=S1
+    <- set`union-associative FUS2=S1 S1UN=S S3 S2UN=S3 FUS3=S
+    <- set`union-commutative FUS3=S S3UF=S
+    <- set`union-preserves-not-member* F/S2 F/N S2UN=S3 F/S3.
+
+- : set-fldpred-reorder/L greater
+    C S1-R N/S1 S1UN=S F&S T2PF FM-L _
+    ([r][t] transform/trans
+      (TAS' r t)
+      (transform/inside [_]
+        (transform/implies
+          (implies/equiv equiv/roll2))))
+    S3 (set-fldpred/+ S2-RP N/S2 S2UN=S3 T2PF FM-L) F/S3 S3UF=S
+    <- nat`greater-implies-gt C N>F
+    <- set`ne-implies-unit-map-not-member (nat`ne/> N>F) F/N
+    <- set`not-member-union-right-preserves-lookup-converse F&S F/N S1UN=S F&S1
+    <- set-fldpred-reorder S1-R F&S1 RP ([r][t] TAS r t) _ S2-RP F/S2 S2UF=S1
+    <- ({r}{t} transform-commutes-envadd*
+         (TAS r t) envadd/expr (envadd/exists [_] envadd/expr) (TAS' r t))
+    <- set`union-preserves-not-member-converse* N/S1 S2UF=S1 N/S2 _
+    <- set`union-commutative S2UF=S1 FUS2=S1
+    <- set`union-associative FUS2=S1 S1UN=S S3 S2UN=S3 FUS3=S
+    <- set`union-commutative FUS3=S S3UF=S
+    <- set`union-preserves-not-member* F/S2 F/N S2UN=S3 F/S3.
+
+- : set-fldpred-reorder (set-fldpred/+ S1-R N/S1 S1UN=S T2PF FM-L) IN
+    RP ([r][t] TAS r t) S2 S2-RP F/S2 S2UF=S
+    <- nat`compare-total CMP
+    <- set-fldpred-reorder/L _ CMP S1-R N/S1 S1UN=S IN T2PF FM-L
+      RP ([r][t] TAS r t) S2 S2-RP F/S2 S2UF=S.
+
+%worlds (objvar) (set-fldpred-reorder _ _ _ _ _ _ _ _)
+  (set-fldpred-reorder/L _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+%total (SF1 SF2) (set-fldpred-reorder SF1 _ _ _ _ _ _ _)
+  (set-fldpred-reorder/L _ _ SF2 _ _ _ _ _ _ _ _ _ _ _).
+
+
 %theorem false-implies-implies-var
   : forall* {P1: object -> permission} {P2}
     forall {V:void}
