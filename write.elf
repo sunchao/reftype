@@ -61,6 +61,16 @@ set-all-permissions*/U :
 
 
 
+reftype2ty : reftype -> ty -> type.
+
+reftype2ty/shared : reftype2ty (reftype/ NN C targets/shared) (ty/ NN annot/shared C).
+
+reftype2ty/fresh : reftype2ty (reftype/ NN C targets/fresh) (ty/ NN annot/unique C).
+
+%% TODO: maybe annot/borrow more making sense?
+reftype2ty/unique : reftype2ty (reftype/ NN C (targets/unique _ _ _)) (ty/ NN annot/unique C).
+
+
 %%% A format before we checking write.
 
 before-write-format : clsmap -> predmap -> cxt -> expr-result -> expr-output -> type.
@@ -904,7 +914,6 @@ before-write-format/expr :
 %total { } (make-before-write-format/L3 _ _ _).
 
 
-%%% V1 = (env/ B0 M0), V2 = (env/ B1 M3)
 %theorem make-before-write-format
   : forall* {CM} {PM} {V1} {V2} {Out0} {B} {V3} {FS} {C} {NN} {A} {RT}
     forall {CM2PM: clsmap2predmap CM PM}
@@ -917,43 +926,32 @@ before-write-format/expr :
     {BR-FMT: before-write-format CM PM B (result/expr RT V2) Out1}
     true.
 
-%{
+%%% fresh to unique field
 - : make-before-write-format CM2PM
-    (clsmap-result/expr
-      (clsmap-cxt-reftype/unique _ CM-B0-S clsmap-cxt-unique-capset/0
-        wf-unique-targets/unique+fresh)
+    (clsmap-result/expr (clsmap-cxt-reftype/fresh CML)
       (clsmap-cxt-env/ _ CM-B0-M0))
-    (subtype/ _
-      (sub-annot/unique CML DM-FM=FS (S+FS=>M2:set+set2set set/0 FS M2)
-        (M0-M2=M3:set`split M0 M2 M3) set`leq/0 (U0-S=U1:set`remove U0 set/0 U1) _)) _
+    (subtype/ NN-LEQ (sub-annot/fresh _))
+    _
     (result2output/expr (B=>PiB:cxt2perm PM B PiB)
       (env2input/ U0=>PiU0 (M0=>PiM0:capset2perm CM PM B M0 PiM0))
-      (reftype2perm/unique+fresh T2PF ([_] set2cond/0) capset2perm/0))
+      (reftype2perm/fresh T2PF))
     _
     (transform/inside [o]
-      (transform/inside [r]
+      (transform/trans
+        (transform/rem-unused)
         (transform/inside [p:permission]
           (transform/implies
-            (implies/trans3
-              (implies/identity)
-              (implies/combine implies/reflexive
-                (implies/combine
-                  (implies/combine (cond-to-empty o r) implies/reflexive)
-                  (implies/reflexive)))
-              (KK o r p))))))
-    (before-write-format/expr U1=>PiU0 B=>PiB M3=>PiM0 reftype2ty/unique T2PF)
-    <- set`remove-empty-equal-self U0-S=U1 U0=U1
-    <- make-encumbered-respects-eq U0=>PiU0 clsmap`eq/ predmap`eq/ cxt`eq/
-      U0=U1 permission`eq/ U1=>PiU0
-    <- set+set2set-unique S+FS=>M2 set+set2set/0 set`eq/ set`eq/ M2=0
-    <- set`split-respects-eq M0-M2=M3 set`eq/ M2=0 set`eq/ M0-0=M3
-    <- set`split-empty M0-0=M3 M3=M0
-    <- set`eq-symmetric M3=M0 M0=M3
-    <- capset2perm-respects-eq M0=>PiM0 clsmap`eq/ predmap`eq/ cxt`eq/
-      M0=M3 permission`eq/ M3=>PiM0.
+            (implies/equiv
+              (equiv/transitive
+                (equiv/identity)
+                (equiv/roll3)))))))
+    (before-write-format/expr U0=>PiU0 B=>PiB
+      (M0=>PiM0:capset2perm CM PM B M0 PiM0) reftype2ty/fresh
+      T2PF).
 
+%%% borrowed to unique field
 - : make-before-write-format CM2PM
-    (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B0-S _)
+    (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B0-S _ _)
       (clsmap-cxt-env/ _ CM-B0-M0))
     (subtype/ NN-LEQ
       (sub-annot/unique CML DM-FM=FS (S+FS=>M2:set+set2set S FS M2)
@@ -964,90 +962,92 @@ before-write-format/expr :
         (ty2perm/ PML _ annot2perm/borrow)
         (S=>GF: {x} set2cond B x S (GF x)))) _
     (transform/inside [x]
-      (transform/trans3
+      (transform/trans
         (transform/rem-unused)
-        (transform/implies
-          (implies/trans11
-            (implies/equiv
-              (equiv/transitive4
-                (equiv/identity)
-                (equiv/roll3)
-                (equiv/associate)
-                (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))
-            (implies/combine (implies/equiv (equiv/combine (EQV) equiv/reflexive))
-              (implies/combine implies/reflexive
-                (implies/combine implies/reflexive (implies/equiv PiM0<=>PiM2+PiM3))))
-            (implies/equiv (equiv/symmetric equiv/associate))
-            (implies/equiv
-              (equiv/transitive3
-                (equiv/roll5)
-                (equiv/combine equiv/reflexive equiv/roll2)
-                (equiv/associate)))
-            (implies/equiv
-              (equiv/transitive4
-                (equiv/associate)
-                (equiv/combine
+        (transform/inside [p:permission]
+          (transform/trans
+            (transform/implies
+              (implies/trans11
+                (implies/equiv
+                  (equiv/transitive4
+                    (equiv/identity)
+                    (equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))
+                (implies/combine (implies/equiv (equiv/combine (EQV) equiv/reflexive))
+                  (implies/combine implies/reflexive
+                    (implies/combine implies/reflexive (implies/equiv PiM0<=>PiM2+PiM3))))
+                (implies/equiv (equiv/symmetric equiv/associate))
+                (implies/equiv
                   (equiv/transitive3
-                    (equiv/symmetric equiv/associate)
+                    (equiv/roll5)
                     (equiv/combine equiv/reflexive equiv/roll2)
-                    (equiv/associate))
-                  (equiv/reflexive))
-                (equiv/symmetric equiv/associate)
-                (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))
-            (implies/combine (PiM2+Pi<=>PiS) implies/reflexive)
-            (implies/equiv
-              (equiv/transitive3
-                (equiv/combine equiv/reflexive equiv/roll3)
-                (equiv/associate)
-                (equiv/combine equiv/commute equiv/reflexive)))
-            (implies/trans5
-              (implies/equiv (equiv/symmetric equiv/associate))
-              (implies/combine implies/reflexive (implies/equiv equiv/associate))
-              (implies/combine implies/reflexive
-                (implies/combine
-                  (implies/trans3
-                    (implies/equiv equiv/commute)
-                    (IMP1)
-                    (implies/equiv equiv/commute))
-                  (implies/reflexive)))
-              (implies/combine implies/reflexive
-                (implies/equiv (equiv/symmetric equiv/associate)))
-              (implies/equiv (equiv/associate)))
-            (implies/equiv
-              (equiv/transitive4
-                (equiv/combine equiv/reflexive equiv/roll3)
-                (equiv/associate)
-                (equiv/combine
+                    (equiv/associate)))
+                (implies/equiv
+                  (equiv/transitive4
+                    (equiv/associate)
+                    (equiv/combine
+                      (equiv/transitive3
+                        (equiv/symmetric equiv/associate)
+                        (equiv/combine equiv/reflexive equiv/roll2)
+                        (equiv/associate))
+                      (equiv/reflexive))
+                    (equiv/symmetric equiv/associate)
+                    (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))
+                (implies/combine (PiM2+Pi<=>PiS) implies/reflexive)
+                (implies/equiv
                   (equiv/transitive3
-                    (equiv/commute)
-                    (equiv/reorder)
-                    (equiv/commute))
-                  (equiv/reflexive))
-                (equiv/symmetric equiv/associate)))
-            (implies/combine
-              (implies/trans
-                (IMP2 x)
+                    (equiv/combine equiv/reflexive equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine equiv/commute equiv/reflexive)))
+                (implies/trans5
+                  (implies/equiv (equiv/symmetric equiv/associate))
+                  (implies/combine implies/reflexive (implies/equiv equiv/associate))
+                  (implies/combine implies/reflexive
+                    (implies/combine
+                      (implies/trans3
+                        (implies/equiv equiv/commute)
+                        (IMP1)
+                        (implies/equiv equiv/commute))
+                      (implies/reflexive)))
+                  (implies/combine implies/reflexive
+                    (implies/equiv (equiv/symmetric equiv/associate)))
+                  (implies/equiv (equiv/associate)))
+                (implies/equiv
+                  (equiv/transitive4
+                    (equiv/combine equiv/reflexive equiv/roll3)
+                    (equiv/associate)
+                    (equiv/combine
+                      (equiv/transitive3
+                        (equiv/commute)
+                        (equiv/reorder)
+                        (equiv/commute))
+                      (equiv/reflexive))
+                    (equiv/symmetric equiv/associate)))
                 (implies/combine
-                  (implies/equiv (EQV2 x))
-                  (implies/reflexive)))
-              (implies/reflexive))
-            (implies/equiv
-              (equiv/transitive8
-                (equiv/symmetric equiv/associate)
-                (equiv/roll4)
-                (equiv/combine equiv/reflexive equiv/roll2)
-                (equiv/associate)
-                (equiv/combine equiv/reflexive equiv/roll2)
-                (equiv/combine equiv/commute equiv/reflexive)
-                (equiv/symmetric equiv/associate)
-                (equiv/transitive3
-                  (equiv/combine equiv/reflexive equiv/roll2)
-                  (equiv/associate)
-                  (equiv/combine equiv/reflexive
-                    (equiv/transitive
-                      (equiv/combine equiv/reflexive equiv/reorder)
-                      (equiv/reorder)))))))))
-      (transform/drop))
+                  (implies/trans
+                    (IMP2 x)
+                    (implies/combine
+                      (implies/equiv (EQV2 x))
+                      (implies/reflexive)))
+                  (implies/reflexive))
+                (implies/equiv
+                  (equiv/transitive8
+                    (equiv/symmetric equiv/associate)
+                    (equiv/roll4)
+                    (equiv/combine equiv/reflexive equiv/roll2)
+                    (equiv/associate)
+                    (equiv/combine equiv/reflexive equiv/roll2)
+                    (equiv/combine equiv/commute equiv/reflexive)
+                    (equiv/symmetric equiv/associate)
+                    (equiv/transitive3
+                      (equiv/combine equiv/reflexive equiv/roll2)
+                      (equiv/associate)
+                      (equiv/combine equiv/reflexive
+                        (equiv/transitive
+                          (equiv/combine equiv/reflexive equiv/reorder)
+                          (equiv/reorder))))))))
+            (transform/drop)))))
     (before-write-format/expr U1=>PiU1 B=>PiB
       (M3=>PiM3:capset2perm CM PM B M3 PiM3) reftype2ty/unique
       (ty2perm/ PML2 NN2P A2P))
@@ -1062,8 +1062,10 @@ before-write-format/expr :
     <- predmap`no-variable-lookup PMLP CP2 PML2 PEQ
     <- make-before-write-format/L3 PF PEQ EQV2.
 
+
+%%% unique to unique field
 - : make-before-write-format CM2PM
-    (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B-S _)
+    (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B-S _ _)
       (clsmap-cxt-env/ _ CM-B-M0))
     (subtype/ NN-LEQ
       (sub-annot/unique CML DM-FM=FS (S+FS=>M2:set+set2set S FS M2)
@@ -1073,87 +1075,193 @@ before-write-format/expr :
         (M0=>PiM0:capset2perm CM PM B M0 PiM0))
       (reftype2perm/unique SZ-M1
         (T2PF:ty2perm PM _ ([x] PF x)) ([x] B+S=>GF x)
-      (M1=>PiM1:capset2perm CM PM B M1 PiM1))) _
+        (M1=>PiM1:capset2perm CM PM B M1 PiM1))) _
     (transform/inside [o]
       (transform/trans
         (transform/inside [r]
-          (transform/trans
-            (transform/implies
-              (implies/trans11 % PiB0 , G , Q (ECUMB PiM1 , PiM0)
-                (implies/equiv
-                  (equiv/transitive4
-                    (equiv/identity)
-                    (equiv/roll3)
-                    (equiv/associate)
-                    (equiv/combine
-                      (equiv/commute)
-                      (equiv/transitive
-                        (equiv/symmetric equiv/associate)
-                        (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))))
-                (implies/combine
-                  (implies/equiv (equiv/combine equiv/reflexive (EQV)))
-                  (implies/combine implies/reflexive % GF
-                    (implies/combine (implies/equiv equiv/reflexive) % PF
-                      (implies/combine
-                        (implies/reflexive)
-                        (implies/equiv PiM0<=>PiM2+PiM3)))))
-                (implies/equiv
-                  (equiv/transitive4
-                    (equiv/symmetric equiv/associate)
-                    (equiv/roll6)
-                    (equiv/combine equiv/reflexive equiv/roll2)
-                    (equiv/associate)))
-                (implies/equiv
-                  (equiv/transitive
-                    (equiv/combine equiv/associate equiv/reflexive)
-                    (equiv/symmetric equiv/associate)))
-                (implies/combine PiM2+Pi<=>PiS implies/reflexive)
-                (implies/equiv
-                  (equiv/transitive4
-                    (equiv/combine equiv/reflexive equiv/roll3)
-                    (equiv/associate)
-                    (equiv/combine equiv/reflexive equiv/roll2)
-                    (equiv/associate)))
-                (implies/trans8
-                  (implies/equiv (equiv/symmetric equiv/associate))
-                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
-                  (implies/equiv equiv/associate)
+          (transform/inside [p:permission]
+            (transform/trans
+              (transform/implies
+                (implies/trans11 % PiB0 , G , Q (ECUMB PiM1 , PiM0)
+                  (implies/equiv
+                    (equiv/transitive4
+                      (equiv/identity)
+                      (equiv/roll3)
+                      (equiv/associate)
+                      (equiv/combine
+                        (equiv/commute)
+                        (equiv/transitive
+                          (equiv/symmetric equiv/associate)
+                          (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))))
+                  (implies/combine
+                    (implies/equiv (equiv/combine equiv/reflexive (EQV)))
+                    (implies/combine implies/reflexive % GF
+                      (implies/combine (implies/equiv equiv/reflexive) % PF
+                        (implies/combine
+                          (implies/reflexive)
+                          (implies/equiv PiM0<=>PiM2+PiM3)))))
+                  (implies/equiv
+                    (equiv/transitive4
+                      (equiv/symmetric equiv/associate)
+                      (equiv/roll6)
+                      (equiv/combine equiv/reflexive equiv/roll2)
+                      (equiv/associate)))
                   (implies/equiv
                     (equiv/transitive
-                      (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)
+                      (equiv/combine equiv/associate equiv/reflexive)
+                      (equiv/symmetric equiv/associate)))
+                  (implies/combine PiM2+Pi<=>PiS implies/reflexive)
+                  (implies/equiv
+                    (equiv/transitive4
+                      (equiv/combine equiv/reflexive equiv/roll3)
+                      (equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/roll2)
                       (equiv/associate)))
-                  (implies/combine
-                    (implies/trans5
-                      (implies/equiv equiv/commute)
-                      (implies/equiv equiv/associate)
-                      (implies/combine (IMP2) implies/reflexive)
-                      (implies/equiv (equiv/symmetric equiv/associate))
-                      (implies/equiv equiv/commute))
-                    (implies/reflexive))
-                  (implies/equiv (equiv/symmetric equiv/associate))
-                  (implies/combine implies/reflexive (implies/equiv equiv/roll2))
-                  (implies/equiv equiv/associate))
-                (implies/equiv
-                  (equiv/transitive3
-                    (equiv/combine
+                  (implies/trans8
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                    (implies/equiv equiv/associate)
+                    (implies/equiv
                       (equiv/transitive
-                        (equiv/swap)
-                        (equiv/associate))
-                      (equiv/reflexive))
-                    (equiv/symmetric equiv/associate)
-                    (equiv/combine equiv/reflexive equiv/associate)))
-                (implies/combine (IMP o r) implies/reflexive)
-                (implies/equiv
-                  (equiv/transitive5
-                    (equiv/combine equiv/commute equiv/reflexive)
-                    (equiv/symmetric equiv/associate)
-                    (equiv/combine equiv/reflexive equiv/roll3)
-                    (equiv/associate)
-                    (equiv/combine equiv/reflexive equiv/roll2)))
-                (implies/equiv
-                  (equiv/combine equiv/reflexive
-                    (equiv/symmetric equiv/associate))))))
-          (transform/drop))
+                        (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)
+                        (equiv/associate)))
+                    (implies/combine
+                      (implies/trans5
+                        (implies/equiv equiv/commute)
+                        (implies/equiv equiv/associate)
+                        (implies/combine (IMP2) implies/reflexive)
+                        (implies/equiv (equiv/symmetric equiv/associate))
+                        (implies/equiv equiv/commute))
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                    (implies/equiv equiv/associate))
+                  (implies/equiv
+                    (equiv/transitive3
+                      (equiv/combine
+                        (equiv/transitive
+                          (equiv/swap)
+                          (equiv/associate))
+                        (equiv/reflexive))
+                      (equiv/symmetric equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/associate)))
+                  (implies/combine (IMP o r) implies/reflexive)
+                  (implies/equiv
+                    (equiv/transitive5
+                      (equiv/combine equiv/commute equiv/reflexive)
+                      (equiv/symmetric equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/roll3)
+                      (equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/roll2)))
+                  (implies/equiv
+                    (equiv/combine equiv/reflexive
+                      (equiv/symmetric equiv/associate)))))
+              (transform/drop))))
+        (transform/rem-unused)))
+    (before-write-format/expr U1=>PiU1 B=>PiB
+      (M3=>PiM3:capset2perm CM PM B M3 PiM3) reftype2ty/unique T2PF)
+    <- make-encumbered-intro S<=U0 U0-S=U1 U0=>PiU0 _ PiU1 S=>PiS U1=>PiU1 EQV
+    <- set`split-implies-permission-combine
+      M0-M2=M3 M0=>PiM0 PiM2 PiM3 M2=>PiM2 M3=>PiM3 PiM0<=>PiM2+PiM3
+    <- restore-object-permission CM-B-S CM2PM CML DM-FM=FS S=>PiS S+FS=>M2 M2=>PiM2
+      PiS PiM2+Pi<=>PiS B-S-PiS
+    <- set-all-permissions-implies/L3 B=>PiB B-S-PiS PiS* B-S-PiS* IMP2
+    <- make-before-write-format/L1 B-S-PiS* CM-B-S B+S=>GF T2PF _ IMP.
+
+%%% unique+fresh to unique field
+- : make-before-write-format CM2PM
+    (clsmap-result/expr (clsmap-cxt-reftype/unique _ CM-B-S _ wf-unique-targets/unique+fresh)
+      (clsmap-cxt-env/ _ CM-B-M0))
+    (subtype/ NN-LEQ
+      (sub-annot/unique CML DM-FM=FS (S+FS=>M2:set+set2set S FS M2)
+        (M0-M2=M3:set`split M0 M2 M3) S<=U0 (U0-S=U1:set`remove U0 S U1) _)) _
+    (result2output/expr (B=>PiB:cxt2perm PM B PiB)
+      (env2input/ (U0=>PiU0:make-encumbered CM PM B U0 PiU0)
+        (M0=>PiM0:capset2perm CM PM B M0 PiM0))
+      (reftype2perm/unique+fresh
+        (T2PF:ty2perm PM _ ([x] PF x)) ([x] B+S=>GF x)
+        (M1=>PiM1:capset2perm CM PM B M1 PiM1))) _
+    (transform/inside [o]
+      (transform/trans
+        (transform/inside [r]
+          (transform/inside [p:permission]
+            (transform/trans
+              (transform/implies
+                (implies/trans11 % PiB0 , G , Q (ECUMB PiM1 , PiM0)
+                  (implies/equiv
+                    (equiv/transitive4
+                      (equiv/identity)
+                      (equiv/roll3)
+                      (equiv/associate)
+                      (equiv/combine
+                        (equiv/commute)
+                        (equiv/transitive
+                          (equiv/symmetric equiv/associate)
+                          (equiv/combine equiv/reflexive (equiv/symmetric equiv/associate))))))
+                  (implies/combine
+                    (implies/equiv (equiv/combine equiv/reflexive (EQV)))
+                    (implies/combine implies/reflexive % GF
+                      (implies/combine (implies/equiv equiv/reflexive) % PF
+                        (implies/combine
+                          (implies/reflexive)
+                          (implies/equiv PiM0<=>PiM2+PiM3)))))
+                  (implies/equiv
+                    (equiv/transitive4
+                      (equiv/symmetric equiv/associate)
+                      (equiv/roll6)
+                      (equiv/combine equiv/reflexive equiv/roll2)
+                      (equiv/associate)))
+                  (implies/equiv
+                    (equiv/transitive
+                      (equiv/combine equiv/associate equiv/reflexive)
+                      (equiv/symmetric equiv/associate)))
+                  (implies/combine PiM2+Pi<=>PiS implies/reflexive)
+                  (implies/equiv
+                    (equiv/transitive4
+                      (equiv/combine equiv/reflexive equiv/roll3)
+                      (equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/roll2)
+                      (equiv/associate)))
+                  (implies/trans8
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                    (implies/equiv equiv/associate)
+                    (implies/equiv
+                      (equiv/transitive
+                        (equiv/combine (equiv/symmetric equiv/associate) equiv/reflexive)
+                        (equiv/associate)))
+                    (implies/combine
+                      (implies/trans5
+                        (implies/equiv equiv/commute)
+                        (implies/equiv equiv/associate)
+                        (implies/combine (IMP2) implies/reflexive)
+                        (implies/equiv (equiv/symmetric equiv/associate))
+                        (implies/equiv equiv/commute))
+                      (implies/reflexive))
+                    (implies/equiv (equiv/symmetric equiv/associate))
+                    (implies/combine implies/reflexive (implies/equiv equiv/roll2))
+                    (implies/equiv equiv/associate))
+                  (implies/equiv
+                    (equiv/transitive3
+                      (equiv/combine
+                        (equiv/transitive
+                          (equiv/swap)
+                          (equiv/associate))
+                        (equiv/reflexive))
+                      (equiv/symmetric equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/associate)))
+                  (implies/combine (IMP o r) implies/reflexive)
+                  (implies/equiv
+                    (equiv/transitive5
+                      (equiv/combine equiv/commute equiv/reflexive)
+                      (equiv/symmetric equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/roll3)
+                      (equiv/associate)
+                      (equiv/combine equiv/reflexive equiv/roll2)))
+                  (implies/equiv
+                    (equiv/combine equiv/reflexive
+                      (equiv/symmetric equiv/associate)))))
+              (transform/drop))))
         (transform/rem-unused)))
     (before-write-format/expr U1=>PiU1 B=>PiB
       (M3=>PiM3:capset2perm CM PM B M3 PiM3) reftype2ty/unique T2PF)
@@ -1171,18 +1279,17 @@ before-write-format/expr :
     (transform/inside [o]
       (transform/trans
         (transform/inside [r]
-          (transform/implies
-            (implies/equiv
-              (equiv/transitive
-                (equiv/identity)
-                (equiv/roll3)))))
+          (transform/inside [p:permission]
+            (transform/implies
+              (implies/equiv
+                (equiv/transitive
+                  (equiv/identity)
+                  (equiv/roll3))))))
         (transform/rem-unused)))
     (before-write-format/expr U=>PiU B=>PiB M=>PiM reftype2ty/shared T2PF).
 
-}%
-
 %worlds (gtermvar) (make-before-write-format _ _ _ _ _ _ _ _).
-%trustme %total (T) (make-before-write-format _ _ _ _ T _ _ _).
+%total (T) (make-before-write-format _ _ _ _ T _ _ _).
 
 
 %theorem subtype-implies-ty2perm-leq
