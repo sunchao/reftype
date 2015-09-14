@@ -2112,6 +2112,20 @@ select-nn-fields/out
 %total  (FF) (select-nn-fields-implies-nonnull-set FF _).
 
 
+%theorem maynull-set-respects-eq
+  : forall* {FM1} {FM2} {S1} {S2}
+    forall {MNS1: maynull-set FM1 S1}
+		{EQ: fldmap`eq FM1 FM2}
+		{EQ: set`eq S1 S2}
+    exists {MNS2: maynull-set FM2 S2}
+    true.
+
+- : maynull-set-respects-eq MNS fldmap`eq/ set`eq/ MNS.
+
+%worlds () (maynull-set-respects-eq _ _ _ _).
+%total { } (maynull-set-respects-eq _ _ _ _).
+
+
 %theorem fldmap-shift-preserves-maynull-set
 	: forall* {FM} {FMP} {S} {T} {F}
     forall {MNS: maynull-set FMP S}
@@ -3353,12 +3367,144 @@ before-write-format2/ :
 (constyping-implies-typing/LMB _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ T2 _ _ _ _ _ _ _).
 
 
+%theorem constyping-implies-typing
+  : forall* {CM} {PM} {MM} {W} {C} {FM} {S} {B}
+    {Vin} {Vout} {E} {PiB} {S1} {PiVin}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM-B: clsmap-cxt CM B}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM2W: methmap2progtype CM PM MM W}
+    {CML: clsmap`lookup CM C FM}
+    {FM-DM: fldmap`domain FM S}
+    {FM=>S: select-nn-fields FM S1}
+    {B=>PiB: cxt2perm PM B PiB}
+    {CM-B-Vin: clsmap-cxt-env CM B Vin}
+    {Vin=>PiVin: env2input CM PM B Vin PiVin}
+    {CTYP: constyping CM MM FM B Vin S1 ([t] E t) Vout}
+    exists {RFP} {AF: {t} allocFields t S (RFP t)}
+    {PF} {T2PF: ty2perm PM (ty/ nn/yes annot/unique C) PF}
+    {PiVout} {Vout=>PiVout: env2input CM PM B Vout PiVout}
+    {TYP: {t} typing W (((obj-ne-null t) , (unitperm (basic t all null))) ,
+                         ((RFP t) , (PiVin , PiB))) (E t)
+          (output/exists ([t] (output/expr t (PiB , (PiVout , (PF t))))))}
+    true.
+
+- : constyping-implies-typing CM-CM CM-MM CM-B CM2PM MM2W
+    (CML:clsmap`lookup CM C FM)
+    (DM-FM=S:fldmap`domain FM FS)
+    (FM=>S1:select-nn-fields FM S1)
+    (B2P:cxt2perm PM B PiB)
+    (CM-B-Vin: clsmap-cxt-env CM B Vin)
+    (Vin=>PiVin: env2input CM PM B Vin PiVin)
+    (CTYP:constyping CM MM FM B Vin S1 ([t] EF t) Vout) %{==>}%
+    _ AF _ (ty2perm/ PML nn2perm/yes annot2perm/unique) _ Vout=>PiVout
+    ([t] tTrans
+      (transform/implies
+        (implies/combine implies/reflexive
+          (implies/trans
+            (implies/combine
+              (implies/trans3
+                (PP=>P t)
+                (P=>P1P2 t)
+                (implies/combine implies/reflexive (R2=>P2 t)))
+              (implies/reflexive))
+            (implies/symmetric-associate))))
+      (letTyping/base null (TYP2 t))
+      (transform/trans3
+        (transform/implies
+          (implies/equiv
+            (equiv/transitive
+              (equiv/reorder)
+              (equiv/commute))))
+        (TRANS2 t)
+        (transform/trans3
+          (transform/implies
+            (implies/trans8
+              (implies/combine implies/symmetric-associate
+                (implies/equiv (G<=>CJ t)))
+              (implies/symmetric-associate)
+              (implies/combine implies/duplicate implies/reflexive)
+              (implies/symmetric-associate)
+              (implies/combine implies/reflexive
+                (implies/trans4
+                  (implies/combine implies/reflexive
+                    (implies/trans
+                      (implies/combine implies/commute implies/reflexive)
+                      (implies/symmetric-associate)))
+                  (implies/reorder)
+                  (implies/combine implies/reflexive
+                    (implies/combine implies/reflexive implies/commute))
+                  (implies/combine implies/reflexive
+                    (implies/cond-intro-neg))))
+              (implies/associate)
+              (implies/commute)
+              (implies/combine implies/cond-neg implies/reflexive)))
+          (transform/cond/nest)
+          (transform/trans
+            (transform/implies
+              (implies/trans7
+                (implies/combine
+                  (implies/trans
+                    (implies/cond-unneg)
+                    (implies/cond-inner
+                      (bimplies/reflexive)
+                      (bimplies/reflexive)
+                      (implies/reflexive)
+                      (implies/trans
+                        (implies/combine
+                          (implies/nonlinear
+                            (bimplies/trans
+                              (bimplies/predcall/0/extract)
+                              (bimplies/trans
+                                (bimplies/predcall/+/extract
+                                  ([x]
+                                    (predicate/0
+                                      (nested
+                                        (CJ (conj2pred CJ) x) x all))) t)
+                                (bimplies/predcall/Y/extract))))
+                          (implies/reflexive))
+                        (implies/commute))))
+                  (implies/reflexive))
+                (implies/commute)
+                (implies/combine implies/commute implies/reflexive)
+                (implies/symmetric-associate)
+                (implies/combine implies/commute implies/reflexive)
+                (implies/symmetric-associate)
+                (implies/reflexive)))
+            (transform/gen-exists t)))))
+    <- allocFields-total _ ([t] AF t)
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- select-nn-fields-implies-leq DM-FM=S FM=>S1 S1<=S
+    <- set`remove-total S/S1=S2
+    <- set`remove-subset-implies-union S/S1=S2 S1<=S S1US2=S
+    <- select-nn-fields-implies-nonnull-set FM=>S1 NN-S1
+    <- constyping-implies-set-expr CTYP DM-FM=S S-E
+    <- allocfields-implies-set-rawfldperm DM-FM=S ([t] AF t) _ ([t] PP=>P t) S-P
+    <- rm-psv-sfp S-P S1<=S S/S1=S2 _ _ ([t] P=>P1P2 t) S1-P1 S2-R2
+    <- fnn-rm-imp-mns CM2PM CM-FM DM-FM=S FM=>S1 S/S1=S2 MN-S2
+    <- mns-imp-sfp CM-FM CM2PM MN-S2 S2-R2 _ ([t] R2=>P2 t) S2-P2
+    <- constyping-implies-typing/L CM-CM CM-MM CM-B CM2PM MM2W CM-FM B2P
+      CM-B-Vin Vin=>PiVin CTYP NN-S1 S/S1=S2 S1US2=S S-E S1-P1 S2-P2 _ _ Vout=>PiVout TYP S-Q
+    <- set-fldpred-implies-fldmap2conj CM2PM DM-FM=S S-Q _ F2C ([t] TRANS t)
+    <- clsmap2predmap-implies-predmap-lookup CM2PM CML CJ PML
+    <- clsmap2predmap-implies-fldmap2conj CM2PM PML CML F2C2
+    <- fldmap2conj-deterministic* F2C F2C2 clsmap`eq/ fldmap`eq/ predmap`eq/ G=CJ
+    <- ({t} typing-frame* (TYP t) envadd/expr (TYP2 t))
+    <- ({t} transform-commutes-envadd* (TRANS t) envadd/expr envadd/expr (TRANS2 t))
+    <- ({t} permission`eq-implies-equiv (G=CJ t) (G<=>CJ t)).
+
+%worlds (gtermvar) (constyping-implies-typing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (constyping-implies-typing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
 %%% Program Typing: checking method map against prog
 
 methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
 
 methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
 
+%%% nat`z is a special field.
 methmapmatch/U/const :
     methmapmatch* CM MM0 MM' G' ->
     clsmap`lookup CM C FM ->
