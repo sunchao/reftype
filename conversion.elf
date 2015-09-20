@@ -308,7 +308,9 @@ consty2proctype* : clsmap -> fldmap -> predmap -> permission ->
 
 consty2proctype/base :
     fldmap`domain FM S ->
-    ({x} allocFields x S (OS x)) ->
+    set`not-member S all ->
+    set`add S all S' ->
+    ({x} allocFields x S' (OS x)) ->
     ty2perm PM T PF ->
   consty2proctype* _ FM PM Pi1 Pi2 (methty/base T)
     ([x] proctype/base
@@ -2796,24 +2798,28 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
   : forall* {CM} {PM} {Piin} {Piout} {CT} {FM}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM2PM: clsmap2predmap CM PM}
+    {CM-FM: clsmap-fldmap CM FM}
     {CM-MT: clsmap-methty CM CT}
     exists {PTF} {MT=>PT: consty2proctype* CM FM PM Piin Piout CT PTF}
     true.
 
-- : clsmap-methty-implies-consty2proctype _ CM2PM
-    (clsmap-methty/base CM-T) _ (consty2proctype/base DM AF T2PF)
-    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
+- : clsmap-methty-implies-consty2proctype CM-CM CM2PM CM-FM
+    (clsmap-methty/base CM-T) _ (consty2proctype/base DM NM ADD AF T2PF)
     <- fldmap`domain-total DM
+    <- clsmap-fldmap-domain-implies-all-positive CM-FM DM AP
+    <- all-positive-implies-zero-not-member AP NM
+    <- set`add-total ADD
+    <- clsmap-ty-implies-ty2perm CM2PM CM-T _ T2PF
     <- allocFields-total _ AF.
 
-- : clsmap-methty-implies-consty2proctype CM-CM CM2PM
+- : clsmap-methty-implies-consty2proctype CM-CM CM2PM CM-FM
     (clsmap-methty/args CM-MT CML DM LE) _
     (consty2proctype/arg T2PF ([x] MT=>PT x))
     <- clsmap-ty-implies-argtype2perm CM-CM CM2PM CML DM LE _ _ T2PF
-    <- ({x} clsmap-methty-implies-consty2proctype CM-CM CM2PM CM-MT _ (MT=>PT x)).
+    <- ({x} clsmap-methty-implies-consty2proctype CM-CM CM2PM CM-FM CM-MT _ (MT=>PT x)).
 
-%worlds (gtermvar) (clsmap-methty-implies-consty2proctype _ _ _ _ _).
-%total (A) (clsmap-methty-implies-consty2proctype _ _ A _ _).
+%worlds (gtermvar) (clsmap-methty-implies-consty2proctype _ _ _ _ _ _).
+%total (A) (clsmap-methty-implies-consty2proctype _ _ _ A _ _).
 
 
 %theorem consty2proctype-respects-eq
@@ -3026,7 +3032,8 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 - : methmap2progtype-total CM-CM CM2PM
     (clsmap-methmap/U/const CM-MM' CM-CT CML DM LE F U) _
     (methmap2progtype/U/c MM'=>W' CML CT=>PT F U WU)
-    <- clsmap-methty-implies-consty2proctype CM-CM CM2PM CM-CT _ CT=>PT
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- clsmap-methty-implies-consty2proctype CM-CM CM2PM CM-FM CM-CT _ CT=>PT
     <- methmap2progtype-total CM-CM CM2PM CM-MM' _ MM'=>W'
     <- progtype`update-total WU.
 

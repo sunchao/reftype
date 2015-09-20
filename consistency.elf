@@ -27,6 +27,8 @@ clsmap-methty/args :
 %%% Consistency between a class map and a field map.
 %%% Check if a fldmap is consistent with a clsmap.
 
+%%% All keys in the field map are positive.
+
 clsmap-fldmap : clsmap -> fldmap -> type.
 
 clsmap-fldmap/0 : clsmap-fldmap _ fldmap/0.
@@ -35,7 +37,18 @@ clsmap-fldmap/+ :
     clsmap-fldmap CM FM ->
     clsmap-ty CM (ty/ NN A C) ->
     not-borrow A ->
-  clsmap-fldmap CM (fldmap/+ _ (ty/ NN A C) FM).
+  clsmap-fldmap CM (fldmap/+ (s _) (ty/ NN A C) FM).
+
+
+all-positive : set -> type.
+
+all-positive/0 : all-positive set/0.
+
+all-positive/U :
+    all-positive S' ->
+    set`not-member S' (s N) ->
+    set`add S' (s N) S ->
+  all-positive S.
 
 
 %%% Well-formedness of a class map
@@ -51,6 +64,7 @@ clsmap-clsmap/+ :
     clsmap-fldmap CM0 FM ->
     clsmap`lookup CM0 C FM ->
   clsmap-clsmap CM0 (clsmap`map/+ C FM CM).
+
 
 %%% Consistency between a class map and a method map.
 %%% Check if a clsmap is consistent with a methmap
@@ -3026,7 +3040,7 @@ clsmap-result/args/+ :
       (clsmap-cxt-env/ clsmap-cxt-objset/0 clsmap-cxt-capset/0) CM-AR CM-MT RTYP-C CM-R.
 
 - : reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V
-    (reftyping/const CML FM-DM MML RTYP-A RTYP-C) CM-R
+    (reftyping/const CML FM-DM NM AD MML RTYP-A RTYP-C) CM-R
     <- lookup-implies-clsmap-methty CM-MM MML (clsmap-methty/args CM-MT _ _ _)
     <- reftyping-implies-clsmap-result/args CM-CM CM-MM CM-B CM-V CM-MT RTYP-A CM-AR
     <- reftyping-implies-clsmap-result/call CM-CM CM-MM CM-B
@@ -3071,3 +3085,24 @@ clsmap-result/args/+ :
   (reftyping-implies-clsmap-result/write _ _ _ _ A2 _)
   (reftyping-implies-clsmap-result/args _ _ _ _ _ A3 _)
   (reftyping-implies-clsmap-result/call _ _ _ _ _ _ A4 _).
+
+
+%theorem clsmap-fldmap-domain-implies-all-positive
+  : forall* {CM} {FM} {FS}
+    forall {CM-FM: clsmap-fldmap CM FM}
+    {FM-DM: fldmap`domain FM FS}
+    exists {AP: all-positive FS}
+    true.
+
+%worlds (gtermvar) (clsmap-fldmap-domain-implies-all-positive _ _ _).
+%trustme %total { } (clsmap-fldmap-domain-implies-all-positive _ _ _).
+
+
+%theorem all-positive-implies-zero-not-member
+  : forall* {S}
+    forall {AP: all-positive S}
+    exists {NM: set`not-member S nat`z}
+    true.
+
+%worlds (gtermvar) (all-positive-implies-zero-not-member _ _).
+%trustme %total { } (all-positive-implies-zero-not-member _ _).

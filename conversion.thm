@@ -639,7 +639,7 @@
       CRTYP _ _ _ TRANS1 CTYP TRANS2 R=>O.
 
 - : reftyping-ok CM-CM CM-MM CM2PM MM2W CM-B CM-V
-    (reftyping/const CML DM MML ARTYP CRTYP) _ _ _ B=>PiB V=>PiV R=>O
+    (reftyping/const CML DM NM AD MML ARTYP CRTYP) _ _ _ B=>PiB V=>PiV R=>O
     (tTrans2
       (tCall WL
         (tTrans2
@@ -668,7 +668,7 @@
       _ _ _ B=>PiB V=>PiV ATYP AR=>AO
     <- allocFields-total _ AF
     <- reftyping-ok/const CM-CM CM-MM CM-B CM2PM MM2W CM-V
-      ARTYP AR=>AO CT=>PT CRTYP DM AF _ _ _ _ EA TRANS1 CTYP TRANS2 R=>O
+      ARTYP AR=>AO CT=>PT CRTYP NM AD DM AF _ _ _ _ EA TRANS1 CTYP TRANS2 R=>O
     <- ({t} typing-frame* ATYP (EA t) (ATYP2 t)).
 
 - : reftyping-ok CM-CM CM-MM CM2PM MM2W CM-B CM-V0
@@ -2630,20 +2630,22 @@ constyping/mn :
   constyping CM MM FM B V0 S ([t] seq (write (lit t) F E) (EF t)) V3.
 
 
-constymatch* : env -> env -> clsmap -> methmap -> fldmap -> cxt -> set ->
+constymatch* : env -> env -> clsmap -> methmap -> fldmap -> cxt ->
     (object -> func) -> methty -> type.
 
 constymatch/base :
     ty2new-reftype (ty/ nn/yes annot/unique C) RT ->
-    constyping CM MM FM B Vin FS ([t] E t) Vout ->
-  constymatch* Vin Vout CM MM FM B FS ([t] func/0 (E t))
+    clsmap`lookup CM C FM ->
+    select-nn-fields FM S ->
+    constyping CM MM FM B Vin S ([t] E t) Vout ->
+  constymatch* Vin Vout CM MM FM B ([t] func/0 (E t))
     (methty/base (ty/ nn/yes annot/unique C)).
 
 constymatch/args/shared :
     cxt`fresh B0 (s N) ->
     ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-    ({x} constymatch* Vin Vout CM MM FM (B1 x) FS ([t] F t x) CT) ->
-  constymatch* Vin Vout CM MM FM B0 FS ([t] (func/+ ([o] F t o)))
+    ({x} constymatch* Vin Vout CM MM FM (B1 x) ([t] F t x) CT) ->
+  constymatch* Vin Vout CM MM FM B0 ([t] (func/+ ([o] F t o)))
     (methty/arg (ty/ NN annot/shared C) set/0 CT).
 
 constymatch/args/borrow :
@@ -2652,8 +2654,8 @@ constymatch/args/borrow :
     nat+set2set (s N) FS Mf ->
     set`union Min Mf Min' ->
     set`union Mout Mf Mout' ->
-    ({x} constymatch* (env/ Uin Min') (env/ Uout Mout') CM MM FM (B1 x) S ([t] F t x) CT) ->
-  constymatch* (env/ Uin Min) (env/ Uout Mout) CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    ({x} constymatch* (env/ Uin Min') (env/ Uout Mout') CM MM FM (B1 x) ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) (env/ Uout Mout) CM MM FM B0 ([t] (func/+ ([o] F t o)))
     (methty/arg (ty/ NN annot/borrow C) FS CT).
 
 constymatch/args/unique :
@@ -2664,12 +2666,12 @@ constymatch/args/unique :
     nat+set2set (s N) FFS Mf ->
     set`add Uin (s N) Uin' ->
     set`union Min Mf Min' ->
-    ({x} constymatch* (env/ Uin' Min') Vout CM MM FM (B1 x) S ([t] F t x) CT) ->
-  constymatch* (env/ Uin Min) Vout CM MM FM B0 S ([t] (func/+ ([o] F t o)))
+    ({x} constymatch* (env/ Uin' Min') Vout CM MM FM (B1 x) ([t] F t x) CT) ->
+  constymatch* (env/ Uin Min) Vout CM MM FM B0 ([t] (func/+ ([o] F t o)))
     (methty/arg (ty/ NN annot/unique C) set/0 CT).
 
 %abbrev constymatch
-  = [CM][MM][FM][S][F][CT] constymatch* empty-env empty-env CM MM FM cxt/0 S F CT.
+  = [CM][MM][FM][F][CT] constymatch* empty-env empty-env CM MM FM cxt/0 F CT.
 
 
 %%% Theorems about constyping
@@ -3508,8 +3510,7 @@ methmapmatch/0 : methmapmatch* _ _ methmap/0 prog`map/0.
 methmapmatch/U/const :
     methmapmatch* CM MM0 MM' G' ->
     clsmap`lookup CM C FM ->
-    select-nn-fields FM S ->
-    constymatch CM MM0 FM S FF CT ->
+    constymatch CM MM0 FM FF CT ->
     methmap`fresh MM' C ->
     methmap`update MM' C (methty/arg (ty/ nn/yes _ C) _ CT) MM ->
     prog`update G' C (func/+ ([t] FF t)) G ->
