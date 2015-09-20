@@ -3779,6 +3779,38 @@ before-write-format2/ :
 %total (M) (constymatch-implies-proctypematch* _ _ _ _ _ _ _ _ _ _ _ _ _ M _ _).
 
 
+%theorem constymatch-implies-proctypematch
+  : forall* {CM} {MM} {PM} {W} {MT} {F} {PTF} {FM}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM2PM: clsmap2predmap CM PM}
+    {MM2W: methmap2progtype CM PM MM W}
+    {CM-MT: clsmap-methty CM MT}
+    {MC: constymatch CM MM FM F MT}
+    {MT=>PT: consty2proctype CM FM PM MT PTF}
+    exists {PC: {t} proctypematch W (F t) (PTF t)}
+    true.
+
+- : constymatch-implies-proctypematch CM-CM CM-MM CM2PM MM2W CM-MT F-MT MT=>PT F-PT
+    <- constymatch-implies-proctypematch* CM-CM CM-MM CM2PM MM2W
+      clsmap-cxt/0
+      (clsmap-cxt-env/ clsmap-cxt-objset/0 clsmap-cxt-capset/0)
+      (clsmap-cxt-env/ clsmap-cxt-objset/0 clsmap-cxt-capset/0)
+      (cxt2perm/0)
+      (env2input/ make-encumbered/0 capset2perm/0)
+      (env2input/ make-encumbered/0 capset2perm/0)
+      (implies/trans
+        (implies/symmetric-identity)
+        (implies/combine implies/reflexive (implies/symmetric-identity)))
+      (implies/trans
+        (implies/combine implies/reflexive implies/identity)
+        (implies/identity))
+      CM-MT F-MT MT=>PT F-PT.
+
+%worlds (gtermvar) (constymatch-implies-proctypematch _ _ _ _ _ _ _ _).
+%total { } (constymatch-implies-proctypematch _ _ _ _ _ _ _ _).
+
+
 %%% Program Typing: checking method map against prog
 
 methmapmatch* : clsmap -> methmap -> methmap -> prog -> type.
@@ -3833,7 +3865,7 @@ methmapmatch/U/meth :
 %trustme %total { } (fresh-update-preserves-progtypematch _ _ _ _ _ _).
 
 
-%theorem methmapmatch-implies-progtypematch
+%theorem methmapmatch-implies-progtypematch/L
   : forall* {CM} {MM} {G} {PM} {MM0} {W0} {W}
     forall {CM-CM: clsmap-clsmap CM CM}
     {CM=>PM: clsmap2predmap CM PM}
@@ -3845,10 +3877,10 @@ methmapmatch/U/meth :
     exists {W-G: progtypematch* W0 W G}
     true.
 
-- : methmapmatch-implies-progtypematch CM-CM CM2PM CM-MM0 MM0=>W0
+- : methmapmatch-implies-progtypematch/L CM-CM CM2PM CM-MM0 MM0=>W0
     _ methmapmatch/0 methmap2progtype/0 progtypematch/0.
 
-- : methmapmatch-implies-progtypematch CM-CM
+- : methmapmatch-implies-progtypematch/L CM-CM
     (CM2PM:clsmap2predmap CM PM)
     (CM-MM0:clsmap-methmap CM MM0)
     (MM0=>W0: methmap2progtype CM PM MM0 W0)
@@ -3864,10 +3896,71 @@ methmapmatch/U/meth :
     <- methmap2progtype/U/m-inversion MM=>W CMF N!<MM' MM'+N=MM W' PT MM'=>W' MT=>PT W'+PT=W
     <- clsmap-methmap/U/meth-inversion CM-MM CMF N!<MM' MM'+N=MM CM-MT CM-MM'
     <- methtymatch-implies-proctypematch CM-CM CM-MM0 CM2PM MM0=>W0 CM-MT FUN-MT MT=>PT FUN-PT
-    <- methmapmatch-implies-progtypematch CM-CM CM2PM CM-MM0 MM0=>W0 CM-MM'
+    <- methmapmatch-implies-progtypematch/L CM-CM CM2PM CM-MM0 MM0=>W0 CM-MM'
       MM'-G' MM'=>W' W'-G'
     <- methmap2progtype-preserves-fresh MM'=>W' N!<MM' N!<W'
     <- fresh-update-preserves-progtypematch W'-G' FUN-PT N!<W' W'+PT=W G'+N=G W-G.
 
-%worlds (gtermvar) (methmapmatch-implies-progtypematch _ _ _ _ _ _ _ _).
-%total (M) (methmapmatch-implies-progtypematch _ _ _ _ _ M _ _).
+- : methmapmatch-implies-progtypematch/L CM-CM
+    (CM2PM:clsmap2predmap CM PM)
+    (CM-MM0:clsmap-methmap CM MM0)
+    (MM0=>W0: methmap2progtype CM PM MM0 W0)
+    (CM-MM:clsmap-methmap CM _)
+    (methmapmatch/U/const
+      (MM'-G':methmapmatch* CM MM0 MM' G')
+      (CML:clsmap`lookup CM N FM)
+      (FUN-MT: constymatch CM MM0 FM FUN MT)
+      (N!<MM': methmap`fresh MM' N)
+      (MM'+N=MM: methmap`update MM' N (methty/arg (ty/ nn/yes _ N) _ MT) MM)
+      (G'+N=G: prog`update G' N (func/+ ([t] FUN t)) G))
+    (MM=>W:methmap2progtype CM PM _ W) W-G
+    <- methmap2progtype/U/c-inversion MM=>W CML N!<MM' MM'+N=MM W' PT MM'=>W' MT=>PT W'+PT=W
+    <- clsmap-methmap/U/const-inversion CM-MM CML N!<MM' MM'+N=MM FS A MT0 S
+      EQ CM-MT0 DM LE CM-MM'
+    <- methty/arg-eq-inversion EQ T-EQ _ MT0=MT
+    <- clsmap-methty-respects-eq CM-MT0 clsmap`eq/ MT0=MT CM-MT
+    <- constymatch-implies-proctypematch CM-CM CM-MM0 CM2PM MM0=>W0 CM-MT FUN-MT MT=>PT FUN-PT
+    <- methmapmatch-implies-progtypematch/L CM-CM CM2PM CM-MM0 MM0=>W0 CM-MM'
+      MM'-G' MM'=>W' W'-G'
+    <- methmap2progtype-preserves-fresh MM'=>W' N!<MM' N!<W'
+    <- fresh-update-preserves-progtypematch W'-G'
+      (proctypematch/arg ([t] FUN-PT t)) N!<W' W'+PT=W G'+N=G W-G.
+
+%worlds (gtermvar) (methmapmatch-implies-progtypematch/L _ _ _ _ _ _ _ _).
+%total (M) (methmapmatch-implies-progtypematch/L _ _ _ _ _ M _ _).
+
+
+%theorem methmapmatch-implies-progtypematch
+  : forall* {CM} {MM} {G} {PM} {W}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM2PM: clsmap2predmap CM PM}
+		{CM-MM: clsmap-methmap CM MM}
+    {MM-G: methmapmatch CM MM G}
+    {MM2W: methmap2progtype CM PM MM W}
+    exists {W-G: progtypematch W G}
+    true.
+
+- : methmapmatch-implies-progtypematch CM-CM CM2PM CM-MM MM-G MM2W W-G
+    <- methmapmatch-implies-progtypematch/L CM-CM CM2PM CM-MM MM2W CM-MM MM-G MM2W W-G.
+
+%worlds (gtermvar) (methmapmatch-implies-progtypematch _ _ _ _ _ _).
+%total { } (methmapmatch-implies-progtypematch _ _ _ _ _ _).
+
+
+%theorem env2progtype-total
+  : forall* {CM} {MM} {G}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {MM-G: methmapmatch CM MM G}
+    exists {W} {PM} {CM2PM: clsmap2predmap CM PM}
+    {MM2W: methmap2progtype CM PM MM W}
+    {W-G: progtypematch W G}
+    true.
+
+- : env2progtype-total CM-CM CM-MM MM-G _ _ CM2PM MM2W W-G
+    <- clsmap2predmap-total CM-CM _ CM2PM
+    <- methmap2progtype-total CM-CM CM2PM CM-MM _ MM2W
+    <- methmapmatch-implies-progtypematch CM-CM CM2PM CM-MM MM-G MM2W W-G.
+
+%worlds () (env2progtype-total _ _ _ _ _ _ _ _).
+%total { } (env2progtype-total _ _ _ _ _ _ _ _).
