@@ -268,17 +268,31 @@ update-cxt/shared :
 
 %%% Make sure the let variable is not in the result target (no leaking).
 
+get-objset : set -> set -> type.
+
+get-objset/0 : get-objset set/0 set/0.
+
+get-objset/z :
+    get-objset M' S ->
+    set`not-member M' shared-tgt ->
+    set`add M' shared-tgt M ->
+  get-objset M S.
+
+get-objset/U :
+    get-objset M' S' ->
+    nat2pair (s K) (pair/ N _) ->
+    set`not-member M' (s K) ->
+    set`add M' (s K) M ->
+    set`add S' N S ->
+  get-objset M S.
+
 not-in-capset : nat -> set -> type.
 
-not-in-capset/0 : not-in-capset _ set/0.
+not-in-capset/ :
+    get-objset M S ->
+    set`not-member S N ->
+  not-in-capset N M.
 
-not-in-capset/U :
-    not-in-capset N CS' ->
-    nat2pair K (pair/ N' F) ->
-    nat`ne N N' ->
-    set`not-member CS' K ->
-    set`add CS' K CS ->
-  not-in-capset N CS.
 
 not-in-targets : nat -> targets -> type.
 
@@ -509,3 +523,192 @@ reftyping/and :
     reftyping CM MM B V0 C1 (result/cond V1) ->
     reftyping CM MM B V1 C2 (result/cond V1) ->
   reftyping CM MM B V0 (and C1 C2) (result/cond V1).
+
+
+
+%%% Theorems
+
+%theorem get-objset-respects-eq
+  : forall* {M0} {S0} {M1} {S1}
+    forall {M0=>S0: get-objset M0 S0}
+    {M0=M1: set`eq M0 M1}
+    {S0=S1: set`eq S0 S1}
+    exists {M1=>S1: get-objset M1 S1}
+    true.
+
+- : get-objset-respects-eq M=>S set`eq/ set`eq/ M=>S.
+
+%worlds () (get-objset-respects-eq _ _ _ _).
+%total { } (get-objset-respects-eq _ _ _ _).
+
+
+%theorem get-objset/z-inversion
+  : forall* {S} {M} {M'}
+    forall {CM-B-S: get-objset M S}
+    {NM: set`not-member M' shared}
+    {AD: set`add M' shared M}
+    exists {CM-B-S': get-objset M' S}
+    true.
+
+- : get-objset/z-inversion
+    (get-objset/z M0=>S Z!<M0 M0+Z=M)
+    Z!<M' M'+Z=M M'=>S
+    <- set`not-member-add-cancels Z!<M0 M0+Z=M Z!<M' M'+Z=M nat`eq/ set`eq/ M0=M'
+    <- get-objset-respects-eq M0=>S M0=M' set`eq/ M'=>S.
+
+- : get-objset/z-inversion
+    (get-objset/U M0=>S' N+F=K
+      (K!<M0:set`not-member M0 (s K))
+      (M0+K=M:set`add M0 (s K) M)
+      (S'+K=S:set`add S' _ S))
+    (Z!<M':set`not-member M' shared) (M'+Z=M:set`add M' shared M)
+    (get-objset/U M1=>S' N+F=K K!<M1 M1+K=M' S'+K=S)
+    <- nat`succ-implies-gt-zero _ K>Z
+    <- set`add-commutes-converse M'+Z=M M0+K=M (nat`ne/< K>Z) M1 M1+K=M' M1+Z=M0
+    <- set`add-preserves-not-member-converse Z!<M' M1+K=M' Z!<M1
+    <- get-objset/z-inversion M0=>S' Z!<M1 M1+Z=M0 M1=>S'
+    <- set`add-preserves-not-member-converse K!<M0 M1+Z=M0 K!<M1.
+
+%worlds (gtermvar) (get-objset/z-inversion _ _ _ _).
+%total (A) (get-objset/z-inversion A _ _ _).
+
+
+%theorem get-objset-preserves-member
+  : forall* {M} {S} {K} {N} {F}
+    forall {M=>S: get-objset M S}
+    {K<-M: set`member M (s K)}
+    {N+F=>K: nat2pair (s K) (pair/ N F)}
+    exists {N<-S: set`member S N}
+    true.
+
+%theorem get-objset-preserves-member/L
+  : forall* {M} {S} {K} {N} {F} {M'} {S'} {N'} {F'} {K'} {B}
+    forall {M'=>S': get-objset M' S'}
+    {N'+F'=>K': nat2pair (s K') (pair/ N' F')}
+    {K'!<M': set`not-member M' (s K')}
+    {M'+K'=M: set`add M' (s K') M}
+    {S'+N'=S: set`add S' N' S}
+    {K<-M: set`member M (s K)}
+    {N+F=>K: nat2pair (s K) (pair/ N F)}
+    {K=K'?: nat`eq? (s K) (s K') B}
+    exists {N<-S: set`member S N}
+    true.
+
+- : get-objset-preserves-member/L
+    _ K'=>N'+F' _ _ S'+N'=S _ K=>N+F (nat`eq?/yes) N<-S
+    <- nat2pair-unique K=>N+F K'=>N'+F' nat`eq/ PE
+    <- pair-eq-implies-eq PE (N=N':nat`eq N N') F=F'
+    <- nat`eq-symmetric N=N' N'=N
+    <- set`add-implies-member S'+N'=S N'<-S
+    <- set`member-respects-eq N'<-S set`eq/ N'=N N<-S.
+
+- : get-objset-preserves-member/L
+    M'=>S' _ K'!<M' M'+K'=M S'+N'=S K<-M K=>N+F (nat`eq?/no (K<>K':nat`ne (s K) (s K'))) N<-S
+    <- set`add-preserves-member-converse K<-M M'+K'=M K<>K' K<-M'
+    <- get-objset-preserves-member M'=>S' K<-M' K=>N+F N<-S'
+    <- set`add-preserves-member N<-S' S'+N'=S N<-S.
+
+- : get-objset-preserves-member
+    (get-objset/U M'=>S' N'+F'=K' K'!<M' M'+K'=M S'+N'=S) K<-M N+F=K N<-S
+    <- nat`eq?-total EQ?
+    <- get-objset-preserves-member/L M'=>S' N'+F'=K' K'!<M' M'+K'=M S'+N'=S K<-M N+F=K EQ? N<-S.
+
+- : get-objset-preserves-member
+    (get-objset/z M'=>S Z!<M' M'+Z=M) K<-M N+F=K N<-S
+    <- nat`succ-implies-gt-zero _ GT
+    <- set`add-preserves-member-converse K<-M M'+Z=M (nat`ne/> GT) K<-M'
+    <- get-objset-preserves-member M'=>S K<-M' N+F=K N<-S.
+
+%worlds () (get-objset-preserves-member _ _ _ _)
+  (get-objset-preserves-member/L _ _ _ _ _ _ _ _ _).
+%total (A A0) (get-objset-preserves-member A _ _ _)
+  (get-objset-preserves-member/L A0 _ _ _ _ _ _ _ _).
+
+
+%theorem get-objset-preserves-member-converse
+  : forall* {M} {S} {N}
+    forall {M=>S: get-objset M S}
+    {N<-S: set`member S N}
+    exists {F} {K} {N+F=K: pair2nat (pair/ N F) (s K)}
+    {SK<-M: set`member M (s K)}
+    true.
+
+%theorem get-objset-preserves-member-converse/L
+  : forall* {M} {S} {N} {M'} {S'} {N'} {F'} {K'} {B}
+    forall {M'=>S': get-objset M' S'}
+    {N'+F'=SK': pair2nat (pair/ N' F') (s K')}
+    {SK!<M': set`not-member M' (s K')}
+    {M'+SK=M: set`add M' (s K') M}
+    {S'+N'=S: set`add S' N' S}
+    {N<-S: set`member S N}
+    {EQ?: nat`eq? N N' B}
+    exists {F} {K} {N+F=K: pair2nat (pair/ N F) (s K)}
+    {SK<-M: set`member M (s K)}
+    true.
+
+- : get-objset-preserves-member-converse/L
+    M'=>S' N'+F'=SK' SK'!<M' M'+SK'=M S'+N'=S N<-S nat`eq?/yes
+    _ _ N'+F'=SK' SK'<-M
+    <- set`add-implies-member M'+SK'=M SK'<-M.
+
+- : get-objset-preserves-member-converse/L M'=>S'
+    (N'+F'=SK':nat2pair (s K') (pair/ N' F'))
+    SK'!<M' M'+SK'=M S'+N'=S N<-S (nat`eq?/no (N<>N':nat`ne N N'))
+    F K N+F=SK SK<-M
+    <- set`add-implies-member M'+SK'=M SK'<-M
+    <- set`add-preserves-member-converse N<-S S'+N'=S N<>N' N<-S'
+    <- get-objset-preserves-member-converse M'=>S' N<-S' F K N+F=SK SK<-M'
+    <- set`add-preserves-member SK<-M' M'+SK'=M SK<-M.
+
+- : get-objset-preserves-member-converse (get-objset/z M'=>S Z!<M' M'+Z=M)
+    N<-S _ _ N+F=K SK<-M
+    <- get-objset-preserves-member-converse M'=>S N<-S _ _ N+F=K SK<-M'
+    <- set`add-preserves-member SK<-M' M'+Z=M SK<-M.
+
+- : get-objset-preserves-member-converse
+    (get-objset/U M'=>S' N'+F'=SK' SK'!<M' M'+SK'=M S'+N'=S) N<-S _ _ N+F=K K<-M
+    <- nat`eq?-total EQ?
+    <- get-objset-preserves-member-converse/L
+      M'=>S' N'+F'=SK' SK'!<M' M'+SK'=M S'+N'=S N<-S EQ? _ _ N+F=K K<-M.
+
+%worlds () (get-objset-preserves-member-converse _ _ _ _ _ _)
+  (get-objset-preserves-member-converse/L _ _ _ _ _ _ _ _ _ _ _).
+%total (A A0) (get-objset-preserves-member-converse A _ _ _ _ _)
+  (get-objset-preserves-member-converse/L A0 _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem get-objset-implies-not-member
+  : forall* {M} {S} {N} {K} {N'} {F}
+    forall {M=>S: get-objset M S}
+    {N!<S: set`not-member S N}
+    {K<-M: set`member M (s K)}
+    {N'+F=K: nat2pair (s K) (pair/ N' F)}
+    exists {N<>N': nat`ne N N'}
+    true.
+
+%theorem get-objset-implies-not-member/L
+  : forall* {M} {S} {N} {K} {N'} {F} {B}
+    forall {M=>S: get-objset M S}
+    {N!<S: set`not-member S N}
+    {K<-M: set`member M (s K)}
+    {N'+F=K: nat2pair (s K) (pair/ N' F)}
+    {N=N'?: nat`eq? N N' B}
+    exists {N<>N': nat`ne N N'}
+    true.
+
+- : get-objset-implies-not-member/L _ _ _ _ (nat`eq?/no NE) NE.
+
+- : get-objset-implies-not-member/L M=>S N!<S K<-M N+F=K (nat`eq?/yes) NE
+    <- get-objset-preserves-member M=>S K<-M N+F=K N<-S
+    <- set`member-not-member-contradiction N<-S N!<S V
+    <- nat`false-implies-ne V NE.
+
+- : get-objset-implies-not-member M=>S N!<S K<-M N+F=K NE
+    <- nat`eq?-total EQ?
+    <- get-objset-implies-not-member/L M=>S N!<S K<-M N+F=K EQ? NE.
+
+%worlds () (get-objset-implies-not-member/L _ _ _ _ _ _).
+%total { } (get-objset-implies-not-member/L _ _ _ _ _ _).
+
+%worlds () (get-objset-implies-not-member _ _ _ _ _).
+%total { } (get-objset-implies-not-member _ _ _ _ _).
