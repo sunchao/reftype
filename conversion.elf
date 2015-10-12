@@ -2939,6 +2939,79 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 %total (F) (fldset2perm-no-var F _ _ _).
 
 
+%theorem ty2perm2-no-var
+  : forall* {PM} {T} {PFF: object -> object -> permission}
+    forall {T2PFF: {x} ty2perm2 PM T ([x1] PFF x x1)}
+    exists {PF} {EQ: {x}{x1} permission`eq (PFF x x1) (PF x1)}
+    {T2PF: ty2perm2 PM T ([x] PF x)}
+    true.
+
+- : ty2perm2-no-var ([x] ty2perm2/unique (T2PFF x))
+    _ EQ (ty2perm2/unique T2PF)
+    <- ty2perm-no-var T2PFF _ EQ T2PF.
+
+- : ty2perm2-no-var ([x] ty2perm2/borrow (T2PFF x))
+    _ EQ (ty2perm2/borrow T2PF)
+    <- ty2perm-no-var T2PFF _ EQ T2PF.
+
+- : ty2perm2-no-var ([x] ty2perm2/shared (T2PFF x))
+    _ EQ (ty2perm2/shared T2PF)
+    <- ty2perm-no-var T2PFF _ EQ T2PF.
+
+%worlds (gtermvar) (ty2perm2-no-var _ _ _ _).
+%total { } (ty2perm2-no-var _ _ _ _).
+
+
+%theorem cxt`update-no-var
+  : forall* {B0F:object -> cxt} {B1} {N} {OF} {T}
+    forall {FSF: {x} cxt`fresh (B0F x) N}
+    {UDF: {x} cxt`update (B0F x) N (cxt-info/ (OF x) T) B1}
+    exists {B0} {O} {EQ: {x} cxt`eq (B0F x) B0}
+    {EQ: {x} object`eq (OF x) O}
+    {FS: cxt`fresh B0 N}
+    {UD: cxt`update B0 N (cxt-info/ O T) B1}
+    true.
+
+%theorem cxt`update-no-var/F
+  : forall* {B0F: object -> cxt}
+    {N} {OF: object -> object} {T} {B1}
+    forall {V:void}
+    exists {B0} {O} {EQ: {x} cxt`eq (B0F x) B0}
+    {EQ: {x} object`eq (OF x) O}
+    {FS: cxt`fresh B0 N}
+    {UD: cxt`update B0 N (cxt-info/ O T) B1}
+    true.
+
+%worlds (gtermvar) (cxt`update-no-var/F _ _ _ _ _ _ _).
+%total { } (cxt`update-no-var/F _ _ _ _ _ _ _).
+
+- : cxt`update-no-var ([_] cxt`fresh/0) ([_] cxt`update/0)
+    _ _ ([_] cxt`eq/) ([_] object`eq/) cxt`fresh/0 cxt`update/0.
+
+- : cxt`update-no-var FSF ([_] cxt`update/= nat`eq/) _ _ EQ OEQ FS UD
+    <- ({x} cxt`fresh-lookup-not-equal (FSF x) (cxt`lookup/= nat`eq/) NE)
+    <- nat`ne-anti-reflexive NE V
+    <- cxt`update-no-var/F V _ _ EQ OEQ FS UD.
+
+- : cxt`update-no-var ([_] cxt`fresh/< GT) ([_] cxt`update/< P)
+    _ _ ([_] cxt`eq/) ([_] object`eq/) (cxt`fresh/< GT) (cxt`update/< P).
+
+- : cxt`update-no-var ([_] cxt`fresh/> _ P1) ([_] cxt`update/< P) _ _ EQ OEQ FS UD
+    <- nat`plus-implies-gt P1 nat`eq/ GT1
+    <- nat`plus-implies-gt P nat`eq/ GT
+    <- nat`gt-anti-symmetric GT1 GT V
+    <- cxt`update-no-var/F V _ _ EQ OEQ FS UD.
+
+- : cxt`update-no-var FSF ([x] cxt`update/> (UF x) P) _ _ EQ OEQ
+    (cxt`fresh/> FSP P) (cxt`update/> U P)
+    <- ({x} cxt`fresh/>-inversion (FSF x) P (FSFP x))
+    <- cxt`update-no-var FSFP UF _ _ EQP OEQ FSP U
+    <- ({x} cxt`map/+-preserves-eq nat`eq/ cxt-info`eq/ (EQP x) (EQ x)).
+
+%worlds (gtermvar) (cxt`update-no-var _ _ _ _ _ _ _ _).
+%total (U) (cxt`update-no-var _ U _ _ _ _ _ _).
+
+
 %theorem cxt2perm-no-var
   : forall* {PM} {B} {PiBF: object -> permission}
     forall {B=>PiBF: {x} cxt2perm PM B (PiBF x)}
@@ -2948,6 +3021,60 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 
 %worlds (gtermvar) (cxt2perm-no-var _ _ _ _).
 %trustme %total { } (cxt2perm-no-var _ _ _ _).
+
+
+%theorem cxt2perm-no-var
+  : forall* {PM} {B} {PiBF: object -> permission}
+    forall {B=>PiBF: {o} cxt2perm PM B (PiBF o)}
+    exists {PiB} {EQ: {o} permission`eq (PiBF o) PiB}
+    {B=>PiB: cxt2perm PM B PiB}
+    true.
+
+%theorem cxt2perm-no-var/L
+  : forall* {PM} {B} {PiBF: object -> permission}
+    forall {N} {SZ: cxt`size B N}
+    {B=>PiBF: {o} cxt2perm PM B (PiBF o)}
+    exists {PiB} {EQ: {o} permission`eq (PiBF o) PiB}
+    {B=>PiB: cxt2perm PM B PiB}
+    true.
+
+%theorem cxt2perm-no-var/LL
+  : forall* {PiBF: object -> permission} {PiB}
+    {PFF: object -> object -> permission} {PF} {OF} {O}
+    forall {EQ1: {x} permission`eq (PiBF x) PiB}
+    {EQ2: {x}{x1} permission`eq (PFF x x1) (PF x1)}
+    {EQ3: {x} object`eq (OF x) O}
+    exists {EQ: {x} permission`eq ((PFF x (OF x)) , (PiBF x)) ((PF O) , PiB)}
+    true.
+
+- : cxt2perm-no-var/LL ([_] permission`eq/) ([_][_] permission`eq/)
+    ([_] object`eq/) ([_] permission`eq/).
+
+- : cxt2perm-no-var/L z _ ([_] cxt2perm/0) _ ([_] permission`eq/) cxt2perm/0.
+
+- : cxt2perm-no-var/L (s N) SZ
+    ([o] cxt2perm/U (B2PFP o) (FSF o) (UDF o) (T2PFF o)) _ EQ
+    (cxt2perm/U B2P FS UD T2PF)
+    <- cxt`update-no-var FSF UDF _ _ B-EQ EQ3 FS UD
+    <- ({o} cxt2perm-respects-eq (B2PFP o) predmap`eq/ (B-EQ o)
+         permission`eq/ (B2PF o))
+    <- cxt`fresh-update-increases-size-converse SZ FS UD SZP
+    <- cxt2perm-no-var/L _ SZP B2PF _ EQ1 B2P
+    <- ty2perm2-no-var T2PFF _ EQ2 T2PF
+    <- cxt2perm-no-var/LL EQ1 EQ2 EQ3 EQ.
+
+- : cxt2perm-no-var B2PF _ EQ B2P
+    <- cxt`size-total SZ
+    <- cxt2perm-no-var/L _ SZ B2PF _ EQ B2P.
+
+%worlds (gtermvar) (cxt2perm-no-var/LL _ _ _ _).
+%total { } (cxt2perm-no-var/LL _ _ _ _).
+
+%worlds (gtermvar) (cxt2perm-no-var/L _ _ _ _ _ _).
+%total (N) (cxt2perm-no-var/L N _ _ _ _ _).
+
+%worlds (gtermvar) (cxt2perm-no-var _ _ _ _).
+%total { } (cxt2perm-no-var _ _ _ _).
 
 
 %%% cxt`fresh-update-preserves-XX
