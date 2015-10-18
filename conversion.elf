@@ -2897,6 +2897,22 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 
 %%% XX-no-var
 
+%theorem create-fldperm-no-var
+  : forall* {CM} {PM} {C} {F} {PFF: object -> object -> permission}
+    forall {CFF: {x} create-fldperm CM PM C F ([o] PFF x o)}
+    exists {PF} {CF: create-fldperm CM PM C F ([o] PF o)}
+    {EQ: {x}{o} permission`eq (PFF x o) (PF o)}
+    true.
+
+- : create-fldperm-no-var
+    ([x] create-fldperm/ CML FML (T2PFF x))
+    _ (create-fldperm/ CML FML T2PF) EQ
+    <- ty2perm-no-var T2PFF _ EQ T2PF.
+
+%worlds (gtermvar) (create-fldperm-no-var _ _ _ _).
+%total { } (create-fldperm-no-var _ _ _ _).
+
+
 %theorem fldset2perm-no-var
   : forall* {PM} {FM} {FS} {PF':object -> object -> permission}
     forall {FS=>PF': {x}{o} fldset2perm PM o FM FS (PF' x o)}
@@ -3010,17 +3026,6 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 
 %worlds (gtermvar) (cxt`update-no-var _ _ _ _ _ _ _ _).
 %total (U) (cxt`update-no-var _ U _ _ _ _ _ _).
-
-
-%theorem cxt2perm-no-var
-  : forall* {PM} {B} {PiBF: object -> permission}
-    forall {B=>PiBF: {x} cxt2perm PM B (PiBF x)}
-    exists {PiB} {EQ: {x} permission`eq (PiBF x) PiB}
-    {B=>PiB: cxt2perm PM B PiB}
-    true.
-
-%worlds (gtermvar) (cxt2perm-no-var _ _ _ _).
-%trustme %total { } (cxt2perm-no-var _ _ _ _).
 
 
 %theorem cxt2perm-no-var
@@ -3333,16 +3338,95 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
   (cxt`fresh-update-preserves-make-encumbered-converse/L A0 _ _ _ _ _ _ _ _ _ _ _ _ _ _).
 
 
-%theorem cxt`fresh-update-preserves-capset2perm-converse
-  : forall* {CM} {PM} {B0} {B1} {N} {M} {T} {PiM1}
+%theorem cxt`fresh-update-preserves-capset2perm-converse/L
+  : forall* {CM} {PM} {B0} {B1} {N} {M} {M0} {T} {PiM1}
     forall {B1+M=>PiM1: {x} capset2perm CM PM (B1 x) M (PiM1 x)}
+    {N!<M: not-in-capset N M0}
+    {M<=M0: set`leq M M0}
     {N!<B0: cxt`fresh B0 N} {B0+N=B1: {x} cxt`update B0 N (cxt-info/ x T) (B1 x)}
     exists {PiM0} {B0+M=>PiM0: capset2perm CM PM B0 M PiM0}
     {PiM1<=>PiM0: {x} permission`eq (PiM1 x) PiM0}
     true.
 
-%worlds (gtermvar) (cxt`fresh-update-preserves-capset2perm-converse _ _ _ _ _ _).
-%trustme %total { } (cxt`fresh-update-preserves-capset2perm-converse _ _ _ _ _ _).
+%theorem cxt`fresh-update-preserves-capset2perm-converse/L/L1
+  : forall* {OF} {O} {F} {PFF: object -> object -> permission} {PF} {Pi1F} {Pi1}
+    forall {OF=O: {x} object`eq (OF x) O}
+    {PFF=PF: {x}{x1} permission`eq (PFF x x1) (PF x1)}
+    {Pi1F=Pi1: {x} permission`eq (Pi1F x) Pi1}
+    exists {EQ:{x:gterm objectk}
+                gterm#eq
+                (combine
+                  (unitperm
+                    (conditional (objequal (OF x) null) empty
+                      (unitperm
+                        (precise-exists (OF x) F
+                          ([x1:gterm objectk] PFF x x1))))) (Pi1F x))
+                (combine
+                  (unitperm
+                    (conditional (objequal O null) empty
+                      (unitperm
+                        (precise-exists O F
+                          ([x2:gterm objectk] PF x2))))) Pi1)}
+    true.
+
+- : cxt`fresh-update-preserves-capset2perm-converse/L/L1
+    ([_] object`eq/) ([_][_] permission`eq/) ([_] permission`eq/) ([_] permission`eq/).
+
+%worlds (gtermvar) (cxt`fresh-update-preserves-capset2perm-converse/L/L1 _ _ _ _).
+%total { } (cxt`fresh-update-preserves-capset2perm-converse/L/L1 _ _ _ _).
+
+- : cxt`fresh-update-preserves-capset2perm-converse/L
+    ([_] capset2perm/0) _ _ _ _ _ capset2perm/0 ([_] permission`eq/).
+
+- : cxt`fresh-update-preserves-capset2perm-converse/L
+    ([x] capset2perm/z (M'=>PiF' x) Z!<M' M'+Z=M)
+    N!<M0 M<=M0 N!<B0 B0+N=B1
+    _ (capset2perm/z M'=>Pi Z!<M' M'+Z=M) EQ
+    <- set`add-implies-leq M'+Z=M M'<=M
+    <- set`leq-transitive M'<=M M<=M0 M'<=M0
+    <- cxt`fresh-update-preserves-capset2perm-converse/L
+      M'=>PiF' N!<M0 M'<=M0 N!<B0 B0+N=B1 _ M'=>Pi PiF'=Pi
+    <- ({x} permission`combine-preserves-eq permission`eq/ (PiF'=Pi x) (EQ x)).
+
+- : cxt`fresh-update-preserves-capset2perm-converse/L
+    ([x] capset2perm/U (M'=>PiF' x) N+F=K (B1-L x)
+      (create-fldperm/ CML FML (T2PFF x)) K!<M' M'+K=M)
+    (not-in-capset/ M0=>S N!<S) M<=M0 N!<B0 B0+N=B1
+    _
+    (capset2perm/U M'=>Pi' N+F=K B0-L
+      (create-fldperm/ CML FML T2PF) K!<M' M'+K=M) EQ
+    <- set`add-implies-leq M'+K=M M'<=M
+    <- set`leq-transitive M'<=M M<=M0 M'<=M0
+    <- set`add-implies-member M'+K=M K<-M
+    <- set`member-respects-leq K<-M M<=M0 K<-M0
+    <- get-objset-implies-not-member M0=>S N!<S K<-M0 N+F=K N<>N'
+    <- nat`ne-symmetric N<>N' N'<>N
+    <- ({x} cxt`update-preserves-lookup-converse (B1-L x) (B0+N=B1 x) N'<>N (B0-LF x))
+    <- ty2perm-no-var T2PFF _ PFF=PF T2PF
+    <- cxt`lookup-no-var B0-LF _ OF=O B0-L
+    <- cxt`fresh-update-preserves-capset2perm-converse/L
+      M'=>PiF' (not-in-capset/ M0=>S N!<S) M'<=M0 N!<B0 B0+N=B1 _ M'=>Pi' PiF'=Pi'
+    <- cxt`fresh-update-preserves-capset2perm-converse/L/L1 OF=O PFF=PF PiF'=Pi' EQ.
+
+%worlds (gtermvar) (cxt`fresh-update-preserves-capset2perm-converse/L _ _ _ _ _ _ _ _).
+%total (K) (cxt`fresh-update-preserves-capset2perm-converse/L K _ _ _ _ _ _ _).
+
+
+%theorem cxt`fresh-update-preserves-capset2perm-converse
+  : forall* {CM} {PM} {B0} {B1} {N} {M} {T} {PiM1}
+    forall {B1+M=>PiM1: {x} capset2perm CM PM (B1 x) M (PiM1 x)}
+    {N!<M: not-in-capset N M}
+    {N!<B0: cxt`fresh B0 N} {B0+N=B1: {x} cxt`update B0 N (cxt-info/ x T) (B1 x)}
+    exists {PiM0} {B0+M=>PiM0: capset2perm CM PM B0 M PiM0}
+    {PiM1<=>PiM0: {x} permission`eq (PiM1 x) PiM0}
+    true.
+
+- : cxt`fresh-update-preserves-capset2perm-converse M2PF NM FS UD _ M2P EQ
+    <- set`leq-reflexive _ M<=M
+    <- cxt`fresh-update-preserves-capset2perm-converse/L M2PF NM M<=M FS UD _ M2P EQ.
+
+%worlds (gtermvar) (cxt`fresh-update-preserves-capset2perm-converse _ _ _ _ _ _ _).
+%total { } (cxt`fresh-update-preserves-capset2perm-converse _ _ _ _ _ _ _).
 
 
 %theorem cxt`fresh-update-preserves-set2cond-converse
@@ -3356,6 +3440,147 @@ then exists Pi3, such that Pi2 <==> Pi1 , Pi3
 
 %worlds (gtermvar) (cxt`fresh-update-preserves-set2cond-converse _ _ _ _ _ _ _).
 %trustme %total { } (cxt`fresh-update-preserves-set2cond-converse _ _ _ _ _ _ _).
+
+
+%theorem cxt`fresh-update-preserves-capset2perm-converse-shared
+  : forall* {CM} {PM} {B0} {B1} {N} {NN} {C} {M} {PiMF} {OF}
+    forall {CM-B1-M: {x} clsmap-cxt-capset CM (B1 x) M}
+    {M=>PiMF: {x} capset2perm CM PM (B1 x) M (PiMF x)}
+    {N!<B0: cxt`fresh B0 (s N)}
+    {B0+N=B1: {x} cxt`update B0 (s N) (cxt-info/ (OF x) (ty/ NN annot/shared C)) (B1 x)}
+    exists {PiM} {M=>PiM: capset2perm CM PM B0 M PiM}
+    {EQ: {x:object} permission`eq (PiMF x) PiM}
+    true.
+
+%theorem cxt`fresh-update-preserves-capset2perm-converse-shared/F
+  : forall* {CM} {PM} {B0} {M} {PF:object -> object -> permission} {PiMF'} {F} {OF}
+    forall {V:void}
+    exists {PiM} {M=>PiM: capset2perm CM PM B0 M PiM}
+    {EQ: {x} permission`eq
+         (combine
+           (unitperm
+             (conditional (objequal (OF x) null) empty
+               (unitperm (precise-exists (OF x) F ([o] PF x o)))))
+           (PiMF' x))
+         (PiM)}
+    true.
+
+%worlds (gtermvar) (cxt`fresh-update-preserves-capset2perm-converse-shared/F _ _ _ _).
+%total { } (cxt`fresh-update-preserves-capset2perm-converse-shared/F _ _ _ _).
+
+
+%theorem cxt`fresh-update-preserves-capset2perm-converse-shared/L1
+  : forall* {X8} {X9} {N4} {X11} {X6} {X7} {X12}
+    forall {OE: {x} object`eq (X8 x) X9}
+    {PE: {x} permission`eq (X6 x) X7}
+    {PE: {x}{o} permission`eq (X11 x o) (X12 o)}
+    exists {EQ:{x:gterm objectk}
+         permission`eq
+         (combine
+           (unitperm
+             (conditional (objequal (X8 x) null) empty
+               (unitperm
+                 (precise-exists (X8 x) N4
+                   ([o] X11 x o))))) (X6 x))
+         (combine
+           (unitperm
+             (conditional (objequal X9 null) empty
+               (unitperm
+                 (precise-exists X9 N4
+                   ([o] X12 o))))) X7)}
+    true.
+
+- : cxt`fresh-update-preserves-capset2perm-converse-shared/L1
+    ([_] object`eq/) ([_] permission`eq/) ([_][_] permission`eq/) ([_] permission`eq/).
+
+%worlds (gtermvar) (cxt`fresh-update-preserves-capset2perm-converse-shared/L1 _ _ _ _).
+%total { } (cxt`fresh-update-preserves-capset2perm-converse-shared/L1 _ _ _ _).
+
+
+%theorem cxt`fresh-update-preserves-capset2perm-converse-shared/L
+  : forall* {CM} {PM} {B0} {B1: object -> cxt} {N} {NN} {C} {M} {M'} {N1} {F} {K1}
+    {OF} {NN1} {A1} {C1} {PiMF'} {PF} {P} {OF1}
+    forall {CM-B1-M': {x} clsmap-cxt-capset CM (B1 x) M'}
+    {M'=>PiMF': {x} capset2perm CM PM (B1 x) M' (PiMF' x)}
+    {N+F=K: pair2nat (pair/ N1 F) (s K1)}
+    {B1-L': {x} cxt`lookup (B1 x) N1 (cxt-info/ (OF1 x) (ty/ NN1 A1 C1))}
+    {NS: not-shared A1}
+    {CFF: {x} create-fldperm CM PM C1 F ([o] PF x o)}
+    {K!<M': set`not-member M' (s K1)}
+    {M'+K=M: set`add M' (s K1) M}
+    {N!<B0: cxt`fresh B0 (s N)}
+    {B0+N=B1: {x} cxt`update B0 (s N) (cxt-info/ (OF x) (ty/ NN annot/shared C)) (B1 x)}
+    {EQ?: nat`eq? (s N) N1 P}
+    exists {PiM} {M=>PiM: capset2perm CM PM B0 M PiM}
+    {EQ: {x} permission`eq
+         (combine
+           (unitperm
+             (conditional (objequal (OF1 x) null) empty
+               (unitperm (precise-exists (OF1 x) F ([o] PF x o)))))
+           (PiMF' x))
+         (PiM)}
+    true.
+
+- : cxt`fresh-update-preserves-capset2perm-converse-shared
+    _ ([_] capset2perm/0) _ _ _ (capset2perm/0) ([_] permission`eq/).
+
+- : cxt`fresh-update-preserves-capset2perm-converse-shared CM-B1-M
+    ([x] capset2perm/z (M'=>PiMF' x) Z!<M' M'+Z=M) N!<B0 B0+N=B1
+    _ (capset2perm/z M'=>PiM' Z!<M' M'+Z=M) EQ
+    <- ({x} clsmap-cxt-capset/z-inversion (CM-B1-M x) Z!<M' M'+Z=M (CM-B1-M' x))
+    <- cxt`fresh-update-preserves-capset2perm-converse-shared
+      CM-B1-M' M'=>PiMF' N!<B0 B0+N=B1 _ M'=>PiM' PiMF'=PiM'
+    <- ({x} permission`combine-preserves-eq permission`eq/ (PiMF'=PiM' x) (EQ x)).
+
+- : cxt`fresh-update-preserves-capset2perm-converse-shared/L CM-B1-M
+    ([x] M'=>PiMF' x) N+F=K ([x] B1-L' x) NS CF K!<M' M'+K=M
+    N!<B0 B0+N=B1 nat`eq?/yes _ M=>PiM EQ
+    <- ({x} cxt`update-implies-lookup (B0+N=B1 x) (B1-L x))
+    <- cxt`lookup-shared-not-shared-implies-false B1-L B1-L' NS V
+    <- cxt`fresh-update-preserves-capset2perm-converse-shared/F V _ M=>PiM EQ.
+
+- : cxt`fresh-update-preserves-capset2perm-converse-shared/L CM-B1-M'
+    ([x] M'=>PiMF' x) N+F=K ([x] B1-L x) NS CFF K!<M' M'+K=M
+    N!<B0 B0+N=B1 (nat`eq?/no (N<>N1:nat`ne (s N) N1))
+    _ (capset2perm/U M'=>PiM' N+F=K B0-L CF K!<M' M'+K=M) EQ
+    <- nat`ne-symmetric N<>N1 N1<>N
+    <- ({x} cxt`update-preserves-lookup-converse (B1-L x) (B0+N=B1 x) N1<>N (B0-LF x))
+    <- cxt`lookup-no-var B0-LF _ O-EQ B0-L
+    <- create-fldperm-no-var CFF _ CF CF-EQ
+    <- cxt`fresh-update-preserves-capset2perm-converse-shared
+      CM-B1-M' M'=>PiMF' N!<B0 B0+N=B1 _ M'=>PiM' EQ'
+    <- cxt`fresh-update-preserves-capset2perm-converse-shared/L1 O-EQ EQ' CF-EQ EQ.
+
+- : cxt`fresh-update-preserves-capset2perm-converse-shared
+    ([x] (CM-B1-M: {x} clsmap-cxt-capset CM (B1 x) M) x)
+    ([x] capset2perm/U
+      ((M'=>PiMF':{x} capset2perm CM PM (B1 x) M' (PiMF' x)) x)
+      (N0+F0=K0: pair2nat (pair/ N0 F0) (s K0))
+      ((B1-L0: {x} cxt`lookup (B1 x) _ (cxt-info/ (OF0 x) (ty/ NN0 A0 C0))) x)
+      (CF0 x)
+      (K!<M': set`not-member M' (s K0))
+      (M'+K=M:set`add M' (s K0) M))
+    (N!<B0:cxt`fresh B0 (s N1))
+    ([x] (B0+N=B1: {x} cxt`update
+                   B0 (s N1) (cxt-info/ (OF x) (ty/ NN1 annot/shared C1)) (B1 x)) x)
+    _ M=>PiM EQ
+    <- ({x} clsmap-cxt-capset/U-inversion (CM-B1-M x) K!<M' M'+K=M
+         (CM-B1-M' x) N F N+F=K0 _ NN A C (B1-L x) NS FM CML T FML)
+    <- nat2pair-unique N+F=K0 N0+F0=K0 nat`eq/ P-EQ
+    <- pair-eq-implies-eq P-EQ N=N0 F=F0
+    <- ({x} cxt`lookup-unique (B1-L x) (B1-L0 x) cxt`eq/ N=N0 (CI-EQ x))
+    <- ({x} cxt-info-eq-inversion (CI-EQ x) (O-EQ x) (T-EQ))
+    <- ty-eq-inversion T-EQ _ (A-EQ:annot`eq A A0) _
+    <- not-shared-respects-eq A-EQ NS NS0
+    <- nat`eq?-total EQ?
+    <- cxt`fresh-update-preserves-capset2perm-converse-shared/L
+      CM-B1-M' M'=>PiMF' N0+F0=K0 B1-L0 NS0 CF0 K!<M' M'+K=M N!<B0 B0+N=B1 EQ?
+      _ M=>PiM EQ.
+
+%worlds (gtermvar) (cxt`fresh-update-preserves-capset2perm-converse-shared _ _ _ _ _ _ _)
+  (cxt`fresh-update-preserves-capset2perm-converse-shared/L _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (A A0) (cxt`fresh-update-preserves-capset2perm-converse-shared _ A _ _ _ _ _)
+  (cxt`fresh-update-preserves-capset2perm-converse-shared/L _ A0 _ _ _ _ _ _ _ _ _ _ _ _).
 
 
 %%% Theorems about methty2proctype and consty2proctype
