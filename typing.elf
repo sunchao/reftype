@@ -27,54 +27,6 @@ result`eq : result K -> result K -> type.
 result`eq/ : result`eq R R.
 
 
-%theorem result/expr-eq-inversion
-  : forall* {RT1} {V1} {RT2} {V2}
-    forall {E: result`eq (result/expr RT1 V1) (result/expr RT2 V2)}
-    exists {TE: reftype`eq RT1 RT2} {VE: env`eq V1 V2}
-    true.
-
-- : result/expr-eq-inversion result`eq/ reftype`eq/ env`eq/.
-
-%worlds (gtermvar) (result/expr-eq-inversion _ _ _).
-%total { } (result/expr-eq-inversion _ _ _).
-
-
-%theorem result/cond-eq-inversion
-  : forall* {V1} {V2}
-    forall {E: result`eq (result/cond V1) (result/cond V2)}
-    exists {VE: env`eq V1 V2}
-    true.
-
-- : result/cond-eq-inversion result`eq/ env`eq/.
-
-%worlds (gtermvar) (result/cond-eq-inversion _ _).
-%total { } (result/cond-eq-inversion _ _).
-
-
-%theorem result/args/0-eq-inversion
-  : forall* {V1} {V2}
-    forall {E: result`eq (result/args/0 V1) (result/args/0 V2)}
-    exists {VE: env`eq V1 V2}
-    true.
-
-- : result/args/0-eq-inversion result`eq/ env`eq/.
-
-%worlds (gtermvar) (result/args/0-eq-inversion _ _).
-%total { } (result/args/0-eq-inversion _ _).
-
-
-%theorem result/args/+-eq-inversion
-  : forall* {V1} {V2} {RT1} {RT2} {A1} {A2}
-    forall {E: result`eq (result/args/+ RT1 V1 A1) (result/args/+ RT2 V2 A2)}
-    exists {TE: reftype`eq RT1 RT2} {VE: env`eq V1 V2} {AE: result`eq A1 A2}
-    true.
-
-- : result/args/+-eq-inversion result`eq/ reftype`eq/ env`eq/ result`eq/.
-
-%worlds (gtermvar) (result/args/+-eq-inversion _ _ _ _).
-%total { } (result/args/+-eq-inversion _ _ _ _).
-
-
 %%% Sub-relation on targets
 
 targets`sub : set -> targets -> env -> targets -> env -> type.
@@ -168,8 +120,6 @@ reftyping/lit :
   reftyping _ _ B V (lit O) (result/expr RT V).
 
 
-%%% Type Rules with Direct Effect
-
 %%% Reading a field
 
 %%% TODO: thinking about removing this.
@@ -222,9 +172,6 @@ reftyping/write
   : reftyping CM MM B V1 E1 R1 ->
     writeRefTyping CM MM B R1 F E2 G T R2 ->
   reftyping CM MM B V1 (write E1 F E2) R2.
-
-
-%%% Type Rules with Indirect Effects
 
 
 %%% Let
@@ -306,6 +253,17 @@ not-in-targets/shared : not-in-targets _ targets/shared.
 not-in-targets/fresh : not-in-targets _ targets/fresh.
 
 
+restore-pinned-caps : set -> targets -> set -> type.
+
+restore-pinned-caps/shared : restore-pinned-caps K targets/shared K.
+
+restore-pinned-caps/fresh : restore-pinned-caps K targets/fresh K.
+
+restore-pinned-caps/unique
+  : restore-pinned-caps K1 (targets/unique _ K2 _) K
+    <- set`combine K1 K2 K.
+
+
 %%% Reclaim capabilities encumbered by the let variable.
 
 %%% At the moment we just be conservative, and don't allow ANY field
@@ -339,6 +297,7 @@ letRefTyping/base/unique :
   letRefTyping CM MM B0 (result/expr (reftype/ NN C (targets/unique S M1 W)) (env/ U0 M0))
     F (result/expr (reftype/ NN1 C1 G1) (env/ U5 M9)).
 
+%%% TODO: remove the not-in-targets constraints
 letRefTyping/base/shared :
     clsmap`lookup CM C FM ->
     cxt`fresh B0 (s N) ->
@@ -353,6 +312,63 @@ reftyping/let :
     reftyping CM MM B V E R1 ->
     letRefTyping CM MM B R1 F R2 ->
   reftyping CM MM B V (let E F) R2.
+
+
+%{
+This rule enables first consume an unique field, and then
+restore its uniqueness by consuming another unique expression.
+
+This is useful for checking expressions such as:
+  (m.next = n.next; n.next = m)
+
+It also enables assigning to oneself:
+  (n.next = n.next.next)
+
+Note, we cannot do:
+  let (read E0 F) ([x] write E0 F (E1 x))
+
+since when checking the second E0, we don't have the input
+permissions. This perhaps can be resolved by:
+  let E0 ([y] (let (read y F) ([x] write y F (E1 y x))))
+
+However, I think this doesn't really make sense because
+we could have: let (read (new C) F) ([x] write (new C) F (E1 x))
+
+}%
+
+reftyping/restore
+  : reftyping CM MM B0 (env/ H0 K0) (let (read (lit O) F) ([x] write (lit O) F (E x)))
+    (result/expr (reftype/ FNN FC G1) (env/ H3 K5))
+    <- cxt`lookup-obj B0 O (s N0) T
+    <- ty2reftype (s N0) T (reftype/ nn/yes C0 G0)
+    <- clsmap`lookup CM C0 FM
+    <- fldmap`lookup FM F (ty/ FNN annot/unique FC)
+    <- clsmap`lookup CM FC FFM
+    <- fldmap`domain FFM FS
+    <- make-tgts-and-caps K0 G0 F G1 K1
+    <- cxt`fresh B0 (s N)
+    <- nat+set2set (s N) FS K2
+    <- set`combine K1 K2 K3
+    <- set`combine H0 (set/1 (s N)) H1
+    <- ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ FNN annot/unique FC)) (B1 x))
+    <- ({x} reftyping CM MM (B1 x) (env/ H1 K3)
+         (E x) (result/expr RT1 V1))
+    <- subtype CM _ RT1 V1 (ty/ FNN annot/unique FC) _ (env/ H2 K4)
+    <- set`remove H2 (set/1 (s N)) H3
+    <- set`remove K4 K2 K5.
+
+reftyping/swap
+  : reftyping CM MM B (env/ H0 K0)
+    (let (read (lit O) F) ([x] (seq (write (lit O) F E) (lit x))))
+    (result/expr (reftype/ FNN FC targets/fresh) (env/ H1 K3))
+    <- cxt`lookup-obj B O (s N0) T
+    <- ty2reftype (s N0) T (reftype/ nn/yes C0 G0)
+    <- clsmap`lookup CM C0 FM
+    <- fldmap`lookup FM F (ty/ FNN annot/unique FC)
+    <- make-tgts-and-caps K0 G0 F G1 K1
+    <- reftyping CM MM B (env/ H0 K1) E (result/expr RT1 V1)
+    <- subtype CM _ RT1 V1 (ty/ FNN annot/unique FC) _ (env/ H1 K2)
+    <- restore-pinned-caps K2 G1 K3.
 
 
 %%% Method Calls
@@ -527,6 +543,54 @@ reftyping/and :
 
 
 %%% Theorems
+
+%theorem result/expr-eq-inversion
+  : forall* {RT1} {V1} {RT2} {V2}
+    forall {E: result`eq (result/expr RT1 V1) (result/expr RT2 V2)}
+    exists {TE: reftype`eq RT1 RT2} {VE: env`eq V1 V2}
+    true.
+
+- : result/expr-eq-inversion result`eq/ reftype`eq/ env`eq/.
+
+%worlds (gtermvar) (result/expr-eq-inversion _ _ _).
+%total { } (result/expr-eq-inversion _ _ _).
+
+
+%theorem result/cond-eq-inversion
+  : forall* {V1} {V2}
+    forall {E: result`eq (result/cond V1) (result/cond V2)}
+    exists {VE: env`eq V1 V2}
+    true.
+
+- : result/cond-eq-inversion result`eq/ env`eq/.
+
+%worlds (gtermvar) (result/cond-eq-inversion _ _).
+%total { } (result/cond-eq-inversion _ _).
+
+
+%theorem result/args/0-eq-inversion
+  : forall* {V1} {V2}
+    forall {E: result`eq (result/args/0 V1) (result/args/0 V2)}
+    exists {VE: env`eq V1 V2}
+    true.
+
+- : result/args/0-eq-inversion result`eq/ env`eq/.
+
+%worlds (gtermvar) (result/args/0-eq-inversion _ _).
+%total { } (result/args/0-eq-inversion _ _).
+
+
+%theorem result/args/+-eq-inversion
+  : forall* {V1} {V2} {RT1} {RT2} {A1} {A2}
+    forall {E: result`eq (result/args/+ RT1 V1 A1) (result/args/+ RT2 V2 A2)}
+    exists {TE: reftype`eq RT1 RT2} {VE: env`eq V1 V2} {AE: result`eq A1 A2}
+    true.
+
+- : result/args/+-eq-inversion result`eq/ reftype`eq/ env`eq/ result`eq/.
+
+%worlds (gtermvar) (result/args/+-eq-inversion _ _ _ _).
+%total { } (result/args/+-eq-inversion _ _ _ _).
+
 
 %theorem get-objset-respects-eq
   : forall* {M0} {S0} {M1} {S1}

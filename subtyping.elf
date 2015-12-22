@@ -46,6 +46,27 @@ env`combine/ :
   env`combine (env/ U0 M0) (env/ U1 M1) (env/ U M).
 
 
+%{
+TODO: think about how to handle the following case:
+  s1.u1 = s2.u2
+
+Currently, after checking s2.u2 we've lost the capability on 'shared', and therefore
+is not able to check s1.u1. However, this expression by itself is not illegal, as we
+are consuming the shared capability! A legal example would be:
+  s1.u1 = s2.u2; s2.u2 = new C()
+
+For this case, maybe we can use some special rules, such as:
+  swap(e1.f, e2)
+
+where swap(e1.f, e2) = let x = e1.f in (e1.f = e2; x)
+
+With this rule, we can do:
+  s1.u1 = swap(s2.u2, new C())
+
+This first use the shared capability to check the swap call, after which
+the capability is still available and then can be used to check s1.u1.
+}%
+
 make-tgts-and-caps : set -> targets -> nat -> targets -> set -> type.
 
 %%% When the result is shared, we can claim back the encumbered capabilities.
@@ -73,9 +94,9 @@ consider-ftype : targets -> set -> annot -> targets -> set -> type.
 
 %%% We return the capabilities encumbered in M now, but for the fresh capability
 %%% represented by W, we just throw it away.
-consider-ftype/shared :
-    set`combine M M0 M1 ->
-  consider-ftype (targets/unique set/0 M W) M0 annot/shared targets/shared M1.
+consider-ftype/shared
+  : consider-ftype (targets/unique set/0 M W) M0 annot/shared targets/shared M1
+    <- set`combine M M0 M1.
 
 consider-ftype/unique : consider-ftype G M annot/unique G M.
 
@@ -162,6 +183,23 @@ subtype/ :
 
 %worlds (gtermvar) (env`eq-preserves-eq _ _ _).
 %total { } (env`eq-preserves-eq _ _ _).
+
+
+%theorem set`leq-implies-split
+  : forall* {S0} {S}
+    forall {S<=S0: set`leq S S0}
+    exists {S1} {SP: set`split S0 S1 S}
+    true.
+
+- : set`leq-implies-split S<=S0 _ (set`split/ S1^S S1+S=S0)
+    <- set`remove-total S0-S=S1
+    <- set`remove-implies-disjoint S0-S=S1 S^S1
+    <- set`remove-subset-implies-union S0-S=S1 S<=S0 S+S1=S0
+    <- set`disjoint-symmetric S^S1 S1^S
+    <- set`union-commutative S+S1=S0 S1+S=S0.
+
+%worlds (gtermvar) (set`leq-implies-split _ _ _).
+%total { } (set`leq-implies-split _ _ _).
 
 
 %theorem set`split-implies-disjoint-union
@@ -300,3 +338,19 @@ subtype/ :
 %total { } (set`can-split-empty* _ _).
 
 %abbrev set`can-split-empty = set`can-split-empty* _.
+
+
+%theorem set`combine-unit-implies-not-member-add
+  : forall* {S0} {N} {S1}
+    forall {S1+N=S0: set`combine S1 (set/1 N) S0}
+    exists {N!<S1: set`not-member S1 N}
+    {S1+N=S0: set`add S1 N S0}
+    true.
+
+- : set`combine-unit-implies-not-member-add
+    (set`split/ S1^N S1uN=S0) N!<S1 S1+N=S0
+    <- set`disjoint-unit-implies-not-member S1^N N!<S1
+    <- set`unit-union-implies-add S1uN=S0 S1+N=S0.
+
+%worlds () (set`combine-unit-implies-not-member-add _ _ _).
+%total { } (set`combine-unit-implies-not-member-add _ _ _).

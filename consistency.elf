@@ -1435,6 +1435,22 @@ clsmap-result/args/+ :
 %total {} (join-preserves-clsmap-cxt-capset _ _ _ _).
 
 
+%theorem combine-preserves-clsmap-cxt-capset
+  : forall* {CM} {B} {K1} {K2} {K}
+    forall {CM-B-K1: clsmap-cxt-capset CM B K1}
+    {CM-B-K2: clsmap-cxt-capset CM B K2}
+    {K1+K2=K: set`combine K1 K2 K}
+    exists {CM-B-S: clsmap-cxt-capset CM B K}
+    true.
+
+- : combine-preserves-clsmap-cxt-capset CM-B-K1 CM-B-K2 (set`split/ _ K1+K2=K) CM-B-K
+    <- join-preserves-clsmap-cxt-capset CM-B-K1 CM-B-K2 K1+K2=K CM-B-K.
+
+%worlds (gtermvar) (combine-preserves-clsmap-cxt-capset _ _ _ _).
+%total {} (combine-preserves-clsmap-cxt-capset _ _ _ _).
+
+
+
 %theorem join-preserves-clsmap-cxt-capset-converse
   : forall* {CM} {B} {S1} {S2} {S}
     forall {CM-B-S: clsmap-cxt-capset CM B S}
@@ -2362,6 +2378,35 @@ clsmap-result/args/+ :
 %total { } (make-tgts-and-caps-implies-empty-objset _ _).
 
 
+%theorem make-tgts-and-caps-consistent/1/L
+  : forall* {S} {M1} {W} {F} {M2} {M}
+    forall {WF: wf-unique-targets S M1 W}
+    {S+F=M2: set+nat2set S F M2}
+    {M1+M2=M: set`union M1 M2 M}
+    exists {WF: wf-unique-targets set/0 M W}
+    true.
+
+- : make-tgts-and-caps-consistent/1/L
+    (wf-unique-targets/borrow SZ-S set`size/0) S+F=M2 M1+M2=M
+    (wf-unique-targets/unique SZ-M2)
+    <- set+nat2set-preserves-size S+F=M2 SZ-S SZ-M2.
+
+- : make-tgts-and-caps-consistent/1/L
+    (wf-unique-targets/unique SZ-M1) S+F=M2 M1+M2=M
+    (wf-unique-targets/unique SZ-M2')
+    <- set`union-implies-leq M1+M2=M M1<=M _
+    <- set`size-total (SZ-M2:set`size M2 N2)
+    <- set`leq-implies-size-le M1<=M SZ-M1 SZ-M2 N2>=N
+    <- ge-succ-implies-succ N2>=N _ N2=SN2'
+    <- set`size-respects-eq SZ-M2 set`eq/ N2=SN2' SZ-M2'.
+
+- : make-tgts-and-caps-consistent/1/L
+    (wf-unique-targets/unique+fresh) _ _ (wf-unique-targets/unique+fresh).
+
+%worlds () (make-tgts-and-caps-consistent/1/L _ _ _ _).
+%total { } (make-tgts-and-caps-consistent/1/L _ _ _ _).
+
+
 %theorem make-tgts-and-caps-consistent/1
   : forall* {CM} {B} {G0} {A} {M0} {M1} {F} {C} {FM} {FC}
     {FNN} {G1} {U0}
@@ -2370,7 +2415,8 @@ clsmap-result/args/+ :
     {FML: fldmap`lookup FM F (ty/ FNN A FC)}
     {CM-B-R: clsmap-result CM B (result/expr (reftype/ nn/yes C G0) (env/ U0 M0))}
     {MG: make-tgts-and-caps M0 G0 F G1 M1}
-    exists {CM-B-V: clsmap-cxt-env CM B (env/ U0 M1)}
+    exists {CM-B-G: clsmap-cxt-reftype CM B (reftype/ FNN FC G1)}
+    {CM-B-V: clsmap-cxt-env CM B (env/ U0 M1)}
     true.
 
 - : make-tgts-and-caps-consistent/1 CM-CM CML FML
@@ -2382,13 +2428,15 @@ clsmap-result/args/+ :
     (make-tgts-and-caps/unique (S+F+X=>M2:set+nat2set S F M2)
       (set`split/ M1^M2 (M1+M2=M:set`union M1 M2 M))
       (set`split/ M2^M3 (M2+M3=M0:set`union M2 M3 M0)))
+    (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0 CM-B0-M WF1)
     (clsmap-cxt-env/ CM-B0 CM-B0-M3)
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0)
     <- set`union-implies-leq M2+M3=M0 M2<=M0 M3<=M0
     <- clsmap-cxt-capset-respects-geq CM-B0-M0 M3<=M0 CM-B0-M3
     <- set+nat2set-implies-clsmap-cxt-capset CML FML B0-S S+F+X=>M2 CM-B0-M2
-    <- join-preserves-clsmap-cxt-capset CM-B0-M1 CM-B0-M2 M1+M2=M CM-B0-M.
+    <- join-preserves-clsmap-cxt-capset CM-B0-M1 CM-B0-M2 M1+M2=M CM-B0-M
+    <- make-tgts-and-caps-consistent/1/L WF S+F+X=>M2 M1+M2=M WF1.
 
 - : make-tgts-and-caps-consistent/1 CM-CM CML FML
     (clsmap-result/expr
@@ -2396,6 +2444,9 @@ clsmap-result/args/+ :
       (clsmap-cxt-env/ (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B M0)))
     (make-tgts-and-caps/shared (set`split/ X^M1 X+M1=M0))
+    (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0
+      (clsmap-cxt-capset/z clsmap-cxt-capset/0 set`not-member/0 set`update/0)
+      (wf-unique-targets/unique (set`size/+ set`size/0)))
     (clsmap-cxt-env/ CM-B0 CM-B0-M1)
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0)
@@ -2408,24 +2459,30 @@ clsmap-result/args/+ :
       (clsmap-cxt-env/ (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B M0)))
     (make-tgts-and-caps/fresh)
-    (clsmap-cxt-env/ CM-B0 CM-B0-M0).
+    (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0 clsmap-cxt-capset/0
+      wf-unique-targets/unique+fresh)
+    (clsmap-cxt-env/ CM-B0 CM-B0-M0)
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0).
 
 - : make-tgts-and-caps-consistent/1 CM-CM CML FML
     (clsmap-result/expr
-      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1 _)
+      (clsmap-cxt-reftype/unique _ B0-S CM-B0-M1 WF)
       (clsmap-cxt-env/
         (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B0 M0)))
     (make-tgts-and-caps/unique (S+F+X=>M2:set+nat2set S F M2)
       (set`split/ M1^M2 (M1+M2=M:set`union M1 M2 M))
       (set`split/ M2^M3 (M2+M3=M0:set`union M2 M3 M0)))
+    (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0 CM-B0-M WF1)
     (clsmap-cxt-env/ CM-B0 CM-B0-M3)
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0)
     <- set`union-implies-leq M2+M3=M0 M2<=M0 M3<=M0
     <- clsmap-cxt-capset-respects-geq CM-B0-M0 M3<=M0 CM-B0-M3
     <- clsmap-cxt-capset-respects-geq CM-B0-M0 M2<=M0 CM-B0-M2
-    <- join-preserves-clsmap-cxt-capset CM-B0-M1 CM-B0-M2 M1+M2=M CM-B0-M.
+    <- join-preserves-clsmap-cxt-capset CM-B0-M1 CM-B0-M2 M1+M2=M CM-B0-M
+    <- make-tgts-and-caps-consistent/1/L WF S+F+X=>M2 M1+M2=M WF1.
 
 - : make-tgts-and-caps-consistent/1 CM-CM CML FML
     (clsmap-result/expr
@@ -2433,14 +2490,17 @@ clsmap-result/args/+ :
       (clsmap-cxt-env/ (CM-B0:clsmap-cxt-objset CM _ U0)
         (CM-B0-M0:clsmap-cxt-capset CM B M0)))
     (make-tgts-and-caps/shared (set`split/ X^M1 X+M1=M0))
+    (clsmap-cxt-reftype/unique CML0 cxt-unique-objset/0
+      (clsmap-cxt-capset/z clsmap-cxt-capset/0 set`not-member/0 set`update/0)
+      (wf-unique-targets/unique (set`size/+ set`size/0)))
     (clsmap-cxt-env/ CM-B0 CM-B0-M1)
     <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
     <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML0)
     <- set`union-implies-leq X+M1=M0 _ M1<=M0
     <- clsmap-cxt-capset-respects-geq CM-B0-M0 M1<=M0 CM-B0-M1.
 
-%worlds (gtermvar) (make-tgts-and-caps-consistent/1 _ _ _ _ _ _).
-%total { } (make-tgts-and-caps-consistent/1 _ _ _ _ _ _).
+%worlds (gtermvar) (make-tgts-and-caps-consistent/1 _ _ _ _ _ _ _).
+%total { } (make-tgts-and-caps-consistent/1 _ _ _ _ _ _ _).
 
 
 %theorem make-tgts-and-caps-consistent/2
@@ -2808,19 +2868,6 @@ clsmap-result/args/+ :
 %total { } (not-in-capset-respects-eq _ _ _ _).
 
 
-%%% Now the main theorem. This says if we can reftyping some term,
-%%% then the result should be consistent w.r.t the clsmap and cxt.
-
-%theorem reftyping-implies-clsmap-result
-  : forall* {CM} {MM} {K} {E: term K} {R} {B} {V}
-    forall {CM-CM: clsmap-clsmap CM CM}
-    {CM-MM: clsmap-methmap CM MM}
-    {CM-B: clsmap-cxt CM B}
-    {CM-ENV: clsmap-cxt-env CM B V}
-    {TYP: reftyping CM MM B V E R}
-    exists {CM-R: clsmap-result CM B R}
-    true.
-
 %theorem reftyping-implies-clsmap-result/L1
   : forall* {CM} {B0} {N} {B1} {NN} {C} {G} {NNP} {AP} {CP}
     forall {CM-B1-RT: {x} clsmap-cxt-reftype CM (B1 x) (reftype/ NN C G)}
@@ -2850,10 +2897,10 @@ clsmap-result/args/+ :
 %theorem reftyping-implies-clsmap-result/L2
   : forall* {CM} {B0} {N} {B1} {U3} {U4} {T}
     forall {CM-B1-U3: {x} clsmap-cxt-objset CM (B1 x) U3}
-    {N!<U4: set`not-member U4 (s N)}
-    {U4+N=U3: set`add U4 (s N) U3}
-    {FS: cxt`fresh B0 (s N)}
-    {UD: {x} cxt`update B0 (s N) (cxt-info/ x T) (B1 x)}
+    {N!<U4: set`not-member U4 N}
+    {U4+N=U3: set`add U4 N U3}
+    {FS: cxt`fresh B0 N}
+    {UD: {x} cxt`update B0 N (cxt-info/ x T) (B1 x)}
     exists {CM-B0-: clsmap-cxt-objset CM B0 U4}
     true.
 
@@ -2905,81 +2952,78 @@ clsmap-result/args/+ :
 
 
 %theorem reftyping-implies-clsmap-result/L3/L2
-  : forall* {CM} {B} {M} {O} {NN} {A} {C} {FM} {FS} {M1} {M2} {N}
-    forall {CM-B-M: clsmap-cxt-capset CM B M}
+  : forall* {CM} {B} {O} {NN} {A} {C} {FM} {FS} {M1} {M2} {N}
+    forall {CM-B-M1: clsmap-cxt-capset CM B M1}
+    {CM-B-M2: clsmap-cxt-capset CM B M2}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM}
     {FM-DM: fldmap`domain FM FS}
     {N+FS=S: nat+set2set N FS M1}
-    {M-M1=M2: set`split M M1 M2}
+    {M1^M2: set`disjoint M1 M2}
     exists {N!<M2: not-in-capset N M2}
     true.
 
 %theorem reftyping-implies-clsmap-result/L3/L2/L
-  : forall* {CM} {B} {M} {O} {NN} {A} {C} {FM} {FS} {M1} {M2} {N} {S2} {P}
-    forall {CM-B-M: clsmap-cxt-capset CM B M}
+  : forall* {CM} {B} {O} {NN} {A} {C} {FM} {FS} {M1} {M2} {N} {S2} {P}
+    forall {CM-B-M1: clsmap-cxt-capset CM B M1}
+    {CM-B-M2: clsmap-cxt-capset CM B M2}
     {BL: cxt`lookup B N (cxt-info/ O (ty/ NN A C))}
     {CML: clsmap`lookup CM C FM}
     {FM-DM: fldmap`domain FM FS}
     {N+FS=S: nat+set2set N FS M1}
-    {M-M1=M2: set`split M M1 M2}
+    {M1^M2: set`disjoint M1 M2}
     {M2=>S2: get-objset M2 S2}
     {N<-S2?: set`member? S2 N P}
     exists {N!<S2: set`not-member S2 N}
     true.
 
-- : reftyping-implies-clsmap-result/L3/L2/L CM-B-M BL CML FM-DM N+FS=M1
-    (set`split/ M1^M2 M1+M2=M) M2=>S2
-    (set`member?/in N<-S2) N!<S2
+- : reftyping-implies-clsmap-result/L3/L2/L CM-B-M1 CM-B-M2 BL CML FM-DM N+FS=M1
+    M1^M2 M2=>S2 (set`member?/in N<-S2) N!<S2
     <- get-objset-preserves-member-converse M2=>S2 N<-S2 F K N+F=SK SK<-M2
-    <- join-preserves-clsmap-cxt-capset-converse CM-B-M M1+M2=M CM-B-M1 CM-B-M2
     <- reftyping-implies-clsmap-result/L3/L1
       CM-B-M1 CM-B-M2 M1^M2 BL CML FM-DM N+FS=M1 N+F=SK SK<-M2 V
     <- set`false-implies-not-member V N!<S2.
 
-- : reftyping-implies-clsmap-result/L3/L2/L _ _ _ _ _ _ _ (set`member?/out N!<S2) N!<S2.
+- : reftyping-implies-clsmap-result/L3/L2/L _ _ _ _ _ _ _ _ (set`member?/out N!<S2) N!<S2.
 
-- : reftyping-implies-clsmap-result/L3/L2 CM-B-M BL CML FM-DM N+FS=M1 M-M1=M2
+- : reftyping-implies-clsmap-result/L3/L2 CM-B-M1 CM-B-M2 BL CML FM-DM N+FS=M1 M1^M2
     (not-in-capset/ M2=>S2 N!<S2)
-    <- set`split-implies-leq M-M1=M2 M1<=M M2<=M
-    <- clsmap-cxt-capset-respects-geq CM-B-M M2<=M CM-B-M2
     <- clsmap-cxt-capset-implies-get-objset CM-B-M2 S2 M2=>S2
     <- set`member?-total MB?
     <- reftyping-implies-clsmap-result/L3/L2/L
-      CM-B-M BL CML FM-DM N+FS=M1 M-M1=M2 M2=>S2 MB? N!<S2.
+      CM-B-M1 CM-B-M2 BL CML FM-DM N+FS=M1 M1^M2 M2=>S2 MB? N!<S2.
 
-%worlds (gtermvar) (reftyping-implies-clsmap-result/L3/L2/L _ _ _ _ _ _ _ _ _).
-%total { } (reftyping-implies-clsmap-result/L3/L2/L _ _ _ _ _ _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L3/L2/L _ _ _ _ _ _ _ _ _ _).
+%total { } (reftyping-implies-clsmap-result/L3/L2/L _ _ _ _ _ _ _ _ _ _).
 
-%worlds (gtermvar) (reftyping-implies-clsmap-result/L3/L2 _ _ _ _ _ _ _).
-%total { } (reftyping-implies-clsmap-result/L3/L2 _ _ _ _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L3/L2 _ _ _ _ _ _ _ _).
+%total { } (reftyping-implies-clsmap-result/L3/L2 _ _ _ _ _ _ _ _).
 
 
 %theorem reftyping-implies-clsmap-result/L3
-  : forall* {CM} {B0} {N} {B1} {NN} {A} {C} {M6} {M3} {M7} {FS} {FM}
+  : forall* {CM} {B0} {N} {B1} {NN} {A} {C} {M3} {M7} {FS} {FM}
     forall {CML: clsmap`lookup CM C FM}
     {FM-DM: fldmap`domain FM FS}
-    {CM-B1-M6: {x} clsmap-cxt-capset CM (B1 x) M6}
+    {CM-B1-M3: {x} clsmap-cxt-capset CM (B1 x) M3}
+    {CM-B1-M6: {x} clsmap-cxt-capset CM (B1 x) M7}
     {N+FS=M3: nat+set2set (s N) FS M3}
-    {M6-M3=M7: set`split M6 M3 M7}
+    {M3^M7: set`disjoint M3 M7}
     {FS: cxt`fresh B0 (s N)}
     {UD: {x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN A C)) (B1 x)}
     exists {CM-B0-M7: clsmap-cxt-capset CM B0 M7}
     true.
 
-- : reftyping-implies-clsmap-result/L3 CML FM-DM CM-B1-M6
-    N+FS=M3 M6-M3=M7 N!<B0 B0+N=B1 CM-B0-M7
+- : reftyping-implies-clsmap-result/L3 CML FM-DM CM-B1-M3 CM-B1-M7
+    N+FS=M3 M3^M7 N!<B0 B0+N=B1 CM-B0-M7
     <- ({x} cxt`update-implies-lookup (B0+N=B1 x) (B1-L x))
-    <- set`split-implies-leq M6-M3=M7 M3<=M6 M7<=M6
-    <- ({x} clsmap-cxt-capset-respects-geq (CM-B1-M6 x) M7<=M6 (CM-B1-M7 x))
     <- ({x} clsmap-cxt-capset-implies-get-objset (CM-B1-M7 x) S7 M7=>S7)
     <- ({x} reftyping-implies-clsmap-result/L3/L2
-         (CM-B1-M6 x) (B1-L x) CML FM-DM N+FS=M3 M6-M3=M7 N!<M2)
+         (CM-B1-M3 x) (CM-B1-M7 x) (B1-L x) CML FM-DM N+FS=M3 M3^M7 N!<M2)
     <- cxt`fresh-update-preserves-clsmap-cxt-capset-converse CM-B1-M7
       N!<M2 N!<B0 B0+N=B1 CM-B0-M7.
 
-%worlds (gtermvar) (reftyping-implies-clsmap-result/L3 _ _ _ _ _ _ _ _).
-%total { } (reftyping-implies-clsmap-result/L3 _ _ _ _ _ _ _ _).
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L3 _ _ _ _ _ _ _ _ _).
+%total { } (reftyping-implies-clsmap-result/L3 _ _ _ _ _ _ _ _ _).
 
 
 %theorem reftyping-implies-clsmap-result/L4/L1
@@ -3080,6 +3124,74 @@ clsmap-result/args/+ :
 %total { } (reftyping-implies-clsmap-result/L4 _ _ _ _).
 
 
+%theorem reftyping-implies-clsmap-result/L5
+  : forall* {CM} {B0} {N} {B1} {U1} {U0} {T}
+    forall {CM-B1-U1: {x} clsmap-cxt-objset CM (B1 x) U1}
+    {U1/N=U0: set`remove U1 (set/1 (s N)) U0}
+    {N!<B0: cxt`fresh B0 (s N)}
+    {B0+N=B1: {x} cxt`update B0 (s N) (cxt-info/ x T) (B1 x)}
+    exists {CM-B0-U0: clsmap-cxt-objset CM B0 U0}
+    true.
+
+%theorem reftyping-implies-clsmap-result/L5/L
+  : forall* {CM} {B0} {N} {B1} {U1} {U0} {T} {P}
+    forall {CM-B1-U1: {x} clsmap-cxt-objset CM (B1 x) U1}
+    {U1/N=U0: set`remove U1 (set/1 N) U0}
+    {N!<B0: cxt`fresh B0 N}
+    {B0+N=B1: {x} cxt`update B0 N (cxt-info/ x T) (B1 x)}
+    {N<U1?: set`member? U1 N P}
+    exists {CM-B0-U0: clsmap-cxt-objset CM B0 U0}
+    true.
+
+- : reftyping-implies-clsmap-result/L5/L
+    CM-B1-U1 U1-N=U0 N!<B0 B0+N=B1 (set`member?/in N<-U1) CM-B0-U0
+    <- set`remove-member-implies-not-member-add U1-N=U0 N<-U1 N!<U0 U0+N=U1
+    <- reftyping-implies-clsmap-result/L2 CM-B1-U1 N!<U0 U0+N=U1 N!<B0 B0+N=B1 CM-B0-U0.
+
+- : reftyping-implies-clsmap-result/L5/L
+    CM-B1-U1 U1-N=U0 N!<B0 B0+N=B1 (set`member?/out N!<U1) CM-B0-U0
+    <- set`not-member-implies-unit-disjoint N!<U1 U1^N
+    <- set`disjoint-implies-remove-nothing U1^N U1-N=U1
+    <- set`remove-unique U1-N=U1 U1-N=U0 set`eq/ set`eq/ U1=U0
+    <- set`not-member-respects-eq N!<U1 U1=U0 nat`eq/ N!<U0
+    <- ({x} clsmap-cxt-objset-respects-eq (CM-B1-U1 x) clsmap`eq/ cxt`eq/ U1=U0 (CM-B1-U0 x))
+    <- cxt`fresh-update-preserves-clsmap-cxt-objset-converse CM-B1-U0 N!<U0 N!<B0 B0+N=B1 CM-B0-U0.
+
+- : reftyping-implies-clsmap-result/L5 CM-B1-U1 U1-N=U0 N!<B0 B0+N=B1 CM-B0-U0
+    <- set`member?-total MB?
+    <- reftyping-implies-clsmap-result/L5/L CM-B1-U1 U1-N=U0 N!<B0 B0+N=B1 MB? CM-B0-U0.
+
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L5/L _ _ _ _ _ _).
+%total { } (reftyping-implies-clsmap-result/L5/L _ _ _ _ _ _).
+
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L5 _ _ _ _ _).
+%total { } (reftyping-implies-clsmap-result/L5 _ _ _ _ _).
+
+
+%theorem reftyping-implies-clsmap-result/L6
+  : forall* {CM} {B} {K1} {NN} {C} {G} {K2}
+    forall {CM-B-K1: clsmap-cxt-capset CM B K1}
+    {CM-B-RT: clsmap-cxt-reftype CM B (reftype/ NN C G)}
+    {RC: restore-pinned-caps K1 G K2}
+    exists {CM-B-K2: clsmap-cxt-capset CM B K2}
+    true.
+
+- : reftyping-implies-clsmap-result/L6 CM-B-K1
+    (clsmap-cxt-reftype/unique _ _ CM-B-K2 _)
+    (restore-pinned-caps/unique K1+K2=K) CM-B-K
+    <- set`split-implies-disjoint-union K1+K2=K _ K1uK2=K
+    <- join-preserves-clsmap-cxt-capset CM-B-K1 CM-B-K2 K1uK2=K CM-B-K.
+
+- : reftyping-implies-clsmap-result/L6 CM-B-K
+    (clsmap-cxt-reftype/shared _) (restore-pinned-caps/shared) CM-B-K.
+
+- : reftyping-implies-clsmap-result/L6 CM-B-K
+    (clsmap-cxt-reftype/fresh _) (restore-pinned-caps/fresh) CM-B-K.
+
+%worlds (gtermvar) (reftyping-implies-clsmap-result/L6 _ _ _ _).
+%total { } (reftyping-implies-clsmap-result/L6 _ _ _ _).
+
+
 %theorem ty2new-reftype-implies-clsmap-cxt-reftype
   : forall* {CM} {B} {T} {RT}
     forall {CM-T: clsmap-ty CM T}
@@ -3099,35 +3211,33 @@ clsmap-result/args/+ :
 
 
 %theorem ty2reftype-implies-clsmap-cxt-reftype
-  : forall* {CM} {T} {RT} {N} {B} {BP}
-    forall {CM-T: clsmap-ty CM T}
-    {T=>RT: ty2reftype (s N) T RT}
-    {BU: {x} cxt`update B (s N) (cxt-info/ x T) (BP x)}
-    exists {CM-B-RT: {x} clsmap-cxt-reftype CM (BP x) RT}
+  : forall* {CM} {T} {B} {O} {N} {NN} {C} {G} {FM}
+    forall {BL: cxt`lookup-obj B O (s N) T}
+    {T2RT: ty2reftype (s N) T (reftype/ NN C G)}
+    {CML: clsmap`lookup CM C FM}
+    exists {CM-B-RT: clsmap-cxt-reftype CM B (reftype/ NN C G)}
     true.
 
-- : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
-    ty2reftype/unique ([x] BU x)
-    ([x] clsmap-cxt-reftype/unique CML
+- : ty2reftype-implies-clsmap-cxt-reftype
+    (cxt`lookup-obj/ BL) ty2reftype/unique CML
+    (clsmap-cxt-reftype/unique CML
       (cxt-unique-objset/U cxt-unique-objset/0
-        (BL x) not-shared/unique (nonnull`leq/= nonnull`eq/) set`not-member/0
+        BL not-shared/unique (nonnull`leq/= nonnull`eq/) set`not-member/0
         (set`update/0))
       clsmap-cxt-capset/0
-      (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0))
-    <- ({x} cxt`update-implies-lookup (BU x) (BL x)).
+      (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0)).
 
-- : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
-    ty2reftype/borrow ([x] BU x)
-    ([x] clsmap-cxt-reftype/unique CML
+- : ty2reftype-implies-clsmap-cxt-reftype
+    (cxt`lookup-obj/ BL) ty2reftype/borrow CML
+    (clsmap-cxt-reftype/unique CML
       (cxt-unique-objset/U cxt-unique-objset/0
-        (BL x) not-shared/borrow (nonnull`leq/= nonnull`eq/) set`not-member/0
+        BL not-shared/borrow (nonnull`leq/= nonnull`eq/) set`not-member/0
         (set`update/0))
       clsmap-cxt-capset/0
-      (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0))
-    <- ({x} cxt`update-implies-lookup (BU x) (BL x)).
+      (wf-unique-targets/borrow (set`size/+ set`size/0) set`size/0)).
 
-- : ty2reftype-implies-clsmap-cxt-reftype (clsmap-ty/ CML)
-    ty2reftype/shared _ ([_] clsmap-cxt-reftype/shared CML).
+- : ty2reftype-implies-clsmap-cxt-reftype
+    (cxt`lookup-obj/ BL) ty2reftype/shared CML (clsmap-cxt-reftype/shared CML).
 
 %worlds (gtermvar) (ty2reftype-implies-clsmap-cxt-reftype _ _ _ _).
 %total { } (ty2reftype-implies-clsmap-cxt-reftype _ _ _ _).
@@ -3338,6 +3448,19 @@ clsmap-result/args/+ :
 %total { } (restore-cap-targets-preserves-clsmap-cxt-env _ _ _ _).
 
 
+%%% Now the main theorem. This says if we can reftyping some term,
+%%% then the result should be consistent w.r.t the clsmap and cxt.
+
+%theorem reftyping-implies-clsmap-result
+  : forall* {CM} {MM} {K} {E: term K} {R} {B} {V}
+    forall {CM-CM: clsmap-clsmap CM CM}
+    {CM-MM: clsmap-methmap CM MM}
+    {CM-B: clsmap-cxt CM B}
+    {CM-ENV: clsmap-cxt-env CM B V}
+    {TYP: reftyping CM MM B V E R}
+    exists {CM-R: clsmap-result CM B R}
+    true.
+
 %theorem reftyping-implies-clsmap-result/let
   : forall* {CM} {MM} {R} {K} {F: object -> term K} {R2: result K} {B}
     forall {CM-CM: clsmap-clsmap CM CM}
@@ -3420,7 +3543,7 @@ clsmap-result/args/+ :
       (RTYP-E2:reftyping CM MM B (env/ U0 M1) E (result/expr RT (env/ U1 M2)))
       (SUB:subtype CM _ RT _ (ty/ NN A FC) _ (env/ U2 M3))
       (CF:consider-ftype G1 M3 A G2 M4)) CM-R2
-    <- make-tgts-and-caps-consistent/1 CM-CM CML FML CM-R1 MG CM-B-V0
+    <- make-tgts-and-caps-consistent/1 CM-CM CML FML CM-R1 MG _ CM-B-V0
     <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-B-V0 RTYP-E2
       (clsmap-result/expr CM-B-RT CM-B-V2)
     <- subtype-consistent CM-B-RT CM-B-V2 SUB CM-B-V3 CM-B-V4
@@ -3503,13 +3626,15 @@ clsmap-result/args/+ :
     <- reftyping-implies-clsmap-result/L1 CM-B1-RT N!<G1 N!<B0 B0+N=B1 CM-B0-RT
     <- reftyping-implies-clsmap-result/L2 CM-B1-U3 N!<U4
       U4+N=U3 N!<B0 B0+N=B1 CM-B0-U4
+    <- set`split-implies-leq M6-M3=M7 _ M7<=M6
+    <- set`split-implies-disjoint-union M6-M3=M7 M3^M7 _
+    <- ({x} clsmap-cxt-capset-respects-geq (CM-B1-M6 x) M7<=M6 (CM-B1-M7 x))
     <- reftyping-implies-clsmap-result/L3 CML FM-DM
-      CM-B1-M6 N+FS=M3 M6-M3=M7 N!<B0 B0+N=B1 CM-B0-M7
+      CM-B1-M3 CM-B1-M7 N+FS=M3 M3^M7 N!<B0 B0+N=B1 CM-B0-M7
     <- set`split-implies-disjoint-union U4+S=U5 _ U4uS=U5
     <- join-preserves-clsmap-cxt-objset CM-B0-U4 CM-B0-S U4uS=U5 CM-B0-U5
     <- join-preserves-clsmap-cxt-capset CM-B0-M2 CM-B0-M7 M2+M7=M8 CM-B0-M8
-    <- join-preserves-clsmap-cxt-capset CM-B0-M1 CM-B0-M8 M1+M8=M9 CM-B0-M9.
-
+  <- join-preserves-clsmap-cxt-capset CM-B0-M1 CM-B0-M8 M1+M8=M9 CM-B0-M9.
 
 %%% cases for the main theorem
 
@@ -3599,6 +3724,68 @@ clsmap-result/args/+ :
     (reftyping/if RTYP-C RTYP-E1 _) CM-R
     <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V0 RTYP-C (clsmap-result/cond CM-V1)
     <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B CM-V1 RTYP-E1 CM-R.
+
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-B0 CM-V0
+    (reftyping/restore
+      (K4-K2=K5:set`remove K4 K2 K5)
+      (H2-N=H3:set`remove H2 (set/1 (s N)) H3)
+      (SUB:subtype CM S RT1 V1 (ty/ FNN annot/unique FC) _ (env/ H2 K4))
+      ([x] RTYP-E1 x) ([x] B0+N=B1 x)
+      H0cN=H1 K1+K2=K3 N+FS=K2 N!<B0
+      (MG:make-tgts-and-caps K0 G0 F G1 K1)
+      (DM-FFM=FS:fldmap`domain FFM FS)
+      (CML-F:clsmap`lookup CM FC FFM)
+      (FML:fldmap`lookup FM F (ty/ FNN annot/unique FC))
+      (CML:clsmap`lookup CM C0 FM) T2RT B0-L)
+    (clsmap-result/expr CM-B0-RT (clsmap-cxt-env/ CM-B0-H3 CM-B0-K5))
+    <- set`combine-unit-implies-not-member-add H0cN=H1 N!<H0 H0+N=H1
+    <- ({x} cxt`update-implies-lookup (B0+N=B1 x) (B1->N x))
+    <- ty2reftype-implies-clsmap-cxt-reftype B0-L T2RT CML CM-B0-RT0
+    <- make-tgts-and-caps-consistent/1 CM-CM CML FML
+      (clsmap-result/expr CM-B0-RT0 CM-V0) MG CM-B0-RT
+      (clsmap-cxt-env/ CM-B0-H0 CM-B0-K1)
+    <- ({x} nat+set2set-implies-clsmap-cxt-capset CML-F DM-FFM=FS
+         (B1->N x) not-shared/unique N+FS=K2 (CM-B1-K2 x))
+    <- ({x} cxt-fresh-update-preserves-clsmap-cxt-capset CM-B0-K1
+         N!<B0 (B0+N=B1 x) (CM-B1-K1 x))
+    <- ({x} combine-preserves-clsmap-cxt-capset (CM-B1-K1 x) (CM-B1-K2 x)
+         K1+K2=K3 (CM-B1-K3 x))
+    <- ({x} cxt-fresh-update-preserves-clsmap-cxt-objset CM-B0-H0
+         N!<B0 (B0+N=B1 x) (CM-B1-H0 x))
+    <- ({x} reftyping-implies-clsmap-result CM-CM CM-MM
+         (clsmap-cxt/U CM-B0 (clsmap-ty/ CML-F) N!<B0 (B0+N=B1 x))
+         (clsmap-cxt-env/
+           (clsmap-cxt-objset/U (CM-B1-H0 x) (B1->N x) CML-F N!<H0 H0+N=H1)
+           (CM-B1-K3 x)) (RTYP-E1 x) (clsmap-result/expr (CM-B1-RT1 x) (CM-B1-V1 x)))
+    <- ({x} subtype-consistent (CM-B1-RT1 x) (CM-B1-V1 x) SUB
+         (clsmap-cxt-env/ (CM-B1-H2 x) (CM-B1-K4 x)) (CM-B1-V2 x))
+    <- reftyping-implies-clsmap-result/L5 CM-B1-H2 H2-N=H3 N!<B0 B0+N=B1 CM-B0-H3
+    <- set`remove-implies-disjoint K4-K2=K5 K2^K5
+    <- set`remove-implies-leq K4-K2=K5 K5<=K4
+    <- ({x} clsmap-cxt-capset-respects-geq (CM-B1-K4 x) K5<=K4 (CM-B1-K5 x))
+    <- reftyping-implies-clsmap-result/L3 CML-F DM-FFM=FS CM-B1-K2 CM-B1-K5 N+FS=K2
+      K2^K5 N!<B0 B0+N=B1 CM-B0-K5.
+
+- : reftyping-implies-clsmap-result CM-CM CM-MM CM-B0 CM-V0
+    (reftyping/swap (K2+K1=K3:restore-pinned-caps K2 G1 K3)
+      (SUB:subtype CM S RT1 V1 (ty/ FNN annot/unique FC) _ (env/ H1 K2))
+      (RTYP-E)
+      (MG:make-tgts-and-caps K0 G0 F G1 K1)
+      (FML:fldmap`lookup FM F (ty/ FNN annot/unique FC))
+      (CML:clsmap`lookup CM C0 FM) T2RT B0-L)
+    (clsmap-result/expr (clsmap-cxt-reftype/fresh CML-F)
+      (clsmap-cxt-env/ CM-B0-H1 CM-B0-K3))
+    <- ty2reftype-implies-clsmap-cxt-reftype B0-L T2RT CML CM-B0-RT0
+    <- make-tgts-and-caps-consistent/1 CM-CM CML FML
+      (clsmap-result/expr CM-B0-RT0 CM-V0) MG CM-B0-RT
+      (clsmap-cxt-env/ CM-B0-H0 CM-B0-K1)
+    <- reftyping-implies-clsmap-result CM-CM CM-MM CM-B0
+      (clsmap-cxt-env/ CM-B0-H0 CM-B0-K1) RTYP-E (clsmap-result/expr CM-B0-RT1 CM-B0-V1)
+    <- subtype-consistent CM-B0-RT1 CM-B0-V1 SUB
+      (clsmap-cxt-env/ CM-B0-H1 CM-B0-K2) CM-B0-V2
+    <- lookup-implies-clsmap-fldmap CM-CM CML CM-FM
+    <- lookup-implies-clsmap-ty CM-FM FML (clsmap-ty/ CML-F)
+    <- reftyping-implies-clsmap-result/L6 CM-B0-K2 CM-B0-RT K2+K1=K3 CM-B0-K3.
 
 %worlds (gtermvar) (reftyping-implies-clsmap-result _ _ _ _ _ _)
   (reftyping-implies-clsmap-result/let _ _ _ _ _ _)
