@@ -119,6 +119,9 @@ reftyping/lit :
     ty2reftype (s N) T RT ->
   reftyping _ _ B V (lit O) (result/expr RT V).
 
+reftyping/null
+  : reftyping CM MM B V (lit null) (result/expr (reftype/ nn/may C targets/fresh) V)
+    <- clsmap`lookup CM C _.
 
 %%% Reading a field
 
@@ -253,6 +256,8 @@ not-in-targets/shared : not-in-targets _ targets/shared.
 not-in-targets/fresh : not-in-targets _ targets/fresh.
 
 
+%%% Restore capabilities pinned from targets.
+
 restore-pinned-caps : set -> targets -> set -> type.
 
 restore-pinned-caps/shared : restore-pinned-caps K targets/shared K.
@@ -264,15 +269,12 @@ restore-pinned-caps/unique
     <- set`combine K1 K2 K.
 
 
-%%% Reclaim capabilities encumbered by the let variable.
-
-%%% At the moment we just be conservative, and don't allow ANY field
+%%% At the moment this rule is very conservative, it doesn't allow ANY field
 %%% from the let variable be consumed.
 
 letRefTyping : clsmap -> methmap -> cxt ->
     expr-result -> (object -> term K) -> result K -> type.
 
-%%% M5 = M0 - M2 + M3
 letRefTyping/base/unique :
     clsmap`lookup CM C FM ->
     fldmap`domain FM FS ->
@@ -330,17 +332,6 @@ This is useful for checking expressions such as:
 
 It also enables assigning to oneself:
   (n.next = n.next.next)
-
-Note, we cannot do:
-  let (read E0 F) ([x] write E0 F (E1 x))
-
-since when checking the second E0, we don't have the input
-permissions. This perhaps can be resolved by:
-  let E0 ([y] (let (read y F) ([x] write y F (E1 y x))))
-
-However, I think this doesn't really make sense because
-we could have: let (read (new C) F) ([x] write (new C) F (E1 x))
-
 }%
 
 reftyping/restore
