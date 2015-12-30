@@ -1,9 +1,9 @@
 %%% Test Cases for Reftyping
 
-%{ 
+%{
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  Example 1 (from Bill's thesis, page 60) 
+  Example 1 (from Bill's thesis, page 60)
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
   class ListItem {
@@ -24,7 +24,7 @@
   class Bad {
     @notnull @unique ListItem a;
     @notnull @unique Object b;
- 
+
     Bad(@unique Object o, @unique ListItem n) {
       a = new ListItem(o,n);
       b = null;
@@ -41,7 +41,7 @@
 
     @writes this.a, this.b
     @nonnull unique ListItem send() {
-      ListItem bad = a; 
+      ListItem bad = a;
       this.b = bad.getItem(); // write this.a.item, write this.b
       ListItem t = this.getList();  // write this.a
       ListItem ret = new ListItem(t,null); // consume t
@@ -52,48 +52,48 @@
 
     @writes this.a, this.b
     @nonnull unique ListItem send() {
-      ListItem bad = a; 
-      ListItem t = this.getList();  // write this.a - cannot check since 
+      ListItem bad = a;
+      ListItem t = this.getList();  // write this.a - cannot check since
       ListItem ret = new ListItem(t,null); // consume t
       this.b = bad.getItem(); // write bad.item, write this.b
       return ret;
     }
-  } 
+  }
 
   send() method can be translated to (roughly):
-  
+
   // GOOD
 
-  let _ = 
-    let 
+  let _ =
+    let
       bad = this.a // write this.a
-    in 
+    in
       this.b = bad.getItem() // write this.b, (write bad.item => write this.a)
     end
   in
-    let 
+    let
       t = this.getList() // write this.a
     in
-      let 
+      let
         ret = new ListItem(t,null) // consume t
       in
         ret // consume ret
       end
     end
   end
-   
+
   // BAD
 
-  let 
-    bad = this.a 
+  let
+    bad = this.a
   in
-    let 
+    let
       t = this.getList()
     in
       let
         ret = new ListItem(t,null)
       in
-        let 
+        let
           _ = this.b = bad.getItem()
         in
           ret
@@ -108,7 +108,7 @@ and the help of "destructive-read" rule.
 }%
 
 
-%%% abbreviation for nats
+
 
 %abbrev 0 = z.
 %abbrev 1 = s 0.
@@ -157,9 +157,9 @@ and the help of "destructive-read" rule.
 
 % fldmap
 
-%abbrev ObjectFields : fldmap = 
+%abbrev ObjectFields : fldmap =
   (fldmap/+ 0 (ty/ nn/may annot/unique ObjectClassID) fldmap/0).
-                                
+
 %abbrev ListItemFields : fldmap =
   (fldmap/+ 0 (ty/ nn/may annot/unique ObjectClassID) % item
     (fldmap/+ 0 (ty/ nn/may annot/unique ListItemClassID) % next
@@ -175,23 +175,23 @@ and the help of "destructive-read" rule.
 
 %abbrev Classes : clsmap =
   (clsmap/+ 0 ObjectFields
-    (clsmap/+ 0 ListItemFields 
+    (clsmap/+ 0 ListItemFields
       (clsmap/+ 0 BadFields
         clsmap/0))).
 
 
 % method bodies
 
-%abbrev ObjectConst : func = 
+%abbrev ObjectConst : func =
   func/+ ([this] func/0 (lit this)).
-          
 
-%abbrev ListItemConst : func = 
+
+%abbrev ListItemConst : func =
   func/+ ([this]
     func/+ ([o]
       func/+ ([n]
-        func/0 
-          (seq 
+        func/0
+          (seq
             (write (lit this) itemField (lit o))
             (write (lit this) nextField (lit n)))))).
 
@@ -206,14 +206,14 @@ and the help of "destructive-read" rule.
                 (args/+
                   (alloc ListItemClassID (set/+ 0 (set/+ 0 set/0)) set/0)
                   (args/+ (lit o)
-                    (args/+ (lit n) 
+                    (args/+ (lit n)
                       args/0)))))
             (write (lit this) bField (lit null)))))).
-      
+
 %abbrev getItemMeth : func =
   func/+ ([this]
     func/0
-      (let (read (lit this) itemField) 
+      (let (read (lit this) itemField)
         ([temp]
           (seq
             (write (lit this) itemField (lit null))
@@ -223,31 +223,31 @@ and the help of "destructive-read" rule.
 
 %abbrev getListMeth : func =
   func/+ ([this]
-    func/0 
+    func/0
       (let (read (lit this) aField)
         ([temp]
           (seq
             (write (lit this) aField (lit null))
             (lit temp))))).
 
-%abbrev sendMeth : func = 
+%abbrev sendMeth : func =
   func/+ ([this]
     func/0
       (seq
         (let (read (lit this) aField)
           ([bad]
-            (write (lit this) bField 
+            (write (lit this) bField
               (call getItemMethID
                 (args/+ (lit bad) args/0)))))
         (let (call getListMethID
                (args/+ (lit this) args/0))
           ([t]
             (let (call ListItemClassID
-                   (args/+ 
+                   (args/+
                      (alloc ListItemClassID (set/+ 0 (set/+ 0 set/0)) set/0)
                      (args/+
                        (lit t)
-                       (args/+ 
+                       (args/+
                          (lit null)
                          args/0))))
               ([ret]
@@ -305,7 +305,7 @@ and the help of "destructive-read" rule.
   (methty/arg
     (ty/ nn/yes annot/borrow ListItemClassID)
       set/0 (set/+ 0 set/0) set/0
-      (methty/base 
+      (methty/base
         (ty/ nn/may annot/unique ObjectClassID)
         maybe-efx/nothing)).
 
@@ -313,7 +313,7 @@ and the help of "destructive-read" rule.
   (methty/arg
     (ty/ nn/yes annot/borrow ListItemClassID)
     set/0 (set/+ 0 set/0) set/0
-    (methty/base 
+    (methty/base
       (ty/ nn/may annot/unique ListItemClassID)
       maybe-efx/nothing)).
 
@@ -331,7 +331,7 @@ and the help of "destructive-read" rule.
   (methmap/+ 0 ObjectConstType
     (methmap/+ 0 ListItemConstType
       (methmap/+ 0 BadConstType
-        (methmap/+ 0 getItemMethType 
+        (methmap/+ 0 getItemMethType
           (methmap/+ 0 getListMethType
             (methmap/+ 0 sendMethType
               methmap/0)))))).
@@ -341,16 +341,16 @@ and the help of "destructive-read" rule.
 %abbrev lit-target : nat -> targets = [N] (targets/unique (set/1 N) tgtmap/0 false).
 
 %abbrev check-getItem-body
-  : {this} reftyping 1 Classes MethodTypes 
+  : {this} reftyping 1 Classes MethodTypes
     (cxt/cons 0 (cxtv/ this (ty/ nn/yes annot/borrow ListItemClassID)) cxt/nil)
-    (let (read (lit this) itemField) 
+    (let (read (lit this) itemField)
       ([temp]
         (seq
           (write (lit this) itemField (lit null))
           (lit temp))))
     (out/expr
       (reftype/ nn/may ObjectClassID (lit-target 1))
-      (effects/ 
+      (effects/
         (efxmap/+ 0
           (inner-efxmap/+ 0 efx/write inner-efxmap/0)
           efxmap/0)
@@ -374,23 +374,23 @@ and the help of "destructive-read" rule.
   : {this} {bad} reftyping/args N Classes MethodTypes
     (cxt/cons 0 (cxtv/ this (ty/ nn/yes annot/borrow BadClassID))
       (cxt/cons 1 (cxtv/ bad (ty/ nn/yes annot/unique ObjectClassID))
-        cxt/nil)) no-effect 
+        cxt/nil)) no-effect
     (args/+ (lit bad) args/0)
     (out/args/+
       (reftype/ nn/yes BadClassID (lit-target 1))
       (out/args/0 no-effect)) N
-    = ([this] [bad] 
+    = ([this] [bad]
         (reftyping/args/+
           (reftyping/lit KK1 KK2)
           (effects`join/ efxmap`join/L maybe-efx`join/L)
           (reftyping/args/0))).
-          
+
           (reftyping/lit ty2reftype/unique (LLL))
 %abbrev check-call-getItem
-  : ref-calltyping N no-effect 
+  : ref-calltyping N no-effect
     (out/args/+ (reftype/ nn/yes BadClassID (lit-target N))
       (out/args/0) getItemMethType.
-    
+
 
 %abbrev check-send-body
   : {this} reftyping 1 Classes MethodTypes
@@ -398,24 +398,24 @@ and the help of "destructive-read" rule.
     (seq
       (let (read (lit this) aField)
         ([bad]
-          (write (lit this) bField 
+          (write (lit this) bField
             (call getItemMethID
               (args/+ (lit bad) args/0)))))
       (let (call getListMethID
              (args/+ (lit this) args/0))
         ([t]
           (let (call ListItemClassID
-                 (args/+ 
+                 (args/+
                    (alloc ListItemClassID (set/+ 0 (set/+ 0 set/0)) set/0)
                    (args/+
                      (lit t)
-                     (args/+ 
+                     (args/+
                        (lit null)
                        args/0))))
             ([ret]
               (lit ret))))))
     (out/expr
-      (reftype/ nn/yes ListItemClassID 
+      (reftype/ nn/yes ListItemClassID
         (targets/unique (set/1 6) tgtmap/0 false))
       (effects/
         (efxmap/+ 0
@@ -426,7 +426,7 @@ and the help of "destructive-read" rule.
     7
     = [this]
       (
-    
+
 
 
 %{
@@ -451,10 +451,10 @@ in our system - that is, allow join of write and consume, but not
 
 both "consume n.next" and "write n.next".
 
-  We could make a little change on this code and adopt it to the 
+  We could make a little change on this code and adopt it to the
 destructive-read rule:
 
-  let x = n.next in (n.next = null; m.next = x; n.next = m) end  
+  let x = n.next in (n.next = null; m.next = x; n.next = m) end
 
 However, this still cannot be checked since it has both "write m.next"
 and "consume m".
@@ -469,14 +469,14 @@ and "consume m".
     @shared Object o;
 
     @write this.u, this.o
-    void bar() { 
+    void bar() {
       this.o = this.u;
     }
 
-  this can be checked since method body for bar() generates consume 
+  this can be checked since method body for bar() generates consume
 effect on this.u, but this is borrowed.
 
-  
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Example 4 (from permission-type.elf)
 
@@ -486,7 +486,7 @@ Example 4 (from permission-type.elf)
   }
 
 
-  @maynull @unique Node 
+  @maynull @unique Node
   member(@maynull @unique Node l, @notnull @shared Object x) {
     let frame = new { Node p } in
       seq
@@ -497,7 +497,7 @@ Example 4 (from permission-type.elf)
         frame.p
     end
   }
-  
+
 }%
 
 

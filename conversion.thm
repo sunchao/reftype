@@ -1183,6 +1183,69 @@
     <- clsmap2predmap-implies-predmap-lookup CM2PM CML CJ PML
     <- clsmap-cxt-env-implies-env2input CM-CM CM2PM CM-V PiV V=>PiV.
 
+- : reftyping-ok CM-CM CM-MM CM2PM MM2W CM-B0 CM-B0-V
+    (reftyping/ifNull
+      (cxt`lookup-obj/ (B0-L:cxt`lookup B0 (s N) (cxt-info/ O (ty/ nn/may NN C))))
+      (B0-U:cxt`update B0 (s N) (cxt-info/ O (ty/ nn/yes NN C)) B1)
+      RTYP-E1 RTYP-E2) _ _ _ B0=>PiB0 B0+V=>PiV
+    (result2output/expr B0=>PiB0out B0+V1=>PiV1 B0+RT=>PF)
+    (tTrans2
+      (tIf tEql
+        (ifTyping/base
+          (tTrans
+            (transform/implies
+              (implies/trans
+                (implies/combine implies/nonlinear2empty implies/reflexive)
+                (implies/commute-identity)))
+            (letTyping/base null TYP-E1)
+            (transform/reflexive))
+          (tTrans
+            (transform/implies
+              (implies/trans3
+                (implies/associate)
+                (implies/combine (implies/equiv NULL+PiB0=PiB1') implies/reflexive)
+                (implies/equiv
+                  (equiv/combine PiB1'<=>PiB1 PiV<=>PiV'))))
+            (letTyping/base null TYP-E2)
+            (transform/inside [o]
+              (transform/inside [r]
+                (transform/inside [v]
+                  (transform/implies
+                    (implies/combine
+                      (implies/combine
+                        (implies/trans5
+                          (implies/equiv (PiB1out<=>PiB1'))
+                          (implies/equiv (equiv/symmetric NULL+PiB0=PiB1'))
+                          (implies/combine implies/nonlinear2empty implies/reflexive)
+                          (implies/commute-identity)
+                          (implies/equiv (equiv/symmetric PiB0out<=>PiB0)))
+                        (implies/combine (PF'=>PF o r v) (implies/equiv PiV1'<=>PiV1)))
+                      (implies/reflexive)))))))))
+      (transform/reflexive))
+    <- reftyping-ok CM-CM CM-MM CM2PM MM2W CM-B0 CM-B0-V RTYP-E1 PiB0 PiV
+      _ B0=>PiB0 B0+V=>PiV
+      (result2output/expr
+        (B0=>PiB0out:cxt2perm PM B0 PiB0out)
+        (B0+V1=>PiV1:env2input CM PM B0 V1 PiV1)
+        (B0+RT=>PF:reftype2perm CM PM B0 RT PF)) TYP-E1
+    <- reftyping-ok/ifnull/helper/L1 B0-L B0-U CM-B0 CM-B0-V CM-B1 CM-B1-V
+    <- reftyping-ok CM-CM CM-MM CM2PM MM2W CM-B1 CM-B1-V
+      RTYP-E2 PiB1 PiV' _ B1=>PiB1 B1+V=>PiV'
+      (result2output/expr
+        (B1=>PiB1out:cxt2perm PM B1 PiB1out)
+        (B1+V1=>PiV1':env2input CM PM B1 V1 PiV1')
+        (B1+RT=>PF':reftype2perm CM PM B1 RT PF')) TYP-E2
+    <- reftyping-ok/ifnull/helper/L2 B0-L B0-U B0+V=>PiV B1+V=>PiV
+    <- reftyping-ok/ifnull/helper/L3 B0-L B0-U B0=>PiB0 PiB1' B1=>PiB1' NULL+PiB0=PiB1'
+    <- cxt2perm-equiv B1=>PiB1' B1=>PiB1 predmap`eq/ cxt`eq/ PiB1'<=>PiB1
+    <- env2input-unique B1+V=>PiV B1+V=>PiV' env`eq/ PiV<=>PiV'
+    <- cxt2perm-equiv B1=>PiB1out B1=>PiB1' predmap`eq/ cxt`eq/ PiB1out<=>PiB1'
+    <- cxt2perm-equiv B0=>PiB0out B0=>PiB0 predmap`eq/ cxt`eq/ PiB0out<=>PiB0
+    <- reftyping-ok/ifnull/helper/L2/L4 B0-L B0-U B0+RT=>PF B1+RT=>PF
+    <- reftype2perm-implies B1+RT=>PF B1+RT=>PF' reftype`eq/ IMP1 PF'=>PF
+    <- reftyping-ok/ifnull/helper/L2 B0-L B0-U B0+V1=>PiV1 B1+V1=>PiV1
+    <- env2input-unique B1+V1=>PiV1' B1+V1=>PiV1 env`eq/ PiV1'<=>PiV1.
+
 %worlds (gtermvar) (reftyping-ok _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 (reftyping-ok/expr/write _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
 (reftyping-ok/args _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
@@ -1193,50 +1256,6 @@
 
 
 %%% Method Typing
-
-
-% Checking method type against func
-
-methtymatch* : env -> env -> clsmap -> methmap -> cxt -> func -> methty -> type.
-
-%%% if we have sub rule, then RT should match T,
-%%% hence subtype will not be needed.
-
-methtymatch/base :
-    ty2new-reftype T RT ->
-    reftyping CM MM B Vin E (result/expr RT Vout) ->
-  methtymatch* Vin Vout CM MM B (func/0 E) (methty/base T).
-
-methtymatch/args/shared :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-    ({x} methtymatch* Vin Vout CM MM (B1 x) (F x) MT) ->
-  methtymatch* Vin Vout CM MM B0 (func/+ F)
-    (methty/arg (ty/ NN annot/shared C) _ MT).
-
-methtymatch/args/unique :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
-    clsmap`lookup CM C FM ->
-    fldmap`domain FM FS ->
-    nat+set2set (s N) FS Mf ->
-    set`add Uin (s N) Uin' ->
-    set`union Min Mf Min' ->
-    ({x} methtymatch* (env/ Uin' Min') Vout CM MM (B1 x) (F x) MT) ->
-  methtymatch* (env/ Uin Min) Vout CM MM B0 (func/+ F)
-    (methty/arg (ty/ NN annot/unique C) _ MT).
-
-methtymatch/args/borrow :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
-    nat+set2set (s N) FS Mf ->
-    set`union Min Mf Min' ->
-    set`union Mout Mf Mout' ->
-    ({x} methtymatch* (env/ Uin Min') (env/ Uout Mout') CM MM (B1 x) (F x) MT) ->
-  methtymatch* (env/ Uin Min) (env/ Uout Mout) CM MM B0 (func/+ F)
-    (methty/arg (ty/ NN annot/borrow C) FS MT).
-
-%abbrev methtymatch = [CM][MM][F][MT] methtymatch* empty-env empty-env CM MM cxt/0 F MT.
 
 
 %%% Theorems about matching methmap with proctype
@@ -1772,23 +1791,6 @@ maynull-set/+
     <- set`add SP F S
     <- maynull-set FM SP.
 
-
-%%% Select nonnull fields
-
-select-nn-fields : fldmap -> set -> type.
-
-select-nn-fields/0 : select-nn-fields fldmap/0 set`set/0.
-
-select-nn-fields/in
- : select-nn-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
-    <- fldmap`shift F M M'
-    <- select-nn-fields M' S'
-    <- set`union S' (set/1 F) S.
-
-select-nn-fields/out
-  : select-nn-fields (fldmap/+ F (ty/ nn/may _ _) M) S
-    <- fldmap`shift F M M'
-    <- select-nn-fields M' S.
 
 
 %%% Some Lemmas
@@ -3033,73 +3035,6 @@ select-nn-fields/out
 
 %worlds (gtermvar) (mns-imp-sfp _ _ _ _ _ _ _).
 %total  {} (mns-imp-sfp _ _ _ _ _ _ _).
-
-
-%%% Constructor Typing
-
-constyping : clsmap -> methmap -> fldmap
-    -> cxt -> env -> set -> (object -> expr) -> env -> type.
-
-constyping/0 : constyping _ _ _ _ V set/0 ([t] lit t) V.
-
-constyping/nn :
-    fldmap`lookup FM F (ty/ nn/yes A C) ->
-    set`remove S (set/1 F) SP ->
-    reftyping CM MM B V0 E (result/expr RT V1) ->
-    subtype CM _ RT V1 (ty/ nn/yes A C) _ V2 ->
-    constyping CM MM FM B V2 SP ([t] EF t) V3 ->
-  constyping CM MM FM B V0 S ([t] seq (write (lit t) F E) (EF t)) V3.
-
-constyping/mn :
-    fldmap`lookup FM F (ty/ nn/may A C) ->
-    reftyping CM MM B V0 E (result/expr RT V1) ->
-    subtype CM _ RT V1 (ty/ nn/may A C) _ V2 ->
-    constyping CM MM FM B V2 S ([t] EF t) V3 ->
-  constyping CM MM FM B V0 S ([t] seq (write (lit t) F E) (EF t)) V3.
-
-
-constymatch* : env -> env -> clsmap -> methmap -> fldmap -> cxt ->
-    (object -> func) -> methty -> type.
-
-constymatch/base :
-    ty2new-reftype (ty/ nn/yes annot/unique C) RT ->
-    clsmap`lookup CM C FM ->
-    select-nn-fields FM S ->
-    constyping CM MM FM B Vin S ([t] E t) Vout ->
-  constymatch* Vin Vout CM MM FM B ([t] func/0 (E t))
-    (methty/base (ty/ nn/yes annot/unique C)).
-
-constymatch/args/shared :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-    ({x} constymatch* Vin Vout CM MM FM (B1 x) ([t] F t x) CT) ->
-  constymatch* Vin Vout CM MM FM B0 ([t] (func/+ ([o] F t o)))
-    (methty/arg (ty/ NN annot/shared C) set/0 CT).
-
-constymatch/args/borrow :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/borrow C)) (B1 x)) ->
-    nat+set2set (s N) FS Mf ->
-    set`union Min Mf Min' ->
-    set`union Mout Mf Mout' ->
-    ({x} constymatch* (env/ Uin Min') (env/ Uout Mout') CM MM FM (B1 x) ([t] F t x) CT) ->
-  constymatch* (env/ Uin Min) (env/ Uout Mout) CM MM FM B0 ([t] (func/+ ([o] F t o)))
-    (methty/arg (ty/ NN annot/borrow C) FS CT).
-
-constymatch/args/unique :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
-    clsmap`lookup CM C FFM ->
-    fldmap`domain FFM FFS ->
-    nat+set2set (s N) FFS Mf ->
-    set`add Uin (s N) Uin' ->
-    set`union Min Mf Min' ->
-    ({x} constymatch* (env/ Uin' Min') Vout CM MM FM (B1 x) ([t] F t x) CT) ->
-  constymatch* (env/ Uin Min) Vout CM MM FM B0 ([t] (func/+ ([o] F t o)))
-    (methty/arg (ty/ NN annot/unique C) set/0 CT).
-
-%abbrev constymatch
-  = [CM][MM][FM][F][CT] constymatch* empty-env empty-env CM MM FM cxt/0 F CT.
 
 
 %%% Theorems about constyping
