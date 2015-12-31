@@ -105,6 +105,19 @@ expr-result-sub/ :
 %%% TODO: for other result kinds?
 
 
+%%% Look for encumbered capabilities and put them back in the holding capability set
+
+restore-cap-targets : env -> reftype -> env -> type.
+
+restore-cap-targets/shared : restore-cap-targets V (reftype/ _ _ targets/shared) V.
+
+restore-cap-targets/fresh : restore-cap-targets V (reftype/ _ _ targets/fresh) V.
+
+restore-cap-targets/unique :
+    set`combine K0 K1 K ->
+  restore-cap-targets (env/ H K0) (reftype/ _ _ (targets/unique _ K1 _)) (env/ H K).
+
+
 %%% Type Checking Rules
 
 reftyping : clsmap -> methmap -> cxt -> env -> term K -> result K -> type.
@@ -256,18 +269,6 @@ not-in-targets/shared : not-in-targets _ targets/shared.
 not-in-targets/fresh : not-in-targets _ targets/fresh.
 
 
-%%% Restore capabilities pinned from targets.
-
-restore-pinned-caps : set -> targets -> set -> type.
-
-restore-pinned-caps/shared : restore-pinned-caps K targets/shared K.
-
-restore-pinned-caps/fresh : restore-pinned-caps K targets/fresh K.
-
-restore-pinned-caps/unique
-  : restore-pinned-caps K1 (targets/unique _ K2 _) K
-    <- set`combine K1 K2 K.
-
 
 %%% At the moment this rule is very conservative, it doesn't allow ANY field
 %%% from the let variable be consumed.
@@ -315,12 +316,11 @@ reftyping/let :
     letRefTyping CM MM B R1 F R2 ->
   reftyping CM MM B V (let E F) R2.
 
-
 reftyping/seq
   : reftyping CM MM B V0 (seq E1 E2) R
-    <- reftyping CM MM B V0 E1 (result/expr (reftype/ _ _ G1) (env/ H1 K1))
-    <- restore-pinned-caps K1 G1 K2
-    <- reftyping CM MM B (env/ H1 K2) E2 R.
+    <- reftyping CM MM B V0 E1 (result/expr RT V1)
+    <- restore-cap-targets V1 RT V2
+    <- reftyping CM MM B V2 E2 R.
 
 
 %{
@@ -357,15 +357,15 @@ reftyping/restore
 reftyping/swap
   : reftyping CM MM B (env/ H0 K0)
     (let (read (lit O) F) ([x] (seq (write (lit O) F E) (lit x))))
-    (result/expr (reftype/ FNN FC targets/fresh) (env/ H1 K3))
+    (result/expr (reftype/ FNN FC targets/fresh) V3)
     <- cxt`lookup-obj B O (s N0) T
     <- ty2reftype (s N0) T (reftype/ nn/yes C0 G0)
     <- clsmap`lookup CM C0 FM
     <- fldmap`lookup FM F (ty/ FNN annot/unique FC)
     <- make-tgts-and-caps K0 G0 F G1 K1
     <- reftyping CM MM B (env/ H0 K1) E (result/expr RT1 V1)
-    <- subtype CM _ RT1 V1 (ty/ FNN annot/unique FC) _ (env/ H1 K2)
-    <- restore-pinned-caps K2 G1 K3.
+    <- subtype CM _ RT1 V1 (ty/ FNN annot/unique FC) _ V2
+    <- restore-cap-targets V2 (reftype/ FNN FC G1) V3.
 
 
 %%% Method Calls
@@ -441,17 +441,6 @@ ty2new-reftype/shared :
     ty2new-reftype (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
 
 
-%%% Look for encumbered capabilities and put them back in the holding capability set
-
-restore-cap-targets : env -> targets -> env -> type.
-
-restore-cap-targets/shared : restore-cap-targets V targets/shared V.
-
-restore-cap-targets/unique :
-    set`combine M0 M1 M ->
-  restore-cap-targets (env/ U M0) (targets/unique _ M1 _) (env/ U M).
-
-
 restore-cap-call : env -> reftype -> env -> ty -> env -> type.
 
 restore-cap-call/uniqueORshared :
@@ -459,9 +448,9 @@ restore-cap-call/uniqueORshared :
   restore-cap-call V _ _ (ty/ _ A _) V.
 
 restore-cap-call/borrow :
-    restore-cap-targets V0 (targets/unique S M W) V0' ->
+    restore-cap-targets V0 RT V0' ->
     env`combine V0' V1 V2 ->
-  restore-cap-call V0 (reftype/ _ _ (targets/unique S M W)) V1 (ty/ _ annot/borrow _) V2.
+  restore-cap-call V0 RT V1 (ty/ _ annot/borrow _) V2.
 
 
 callRefTyping* : clsmap -> methmap -> env -> args-result -> methty -> expr-result -> type.
@@ -519,6 +508,14 @@ reftyping/ifNull :
     reftyping CM MM B1 V E2 R ->
   reftyping CM MM B0 V (if (eql (lit O) (lit null)) E1 E2) R.
 
+reftyping/loop :
+    reftyping CM MM B V0 C (result/cond V1) ->
+    reftyping CM MM B V1 E (result/expr RT V2) ->
+    restore-cap-targets V2 RT V0 ->
+    clsmap`lookup CM C0 _ ->
+  reftyping CM MM B V0 (while C E)
+    (result/expr (reftype/ nn/may C0 targets/fresh) V1).
+
 
 %%% Conditionals
 
@@ -526,10 +523,10 @@ reftyping/ifNull :
 %%% encumbered in `RT1` and `RT2`.
 
 reftyping/eq :
-    reftyping CM MM B V0 E1 (result/expr (reftype/ _ _ G1) V1) ->
-    reftyping CM MM B V1 E2 (result/expr (reftype/ _ _ G2) V2) ->
-    restore-cap-targets V2 G1 V3 ->
-    restore-cap-targets V3 G2 V4 ->
+    reftyping CM MM B V0 E1 (result/expr RT1 V1) ->
+    reftyping CM MM B V1 E2 (result/expr RT2 V2) ->
+    restore-cap-targets V2 RT1 V3 ->
+    restore-cap-targets V3 RT2 V4 ->
   reftyping CM MM B V0 (eql E1 E2) (result/cond V4).
 
 reftyping/not :
