@@ -1,81 +1,75 @@
 %%% Reference Type
 
-%%% Definitions
-
-%%% Non-Nullness
+%%% Nullness
 
 nonnull : type. %name nonnull NN nn.
-
 nonnull/yes : nonnull.
-
 nonnull/may : nonnull.
 
 
 %%% Equality for nonnull
 
 nonnull`eq : nonnull -> nonnull -> type.
-
 nonnull`eq/ : nonnull`eq NN NN.
 
 
 %%% Less-eq relation for nonnull
 
 nonnull`leq : nonnull -> nonnull -> type.
-
 nonnull`leq/= : nonnull`leq NN1 NN2 <- nonnull`eq NN1 NN2.
-
 nonnull`leq/< : nonnull`leq nonnull/may nonnull/yes.
 
 %abbrev nonnull`sub = [NN1][NN2] nonnull`leq NN2 NN1.
-
 %abbrev sub-nonnull = nonnull`sub.
 
 
 %%% Annotation
 
 annot : type.		%name annot A.
-
 annot/unique : annot.
-
 annot/shared : annot.
-
 annot/borrow : annot.	% borrow CANNOT be used on fields
 
 
 annot`eq : annot -> annot -> type.
-
 annot`eq/ : annot`eq A A.
 
 
 %%% Annotated Type
 
 ty : type.		%name ty T.
-
 ty/ : nonnull -> annot -> nat -> ty.
 
 
 %%% Targets
-%%% TODO: rename it
+%%% This is used to track where a reference comes from.
+%%% There are basically two categories of targets:
+%%% targets/shared: indicates that the reference is shared, and therefore
+%%%   it points to an object that may have other references point to it as well.
+%%%   Note: the targets/shared is identical to the shared "source" in the thesis.
+%%% targets/unique and targets/fresh: indicates that the reference is unique.
+%%% That is, the reference is the only access to the object that it points to.
+%%% targets/fresh indicates that the reference is a value from method call or the "new"
+%%% expression. For this case, we do not track the associated capability.
 
 targets : type. %name targets G.
-
 targets`eq : targets -> targets -> type.
-
 targets`eq/ : targets`eq G G.
 
 
 %%% Targets of Unique References:
-%%%   first `set`: the set of all object targets - they should all be unique
-%%%   second `set`: the capabilities needed for the targets
-%%%   bool: whether the unique target also comes from a fresh (untracked) object
-%%% Naming for the variables in order: U, M, W
+%%%   first `set`: the set of object targets - they should all be unique.
+%%%   second `set`: the set of field targets.
+%%%   bool: whether there is fresh target for the reference.
+
+%%% Naming for the variables in order: H, K, W
 targets/unique : set -> set -> bool -> targets.
 
 %{
 TODO: this is not good for unique references from shared, since they cannot
 be tracked. Maybe we also should use a list of object targets for this?
 
-For instance, for expression such as: a.u, it requires we have capability
+For instance, for an expression such as: a.u, it requires we have capability
 on 'shared', but a better approach is to require capability on a.u.
 We need capability on 'shared' though for expression such as a.s.u.
 
@@ -85,12 +79,10 @@ the shared permission is no longer available. I think we may not want to allow
 this.
 }%
 
+%%% Shared targets - corresponds to the shared source in the thesis.
 targets/shared : targets.
 
-%{
-TODO: think about how to integrate this with targets/unique.
-}%
-
+%%% TODO: think about how to combine this with targets/unique.
 targets/fresh : targets.
 
 
@@ -99,9 +91,9 @@ targets/fresh : targets.
 reftype : type.	%name reftype RT.
 
 % reftype for "normal" references:
-%  `nonnull`: the nonnull information of this reference.
-%  `nat`: class id for this reference.
-%  `targets`: all the possible targets of this reference.
+%  `nonnull`: the nullness of this reference.
+%  `nat`: class identifier for this reference.
+%  `targets`: all targets of this reference.
 
 reftype/ : nonnull -> nat -> targets -> reftype.
 
@@ -109,37 +101,28 @@ reftype/ : nonnull -> nat -> targets -> reftype.
 %%% Equality on Reference Type
 
 reftype`eq : reftype -> reftype -> type.
-
 reftype`eq/ : reftype`eq RT RT.
-
 
 
 %%% Not borrowed
 
 not-borrow : annot -> type.
-
 not-borrow/unique : not-borrow annot/unique.
-
 not-borrow/shared : not-borrow annot/shared.
 
 
 %%% Not unique
 
 not-unique : annot -> type.
-
 not-unique/borrow : not-unique annot/borrow.
-
 not-unique/shared : not-unique annot/shared.
 
 
 %%% Either unique or borrow
 
 not-shared : annot -> type.
-
 not-shared/unique : not-shared annot/unique.
-
 not-shared/borrow : not-shared annot/borrow.
-
 
 
 %%% Theorems

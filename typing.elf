@@ -5,11 +5,8 @@
 result : kind -> type.
 
 %abbrev expr-result = result exprk.
-
 %abbrev cond-result = result condk.
-
 %abbrev args-result = result argsk.
-
 
 result/expr : reftype -> env -> expr-result.
 
@@ -20,21 +17,21 @@ result/args/0 : env -> args-result.
 result/args/+ : reftype -> env -> args-result -> args-result.
 
 
-%%% Equality
+%%% Equality for result
 
 result`eq : result K -> result K -> type.
-
 result`eq/ : result`eq R R.
 
 
-%%% Sub-relation on targets
+%%% Sub-relation for targets
 
 targets`sub : set -> targets -> env -> targets -> env -> type.
 
 targets`sub/ss : targets`sub _ targets/shared V targets/shared V.
 
 %%% For the unique => shared case, all the object targets and field targets
-%%% are consumed.
+%%% are consumed. This is very restrictive.
+%%% TODO: think about how to make it less restrictive.
 targets`sub/us :
     set+set2set S FS M ->
     set`split U0 S U1 ->
@@ -172,8 +169,6 @@ writeRefTyping : clsmap -> methmap -> cxt -> expr-result -> nat -> expr ->
 
 %%% In subtype, we don't care about FS, since it's impossible for
 %%% a field to be borrowed.
-%%% TODO: looks like the result for this shouldn't have attached field caps.
-%%% The result of writing a field should be unit
 writeRefTyping/base :
     clsmap`lookup CM C FM ->
     fldmap`lookup FM F (ty/ NN A FC) ->
@@ -199,34 +194,14 @@ is mapped to the reftype from checking E. But, whenever consume something,
 we need to trace down to the "root" of each binding. This approach is a bit
 complicated.
 
-2. suppose x is bound to (reftype/unique S G), we remove field capabilities for
-all objects in S. For instance, if S = {a, b}, and in M we have (a.f,W),
-(a.g, R), (b.f, R), then as result, we remove these from M, and add (x.f, R) to it.
-In other words, we compute the most conservative capabilities we can get for x.
-During the life time of x, all objects in S are not allowed to use, until x is being
-released out of scope.
+2. suppose x is bound to (targets/unique H K W), we need to remove field
+capabilities for all objects in H. For instance, if H = {a, b}, and in K we have a.f
+a.g and b.f, then as result, we remove these from K and add x.f back.
+During the life time of x, none of the capability for x can be consumed - they shall
+be restored when x is out of scope.
 
 Currently, we use the second approach, since it's easier to implement.
 In the future, we can come back here and switch to the first approach.
-}%
-
-
-%{
-update-cxt : clsmap -> env -> ty -> (object -> env) -> type.
-
-update-cxt/unique :
-    clsmap`lookup CM C FM ->
-    fldmap`domain FM FS ->
-    nat+set2capmap (s N) FS cap/write M1 ->
-    capmap-split M2 M1 M0 ->
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/unique C)) (B1 x)) ->
-  update-cxt CM (env/ B0 M0) (ty/ NN annot/unique C) ([x] env/ (B1 x) M2).
-
-update-cxt/shared :
-    cxt`fresh B0 (s N) ->
-    ({x} cxt`update B0 (s N) (cxt-info/ x (ty/ NN annot/shared C)) (B1 x)) ->
-  update-cxt CM (env/ B0 M0) (ty/ NN annot/shared C) ([x] env/ (B1 x) M0).
 }%
 
 %%% Make sure the let variable is not in the result target (no leaking).
@@ -267,7 +242,6 @@ not-in-targets/unique :
 not-in-targets/shared : not-in-targets _ targets/shared.
 
 not-in-targets/fresh : not-in-targets _ targets/fresh.
-
 
 
 %%% At the moment this rule is very conservative, it doesn't allow ANY field
@@ -373,28 +347,18 @@ reftyping/swap
 %{
 Type checking arguments
 
-One issue we need to consider is aliasing between unique arguments.
-For instance, if a method is annotated as "reads a.f, writes b.f", and
-a and b are aliases to each other, then we cannot check the call.
-
-Given this situation doesn't occur very often, and is also illegal in FP,
-here we just simply disallow "duplicated" cap while checking method call effects.
-
 For borrowed parameter type, we'll get back the associated capabilities after
-the method call is checked. Consider:
+the method call checking is done. Consider:
 
-@write b.f
-foo(@borrow T b): ...
+foo(borrow(b.f) T b): ...
 
 And both x and y are unique reference of type T, and both f and g are unique fields.
-Then,
+Then:
 
-call foo(if a > 3 then x else y.g)
+  call foo(if a > 3 then x else y.g)
 
-will need input capabilities (x.f, y.g)
-
-After foo is checked, we should get permissions for x.f and y.g back.
-
+will need input capabilities (x.f, y.g). After foo is checked, we should get
+permissions for x.f and y.g back.
 }%
 
 
@@ -411,46 +375,43 @@ argsRefTyping/+ :
 
 %{
 How to check method call:
-1. Check arguments, given an input type context and capability set.
+1. Type checking arguments, given an input environment and capability set.
    For each argument, type checking will yield a corresponding
    result reftype, and produce a output capability set. After checking all
-   arguments, we get a output (unchanged) type context, and a set of
+   arguments, we get a output (unchanged) environment and a set of
    remaining capabilities.
-2. Check method type using the result/args and remaining capability set.
+2. Type checking method type using the result/args and remaining capability set.
    For each formal argument, if it's unique, remove the associated capabilities
    from output capability set. Otherwise, we'll just return the same capabilities
    for the argument.
 
-Note that both step 1 and 2 may modify the context and capability set (step 1
-will only weaken the condition, while step 2 will only strengthen the
-condition).
-
-To make the rule interesting, we should need to prove that capabilities can be
-reclaimed after they are not needed after the method call checking. This is
-also needed for checking tLet.
+Note that both step 1) and 2) may modify the environment and capabilities; step 1)
+will only weaken the condition, while step 2) will only strengthen the condition.
 }%
 
-%%% Converting a ty to a reftype for a fresh new object.
+%%% Converting a ty to a reftype for method call return.
 
 ty2new-reftype : ty -> reftype -> type.
 
-ty2new-reftype/unique :
-    ty2new-reftype (ty/ NN annot/unique C) (reftype/ NN C targets/fresh).
+ty2new-reftype/unique : ty2new-reftype (ty/ NN annot/unique C) (reftype/ NN C targets/fresh).
 
-ty2new-reftype/shared :
-    ty2new-reftype (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
+ty2new-reftype/shared : ty2new-reftype (ty/ NN annot/shared C) (reftype/ NN C targets/shared).
 
+
+%%% After a method call, look at each argument and reclaim the pinned capabilities in case
+%%% the argument is borrowed.
 
 restore-cap-call : env -> reftype -> env -> ty -> env -> type.
 
-restore-cap-call/uniqueORshared :
-    not-borrow A ->
-  restore-cap-call V _ _ (ty/ _ A _) V.
+restore-cap-call/uniqueORshared
+  : restore-cap-call V _ _ (ty/ _ A _) V
+    <- not-borrow A.
 
 restore-cap-call/borrow :
     restore-cap-targets V0 RT V0' ->
     env`combine V0' V1 V2 ->
   restore-cap-call V0 RT V1 (ty/ _ annot/borrow _) V2.
+
 
 
 callRefTyping* : clsmap -> methmap -> env -> args-result -> methty -> expr-result -> type.
@@ -519,8 +480,7 @@ reftyping/loop :
 
 %%% Conditionals
 
-%%% After the "eql" statement, we need to reclaim the capabilities
-%%% encumbered in `RT1` and `RT2`.
+%%% After the "eql" statement, we need to reclaim the pinned capabilities in `RT1` and `RT2`.
 
 reftyping/eq :
     reftyping CM MM B V0 E1 (result/expr RT1 V1) ->
@@ -534,30 +494,14 @@ reftyping/not :
   reftyping CM MM B V (not C) R.
 
 %%% For the second branch, the input capabilities need to be the same
-%%% as output (e.g., no a.f = new C in C2). Otherwise, for the conditional
-%%% in the output the two branches will have different permissions.
+%%% as output (e.g., no a.f = new C in C2). Fractional permissions use
+%%% short-circuiting for "and" expression, so permissions from both branch
+%%% need to be the same.
 reftyping/and :
     reftyping CM MM B V0 C1 (result/cond V1) ->
     reftyping CM MM B V1 C2 (result/cond V1) ->
   reftyping CM MM B V0 (and C1 C2) (result/cond V1).
 
-
-%%% Select nonnull fields
-
-select-nn-fields : fldmap -> set -> type.
-
-select-nn-fields/0 : select-nn-fields fldmap/0 set`set/0.
-
-select-nn-fields/in
- : select-nn-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
-    <- fldmap`shift F M M'
-    <- select-nn-fields M' S'
-    <- set`union S' (set/1 F) S.
-
-select-nn-fields/out
-  : select-nn-fields (fldmap/+ F (ty/ nn/may _ _) M) S
-    <- fldmap`shift F M M'
-    <- select-nn-fields M' S.
 
 
 % Checking method type against func
@@ -606,7 +550,28 @@ methtymatch/args/borrow :
 
 
 
+%%% Select nonnull fields for checking constructor body.
+
+select-nn-fields : fldmap -> set -> type.
+
+select-nn-fields/0 : select-nn-fields fldmap/0 set`set/0.
+
+select-nn-fields/in
+ : select-nn-fields (fldmap/+ F (ty/ nn/yes _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-nn-fields M' S'
+    <- set`union S' (set/1 F) S.
+
+select-nn-fields/out
+  : select-nn-fields (fldmap/+ F (ty/ nn/may _ _) M) S
+    <- fldmap`shift F M M'
+    <- select-nn-fields M' S.
+
+
+
 %%% Constructor Typing
+%%% The 't' in the following is the "this" variable.
+
 
 constyping : clsmap -> methmap -> fldmap
     -> cxt -> env -> set -> (object -> expr) -> env -> type.
@@ -722,6 +687,8 @@ constymatch/args/unique :
 %worlds (gtermvar) (result/args/+-eq-inversion _ _ _ _).
 %total { } (result/args/+-eq-inversion _ _ _ _).
 
+
+%%% Theorems about get-objset.
 
 %theorem get-objset-respects-eq
   : forall* {M0} {S0} {M1} {S1}
