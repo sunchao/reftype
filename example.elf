@@ -1,0 +1,559 @@
+%%% Examples
+%%% For brevity, here we ignored the "this" parameter for the methods.
+
+%{
+
+class Node {
+  shared nullable Object datum;
+  unique nullable Node next;
+
+  unique nullable Object append(borrowed(next) notnull Node n,
+              unique notnull Node m) {
+    let x = n.next in
+      n.next = (m.next = x; m)
+    null;
+  }
+
+  shared nullable Object
+  member(borrowed(val, next) nullable Node head,
+         shared nullable Object data) {
+    if (this.head == null) then null
+    else if (head.val == data) then member(head.next, data)
+    else head.val;
+  }
+
+}
+
+}%
+
+%%% abbreviation for nats
+
+%abbrev 0 = z.
+%abbrev 1 = s 0.
+%abbrev 2 = s 1.
+%abbrev 3 = s 2.
+%abbrev 4 = s 3.
+%abbrev 5 = s 4.
+%abbrev 6 = s 5.
+%abbrev 7 = s 6.
+%abbrev 8 = s 7.
+%abbrev 9 = s 8.
+%abbrev 10 = s 9.
+%abbrev 11 = s 10.
+%abbrev 12 = s 11.
+%abbrev 13 = s 12.
+%abbrev 14 = s 13.
+%abbrev 15 = s 14.
+%abbrev 16 = s 15.
+
+%% class IDs
+
+%abbrev ObjectClassID = 0.
+%abbrev NodeClassID = 1.
+
+%% field IDs
+
+%% In Node class
+
+%abbrev nextField = 0.
+%abbrev datumField = 1.
+
+%% method IDs
+
+%abbrev appendMethID = 2.
+%abbrev memberMethID = 3.
+
+%% fldmap
+
+%abbrev ObjectFields : fldmap =
+  (fldmap/+ 0 (ty/ nn/may annot/unique ObjectClassID) fldmap/0).
+
+%abbrev NodeFields : fldmap =
+  (fldmap/+ 0 (ty/ nn/may annot/unique NodeClassID) % next
+    (fldmap/+ 0 (ty/ nn/may annot/shared ObjectClassID) % datum
+      fldmap/0)).
+
+%% clsmap
+
+%abbrev Classes : clsmap =
+  (clsmap/+ ObjectClassID ObjectFields
+    (clsmap/+ 0 NodeFields
+      clsmap/0)).
+
+
+%% methods
+
+%abbrev appendMethBody : object -> object -> expr
+  = ([n][m]
+      (seq
+        (let (read (lit n) nextField)
+          ([x]
+            (write (lit n) nextField
+              (seq (write (lit m) nextField (lit x)) (lit m)))))
+        (lit null))).
+
+%abbrev appendMeth : func =
+  (func/+ ([n]
+      func/+ ([m]
+        func/0 (appendMethBody n m)))).
+
+
+%abbrev memberMethBody : object -> object -> expr
+  = ([head][data]
+      (if (eql (lit head) (lit null))
+        (lit null)
+        (if (eql (read (lit head) datumField) (lit data))
+          (read (lit head) datumField)
+          (call memberMethID
+            (args/+ (read (lit head) nextField)
+              (args/+ (lit data) args/0)))))).
+
+%abbrev memberMeth : func
+  = (func/+ ([head]
+      func/+ ([data]
+        func/0 (memberMethBody head data)))).
+
+
+%% program
+
+%abbrev Program : prog
+  = (prog`map/+ 2 appendMeth (prog`map/+ 0 memberMeth prog`map/0)).
+
+
+
+%% method type
+
+%abbrev appendMethType : methty =
+  (methty/arg
+    (ty/ nn/yes annot/borrow NodeClassID) (set/1 nextField)
+    (methty/arg
+      (ty/ nn/yes annot/unique NodeClassID) set/0
+      (methty/base (ty/ nn/may annot/unique ObjectClassID)))).
+
+%abbrev memberMethType : methty =
+  (methty/arg
+    (ty/ nn/may annot/borrow NodeClassID) (set/+ 0 (set/+ 0 set/0))
+    (methty/arg
+      (ty/ nn/may annot/shared ObjectClassID) set/0
+      (methty/base (ty/ nn/may annot/shared ObjectClassID)))).
+
+
+%% methmap
+
+%abbrev Methods : methmap
+  = (methmap/+ 2 appendMethType (methmap/+ 0 memberMethType methmap/0)).
+
+
+%abbrev 1+0=1 : plus 1 0 1 = plus/s plus/z.
+
+
+%% Check 'append' method body.
+%% Index: 0 -> this, 1 -> n, 2 -> m
+
+%% 1 + 0 => 2
+
+%abbrev 2>1 : gt (s (s z)) (s z) = gt/1.
+%abbrev 2+0=2 : plus (s (s z)) z (s (s z)) = plus/s (plus/s plus/z).
+%abbrev 0+2=2 : plus z (s (s z)) (s (s z)) = plus/z.
+%abbrev 0+4=4 : plus 0 4 4 = plus/z.
+%abbrev 3+0=3 : plus 3 0 3 = plus/s 2+0=2.
+%abbrev 4+0=4 : plus 4 0 4 = plus/s 3+0=3.
+%abbrev 5+0=5 : plus 5 0 5 = plus/s 4+0=4.
+%abbrev 6+0=6 : plus 6 0 6 = plus/s 5+0=5.
+%abbrev 7+0=7 : plus 7 0 7 = plus/s 6+0=6.
+%abbrev 8+0=8 : plus 8 0 8 = plus/s 7+0=7.
+%abbrev 0+1=1 : plus 0 1 1 = plus/z.
+%abbrev 1+1=2 : plus 1 1 2 = plus/s 0+1=1.
+%abbrev 2+1=3 : plus 2 1 3 = plus/s 1+1=2.
+%abbrev 3+1=4 : plus 3 1 4 = plus/s 2+1=3.
+%abbrev 4+1=5 : plus 4 1 5 = plus/s 3+1=4.
+%abbrev 5+1=6 : plus 5 1 6 = plus/s 4+1=5.
+%abbrev 6+1=7 : plus 6 1 7 = plus/s 5+1=6.
+%abbrev 1+2=3 : plus 1 2 3 = plus/s 0+2=2.
+%abbrev 2+2=4 : plus 2 2 4 = plus/s 1+2=3.
+%abbrev 3+2=5 : plus 3 2 5 = plus/s 2+2=4.
+%abbrev 4+2=6 : plus 4 2 6 = plus/s 3+2=5.
+%abbrev 5+2=7 : plus 5 2 7 = plus/s 4+2=6.
+%abbrev 6+2=8 : plus 6 2 8 = plus/s 5+2=7.
+%abbrev 7+1=8 : plus 7 1 8 = plus/s 6+1=7.
+%abbrev 8+1=9 : plus 8 1 9 = plus/s 7+1=8.
+%abbrev 1+4=5 : plus 1 4 5 = plus/s 0+4=4.
+%abbrev 2+4=6 : plus 2 4 6 = plus/s 1+4=5.
+%abbrev 3+4=7 : plus 3 4 7 = plus/s 2+4=6.
+%abbrev 1+5=6 : plus 1 5 6 = plus/s 0+5=5.
+%abbrev 4+4=8 : plus 4 4 8 = plus/s 3+4=7.
+%abbrev 7+2=9 : plus 7 2 9 = plus/s 6+2=8.
+%abbrev 8+2=10 : plus 8 2 10 = plus/s 7+2=9.
+%abbrev 9+0=9 : plus 9 0 9 = plus/s 8+0=8.
+%abbrev 10+0=10 : plus 10 0 10 = plus/s 9+0=9.
+%abbrev 9+1=10 : plus 9 1 10 = plus/s 8+1=9.
+%abbrev 10+1=11 : plus 10 1 11 = plus/s 9+1=10.
+%abbrev 0+10=10 : plus 0 10 10 = plus/z.
+%abbrev 1+10=11 : plus 1 10 11 = plus/s 0+10=10.
+%abbrev 0+8=8 : plus 0 8 8 = plus/z.
+%abbrev 1+8=9 : plus 1 8 9 = plus/s 0+8=8.
+%abbrev 2+8=10 : plus 2 8 10 = plus/s 1+8=9.
+%abbrev 0+9=9 : plus 0 9 9 = plus/z.
+%abbrev 1+9=10 : plus 1 9 10 = plus/s 0+9=9.
+%abbrev 0*2=0 : times 0 2 0 = times/z.
+%abbrev 0*4=0 : times 0 4 0 = times/z.
+%abbrev 1*4=4 : times 1 4 4 = (times/s 0*4=0 0+4=4).
+%abbrev 2*4=8 : times 2 4 8 = (times/s 1*4=4 4+4=8).
+%abbrev 1*2=2 : times 1 2 2 = (times/s 0*2=0 0+2=2).
+%abbrev 0/2=0,0 : divrem z (s (s z)) z z = divrem/z 2>0.
+%abbrev 1/2=0,1 : divrem (s z) (s (s z)) z (s z)
+ = (divrem/z 2>1).
+%abbrev 2/2=1,0 : divrem 2 2 1 0
+ = (divrem/s 0/2=0,0 0+2=2).
+%abbrev 3/2=1,1 : divrem 3 2 1 1
+ = (divrem/s 1/2=0,1 1+2=3).
+%abbrev <1,0>->2 : pair2nat (pair/ (s z) z) (s (s z))
+ = (pair2nat/XX 2+0=2 0+2=2 1*2=2 times/z pair2nat/00 0/2=0,0 1/2=0,1).
+%abbrev <1,1>->3 : pair2nat (pair/ (s z) (s z)) 3
+ = (pair2nat/XX 2+1=3 0+2=2 1*2=2 0*4=0 pair2nat/00 1/2=0,1 1/2=0,1).
+%abbrev <2,0>->8 : pair2nat (pair/ 2 0) 8
+  = (pair2nat/XX 8+0=8 8+0=8 0*2=0 2*4=8 <1,0>->2 0/2=0,0 2/2=1,0).
+%abbrev <2,1>->9 : pair2nat (pair/ 2 1) 9
+  = (pair2nat/XX 8+1=9 8+0=8 0*2=0 2*4=8 <1,0>->2 1/2=0,1 2/2=1,0).
+%abbrev <3,0>->10 : pair2nat (pair/ 3 0) 10
+  = (pair2nat/XX 10+0=10 8+2=10 1*2=2 2*4=8 <1,0>->2 0/2=0,0 3/2=1,1).
+%abbrev <3,1>->11 : pair2nat (pair/ 3 1) 11
+  = (pair2nat/XX 10+1=11 8+2=10 1*2=2 2*4=8 <1,0>->2 1/2=0,1 3/2=1,1).
+
+
+%abbrev inputCapSet : set = (set/+ 2 (set/+ 5 (set/+ 0 set/0))).
+
+%abbrev Caps->8 : set`member inputCapSet 8
+  = (set`lookup/> (set`lookup/= nat`eq/) 6+2=8).
+
+%abbrev Caps->9 : set`member inputCapSet 9
+  = (set`lookup/> (set`lookup/> (set`lookup/= nat`eq/) 1+5=6) 7+2=9).
+
+%abbrev checkAppendBody
+  : {n:object} {m:object} reftyping Classes Methods
+    (cxt/+ 1 (cxt-info/ n (ty/ nn/yes annot/borrow 1))
+      (cxt/+ 0 (cxt-info/ m (ty/ nn/yes annot/unique 1))
+        (cxt/0)))
+    (env/ (set/1 2) (set/+ 2 (set/+ 5 (set/+ 0 set/0))))
+    (seq
+      (let (read (lit n) nextField)
+        ([x:object]
+          (write (lit n) nextField
+            (seq (write (lit m) nextField (lit x)) (lit m)))))
+      (lit null))
+    (result/expr (reftype/ nn/may 0 targets/fresh)
+      (env/ set/0 (set/1 2)))
+    = [n][m]
+        (reftyping/seq
+          (reftyping/null (clsmap`lookup/= nat`eq/))
+          (restore-cap-targets/unique
+            (set`split/ set`disjoint/L set`union/L))
+          (reftyping/restore
+            (set`remove/ set`leq/0 set`disjoint/R set`union/R set`leq/0)
+            (set`remove/ set`leq/0 set`disjoint/R set`union/R set`leq/0)
+            (subtype/
+              (nonnull`leq/<)
+              (sub-annot/unique
+                (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+                (fldmap`domain/+ (fldmap`domain/+ fldmap`domain/0))
+                (set+set2set/U
+                  (set+set2set/0)
+                  (nat+set2set/U
+                    (nat+set2set/U
+                      nat+set2set/0
+                      <2,1>->9 set`not-member/0 set`update/0 set`update/0)
+                    <2,0>->8
+                    (set`not-member/< nat`gt/1)
+                    (set`update/< 1+0=1)
+                    (set`update/< 1+8=9))
+                  set`not-member/0 set`update/0 set`union/L)
+                (set`split/ set`disjoint/R set`union/R)
+                (set`leq/= set`leq/0 unit`eq/ nat`eq/)
+                (set`remove/
+                  set`leq/0 set`disjoint/R set`union/R (set`leq/= set`leq/0 unit`eq/ nat`eq/))
+                (not-borrow/unique)))
+            ([x:object] reftyping/seq
+              (reftyping/lit
+                (cxt`lookup-obj/ (cxt`lookup/> (cxt`lookup/= nat`eq/) 1+1=2))
+                ty2reftype/unique)
+              (restore-cap-targets/unique
+                (set`split/
+                  (set`disjoint/> set`disjoint/R 1+8=9)
+                  (set`union/> set`union/R 1+8=9)))
+              (reftyping/write
+                (reftyping/lit
+                  (cxt`lookup-obj/ (cxt`lookup/> (cxt`lookup/= nat`eq/) 1+1=2))
+                  (ty2reftype/unique))
+                (writeRefTyping/base
+                  (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+                  (fldmap`lookup/= nat`eq/)
+                  (make-tgts-and-caps/unique
+                    (set+nat2set/U set+nat2set/0
+                      <2,0>->8 set`not-member/0 set`update/0 set`update/0)
+                    (set`split/ set`disjoint/L set`union/L)
+                    (set`split/
+                      (set`disjoint/< set`disjoint/L 1+8=9)
+                      (set`union/< set`union/L 1+8=9)))
+                  (reftyping/lit
+                    (cxt`lookup-obj/
+                      (cxt`lookup/> (cxt`lookup/> (cxt`lookup/= nat`eq/) 1+0=1) 2+1=3))
+                    (ty2reftype/unique))
+                  (subtype/
+                    (nonnull`leq/= nonnull`eq/)
+                    (sub-annot/unique
+                      (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+                      (fldmap`domain/+ (fldmap`domain/+ fldmap`domain/0))
+                      (set+set2set/U
+                        (set+set2set/0)
+                        (nat+set2set/U
+                          (nat+set2set/U
+                            nat+set2set/0
+                            <3,1>->11 set`not-member/0 set`update/0 set`update/0)
+                          <3,0>->10
+                          (set`not-member/< nat`gt/1)
+                          (set`update/< 1+0=1)
+                          (set`update/< 1+10=11))
+                        set`not-member/0 set`update/0 set`union/L)
+                      (set`split/
+                        (set`disjoint/> set`disjoint/R 1+9=10)
+                        (set`union/> set`union/R 1+9=10))
+                      (set`leq/> (set`leq/= set`leq/0 unit`eq/ nat`eq/) 1+2=3)
+                      (set`remove/
+                        (set`leq/= set`leq/0 unit`eq/ nat`eq/)
+                        (set`disjoint/> set`disjoint/R 1+2=3)
+                        (set`union/> set`union/R 1+2=3)
+                        (set`leq/= (set`leq/= set`leq/0 unit`eq/ nat`eq/) unit`eq/ nat`eq/))
+                      not-borrow/unique))
+                  (consider-ftype/unique))))
+            ([m:object] cxt`update/> (cxt`update/> cxt`update/0 1+0=1) 2+1=3)
+            (set`split/
+              (set`disjoint/< set`disjoint/L 1+2=3)
+              (set`union/< set`union/L 1+2=3))
+            (set`split/
+              (set`disjoint/<
+                (set`disjoint/< set`disjoint/L 1+0=1) 2+8=10)
+              (set`union/<
+                (set`union/< set`union/L 1+0=1) 2+8=10))
+            (nat+set2set/U
+              (nat+set2set/U
+                nat+set2set/0 <3,1>->11 set`not-member/0 set`update/0 set`update/0)
+              <3,0>->10
+              (set`not-member/< nat`gt/1)
+              (set`update/< 1+0=1)
+              (set`update/< 1+10=11))
+            (cxt`fresh/> (cxt`fresh/> cxt`fresh/0 1+0=1) 2+1=3)
+            (make-tgts-and-caps/unique
+              (set+nat2set/U set+nat2set/0 <1,0>->2 set`not-member/0 set`update/0 set`update/0)
+              (set`split/ set`disjoint/L set`union/L)
+              (set`split/
+                (set`disjoint/< set`disjoint/L 6+2=8)
+                (set`union/< set`union/L 6+2=8)))
+            (fldmap`domain/+ (fldmap`domain/+ fldmap`domain/0))
+            (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+            (fldmap`lookup/= nat`eq/)
+            (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+            (ty2reftype/borrow)
+            (cxt`lookup-obj/ (cxt`lookup/= nat`eq/)))).
+
+%abbrev checkAppend
+  : methtymatch* empty-env empty-env Classes Methods cxt/0 appendMeth appendMethType
+    = (methtymatch/args/borrow
+        (cxt`fresh/0)
+        ([n] cxt`update/0)
+        (nat+set2set/U nat+set2set/0 <1,0>->2 set`not-member/0 set`update/0 set`update/0)
+        set`union/L set`union/L
+        ([n] methtymatch/args/unique
+          (cxt`fresh/> cxt`fresh/0 1+1=2)
+          ([m] cxt`update/> cxt`update/0 1+1=2)
+          (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+          (fldmap`domain/+ (fldmap`domain/+ fldmap`domain/0))
+          (nat+set2set/U
+            (nat+set2set/U
+              nat+set2set/0
+              <2,1>->9 set`not-member/0 set`update/0 set`update/0)
+            <2,0>->8
+            (set`not-member/< nat`gt/1)
+            (set`update/< 1+0=1)
+            (set`update/< 1+8=9))
+          (set`update/0)
+          (set`union/< set`union/L 6+2=8)
+          ([m] methtymatch/base
+            (ty2new-reftype/unique)
+            (checkAppendBody n m)))).
+
+%{
+Example #2
+
+class Node {
+  shared nullable Object datum;
+  unique nullable Node next;
+
+  shared nullable Object
+  member(borrow(datum, next) nullable Node head,
+         shared nullable Object data) borrowed() {
+    if (head == null) then null
+    else if (head.datum == data) head.datum
+    else member(head.next, data);
+  }
+}
+
+}%
+
+
+%%% Check 'member' method body
+%%% Capabilities: <1,0>, <1,1>
+
+%abbrev readDatum
+  : {head} {data} reftyping Classes Methods
+    (cxt/+ 1 (cxt-info/ head (ty/ nn/yes annot/borrow NodeClassID))
+      (cxt/+ 0 (cxt-info/ data (ty/ nn/may annot/shared ObjectClassID))
+        (cxt/0)))
+    (env/ (set/0) (set/+ 2 (set/+ 0 set/0)))
+    (read (lit head) datumField)
+    (result/expr (reftype/ nn/may ObjectClassID targets/shared)
+      (env/ (set/0) (set/+ 2 (set/+ 0 set/0))))
+    = ([head][data] reftyping/read
+        (reftyping/lit
+          (cxt`lookup-obj/ (cxt`lookup/= nat`eq/))
+          (ty2reftype/borrow))
+        (readRefTyping/base
+          (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+          (fldmap`lookup/> (fldmap`lookup/= nat`eq/) 1+0=1)
+          (make-tgts-and-caps/unique
+            (set+nat2set/U set+nat2set/0 <1,1>->3 set`not-member/0
+              set`update/0 set`update/0)
+            (set`split/ set`disjoint/L set`union/L)
+            (set`split/
+              (set`disjoint/> set`disjoint/R 1+2=3)
+              (set`union/> set`union/R 1+2=3)))
+          (consider-ftype/shared
+            (set`split/
+              (set`disjoint/> set`disjoint/R 1+2=3)
+              (set`union/> set`union/R 1+2=3)))
+          (targets-capset/unique set`disjoint/L))).
+
+%abbrev readNext
+  : {head} {data} reftyping Classes Methods
+    (cxt/+ 1 (cxt-info/ head (ty/ nn/yes annot/borrow NodeClassID))
+      (cxt/+ 0 (cxt-info/ data (ty/ nn/may annot/shared ObjectClassID))
+        (cxt/0)))
+    (env/ (set/0) (set/+ 2 (set/+ 0 set/0)))
+    (read (lit head) nextField)
+    (result/expr (reftype/ nn/may NodeClassID (targets/unique set/0 (set/1 2) false))
+      (env/ (set/0) (set/1 3)))
+    = ([head][data] reftyping/read
+        (reftyping/lit
+          (cxt`lookup-obj/ (cxt`lookup/= nat`eq/))
+          (ty2reftype/borrow))
+        (readRefTyping/base
+          (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+          (fldmap`lookup/= nat`eq/)
+          (make-tgts-and-caps/unique
+            (set+nat2set/U set+nat2set/0 <1,0>->2 set`not-member/0
+              set`update/0 set`update/0)
+            (set`split/ set`disjoint/L set`union/L)
+            (set`split/ (set`disjoint/< set`disjoint/L 1+2=3)
+              (set`union/< set`union/L 1+2=3)))
+          (consider-ftype/unique)
+          (targets-capset/unique set`disjoint/L))).
+
+%abbrev checkMemberBody
+  : {head} {data} reftyping Classes Methods
+    (cxt/+ 1 (cxt-info/ head (ty/ nn/may annot/borrow NodeClassID))
+      (cxt/+ 0 (cxt-info/ data (ty/ nn/may annot/shared ObjectClassID))
+        (cxt/0)))
+    (env/ (set/0) (set/+ 2 (set/+ 0 set/0)))
+    (memberMethBody head data)
+    (result/expr (reftype/ nn/may ObjectClassID targets/shared)
+      (env/ set/0  (set/+ 2 (set/+ 0 set/0))))
+    = ([head] [data]
+        (reftyping/ifNull
+          (cxt`lookup-obj/ (cxt`lookup/= nat`eq/))
+          (cxt`update/= nat`eq/)
+          (reftyping/sub
+            (reftyping/null (clsmap`lookup/= nat`eq/))
+            (expr-result-sub/ (clsmap`lookup/= nat`eq/)
+              (fldmap`domain/+ (fldmap`domain/0))
+              (nonnull`leq/= nonnull`eq/)
+              (targets`sub/fs))
+            (clsmap-result/expr
+              (clsmap-cxt-reftype/shared
+                (clsmap`lookup/= nat`eq/))
+              (clsmap-cxt-env/
+                (clsmap-cxt-objset/0)
+                (clsmap-cxt-capset/U
+                  (clsmap-cxt-capset/U
+                    (clsmap-cxt-capset/0) <1,1>->3
+                    (cxt`lookup/= nat`eq/) not-shared/borrow
+                    (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+                    (fldmap`lookup/> (fldmap`lookup/= nat`eq/) 1+0=1)
+                    (set`not-member/0)
+                    (set`update/0))
+                  <1,0>->2
+                  (cxt`lookup/= nat`eq/)
+                  (not-shared/borrow)
+                  (clsmap`lookup/> (clsmap`lookup/= nat`eq/) 1+0=1)
+                  (fldmap`lookup/= nat`eq/)
+                  (set`not-member/< 3>2)
+                  (set`update/< 1+2=3)))))
+          (reftyping/if
+            (reftyping/eq
+              (readDatum head data)
+              (reftyping/lit
+                (cxt`lookup-obj/ (cxt`lookup/> (cxt`lookup/= nat`eq/) 1+1=2))
+                (ty2reftype/shared))
+              (restore-cap-targets/shared)
+              (restore-cap-targets/shared))
+            (readDatum head data)
+            (reftyping/call
+              (clsmap`fresh/> (clsmap`fresh/> clsmap`fresh/0 2+0=2) 3+0=3)
+              (methmap`lookup/> (methmap`lookup/= nat`eq/) 1+2=3)
+              (argsRefTyping/+
+                (readNext head data)
+                (subtype/ (nonnull`leq/= nonnull`eq/)
+                  (sub-annot/borrow
+                    (set+set2set/0)
+                    (set`split/ set`disjoint/L set`union/L)))
+                (argsRefTyping/+
+                  (reftyping/lit
+                    (cxt`lookup-obj/ (cxt`lookup/> (cxt`lookup/= nat`eq/) 1+1=2))
+                    (ty2reftype/shared))
+                  (subtype/ (nonnull`leq/= nonnull`eq/)
+                    (sub-annot/shared))
+                  (argsRefTyping/0)))
+              (callRefTyping/arg/+
+                (restore-cap-call/borrow
+                  (restore-cap-targets/unique
+                    (set`split/ set`disjoint/L set`union/L))
+                  (env`combine/
+                    (set`split/ set`disjoint/R set`union/R)
+                    (set`split/ set`disjoint/R set`union/R)))
+                (callRefTyping/arg/+
+                  (restore-cap-call/uniqueORshared not-borrow/shared)
+                  (callRefTyping/arg/0
+                    (env`combine/
+                      (set`split/ set`disjoint/L set`union/L)
+                      (set`split/
+                        (set`disjoint/< set`disjoint/L 1+2=3)
+                        (set`union/< set`union/L 1+2=3)))
+                    (ty2new-reftype/shared)))))))).
+
+%abbrev checkMember
+  : methtymatch* empty-env empty-env Classes Methods cxt/0 memberMeth memberMethType
+    = (methtymatch/args/borrow
+        (cxt`fresh/0)
+        ([head] cxt`update/0)
+        (nat+set2set/U
+          (nat+set2set/U
+            nat+set2set/0 <1,1>->3 set`not-member/0 set`update/0 set`update/0)
+          <1,0>->2 (set`not-member/< 1>0)
+          (set`update/< (1+0=1)) (set`update/< 1+2=3))
+        set`union/L set`union/L
+        ([head] methtymatch/args/shared
+          (cxt`fresh/> cxt`fresh/0 1+1=2)
+          ([data] cxt`update/> cxt`update/0 1+1=2)
+          ([data] methtymatch/base
+            (ty2new-reftype/shared)
+            (checkMemberBody head data)))).
+
+
