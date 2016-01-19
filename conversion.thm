@@ -4416,7 +4416,7 @@ before-write-format2/ :
         (implies/identity))
       CM-MT F-MT MT=>PT F-PT.
 
-%worlds (gtermvar) (constymatch-implies-proctypematch _ _ _ _ _ _ _ _).
+%worlds () (constymatch-implies-proctypematch _ _ _ _ _ _ _ _).
 %total { } (constymatch-implies-proctypematch _ _ _ _ _ _ _ _).
 
 
@@ -4456,11 +4456,151 @@ methmapmatch/U/meth :
     exists {W-G: progtypematch* W0 W G}
     true.
 
-%worlds (gtermvar) (false-implies-progtypematch _ _).
+%worlds () (false-implies-progtypematch _ _).
 %total { } (false-implies-progtypematch _ _).
 
 
+%theorem shift-preserves-progtypematch :
+        forall* {W} {W1} {W2} {G1} {G2} {N}
+        forall  {PM: progtypematch* W W1 G1}
+                {SH: progtype`shift N W1 W2}
+                {SH: prog`shift N G1 G2}
+        exists  {PM: progtypematch* W W2 G2}
+        true.
+
+- : shift-preserves-progtypematch PM progtype`shift/0 prog`shift/0 PM.
+
+- : shift-preserves-progtypematch (progtypematch/+ PM PTM) _ _ (progtypematch/+ PM PTM).
+
+%worlds () (shift-preserves-progtypematch _ _ _ _).
+%total {} (shift-preserves-progtypematch _ _ _ _).
+
+
+%theorem shift-preserves-progtypematch-converse/L :
+	forall* {W} {W1} {G1} {FUN} {PT} {N1} {N2}
+	forall  {W1-G1: progtypematch* W W1 G1}
+		{F-P: proctypematch W FUN PT}
+		{N1=N2: nat`eq N1 N2}
+	exists  {W2-G2: progtypematch* W (progtype`map/+ N1 PT W1) (prog`map/+ N2 FUN G1)}
+	true.
+
+- : shift-preserves-progtypematch-converse/L W1-G1 F-P nat`eq/ (progtypematch/+ W1-G1 F-P).
+
+%worlds () (shift-preserves-progtypematch-converse/L _ _ _ _).
+%total { } (shift-preserves-progtypematch-converse/L _ _ _ _).
+
+
+%theorem shift-preserves-progtypematch-converse :
+        forall* {W} {W1} {W2} {G1} {G2} {N}
+        forall  {PM: progtypematch* W W2 G2}
+		{SH: progtype`shift N W1 W2}
+                {SH: prog`shift N G1 G2}
+        exists  {PM: progtypematch* W W1 G1}
+        true.
+
+- : shift-preserves-progtypematch-converse PM progtype`shift/0 prog`shift/0 PM.
+
+- : shift-preserves-progtypematch-converse
+     (progtypematch/+ W1-G1 F-P) (progtype`shift/+ P1) (prog`shift/+ P2) W2-G2
+     <- nat`plus-left-cancels P1 P2 nat`eq/ nat`eq/ N1=N2
+     <- shift-preserves-progtypematch-converse/L W1-G1 F-P N1=N2 W2-G2.
+
+%worlds () (shift-preserves-progtypematch-converse _ _ _ _).
+%total (PM) (shift-preserves-progtypematch-converse PM _ _ _).
+
+
+%theorem false-implies-progtypematch*
+  : forall* {W0} {W} {G}
+    forall {V:void}
+    exists {W-G: progtypematch* W0 W G}
+    true.
+
+%worlds () (false-implies-progtypematch* _ _).
+%total { } (false-implies-progtypematch* _ _).
+
+
+%theorem fresh-update-preserves-progtypematch/F
+  : forall* {W0} {W} {G'} {N} {FUN}
+    forall {V:void}
+    exists {G} {GU: prog`update G' N FUN G} {W-G: progtypematch* W0 W G}
+    true.
+
+%worlds () (fresh-update-preserves-progtypematch/F _ _ _ _).
+%total { } (fresh-update-preserves-progtypematch/F _ _ _ _).
+
+
+%theorem progtypematch-same
+  : forall* {W0} {W} {G} {N} {M} {PT} {FUN}
+    forall {W-G: progtypematch* W0 (progtype`map/+ N PT W) (prog`map/+ M FUN G)}
+    exists {EQ: nat`eq N M}
+    true.
+
+- : progtypematch-same (progtypematch/+ _ _) nat`eq/.
+
+%worlds () (progtypematch-same _ _).
+%total { } (progtypematch-same _ _).
+
+
 %theorem fresh-update-preserves-progtypematch
+  : forall* {W0} {W'} {G'} {FUN} {PT} {N} {W}
+    forall {W'-G': progtypematch* W0 W' G'}
+    {FUN-PT: proctypematch W0 FUN PT}
+    {WF: progtype`fresh W' N}
+    {WU: progtype`update W' N PT W}
+    exists {G} {GU: prog`update G' N FUN G} {W-G: progtypematch* W0 W G}
+    true.
+
+- : fresh-update-preserves-progtypematch progtypematch/0
+    FUN-PT progtype`fresh/0 progtype`update/0
+    _ prog`update/0 (progtypematch/+ progtypematch/0 FUN-PT).
+
+- : fresh-update-preserves-progtypematch _ _ NM (progtype`update/= nat`eq/) _ GU W-G
+    <- progtype`fresh-contradiction NM V
+    <- fresh-update-preserves-progtypematch/F V _ GU W-G.
+
+- : fresh-update-preserves-progtypematch (progtypematch/+ W'-G' FUN-PT')
+    FUN-PT (progtype`fresh/< NP>N) (progtype`update/< P)
+    _ (prog`update/< P) (progtypematch/+ (progtypematch/+ W'-G' FUN-PT') FUN-PT).
+
+- : fresh-update-preserves-progtypematch _ _
+    (progtype`fresh/> _ P1) (progtype`update/< P2) _ W-U W-G
+    <- nat`plus-implies-gt P1 nat`eq/ F>FP
+    <- nat`plus-implies-gt P2 nat`eq/ FP>F
+    <- nat`gt-anti-symmetric FP>F F>FP V
+    <- fresh-update-preserves-progtypematch/F V _ W-U W-G.
+
+- : fresh-update-preserves-progtypematch (progtypematch/+ W'-G' FUN-PT') FUN-PT
+    (progtype`fresh/> NM P3) (progtype`update/> U P) _
+    (prog`update/> WU1 P3) (progtypematch/+ W-G FUN-PT')
+    <- nat`plus-right-cancels P P3 nat`eq/ nat`eq/ SEQ
+    <- nat`succ-cancels SEQ EQ
+    <- progtype`update-respects-eq U progtype`eq/ EQ proctype`eq/ progtype`eq/ U1
+    <- fresh-update-preserves-progtypematch W'-G' FUN-PT NM U1 _ WU1 W-G.
+
+- : fresh-update-preserves-progtypematch _ _
+    (progtype`fresh/< GT1) (progtype`update/> U P) _ WU W-G
+    <- nat`plus-implies-gt P nat`eq/ GT2
+    <- nat`gt-anti-symmetric GT1 GT2 V
+    <- fresh-update-preserves-progtypematch/F V _ WU W-G.
+
+%worlds () (fresh-update-preserves-progtypematch _ _ _ _ _ _ _).
+%total (A) (fresh-update-preserves-progtypematch A _ _ _ _ _ _).
+
+
+%theorem progtypematch*-respects-eq
+  : forall* {W0} {W} {G} {W'} {G'}
+    forall {W-G: progtypematch* W0 W G}
+    {W=W': progtype`eq W W'} {G=G': prog`eq G G'}
+    exists {W'-G': progtypematch* W0 W' G'}
+    true.
+
+- : progtypematch*-respects-eq W-G progtype`eq/ prog`eq/ W-G.
+
+%worlds () (progtypematch*-respects-eq _ _ _ _).
+%total { } (progtypematch*-respects-eq _ _ _ _).
+
+
+%theorem fresh-update-preserves-progtypematch*
   : forall* {W0} {W'} {G'} {FUN} {PT} {N} {W} {G}
     forall {W'-G': progtypematch* W0 W' G'}
     {FUN-PT: proctypematch W0 FUN PT}
@@ -4470,8 +4610,13 @@ methmapmatch/U/meth :
     exists {W-G: progtypematch* W0 W G}
     true.
 
-%worlds (gtermvar) (fresh-update-preserves-progtypematch _ _ _ _ _ _).
-%trustme %total { } (fresh-update-preserves-progtypematch _ _ _ _ _ _).
+- : fresh-update-preserves-progtypematch* W'-G' FUN-PT WF WU GU W-G
+    <- fresh-update-preserves-progtypematch W'-G' FUN-PT WF WU _ GU' W-G'
+    <- prog`update-deterministic GU' GU prog`eq/ nat`eq/ func`eq/ G'=G
+    <- progtypematch*-respects-eq W-G' progtype`eq/ G'=G W-G.
+
+%worlds () (fresh-update-preserves-progtypematch* _ _ _ _ _ _).
+%total { } (fresh-update-preserves-progtypematch* _ _ _ _ _ _).
 
 
 %theorem methmapmatch-implies-progtypematch/L
@@ -4508,7 +4653,7 @@ methmapmatch/U/meth :
     <- methmapmatch-implies-progtypematch/L CM-CM CM2PM CM-MM0 MM0=>W0 CM-MM'
       MM'-G' MM'=>W' W'-G'
     <- methmap2progtype-preserves-fresh MM'=>W' N!<MM' N!<W'
-    <- fresh-update-preserves-progtypematch W'-G' FUN-PT N!<W' W'+PT=W G'+N=G W-G.
+    <- fresh-update-preserves-progtypematch* W'-G' FUN-PT N!<W' W'+PT=W G'+N=G W-G.
 
 - : methmapmatch-implies-progtypematch/L CM-CM
     (CM2PM:clsmap2predmap CM PM)
@@ -4532,10 +4677,10 @@ methmapmatch/U/meth :
     <- methmapmatch-implies-progtypematch/L CM-CM CM2PM CM-MM0 MM0=>W0 CM-MM'
       MM'-G' MM'=>W' W'-G'
     <- methmap2progtype-preserves-fresh MM'=>W' N!<MM' N!<W'
-    <- fresh-update-preserves-progtypematch W'-G'
+    <- fresh-update-preserves-progtypematch* W'-G'
       (proctypematch/arg ([t] FUN-PT t)) N!<W' W'+PT=W G'+N=G W-G.
 
-%worlds (gtermvar) (methmapmatch-implies-progtypematch/L _ _ _ _ _ _ _ _).
+%worlds () (methmapmatch-implies-progtypematch/L _ _ _ _ _ _ _ _).
 %total (M) (methmapmatch-implies-progtypematch/L _ _ _ _ _ M _ _).
 
 
@@ -4552,7 +4697,7 @@ methmapmatch/U/meth :
 - : methmapmatch-implies-progtypematch CM-CM CM2PM CM-MM MM-G MM2W W-G
     <- methmapmatch-implies-progtypematch/L CM-CM CM2PM CM-MM MM2W CM-MM MM-G MM2W W-G.
 
-%worlds (gtermvar) (methmapmatch-implies-progtypematch _ _ _ _ _ _).
+%worlds () (methmapmatch-implies-progtypematch _ _ _ _ _ _).
 %total { } (methmapmatch-implies-progtypematch _ _ _ _ _ _).
 
 
