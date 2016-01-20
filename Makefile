@@ -2,8 +2,7 @@
 
 SUBDIRS = library permission-type frac-nesting simple-concur
 META = Makefile sources.cfg
-GEN = clsmap.elf methmap.elf fldmap.elf predmap.elf \
-	capmap.elf cap.elf cxt.elf
+GEN = clsmap.elf methmap.elf fldmap.elf predmap.elf cxt.elf
 HELP = clsmap-base.elf methmap-base.elf fldmap-base.elf predmap-base.elf \
 	cxt-base.elf
 HAND = utils.elf set-conversion.elf reftype.elf subtyping.elf typing.elf \
@@ -11,8 +10,6 @@ HAND = utils.elf set-conversion.elf reftype.elf subtyping.elf typing.elf \
   read.elf write.elf let.elf call.elf sub.elf cond.elf let-more.elf seq.elf \
 	conversion.thm
 CSRC = clsmap.cpp methmap.cpp fldmap.cpp predmap.cpp cxt.cpp
-TRANS = set2efxmap
-SET_RENAME = set-renamings
 
 RELEASE = reftype.tgz
 
@@ -28,22 +25,26 @@ REC = ../library/remove-empty-comments.pl
 GN = ../library/get-names.pl
 SR = ./set-renaming.rb
 
-${TRANS}.elf : ${SET_RENAME} ${TRANS}.cpp ${TRANS}-base.elf
-	${CPP} ${CPPFLAGS} ${TRANS}.cpp | ${REC} > $$$$.elf; \
-	${CAT} $<.elf $$$$.elf > ${TRANS}.elf; \
-	rm $$$$.elf
-
 %.elf : %.cpp %-base.elf
 	${CPP} ${CPPFLAGS} $*.cpp | ${REC} > $$$$.elf; \
 	${GN} $* $$$$.elf | ${CAT} $$$$.elf - > $*.elf; \
 	rm $$$$.elf
 
-${SET_RENAME} : library/set.elf
-	cat $< | ${SR} > $@.elf
-
 VCI = /afs/cs.uwm.edu/users/csfac/boyland/cmd/vci
 
 .PHONY: checkin checkout set-renamings
+
+library :
+	ln -s ../library library
+
+simple-concur :
+	ln -s ../simple-concur simple-concur
+
+frac-nesting :
+	ln -s ../frac-nesting frac-nesting
+
+permission-type :
+	ln -s ../permission-type permission-type
 
 checkin :
 	${VCI} ${SRC}
