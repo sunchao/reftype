@@ -5,12 +5,12 @@ META = Makefile sources.cfg
 GEN = clsmap.elf methmap.elf fldmap.elf predmap.elf \
 	capmap.elf cap.elf cxt.elf
 HELP = clsmap-base.elf methmap-base.elf fldmap-base.elf predmap-base.elf \
-	capmap-base.elf cap-base.elf cxt-base.elf
-HAND = utils.elf reftype.elf effects.elf consistency.elf \
-	subst.elf subtyping.elf typing.elf clsmap2predmap.elf \
-	conversion.elf conversion.thm
-CSRC = clsmap.cpp methmap.cpp fldmap.cpp predmap.cpp \
-	capmap.cpp cap.cpp cxt.cpp
+	cxt-base.elf
+HAND = utils.elf set-conversion.elf reftype.elf subtyping.elf typing.elf \
+	example.elf consistency.elf clsmap2predmap.elf conversion.elf before-read.elf \
+  read.elf write.elf let.elf call.elf sub.elf cond.elf let-more.elf seq.elf \
+	conversion.thm
+CSRC = clsmap.cpp methmap.cpp fldmap.cpp predmap.cpp cxt.cpp
 TRANS = set2efxmap
 SET_RENAME = set-renamings
 
