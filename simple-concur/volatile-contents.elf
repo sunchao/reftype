@@ -1,0 +1,375 @@
+%%%%% volatile-contents.elf
+%%%%% John Boyland
+
+%{%
+volatile contents = what is stored in a volatile field in an object:
+A pair of a set of writekeys and the actual pointer stored in the field.
+%}%
+
+
+%%%% Imports
+
+
+ %abbrev obj = nat.
+ %abbrev obj`eq = nat`eq.
+ %abbrev obj`ne = nat`ne.
+ %abbrev obj`eq? = nat`eq?.
+ %abbrev obj`eq/ = nat`eq/.
+ %abbrev obj`eq?/yes = nat`eq?/yes.
+ %abbrev obj`eq?/no = nat`eq?/no.
+ %abbrev obj`ne-anti-reflexive = nat`ne-anti-reflexive.
+ %abbrev obj`ne-symmetric = nat`ne-symmetric.
+ %abbrev obj`eq?-total = nat`eq?-total.
+
+
+
+
+%%%% Functor Use
+
+
+
+%%%%% volatile-contents.elf
+%%%%% a pseudo-functor
+%%%%% John Boyland
+
+%{%
+We require the following definitions:
+  set : equality type.
+  obj : equality type.
+The result is an equality type too.
+%}%
+
+
+
+
+%%%% Definitions
+
+
+
+volatile-contents : type.
+
+volatile-contents/ : set -> obj -> volatile-contents.
+
+
+eq : volatile-contents -> volatile-contents -> type.
+
+eq/ : eq P P.
+
+
+ne : volatile-contents -> volatile-contents -> type.
+
+ne/1 : ne (volatile-contents/ X1 Y1) (volatile-contents/ X2 Y2)
+    <- set`ne X1 X2.
+
+ne/2 : ne (volatile-contents/ X1 Y1) (volatile-contents/ X2 Y2)
+    <- obj`ne Y1 Y2.
+
+
+eq? : volatile-contents -> volatile-contents -> bool -> type.
+
+eq?/yes : eq? P P true.
+
+eq?/no : eq? P1 P2 false
+    <- ne P1 P2.
+
+
+
+%%%% Theorems
+
+
+
+%%% theorems about eq
+
+
+
+%theorem false-implies-eq :
+	forall* {X1} {X2}
+	forall {F:void}
+	exists {E:eq X1 X2}
+	true.
+
+%worlds (%{nothing}%) (false-implies-eq _ _).
+%total { } (false-implies-eq _ _).
+
+
+%theorem meta-eq :
+	forall {X1} {X2} {E:eq X1 X2}
+	true.
+
+- : meta-eq _ _ eq/.
+
+%worlds (%{nothing}%) (meta-eq _ _ _).
+%total { } (meta-eq _ _ _).
+%reduces X = Y (meta-eq X Y _).
+
+	
+%theorem eq-reflexive : 
+	forall {X} 
+	exists {E:eq X X} 
+	true.
+
+- : eq-reflexive _ eq/.
+
+%worlds (%{nothing}%) (eq-reflexive _ _).
+%total { } (eq-reflexive _ _).
+
+
+%theorem eq-symmetric : 
+	forall* {X} {Y}
+	forall {E:eq X Y}
+	exists {F:eq Y X}
+	true.
+
+- : eq-symmetric (eq/) (eq/).
+
+%worlds (%{nothing}%) (eq-symmetric _ _).
+%total { } (eq-symmetric _ _).
+
+
+%theorem eq-transitive : 
+	forall* {X} {Y} {Z}
+	forall {E1:eq X Y} {E2:eq Y Z}
+	exists {F:eq X Z}
+	true.
+
+- : eq-transitive (eq/) (eq/) (eq/).
+
+%worlds (%{nothing}%) (eq-transitive _ _ _).
+%total { } (eq-transitive _ _ _).
+
+
+
+%theorem volatile-contents-eq-implies-eq :
+	forall* {D1a} {D1b} {D2a} {D2b}
+        forall {E:eq (volatile-contents/ D1a D2a) (volatile-contents/ D1b D2b)}
+	exists {E1:set`eq D1a D1b}
+               {E2:obj`eq D2a D2b}
+	true.
+
+- : volatile-contents-eq-implies-eq eq/ set`eq/ obj`eq/.
+
+%worlds () (volatile-contents-eq-implies-eq _ _ _).
+%total { } (volatile-contents-eq-implies-eq _ _ _).
+
+
+%theorem volatile-contents-preserves-eq :
+	forall* {D1a} {D1b} {D2a} {D2b}
+	forall {E1:set`eq D1a D1b}
+               {E2:obj`eq D2a D2b}
+        exists {E:eq (volatile-contents/ D1a D2a) (volatile-contents/ D1b D2b)}
+	true.
+
+- : volatile-contents-preserves-eq set`eq/ obj`eq/ eq/.
+
+%worlds () (volatile-contents-preserves-eq _ _ _).
+%total { } (volatile-contents-preserves-eq _ _ _).
+
+
+%%% theorems about ne
+
+
+%theorem false-implies-ne :
+	forall* {X1} {X2}
+	forall {F:void}
+	exists {G:ne X1 X2}
+	true.
+
+%worlds () (false-implies-ne _ _).
+%total { } (false-implies-ne _ _).
+
+
+%theorem ne-respects-eq :
+	forall* {X1} {X2} {Y1} {Y2}
+	forall {D1:ne X1 X2} {E1:eq X1 Y1} {E2:eq X2 Y2}
+	exists {D2:ne Y1 Y2}
+	true.
+
+- : ne-respects-eq X1<>X2 eq/ eq/ X1<>X2.
+
+%worlds () (ne-respects-eq _ _ _ _).
+%total { } (ne-respects-eq _ _ _ _).
+
+
+%theorem ne-anti-reflexive :
+	forall* {P}
+	forall {R:ne P P}
+	exists {F:void}
+	true.
+
+- : ne-anti-reflexive (ne/1 X<>X) F
+    <- set`ne-anti-reflexive X<>X F.
+
+- : ne-anti-reflexive (ne/2 Y<>Y) F
+    <- obj`ne-anti-reflexive Y<>Y F.
+
+%worlds () (ne-anti-reflexive _ _).
+%total { } (ne-anti-reflexive _ _).
+
+
+%theorem ne-symmetric :
+	forall* {P1} {P2}
+	forall {R1:ne P1 P2}
+	exists {R2:ne P2 P1}
+	true.
+
+- : ne-symmetric (ne/1 X1<>X2) (ne/1 X2<>X1)
+    <- set`ne-symmetric X1<>X2 X2<>X1.
+
+- : ne-symmetric (ne/2 Y1<>Y2) (ne/2 Y2<>Y1)
+    <- obj`ne-symmetric Y1<>Y2 Y2<>Y1.
+
+
+%worlds () (ne-symmetric _ _).
+%total { } (ne-symmetric _ _).
+
+
+%theorem eq-ne-implies-false :
+	forall* {P1} {P2}
+	forall {D1:eq P1 P2} {D2:ne P1 P2}
+	exists {F:void}
+	true.
+
+- : eq-ne-implies-false eq/ X<>X F
+    <- ne-anti-reflexive X<>X F.
+
+%worlds () (eq-ne-implies-false _ _ _).
+%total { } (eq-ne-implies-false _ _ _).
+
+
+%theorem ne/1-inversion:
+	forall*	{N1} {N2} {N3} {N4}
+	forall	{R: ne (volatile-contents/ N1 N2) (volatile-contents/ N3 N4)}
+		{E: obj`eq N2 N4}
+	exists	{N: set`ne N1 N3}
+	true.
+
+%theorem ne/1-inversion/L:
+	forall*	{N1} {N2} {N3} {N4} {B}
+	forall	{R: ne (volatile-contents/ N1 N2) (volatile-contents/ N3 N4)}
+		{E: obj`eq N2 N4}
+		{E?: set`eq? N1 N3 B}
+	exists	{N: set`ne N1 N3}
+	true.
+
+- : ne/1-inversion/L _ _ (set`eq?/no NE) NE.
+
+- : ne/1-inversion/L PNE obj`eq/ (set`eq?/yes) NE
+    <- eq-ne-implies-false eq/ PNE F
+    <- set`false-implies-ne F NE.
+
+%worlds () (ne/1-inversion/L _ _ _ _).
+%total { } (ne/1-inversion/L _ _ _ _).
+
+- : ne/1-inversion PNE EQ NE
+    <- set`eq?-total EQ?
+    <- ne/1-inversion/L PNE EQ EQ? NE.
+
+%worlds () (ne/1-inversion _ _ _).
+%total { } (ne/1-inversion _ _ _).
+
+
+%theorem ne/2-inversion:
+	forall*	{N1} {N2} {N3} {N4}
+	forall	{R: ne (volatile-contents/ N1 N2) (volatile-contents/ N3 N4)}
+		{E: set`eq N1 N3}
+	exists	{N: obj`ne N2 N4}
+	true.
+
+%theorem ne/2-inversion/L:
+	forall*	{N1} {N2} {N3} {N4} {B}
+	forall	{R: ne (volatile-contents/ N1 N2) (volatile-contents/ N3 N4)}
+		{E: set`eq N1 N3}
+		{E?: obj`eq? N2 N4 B}
+	exists	{N: obj`ne N2 N4}
+	true.
+
+- : ne/2-inversion/L _ _ (obj`eq?/no NE) NE.
+
+- : ne/2-inversion/L PNE set`eq/ (obj`eq?/yes) NE
+    <- eq-ne-implies-false eq/ PNE F
+    <- obj`false-implies-ne F NE.
+
+%worlds () (ne/2-inversion/L _ _ _ _).
+%total { } (ne/2-inversion/L _ _ _ _).
+
+- : ne/2-inversion PNE EQ NE
+    <- obj`eq?-total EQ?
+    <- ne/2-inversion/L PNE EQ EQ? NE.
+
+%worlds () (ne/2-inversion _ _ _).
+%total { } (ne/2-inversion _ _ _).
+
+
+
+%%% theorems about eq?
+
+
+%theorem eq?-total* :
+	forall {P1} {P2}
+	exists {B} {T:eq? P1 P2 B}
+	true.
+
+%theorem eq?-total*/L :
+	forall* {X1} {Y1} {X2} {Y2} {B1} {B2}
+	forall {T1:set`eq? X1 Y1 B1} {T2:obj`eq? X2 Y2 B2}
+	exists {B} {T:eq? (volatile-contents/ X1 X2) (volatile-contents/ Y1 Y2) B}
+	true.
+
+- : eq?-total*/L (set`eq?/yes) (obj`eq?/yes) _ (eq?/yes).
+
+- : eq?-total*/L (set`eq?/no X1<>Y1) _ _ (eq?/no (ne/1 X1<>Y1)).
+
+- : eq?-total*/L _ (obj`eq?/no X2<>Y2) _ (eq?/no (ne/2 X2<>Y2)).
+
+%worlds () (eq?-total*/L _ _ _ _).
+%total { } (eq?-total*/L _ _ _ _).
+
+- : eq?-total* _ _ _ T
+    <- set`eq?-total E?1
+    <- obj`eq?-total E?2
+    <- eq?-total*/L E?1 E?2 _ T.
+
+%worlds () (eq?-total* _ _ _ _).
+%total { } (eq?-total* _ _ _ _).
+
+
+%abbrev eq?-total = eq?-total* _ _ _.
+
+
+
+
+
+%%%% Exports
+
+
+
+
+%abbrev volatile-contents`volatile-contents = volatile-contents.
+%abbrev volatile-contents`volatile-contents/ = volatile-contents/.
+%abbrev volatile-contents`eq = eq.
+%abbrev volatile-contents`eq/ = eq/.
+%abbrev volatile-contents`ne = ne.
+%abbrev volatile-contents`ne/1 = ne/1.
+%abbrev volatile-contents`ne/2 = ne/2.
+%abbrev volatile-contents`eq? = eq?.
+%abbrev volatile-contents`eq?/yes = eq?/yes.
+%abbrev volatile-contents`eq?/no = eq?/no.
+%abbrev volatile-contents`false-implies-eq = false-implies-eq.
+%abbrev volatile-contents`meta-eq = meta-eq.
+%abbrev volatile-contents`eq-reflexive = eq-reflexive.
+%abbrev volatile-contents`eq-symmetric = eq-symmetric.
+%abbrev volatile-contents`eq-transitive = eq-transitive.
+%abbrev volatile-contents`volatile-contents-eq-implies-eq = volatile-contents-eq-implies-eq.
+%abbrev volatile-contents`volatile-contents-preserves-eq = volatile-contents-preserves-eq.
+%abbrev volatile-contents`false-implies-ne = false-implies-ne.
+%abbrev volatile-contents`ne-respects-eq = ne-respects-eq.
+%abbrev volatile-contents`ne-anti-reflexive = ne-anti-reflexive.
+%abbrev volatile-contents`ne-symmetric = ne-symmetric.
+%abbrev volatile-contents`eq-ne-implies-false = eq-ne-implies-false.
+%abbrev volatile-contents`ne/1-inversion = ne/1-inversion.
+%abbrev volatile-contents`ne/1-inversion/L = ne/1-inversion/L.
+%abbrev volatile-contents`ne/2-inversion = ne/2-inversion.
+%abbrev volatile-contents`ne/2-inversion/L = ne/2-inversion/L.
+%abbrev volatile-contents`eq?-total* = eq?-total*.
+%abbrev volatile-contents`eq?-total*/L = eq?-total*/L.
+%abbrev volatile-contents`eq?-total = eq?-total.

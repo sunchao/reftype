@@ -1,0 +1,1148 @@
+%%%%% frv-base.elf
+%%%%% John Boyland
+%%%%% Main source of frv.elf
+
+%{%
+An 'frv' is a fraction-value pair.
+
+This file depends on std.elf, nat.elf, and rat.elf
+and uses the 'functor' pair.
+%}%
+
+
+%%%% Imports
+
+
+
+ %abbrev obj = nat.
+ %abbrev obj`eq = nat`eq.
+ %abbrev obj`eq/ = nat`eq/.
+
+
+
+%%%% Functor Use
+
+
+
+
+%%%%% frv.elf
+%%%%% a pseudo-functor
+%%%%% John Boyland
+
+%{%
+We require the following definitions:
+  rat : equality type.
+  nat : equality type.
+The result is an equality type too.
+%}%
+
+
+
+
+%%%% Definitions
+
+
+
+frv : type.
+
+frv/ : rat -> nat -> frv.
+
+
+eq : frv -> frv -> type.
+
+eq/ : eq P P.
+
+
+ne : frv -> frv -> type.
+
+ne/1 : ne (frv/ X1 Y1) (frv/ X2 Y2)
+    <- rat`ne X1 X2.
+
+ne/2 : ne (frv/ X1 Y1) (frv/ X2 Y2)
+    <- nat`ne Y1 Y2.
+
+
+eq? : frv -> frv -> bool -> type.
+
+eq?/yes : eq? P P true.
+
+eq?/no : eq? P1 P2 false
+    <- ne P1 P2.
+
+
+
+%%%% Theorems
+
+
+
+%%% theorems about eq
+
+
+
+
+%theorem false-implies-eq :
+	forall* {X1} {X2}
+	forall {F:void}
+	exists {E:eq X1 X2}
+	true.
+
+%worlds (%{nothing}%) (false-implies-eq _ _).
+%total { } (false-implies-eq _ _).
+
+
+%theorem meta-eq :
+	forall {X1} {X2} {E:eq X1 X2}
+	true.
+
+- : meta-eq _ _ eq/.
+
+%worlds (%{nothing}%) (meta-eq _ _ _).
+%total { } (meta-eq _ _ _).
+%reduces X = Y (meta-eq X Y _).
+
+	
+%theorem eq-reflexive : 
+	forall {X} 
+	exists {E:eq X X} 
+	true.
+
+- : eq-reflexive _ eq/.
+
+%worlds (%{nothing}%) (eq-reflexive _ _).
+%total { } (eq-reflexive _ _).
+
+
+%theorem eq-symmetric : 
+	forall* {X} {Y}
+	forall {E:eq X Y}
+	exists {F:eq Y X}
+	true.
+
+- : eq-symmetric (eq/) (eq/).
+
+%worlds (%{nothing}%) (eq-symmetric _ _).
+%total { } (eq-symmetric _ _).
+
+
+%theorem eq-transitive : 
+	forall* {X} {Y} {Z}
+	forall {E1:eq X Y} {E2:eq Y Z}
+	exists {F:eq X Z}
+	true.
+
+- : eq-transitive (eq/) (eq/) (eq/).
+
+%worlds (%{nothing}%) (eq-transitive _ _ _).
+%total { } (eq-transitive _ _ _).
+
+
+
+
+%theorem frv-eq-implies-eq :
+	forall* {D1a} {D1b} {D2a} {D2b}
+        forall {E:eq (frv/ D1a D2a) (frv/ D1b D2b)}
+	exists {E1:rat`eq D1a D1b}
+               {E2:nat`eq D2a D2b}
+	true.
+
+- : frv-eq-implies-eq eq/ rat`eq/ nat`eq/.
+
+%worlds () (frv-eq-implies-eq _ _ _).
+%total { } (frv-eq-implies-eq _ _ _).
+
+
+%theorem frv-preserves-eq :
+	forall* {D1a} {D1b} {D2a} {D2b}
+	forall {E1:rat`eq D1a D1b}
+               {E2:nat`eq D2a D2b}
+        exists {E:eq (frv/ D1a D2a) (frv/ D1b D2b)}
+	true.
+
+- : frv-preserves-eq rat`eq/ nat`eq/ eq/.
+
+%worlds () (frv-preserves-eq _ _ _).
+%total { } (frv-preserves-eq _ _ _).
+
+
+%%% theorems about ne
+
+
+%theorem false-implies-ne :
+	forall* {X1} {X2}
+	forall {F:void}
+	exists {G:ne X1 X2}
+	true.
+
+%worlds () (false-implies-ne _ _).
+%total { } (false-implies-ne _ _).
+
+
+%theorem ne-respects-eq :
+	forall* {X1} {X2} {Y1} {Y2}
+	forall {D1:ne X1 X2} {E1:eq X1 Y1} {E2:eq X2 Y2}
+	exists {D2:ne Y1 Y2}
+	true.
+
+- : ne-respects-eq X1<>X2 eq/ eq/ X1<>X2.
+
+%worlds () (ne-respects-eq _ _ _ _).
+%total { } (ne-respects-eq _ _ _ _).
+
+
+%theorem ne-anti-reflexive :
+	forall* {P}
+	forall {R:ne P P}
+	exists {F:void}
+	true.
+
+- : ne-anti-reflexive (ne/1 X<>X) F
+    <- rat`ne-anti-reflexive X<>X F.
+
+- : ne-anti-reflexive (ne/2 Y<>Y) F
+    <- nat`ne-anti-reflexive Y<>Y F.
+
+%worlds () (ne-anti-reflexive _ _).
+%total { } (ne-anti-reflexive _ _).
+
+
+%theorem ne-symmetric :
+	forall* {P1} {P2}
+	forall {R1:ne P1 P2}
+	exists {R2:ne P2 P1}
+	true.
+
+- : ne-symmetric (ne/1 X1<>X2) (ne/1 X2<>X1)
+    <- rat`ne-symmetric X1<>X2 X2<>X1.
+
+- : ne-symmetric (ne/2 Y1<>Y2) (ne/2 Y2<>Y1)
+    <- nat`ne-symmetric Y1<>Y2 Y2<>Y1.
+
+
+%worlds () (ne-symmetric _ _).
+%total { } (ne-symmetric _ _).
+
+
+%theorem eq-ne-implies-false :
+	forall* {P1} {P2}
+	forall {D1:eq P1 P2} {D2:ne P1 P2}
+	exists {F:void}
+	true.
+
+- : eq-ne-implies-false eq/ X<>X F
+    <- ne-anti-reflexive X<>X F.
+
+%worlds () (eq-ne-implies-false _ _ _).
+%total { } (eq-ne-implies-false _ _ _).
+
+
+%theorem ne/1-inversion:
+	forall*	{N1} {N2} {N3} {N4}
+	forall	{R: ne (frv/ N1 N2) (frv/ N3 N4)}
+		{E: nat`eq N2 N4}
+	exists	{N: rat`ne N1 N3}
+	true.
+
+%theorem ne/1-inversion/L:
+	forall*	{N1} {N2} {N3} {N4} {B}
+	forall	{R: ne (frv/ N1 N2) (frv/ N3 N4)}
+		{E: nat`eq N2 N4}
+		{E?: rat`eq? N1 N3 B}
+	exists	{N: rat`ne N1 N3}
+	true.
+
+- : ne/1-inversion/L _ _ (rat`eq?/no NE) NE.
+
+- : ne/1-inversion/L PNE nat`eq/ (rat`eq?/yes) NE
+    <- eq-ne-implies-false eq/ PNE F
+    <- rat`false-implies-ne F NE.
+
+%worlds () (ne/1-inversion/L _ _ _ _).
+%total { } (ne/1-inversion/L _ _ _ _).
+
+- : ne/1-inversion PNE EQ NE
+    <- rat`eq?-total EQ?
+    <- ne/1-inversion/L PNE EQ EQ? NE.
+
+%worlds () (ne/1-inversion _ _ _).
+%total { } (ne/1-inversion _ _ _).
+
+
+%theorem ne/2-inversion:
+	forall*	{N1} {N2} {N3} {N4}
+	forall	{R: ne (frv/ N1 N2) (frv/ N3 N4)}
+		{E: rat`eq N1 N3}
+	exists	{N: nat`ne N2 N4}
+	true.
+
+%theorem ne/2-inversion/L:
+	forall*	{N1} {N2} {N3} {N4} {B}
+	forall	{R: ne (frv/ N1 N2) (frv/ N3 N4)}
+		{E: rat`eq N1 N3}
+		{E?: nat`eq? N2 N4 B}
+	exists	{N: nat`ne N2 N4}
+	true.
+
+- : ne/2-inversion/L _ _ (nat`eq?/no NE) NE.
+
+- : ne/2-inversion/L PNE rat`eq/ (nat`eq?/yes) NE
+    <- eq-ne-implies-false eq/ PNE F
+    <- nat`false-implies-ne F NE.
+
+%worlds () (ne/2-inversion/L _ _ _ _).
+%total { } (ne/2-inversion/L _ _ _ _).
+
+- : ne/2-inversion PNE EQ NE
+    <- nat`eq?-total EQ?
+    <- ne/2-inversion/L PNE EQ EQ? NE.
+
+%worlds () (ne/2-inversion _ _ _).
+%total { } (ne/2-inversion _ _ _).
+
+
+
+%%% theorems about eq?
+
+
+%theorem eq?-total* :
+	forall {P1} {P2}
+	exists {B} {T:eq? P1 P2 B}
+	true.
+
+%theorem eq?-total*/L :
+	forall* {X1} {Y1} {X2} {Y2} {B1} {B2}
+	forall {T1:rat`eq? X1 Y1 B1} {T2:nat`eq? X2 Y2 B2}
+	exists {B} {T:eq? (frv/ X1 X2) (frv/ Y1 Y2) B}
+	true.
+
+- : eq?-total*/L (rat`eq?/yes) (nat`eq?/yes) _ (eq?/yes).
+
+- : eq?-total*/L (rat`eq?/no X1<>Y1) _ _ (eq?/no (ne/1 X1<>Y1)).
+
+- : eq?-total*/L _ (nat`eq?/no X2<>Y2) _ (eq?/no (ne/2 X2<>Y2)).
+
+%worlds () (eq?-total*/L _ _ _ _).
+%total { } (eq?-total*/L _ _ _ _).
+
+- : eq?-total* _ _ _ T
+    <- rat`eq?-total E?1
+    <- nat`eq?-total E?2
+    <- eq?-total*/L E?1 E?2 _ T.
+
+%worlds () (eq?-total* _ _ _ _).
+%total { } (eq?-total* _ _ _ _).
+
+
+%abbrev eq?-total = eq?-total* _ _ _.
+
+
+
+
+
+
+
+%%%% Definitions
+
+
+%% less than equal:
+
+leq : frv -> frv -> type.
+
+leq/ : leq (frv/ X O) (frv/ Y OP)
+    <- obj`eq O OP
+    <- rat`lse X Y.
+
+
+%% non-total addition: object must match:
+
+add : frv -> frv -> frv -> type.
+
+add/ : add (frv/ X O) (frv/ Y OP) (frv/ Z O)
+    <- obj`eq O OP
+    <- rat`add X Y Z.
+
+
+%% scaling is total:
+
+scale : rat -> frv -> frv -> type.
+
+scale/ : scale X (frv/ Y O) (frv/ Z O)
+    <- rat`mul X Y Z.
+
+
+
+%%%% Theorems
+
+
+
+%%% Theorems for leq
+
+
+%theorem false-implies-leq :
+        forall* {FR1} {FR2}
+        forall {F:void}
+        exists {G:leq FR1 FR2}
+        true.
+
+%worlds () (false-implies-leq _ _).
+%total {} (false-implies-leq _ _).
+
+
+%theorem leq-respects-eq :
+        forall* {FR1} {FR2} {FR1P} {FR2P}
+        forall {D1:leq FR1 FR2} {E1:eq FR1 FR1P} {E2:eq FR2 FR2P}
+        exists {D2:leq FR1P FR2P}
+        true.
+
+- : leq-respects-eq D eq/ eq/ D.
+
+%worlds () (leq-respects-eq _ _ _ _).
+%total {} (leq-respects-eq _ _ _ _).
+
+
+%theorem leq-reflexive :
+        forall {FR}
+        exists {E:leq FR FR}
+        true.
+
+- : leq-reflexive _ (leq/ X<=X obj`eq/)
+    <- lse-reflexive _ X<=X.
+
+%worlds () (leq-reflexive _ _).
+%total {} (leq-reflexive _ _).
+
+
+%theorem leq-anti-symmetric :
+        forall* {FR1} {FR2}
+        forall {L1:leq FR1 FR2} {L2:leq FR2 FR1}
+        exists {E:eq FR1 FR2}
+        true.
+
+- : leq-anti-symmetric (leq/ X<=Y obj`eq/) (leq/ Y<=X obj`eq/) FE
+    <- rat`lse-anti-symmetric X<=Y Y<=X X=Y
+    <- frv-preserves-eq X=Y obj`eq/ FE.
+
+%worlds () (leq-anti-symmetric _ _ _).
+%total {} (leq-anti-symmetric _ _ _).
+
+
+%theorem leq-transitive:
+        forall* {FR1} {FR2} {FR3}
+        forall {G1:leq FR1 FR2} {G2:leq FR2 FR3}
+        exists {G3:leq FR1 FR3}
+        true.
+
+- : leq-transitive (leq/ X<=Y obj`eq/) (leq/ Y<=Z obj`eq/) 
+                       (leq/ X<=Z obj`eq/)
+    <- rat`lse-transitive X<=Y Y<=Z X<=Z.
+
+%worlds () (leq-transitive _ _ _).
+%total {} (leq-transitive _ _ _).
+
+
+%theorem leq-inversion :
+	forall* {Q1} {O1} {Q2} {O2}
+	forall {A:leq (frv/ Q1 O1) (frv/ Q2 O2)}
+	exists {QA:rat`lse Q1 Q2} 
+               {E12:nat`eq O1 O2}
+	true.
+
+- : leq-inversion (leq/ Q1<=Q2 nat`eq/) Q1<=Q2 nat`eq/.
+
+%worlds () (leq-inversion _ _ _).
+%total { } (leq-inversion _ _ _).
+
+
+% also need preservation and cancellation rules.
+
+
+%%% Theorems for add
+
+%theorem false-implies-add :
+	forall* {FR1} {FR2} {FR3}
+	forall {F:void}
+	exists {A:add FR1 FR2 FR3}
+	true.
+
+%worlds () (false-implies-add _ _).
+%total {} (false-implies-add _ _).
+
+
+%theorem add-respects-eq :
+	forall* {FR1} {FR2} {FR3} {FR1P} {FR2P} {FR3P}
+	forall {A:add FR1 FR2 FR3}
+	       {E1:eq FR1 FR1P}
+	       {E2:eq FR2 FR2P}
+	       {E3:eq FR3 FR3P}
+	exists {AP:add FR1P FR2P FR3P}
+	true.
+
+- : add-respects-eq A eq/ eq/ eq/ A.
+
+%worlds () (add-respects-eq _ _ _ _ _).
+%total {} (add-respects-eq _ _ _ _ _).
+
+
+%theorem add-deterministic :
+	forall* {FR1} {FR2} {FR12} {FR1P} {FR2P} {FR12P}
+	forall {A1:add FR1 FR2 FR12}
+               {A2:add FR1P FR2P FR12P}
+               {E1:eq FR1 FR1P}
+               {E2:eq FR2 FR2P}
+        exists {E3:eq FR12 FR12P}
+        true.
+
+- : add-deterministic (add/ X+Y=Z obj`eq/) (add/ X+Y=ZP obj`eq/) eq/ eq/ FE
+    <- rat`add-deterministic X+Y=Z X+Y=ZP equ/ equ/ Z=ZP
+    <- frv-preserves-eq Z=ZP obj`eq/ FE.
+
+%worlds () (add-deterministic _ _ _ _ _).
+%total {} (add-deterministic _ _ _ _ _).
+
+
+%theorem add-commutative :
+	forall* {FR1} {FR2} {FR12}
+	forall {A1:add FR1 FR2 FR12} 
+        exists {A2:add FR2 FR1 FR12}
+	true.
+
+- : add-commutative (add/ X+Y=Z obj`eq/) (add/ Y+X=Z obj`eq/)
+    <- rat`add-commutative X+Y=Z Y+X=Z.
+
+%worlds () (add-commutative _ _).
+%total {} (add-commutative _ _).
+
+
+%theorem add-associative : 
+	forall* {FR1} {FR2} {FR3} {FR12} {FR123}
+	forall {A1:add FR1 FR2 FR12} 
+               {A2:add FR12 FR3 FR123}
+        exists {FR23}
+               {A3:add FR2 FR3 FR23}
+	       {A4:add FR1 FR23 FR123}
+	true.
+
+- : add-associative (add/ X+Y=XY obj`eq/) 
+                    (add/ XY+Z=XYZ obj`eq/) _
+                    (add/ Y+Z=YZ obj`eq/)
+                    (add/ X+YZ=XYZ obj`eq/)
+    <- rat`add-associative X+Y=XY XY+Z=XYZ _ Y+Z=YZ X+YZ=XYZ.
+
+%worlds () (add-associative _ _ _ _ _).
+%total {} (add-associative _ _ _ _ _).
+
+
+%theorem add-left-cancels : 
+	forall* {Q1} {R1} {S1} {Q2} {R2} {S2}
+	forall {A1:add Q1 R1 S1} {A2:add Q2 R2 S2}
+               {E:eq Q1 Q2} {ES:eq S1 S2}
+	exists {ER:eq R1 R2}
+	true.
+ 
+- : add-left-cancels (add/ Q+R1=S obj`eq/) (add/ Q+R2=S obj`eq/)
+                     eq/ eq/ FRV1=FRV2
+    <- rat`add-left-cancels Q+R1=S Q+R2=S rat`equ/ rat`equ/ R1=R2
+    <- frv-preserves-eq R1=R2 obj`eq/ FRV1=FRV2.
+
+%worlds () (add-left-cancels _ _ _ _ _).
+%total { } (add-left-cancels _ _ _ _ _).
+
+
+%theorem add-implies-leq* :
+	forall* {FR1} {FR2} {FR3}
+	forall {A:add FR1 FR2 FR3}
+	exists {L:leq FR1 FR3}
+	true.
+
+- : add-implies-leq* (add/ X+Y=Z obj`eq/) (leq/ (gre/> Z>X) obj`eq/)
+    <- rat`add-implies-grt X+Y=Z Z>X _.
+
+%worlds () (add-implies-leq* _ _).
+%total { } (add-implies-leq* _ _).
+
+
+%theorem add-left-preserves-leq* :
+	forall* {F1} {F2} {F3} {F4} {F5}
+	forall {G:leq F2 F4}
+	       {A1:add F1 F2 F3} {A2:add F1 F4 F5}
+	exists {GP:leq F3 F5}
+	true.
+
+- : add-left-preserves-leq* (leq/ Q2<=Q4 obj`eq/) 
+                            (add/ Q1+Q2=Q3 obj`eq/) (add/ Q1+Q4=Q5 obj`eq/)
+                            (leq/ Q3<=Q5 obj`eq/)
+    <- rat`add-left-preserves-gre* Q2<=Q4 Q1+Q4=Q5 Q1+Q2=Q3 Q3<=Q5.
+
+%worlds () (add-left-preserves-leq* _ _ _ _).
+%total { } (add-left-preserves-leq* _ _ _ _).
+
+
+%theorem add-preserves-leq :
+	forall* {FR1} {FR2} {FR3} {FR1P} {FR2P} {FR3P}
+	forall {G1:leq FR1 FR1P} {G2:leq FR2 FR2P}
+               {A1:add FR1 FR2 FR3} {A2:add FR1P FR2P FR3P}
+	exists {G3:leq FR3 FR3P}
+	true.
+
+- : add-preserves-leq (leq/ X<=XP obj`eq/) (leq/ Y<=YP obj`eq/)
+                     (add/ X+Y=Z obj`eq/) (add/ XP+YP=ZP obj`eq/)
+	             (leq/ Z<=ZP obj`eq/)
+    <- rat`add-preserves-lse* X<=XP Y<=YP X+Y=Z XP+YP=ZP Z<=ZP.
+
+%worlds () (add-preserves-leq _ _ _ _ _).
+%total {} (add-preserves-leq _ _ _ _ _).
+
+
+%theorem add-left-cancels-leq :
+	forall* {FR1} {FR2} {FR3} {FR1P} {FR2P} {FR3P}
+	forall {A:add FR1 FR2 FR3} {AP:add FR1P FR2P FR3P}
+	       {E1:eq FR1 FR1P} {G3:leq FR3 FR3P}
+	exists {G2:leq FR2 FR2P}
+	true.
+
+- : add-left-cancels-leq (add/ X+Y=Z obj`eq/)
+                        (add/ X+YP=ZP obj`eq/) eq/
+                        (leq/ Z<=ZP obj`eq/) 
+			(leq/ Y<=YP obj`eq/)
+    <- add-left-cancels-lse X+Y=Z X+YP=ZP equ/ Z<=ZP Y<=YP.
+
+%worlds () (add-left-cancels-leq _ _ _ _ _).
+%total {} (add-left-cancels-leq _ _ _ _ _).
+
+
+%theorem add-right-cancels-leq :
+	forall* {FR1} {FR2} {FR3} {FR1P} {FR2P} {FR3P}
+	forall {A:add FR1 FR2 FR3} {AP:add FR1P FR2P FR3P}
+	       {E2:eq FR2 FR2P} {G3:leq FR3 FR3P}
+	exists {E1:leq FR1 FR1P}
+	true.
+
+- : add-right-cancels-leq FR1+FR2=FR3 FR1P+FR2P=FR3P FR2=FR2P FR3<=FR3P FR1<=FR1P
+    <- add-commutative FR1+FR2=FR3 FR2+FR1=FR3
+    <- add-commutative FR1P+FR2P=FR3P FR2P+FR1P=FR3P
+    <- add-left-cancels-leq FR2+FR1=FR3 FR2P+FR1P=FR3P FR2=FR2P FR3<=FR3P
+                                   FR1<=FR1P.
+
+%worlds () (add-right-cancels-leq _ _ _ _ _).
+%total {} (add-right-cancels-leq _ _ _ _ _).
+
+
+%theorem add-no-right-identity :
+	forall* {FR1} {FR2}
+	forall {A:add FR1 FR2 FR1}
+	exists {F:void}
+	true.
+
+- : add-no-right-identity (add/ X+Y=X obj`eq/) F
+    <- rat`add-no-right-identity X+Y=X F.
+
+%worlds () (add-no-right-identity _ _).
+%total { } (add-no-right-identity _ _).
+
+
+%theorem leq-ne-implies-add :
+	forall* {FR1} {FR2}
+	forall {L:leq FR1 FR2} {N:ne FR1 FR2}
+	exists {FR0} {A:add FR0 FR1 FR2}
+	true.
+
+- : leq-ne-implies-add (leq/ Q1<=Q2 nat`eq/) (ne/1 Q1<>Q2) _
+		       (add/ Q0+Q1=Q2 nat`eq/)
+    <- neq-symmetric Q1<>Q2 Q2<>Q1
+    <- gre-neq-implies-grt Q1<=Q2 Q2<>Q1 Q2>Q1
+    <- grt-implies-add Q2>Q1 Q0 Q0+Q1=Q2.
+
+- : leq-ne-implies-add (leq/ Q1<=Q2 nat`eq/) (ne/2 N<>N) (frv/ rat`one z) A
+    <- nat`ne-anti-reflexive N<>N F
+    <- false-implies-add F A.
+
+%worlds () (leq-ne-implies-add _ _ _ _).
+%total { } (leq-ne-implies-add _ _ _ _).
+
+
+%% add is not total, but everything can be added to itself:
+
+%theorem add-self-total* :
+	forall {FR}
+	exists {FR2} {A:add FR FR FR2}
+	true.
+
+- : add-self-total* (frv/ X O) (frv/ X2 O) (add/ X+X=X2 nat`eq/)
+    <- rat`add-total X+X=X2.
+
+%worlds () (add-self-total* _ _ _).
+%total { } (add-self-total* _ _ _).
+
+
+%abbrev add-self-total = add-self-total* _ _.
+
+
+%theorem add-cross-comparable :
+	forall* {F} {F1} {F2} {F3} {F4}
+	forall {A12:add F1 F2 F} {A34:add F3 F4 F}
+	exists {F13} {F14} {F23} {F24}
+	       {A1:add F13 F14 F1} {A2:add F23 F24 F2}
+	       {A3:add F13 F23 F3} {A4:add F14 F24 F4}
+	true.
+
+- : add-cross-comparable 
+	(add/ Q1+Q2=Q nat`eq/) (add/ Q3+Q4=Q nat`eq/) _ _ _ _
+	(add/ Q13+Q14=Q1 nat`eq/) (add/ Q23+Q24=Q2 nat`eq/)
+	(add/ Q13+Q23=Q3 nat`eq/) (add/ Q14+Q24=Q4 nat`eq/)
+    <- rat`add-cross-comparable Q1+Q2=Q Q3+Q4=Q _ _ _ _ 
+                                Q13+Q14=Q1 Q23+Q24=Q2 Q13+Q23=Q3 Q14+Q24=Q4.
+
+%worlds () (add-cross-comparable _ _ _ _ _ _ _ _ _ _).
+%total { } (add-cross-comparable _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem add-inversion :
+	forall* {Q1} {O1} {Q2} {O2} {Q3} {O3}
+	forall {A:add (frv/ Q1 O1) (frv/ Q2 O2) (frv/ Q3 O3)}
+	exists {QA:rat`add Q1 Q2 Q3} 
+               {E12:nat`eq O1 O2} {E13:nat`eq O1 O3} {E23:nat`eq O2 O3}
+	true.
+
+- : add-inversion (add/ Q1+Q2=Q3 nat`eq/) Q1+Q2=Q3 nat`eq/ nat`eq/ nat`eq/.
+
+%worlds () (add-inversion _ _ _ _ _).
+%total { } (add-inversion _ _ _ _ _).
+
+
+
+%%% Theorems for scale
+
+
+%theorem false-implies-scale :
+	forall* {X1} {FR2} {FR3}
+	forall {F:void}
+	exists {S:scale X1 FR2 FR3}
+	true.
+
+%worlds () (false-implies-scale _ _).
+%total {} (false-implies-scale _ _).
+
+
+%theorem scale-respects-eq :
+	forall* {X1} {FR2} {FR3} {X1P} {FR2P} {FR3P}
+	forall {S:scale X1 FR2 FR3}
+	       {E1:equ X1 X1P}
+	       {E2:eq FR2 FR2P}
+	       {E3:eq FR3 FR3P}
+	exists {SP:scale X1P FR2P FR3P}
+	true.
+
+- : scale-respects-eq A equ/ eq/ eq/ A.
+
+%worlds () (scale-respects-eq _ _ _ _ _).
+%total {} (scale-respects-eq _ _ _ _ _).
+
+
+%theorem scale-deterministic :
+	forall* {X1} {FR2} {FR12} {X1P} {FR2P} {FR12P}
+	forall {A1:scale X1 FR2 FR12}
+               {A2:scale X1P FR2P FR12P}
+               {E1:equ X1 X1P}
+               {E2:eq FR2 FR2P}
+        exists {E3:eq FR12 FR12P}
+        true.
+
+- : scale-deterministic (scale/ X*Y=Z) (scale/ X*Y=ZP) equ/ eq/ FE
+    <- rat`mul-deterministic X*Y=Z X*Y=ZP equ/ equ/ Z=ZP
+    <- frv-preserves-eq Z=ZP obj`eq/ FE.
+
+%worlds () (scale-deterministic _ _ _ _ _).
+%total {} (scale-deterministic _ _ _ _ _).
+
+
+%theorem scale-total* :
+	forall {X} {FR}
+	exists {FRP} {S:scale X FR FRP}
+	true.
+
+- : scale-total* X (frv/ Y O) (frv/ Z O) (scale/ X*Y=Z)
+    <- rat`mul-total* X Y Z X*Y=Z.
+
+%worlds () (scale-total* _ _ _ _).
+%total {} (scale-total* _ _ _ _).
+
+
+%abbrev scale-total = scale-total* _ _ _.
+
+
+%theorem scale-inversion :
+	forall* {Q0} {Q1} {O1} {Q2} {O2}
+	forall {A:scale Q0 (frv/ Q1 O1) (frv/ Q2 O2)}
+	exists {QA:rat`mul Q0 Q1 Q2} 
+               {E12:nat`eq O1 O2}
+	true.
+
+- : scale-inversion (scale/ Q0*Q1=Q2) Q0*Q1=Q2 nat`eq/.
+
+%worlds () (scale-inversion _ _ _).
+%total { } (scale-inversion _ _ _).
+
+
+%theorem scale-identity :
+	forall {FR:frv} 
+	exists {S:scale rat`one FR FR}
+	true.
+
+- : scale-identity _ (scale/ ONE*Q=Q)
+    <- rat`mul-left-identity _ ONE*Q=Q.
+
+%worlds () (scale-identity _ _).
+%total { } (scale-identity _ _).
+
+
+%theorem mul-associates-with-scale :
+	forall* {X} {Y} {XY} {FR} {FRXY}
+        forall {M:rat`mul X Y XY} {SXY:scale XY FR FRXY}
+        exists {FRY} {SY:scale Y FR FRY}
+	       {SX:scale X FRY FRXY}
+	true.
+
+- : mul-associates-with-scale X*Y=XY (scale/ XY*Z=XYZ) _
+			      (scale/ Y*Z=YZ) (scale/ X*YZ=XYZ)
+    <- rat`mul-associative X*Y=XY XY*Z=XYZ YZ Y*Z=YZ X*YZ=XYZ.
+
+%worlds () (mul-associates-with-scale _ _ _ _ _).
+%total {} (mul-associates-with-scale _ _ _ _ _).
+
+
+%theorem mul-associates-with-scale* :
+	forall* {X} {Y} {XY} {FR} {FRY} {FRXY}
+        forall {M:rat`mul X Y XY} {SXY:scale XY FR FRXY}
+               {SY:scale Y FR FRY}
+	exists {SX:scale X FRY FRXY}
+	true.
+
+- : mul-associates-with-scale* X*Y=XY XY*FR=FRXY Y*FR=FRY X*FRY=FRXY
+    <- mul-associates-with-scale X*Y=XY XY*FR=FRXY 
+                                 FRYP Y*FR=FRYP X*FRYP=FRXY
+    <- scale-deterministic Y*FR=FRYP Y*FR=FRY equ/ eq/ FRYP=FRY
+    <- scale-respects-eq X*FRYP=FRXY equ/ FRYP=FRY eq/ X*FRY=FRXY.
+
+%worlds () (mul-associates-with-scale* _ _ _ _).
+%total {} (mul-associates-with-scale* _ _ _ _).
+
+
+%theorem mul-associates-with-scale-converse :
+	forall* {X} {Y} {FR} {FRY} {FRXY}
+	forall {SY:scale Y FR FRY} {SX:scale X FRY FRXY}
+        exists {XY} {M:rat`mul X Y XY} {SXY:scale XY FR FRXY}
+	true.
+
+- : mul-associates-with-scale-converse 
+	(scale/ Y*Z=YZ) (scale/ X*YZ=XYZ) 
+        XY X*Y=XY (scale/ XY*Z=XYZ)
+    <- rat`mul-associative-converse Y*Z=YZ X*YZ=XYZ XY X*Y=XY XY*Z=XYZ.
+
+%worlds () (mul-associates-with-scale-converse _ _ _ _ _).
+%total { } (mul-associates-with-scale-converse _ _ _ _ _).
+
+
+%theorem mul-associates-with-scale-converse* :
+	forall* {X} {Y} {XY} {FR} {FRY} {FRXY}
+	forall {SY:scale Y FR FRY} {SX:scale X FRY FRXY} {M:rat`mul X Y XY} 
+        exists {SXY:scale XY FR FRXY}
+	true.
+
+- : mul-associates-with-scale-converse* 
+	(scale/ Y*Z=YZ) (scale/ X*YZ=XYZ) 
+        X*Y=XY (scale/ XY*Z=XYZ)
+    <- rat`mul-associative-converse* Y*Z=YZ X*YZ=XYZ X*Y=XY XY*Z=XYZ.
+
+%worlds () (mul-associates-with-scale-converse* _ _ _ _).
+%total { } (mul-associates-with-scale-converse* _ _ _ _).
+
+
+%theorem scale-cancels :
+	forall*  {X1} {FR1} {FRX1} {X2} {FR2} {FRX2}
+	forall {S1:scale X1 FR1 FRX1} {S2:scale X2 FR2 FRX2}
+	       {E1:rat`equ X1 X2} {FE:eq FRX1 FRX2}
+	exists {E2:eq FR1 FR2}
+	true.
+
+- : scale-cancels (scale/ X*Y=Z) (scale/ X*YP=Z) rat`equ/ eq/ EQ
+    <- rat`mul-left-cancels X*Y=Z X*YP=Z rat`equ/ rat`equ/ Y=YP
+    <- frv-preserves-eq Y=YP nat`eq/ EQ.
+
+%worlds () (scale-cancels _ _ _ _ _).
+%total { } (scale-cancels _ _ _ _ _).
+
+
+%theorem scale-left-preserves-leq* :
+	forall* {X} {FR} {FRX} {FRP} {FRXP}
+	forall {G2:leq FR FRP}
+               {S:scale X FR FRX} {SP:scale X FRP FRXP}
+        exists {G3:leq FRX FRXP}
+	true.
+
+- : scale-left-preserves-leq* (leq/ Y<=YP obj`eq/) 
+                               (scale/ X*Y=Z) (scale/ X*YP=ZP)
+                               (leq/ Z<=ZP obj`eq/)
+    <- rat`mul-left-preserves-lse* Y<=YP X*Y=Z X*YP=ZP Z<=ZP.
+
+%worlds () (scale-left-preserves-leq* _ _ _ _).
+%total { } (scale-left-preserves-leq* _ _ _ _).
+
+
+%theorem scale-left-preserves-leq :
+	forall* {X} {FR} {FRP}
+	forall {G2:leq FR FRP}
+        exists {FRX} {FRXP} {S:scale X FR FRX} {SP:scale X FRP FRXP}
+               {G3:leq FRX FRXP}
+	true.
+
+- : scale-left-preserves-leq FR<=FRP _ _ X*FR=FRX X*FRP=FRXP FRX<=FRXP
+    <- scale-total X*FR=FRX
+    <- scale-total X*FRP=FRXP
+    <- scale-left-preserves-leq* FR<=FRP X*FR=FRX X*FRP=FRXP FRX<=FRXP.
+
+%worlds () (scale-left-preserves-leq _ _ _ _ _ _).
+%total { } (scale-left-preserves-leq _ _ _ _ _ _).
+
+
+%theorem scale-preserves-leq* :
+	forall* {X} {FR} {FRX} {XP} {FRP} {FRXP}
+	forall {G1:lse X XP} {G2:leq FR FRP}
+               {S:scale X FR FRX} {SP:scale XP FRP FRXP}
+        exists {G3:leq FRX FRXP}
+	true.
+
+- : scale-preserves-leq* X<=XP (leq/ Y<=YP obj`eq/) 
+                        (scale/ X*Y=Z) (scale/ XP*YP=ZP)
+                        (leq/ Z<=ZP obj`eq/)
+    <- rat`mul-preserves-lse* X<=XP Y<=YP X*Y=Z XP*YP=ZP Z<=ZP.
+
+%worlds () (scale-preserves-leq* _ _ _ _ _).
+%total { } (scale-preserves-leq* _ _ _ _ _).
+
+
+%theorem scale-preserves-leq :
+	forall* {X} {FR} {XP} {FRP}
+	forall {G1:lse X XP} {G2:leq FR FRP}
+        exists {FRX} {FRXP} {S:scale X FR FRX} {SP:scale XP FRP FRXP}
+               {G3:leq FRX FRXP}
+	true.
+
+- : scale-preserves-leq X<=XP FR<=FRP _ _ X*FR=FRX XP*FRP=FRXP FRX<=FRXP
+    <- scale-total X*FR=FRX
+    <- scale-total XP*FRP=FRXP
+    <- scale-preserves-leq* X<=XP FR<=FRP X*FR=FRX XP*FRP=FRXP FRX<=FRXP.
+
+%worlds () (scale-preserves-leq _ _ _ _ _ _ _).
+%total { } (scale-preserves-leq _ _ _ _ _ _ _).
+
+
+%theorem scale-left-cancels-leq :
+	forall* {X} {FR} {FRX} {XP} {FRP} {FRXP}
+	forall {S:scale X FR FRX} {SP:scale XP FRP FRXP}
+               {E1:equ X XP} {G3:leq FRX FRXP}
+	exists {G2:leq FR FRP}
+	true.
+
+- : scale-left-cancels-leq (scale/ X*Y=Z) (scale/ X*YP=ZP) equ/
+                           (leq/ Z<=ZP obj`eq/) (leq/ Y<=YP obj`eq/)
+    <- rat`mul-left-cancels-lse X*Y=Z X*YP=ZP equ/ Z<=ZP Y<=YP.
+
+%worlds () (scale-left-cancels-leq _ _ _ _ _).
+%total { } (scale-left-cancels-leq _ _ _ _ _).
+
+
+%theorem scale-right-cancels-leq :
+	forall* {X} {FR} {FRX} {XP} {FRP} {FRXP}
+	forall {S:scale X FR FRX} {SP:scale XP FRP FRXP}
+	       {E1:eq FR FRP} {L3:leq FRX FRXP}
+	exists {L2:lse X XP}
+	true.
+
+- : scale-right-cancels-leq (scale/ X1*Y=Z1) (scale/ X2*Y=Z2) 
+                            eq/ (leq/ Z1<=Z2 obj`eq/) X1<=X2
+    <- rat`mul-right-cancels-lse X1*Y=Z1 X2*Y=Z2 equ/ Z1<=Z2 X1<=X2.
+
+%worlds () (scale-right-cancels-leq _ _ _ _ _).
+%total { } (scale-right-cancels-leq _ _ _ _ _).
+
+
+%theorem scale-distributes-over-add* :
+	forall* {X} {FR1} {FR1X} {FR2} {FR2X} {FR3} {FR3X}
+	forall {A:add FR1 FR2 FR3} {S:scale X FR3 FR3X}
+               {S1:scale X FR1 FR1X} {S2:scale X FR2 FR2X}
+	exists {AX:add FR1X FR2X FR3X}
+	true.
+
+- : scale-distributes-over-add* (add/ Y+Z=YZ obj`eq/) 
+                                (scale/ X*YZ=XYZ)
+     			        (scale/ X*Y=XY) (scale/ X*Z=XZ)
+			        (add/ XY+XZ=XYZ obj`eq/)
+    <- rat`mul-left-distributes-over-add* Y+Z=YZ X*YZ=XYZ 
+                                          X*Y=XY X*Z=XZ XY+XZ=XYZ.
+
+%worlds () (scale-distributes-over-add* _ _ _ _ _).
+%total { } (scale-distributes-over-add* _ _ _ _ _).
+
+
+%theorem scale-distributes-over-add :
+	forall* {X} {FR1} {FR2} {FR3} {FR3X}
+	forall {A:add FR1 FR2 FR3} {S:scale X FR3 FR3X}
+        exists {FR1X} {FR2X} {S1:scale X FR1 FR1X} {S2:scale X FR2 FR2X}
+	       {AX:add FR1X FR2X FR3X}
+	true.
+
+- : scale-distributes-over-add (add/ Y+Z=YZ obj`eq/) 
+                               (scale/ X*YZ=XYZ) _ _
+     			       (scale/ X*Y=XY) (scale/ X*Z=XZ)
+			       (add/ XY+XZ=XYZ obj`eq/)
+    <- rat`mul-left-distributes-over-add Y+Z=YZ X*YZ=XYZ 
+                                         _ _ X*Y=XY X*Z=XZ XY+XZ=XYZ.
+
+%worlds () (scale-distributes-over-add _ _ _ _ _ _ _).
+%total { } (scale-distributes-over-add _ _ _ _ _ _ _).
+
+
+%theorem scale-factors-over-add :
+	forall* {X1} {X2} {X3} {X4} {X5} {X7}
+	forall {M12:scale X1 X2 X3} {M14:scale X1 X4 X5} 
+	       {A35:add X3 X5 X7} 
+        exists {X6} 
+               {A24:add X2 X4 X6} 
+               {M16:scale X1 X6 X7}
+        true.
+
+- : scale-factors-over-add 
+	(scale/ X1*X2=X3) (scale/ X1*X4=X5) (add/ X3+X5=X7 nat`eq/)
+	_ (add/ X2+X4=X6 nat`eq/) (scale/ X1*X6=X7)
+    <- rat`mul-left-factors-over-add 
+       X1*X2=X3 X1*X4=X5 X3+X5=X7 X6 X2+X4=X6 X1*X6=X7.
+
+%worlds () (scale-factors-over-add _ _ _ _ _ _).
+%total { } (scale-factors-over-add _ _ _ _ _ _).
+
+
+%theorem scale-right-distributes-over-add* :
+	forall* {Q1} {Q2} {Q3} {C} {C1} {C2} {C3}
+	forall {QA:rat`add Q1 Q2 Q3}
+	       {S3:scale Q3 C C3}
+               {S1:scale Q1 C C1}
+	       {S2:scale Q2 C C2}
+	exists {CA:add C1 C2 C3}
+	true.
+
+- : scale-right-distributes-over-add* 
+	Q1+Q2=Q3 (scale/ Q3*X=X3) (scale/ Q1*X=X1) (scale/ Q2*X=X2) 
+        (add/ X1+X2=X3 nat`eq/)
+    <- rat`mul-right-distributes-over-add* Q1+Q2=Q3 Q3*X=X3 Q1*X=X1 Q2*X=X2
+                                           X1+X2=X3.
+
+%worlds () (scale-right-distributes-over-add* _ _ _ _ _).
+%total (S) (scale-right-distributes-over-add* _ S _ _ _).
+
+
+%theorem scale-right-factors-over-add* :
+	forall* {Q1} {Q2} {Q3} {C} {C1} {C2} {C3}
+	forall {S1:scale Q1 C C1}
+	       {S2:scale Q2 C C2}
+	       {CA:add C1 C2 C3}
+	       {QA:rat`add Q1 Q2 Q3}
+	exists {S3:scale Q3 C C3}
+	true.
+
+- : scale-right-factors-over-add* (scale/ Q1*D=D1) (scale/ Q2*D=D2)
+                                  (add/ D1+D2=D3 nat`eq/)
+     				  Q1+Q2=Q3 (scale/ Q3*D=D3)
+    <- rat`mul-right-factors-over-add* Q1*D=D1 Q2*D=D2 D1+D2=D3 Q1+Q2=Q3 
+                                       Q3*D=D3.
+
+%worlds () (scale-right-factors-over-add* _ _ _ _ _).
+%total (S) (scale-right-factors-over-add* S _ _ _ _).
+
+
+
+
+
+%%%% Exports
+
+
+
+%abbrev frv`frv = frv.
+%abbrev frv`frv/ = frv/.
+%abbrev frv`eq = eq.
+%abbrev frv`eq/ = eq/.
+%abbrev frv`ne = ne.
+%abbrev frv`ne/1 = ne/1.
+%abbrev frv`ne/2 = ne/2.
+%abbrev frv`eq? = eq?.
+%abbrev frv`eq?/yes = eq?/yes.
+%abbrev frv`eq?/no = eq?/no.
+%abbrev frv`false-implies-eq = false-implies-eq.
+%abbrev frv`meta-eq = meta-eq.
+%abbrev frv`eq-reflexive = eq-reflexive.
+%abbrev frv`eq-symmetric = eq-symmetric.
+%abbrev frv`eq-transitive = eq-transitive.
+%abbrev frv`frv-eq-implies-eq = frv-eq-implies-eq.
+%abbrev frv`frv-preserves-eq = frv-preserves-eq.
+%abbrev frv`false-implies-ne = false-implies-ne.
+%abbrev frv`ne-respects-eq = ne-respects-eq.
+%abbrev frv`ne-anti-reflexive = ne-anti-reflexive.
+%abbrev frv`ne-symmetric = ne-symmetric.
+%abbrev frv`eq-ne-implies-false = eq-ne-implies-false.
+%abbrev frv`ne/1-inversion = ne/1-inversion.
+%abbrev frv`ne/1-inversion/L = ne/1-inversion/L.
+%abbrev frv`ne/2-inversion = ne/2-inversion.
+%abbrev frv`ne/2-inversion/L = ne/2-inversion/L.
+%abbrev frv`eq?-total* = eq?-total*.
+%abbrev frv`eq?-total*/L = eq?-total*/L.
+%abbrev frv`eq?-total = eq?-total.
+%abbrev frv`leq = leq.
+%abbrev frv`leq/ = leq/.
+%abbrev frv`add = add.
+%abbrev frv`add/ = add/.
+%abbrev frv`scale = scale.
+%abbrev frv`scale/ = scale/.
+%abbrev frv`false-implies-leq = false-implies-leq.
+%abbrev frv`leq-respects-eq = leq-respects-eq.
+%abbrev frv`leq-reflexive = leq-reflexive.
+%abbrev frv`leq-anti-symmetric = leq-anti-symmetric.
+%abbrev frv`leq-transitive = leq-transitive.
+%abbrev frv`leq-inversion = leq-inversion.
+%abbrev frv`false-implies-add = false-implies-add.
+%abbrev frv`add-respects-eq = add-respects-eq.
+%abbrev frv`add-deterministic = add-deterministic.
+%abbrev frv`add-commutative = add-commutative.
+%abbrev frv`add-associative = add-associative.
+%abbrev frv`add-left-cancels = add-left-cancels.
+%abbrev frv`add-implies-leq* = add-implies-leq*.
+%abbrev frv`add-left-preserves-leq* = add-left-preserves-leq*.
+%abbrev frv`add-preserves-leq = add-preserves-leq.
+%abbrev frv`add-left-cancels-leq = add-left-cancels-leq.
+%abbrev frv`add-right-cancels-leq = add-right-cancels-leq.
+%abbrev frv`add-no-right-identity = add-no-right-identity.
+%abbrev frv`leq-ne-implies-add = leq-ne-implies-add.
+%abbrev frv`add-self-total* = add-self-total*.
+%abbrev frv`add-self-total = add-self-total.
+%abbrev frv`add-cross-comparable = add-cross-comparable.
+%abbrev frv`add-inversion = add-inversion.
+%abbrev frv`false-implies-scale = false-implies-scale.
+%abbrev frv`scale-respects-eq = scale-respects-eq.
+%abbrev frv`scale-deterministic = scale-deterministic.
+%abbrev frv`scale-total* = scale-total*.
+%abbrev frv`scale-total = scale-total.
+%abbrev frv`scale-inversion = scale-inversion.
+%abbrev frv`scale-identity = scale-identity.
+%abbrev frv`mul-associates-with-scale = mul-associates-with-scale.
+%abbrev frv`mul-associates-with-scale* = mul-associates-with-scale*.
+%abbrev frv`mul-associates-with-scale-converse = mul-associates-with-scale-converse.
+%abbrev frv`mul-associates-with-scale-converse* = mul-associates-with-scale-converse*.
+%abbrev frv`scale-cancels = scale-cancels.
+%abbrev frv`scale-left-preserves-leq* = scale-left-preserves-leq*.
+%abbrev frv`scale-left-preserves-leq = scale-left-preserves-leq.
+%abbrev frv`scale-preserves-leq* = scale-preserves-leq*.
+%abbrev frv`scale-preserves-leq = scale-preserves-leq.
+%abbrev frv`scale-left-cancels-leq = scale-left-cancels-leq.
+%abbrev frv`scale-right-cancels-leq = scale-right-cancels-leq.
+%abbrev frv`scale-distributes-over-add* = scale-distributes-over-add*.
+%abbrev frv`scale-distributes-over-add = scale-distributes-over-add.
+%abbrev frv`scale-factors-over-add = scale-factors-over-add.
+%abbrev frv`scale-right-distributes-over-add* = scale-right-distributes-over-add*.
+%abbrev frv`scale-right-factors-over-add* = scale-right-factors-over-add*.

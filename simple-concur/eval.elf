@@ -1,0 +1,2681 @@
+%%%%% evaluation in the language
+
+%%%% Definitions
+
+
+
+%%% State
+
+
+state : type.
+
+state/ : mem -> threads -> state.
+
+
+
+state`eq : state -> state -> type.
+
+state`eq/ : state`eq S S.
+
+
+
+%%% evaluation context
+
+
+in* : {K1} {K2} (term K1 -> term K2) -> type.
+
+%abbrev in = in* _ _.
+
+
+%abbrev expr-in-expr : (expr -> expr) -> type = in.
+
+%abbrev expr-in-cond : (expr -> cond) -> type = in.
+
+%abbrev expr-in-args : (expr -> args) -> type = in.
+
+%abbrev cond-in-expr : (cond -> expr) -> type = in.
+
+%abbrev cond-in-cond : (cond -> cond) -> type = in.
+
+%abbrev args-in-expr : (args -> expr) -> type = in.
+
+%abbrev args-in-args : (args -> args) -> type = in.
+
+
+term-in-term* : {K1} {K2} term K1 -> term K2 -> type.
+
+%abbrev term-in-term = term-in-term* _ _.
+
+
+expr-in-expr/read : {F} expr-in-expr ([E] (read E F)).
+
+expr-in-expr/write1 : {F} {E'} expr-in-expr ([E] (write E F E')).
+
+expr-in-expr/write2 : {O} {F} expr-in-expr ([E] (write (lit O) F E)).
+
+expr-in-expr/readv : {F} expr-in-expr ([E] (readv E F)).
+
+expr-in-expr/writev1 : {F} {E'} expr-in-expr ([E] (writev E F E')).
+
+expr-in-expr/writev2 : {O} {F} expr-in-expr ([E] (writev (lit O) F E)).
+
+expr-in-expr/let : {B} expr-in-expr ([E] (let E B)).
+
+cond-in-expr/if : {E} {E'} cond-in-expr ([C] (if C E E')).
+
+args-in-expr/call : {N} args-in-expr ([A] (call N A)).
+
+expr-in-expr/join : expr-in-expr ([E] (join E)).
+
+expr-in-expr/synch : {E'} expr-in-expr ([E] (synch E E')).
+
+expr-in-expr/hold : {O} expr-in-expr ([E] (hold O E)).
+
+cond-in-cond/and : {C'} cond-in-cond ([C] (and C C')).
+
+cond-in-cond/not : cond-in-cond ([C] (not C)).
+
+expr-in-cond/eql1 : {E'} expr-in-cond ([E] (eql E E')).
+
+expr-in-cond/eql2 : {O} expr-in-cond ([E] (eql (lit O) E)).
+
+expr-in-args/args : {A} expr-in-args ([E] (args/+ E A)).
+
+args-in-args/args : {O} args-in-args ([A] (args/+ (lit O) A)).
+
+
+% No way to express this:
+% reduces E1 < E2 (expr-in-expr E1 E2).
+% reduces C1 < E2 (cond-in-expr C1 E2).
+% reduces E1 < C2 (expr-in-cond E1 C2).
+% reduces C1 < C2 (cond-in-cond C1 C2).
+
+term-in-term/ : term-in-term* K1 K2 T1 (F T1)
+    <- in* K1 K2 F.
+
+% Twelf doesn't check cases, so this fails:
+% reduces T1 < T2 (term-in-term* _ _ T1 T2).
+
+
+%%% Location of evaluation
+
+loc* : {K1} {K2} (term K1 -> term K2) -> type.
+
+%abbrev loc = loc* _ _.
+
+
+loc/id : loc ([T] T).
+
+loc/in :
+    loc* K1 K2 F2 ->
+    in* K2 K3 F1 ->
+    loc* K1 K3 ([T] F1 (F2 T)).
+
+
+%% a rule to conceal "loc" rules from the type checker:
+
+located* : {K2} {K1} term K2 -> term K1 -> type.
+
+located/ : located* K2 K1 T2 (F T2)
+    <- loc* K2 K1 F.
+
+
+%abbrev located = located* _ _.
+
+
+
+
+%%% Formal-Actual matching
+
+
+match : func -> args -> expr -> type.
+
+
+match/0 : match (func/0 E) args/0 E.
+
+match/+* : {O} match (F O) A E -> match (func/+ F) (args/+ (lit O) A) E.
+
+%abbrev match/+ = match/+* _.
+
+
+%%% Core evaluation
+
+
+eval* : {K} prog -> nat -> state -> term K -> state -> term K -> type.
+
+%abbrev eval = eval* _.
+
+
+%% no memory rules
+
+eLet :  eval G P S (let (lit O) B)
+                 S (B O).
+
+eIf1 :	eval G P S (if cond/true E _)
+                 S E.
+
+eIf2 :	eval G P S (if cond/false _ E)
+                 S E.
+
+eWhile: eval G P S (while C E)
+                 S (if C (seq E (while C E)) (lit (object/ z))).
+
+eNot :	eval G P S (not cond/false)
+                 S cond/true.
+
+eAndT :	eval G P S (and cond/true C)
+		 S C.
+
+eAndF : eval G P S (and cond/false C)
+                 S cond/false.
+
+eEqlT : (nat`eq O1 O2) ->
+        (eval G P S (eql (lit (object/ O1)) (lit (object/ O2)))
+                  S cond/true).
+
+eEqlF : (nat`ne O1 O2) ->
+        (eval G P S (eql (lit (object/ O1)) (lit (object/ O2)))
+                  S cond/false).
+
+eCall : (prog`lookup G N F) ->
+	(match F A E) ->
+	(eval G P S (call N A)
+                  S E).
+
+
+%% memory rules
+
+eAlloc:	(mem`fresh M1 O) ->
+        (classof O C) ->
+        (initobj M1 O NS VS M2) ->
+        (eval G P (state/ M1 T) (alloc C NS VS)
+                  (state/ M2 T) (lit (object/ O))).
+
+eRead : (mem`lookup M O (objs/ NF _ _)) ->
+        (normal-fields`lookup NF F (normal-contents/ W O')) ->
+        (threads`lookup T P (thread/ KS _)) ->
+        (set`member KS W) ->
+        (eval G P (state/ M T) (read (lit (object/ O)) F)
+                  (state/ M T) (lit (object/ O'))).
+
+eWrite*: {W':nat} {O'':nat} (mem`lookup M1 O (objs/ NF1 VF L)) ->
+        (normal-fields`lookup NF1 F (normal-contents/ W O'')) ->
+        (threads`lookup T1 P (thread/ KS PC)) ->
+        (set`member KS W) ->
+        (normal-fields`update NF1 F (normal-contents/ W' O') NF2) ->
+        (mem`update M1 O (objs/ NF2 VF L) M2) ->
+	(set`union KS (onewritekey W') KS') ->
+        (threads`update T1 P (thread/ KS' PC) T2) ->
+        (eval G P (state/ M1 T1) (write (lit (object/ O)) F (lit (object/ O')))
+                  (state/ M2 T2) (lit (object/ O'))).
+
+%abbrev eWrite = eWrite* _ _.
+
+
+eReadV: (mem`lookup M O (objs/ _ VF _)) ->
+        (volatile-fields`lookup VF F (volatile-contents/ W O')) ->
+	(threads`lookup T1 P (thread/ KS PC)) ->
+	(set`union KS W KS') ->
+        (threads`update T1 P (thread/ KS' PC) T2) ->
+        (eval G P (state/ M T1) (readv (lit (object/ O)) F)
+                  (state/ M T2) (lit (object/ O'))).
+
+eWriteV:(mem`lookup M1 O (objs/ NF VF1 L)) ->
+        (volatile-fields`lookup VF1 F (volatile-contents/ W1 _)) ->
+        (threads`lookup T P (thread/ W2 PC)) ->
+        (set`union W1 W2 W3) ->
+        (volatile-fields`update VF1 F (volatile-contents/ W3 O') VF2) ->
+        (mem`update M1 O (objs/ NF VF2 L) M2) ->
+        (eval G P (state/ M1 T) (writev (lit (object/ O)) F (lit (object/ O')))
+                  (state/ M2 T) (lit (object/ O'))).
+
+%% parallelism rules
+
+eRe:    mem`lookup M O (objs/ _ _ (lock-contents/locked P)) ->
+        eval G P (state/ M T) (synch (lit (object/ O)) E)
+                 (state/ M T) E.
+
+eAcq:	mem`lookup M1 O (objs/ NF VF (lock-contents/unlocked W)) ->
+        mem`update M1 O (objs/ NF VF (lock-contents/locked P)) M2 ->
+	threads`lookup T1 P (thread/ KS PC) ->
+	set`union KS W KS' ->
+        threads`update T1 P (thread/ KS' PC) T2 ->
+        eval G P (state/ M1 T1) (synch (lit (object/ O)) E)
+                 (state/ M2 T2) (hold (object/ O) E).
+
+eRel:	mem`lookup M1 O (objs/ NF VF (lock-contents/locked P)) ->
+        threads`lookup T P (thread/ W _) ->
+        mem`update M1 O (objs/ NF VF (lock-contents/unlocked W)) M2 ->
+        eval G P (state/ M1 T) (hold (object/ O) (lit O'))
+                 (state/ M2 T) (lit O').
+
+eFork:  threads`lookup T1 P (thread/ W _) ->
+        threads`fresh T1 P' ->
+	mem`fresh M1 P' ->
+	classof P' threadclass ->
+	threads`update T1 P' (thread/ W E) T2 ->
+        initobj M1 P' threadnormals threadvolatiles M2 ->
+	eval G P (state/ M1 T1) (fork E) 
+                 (state/ M2 T2) (lit (object/ P')).
+
+eJoin:  threads`lookup T1 P (thread/ W1 PC) ->
+        threads`lookup T1 P' (thread/ W2 (lit O)) ->
+	set`union W1 W2 W3 ->
+	threads`update T1 P (thread/ W3 PC) T2 ->
+	eval G P (state/ M T1) (join (lit (object/ P')))
+		 (state/ M T2) (lit O).
+
+
+% EXTEND eval-definition
+
+
+
+%%% Meta evaluation equality:
+
+
+eval-eq* : {K1} {G1} {P1} {S1} {S1'} {T1} {T1'}
+           {K2} {G2} {P2} {S2} {S2'} {T2} {T2'}
+	   eval* K1 G1 P1 S1 T1 S1' T1' -> 
+	   eval* K2 G2 P2 S2 T2 S2' T2' -> type.
+
+%abbrev eval-eq = eval-eq* _ _ _ _ _ _ _ _ _ _ _ _ _ _.
+
+eval-eq/ : eval-eq E E.
+
+
+%% a weaker condition, needed for reordering lemmas
+
+
+eval-match* : {K1} {G1} {P1} {S1} {S1'} {T1} {T1'}
+              {K2} {G2} {P2} {S2} {S2'} {T2} {T2'}
+	      eval* K1 G1 P1 S1 T1 S1' T1' -> 
+	      eval* K2 G2 P2 S2 T2 S2' T2' -> type.
+
+%abbrev eval-match = eval-match* _ _ _ _ _ _ _ _ _ _ _ _ _ _.
+
+
+eval-match/ :
+	term`eq TM1 TM2 ->
+	term`eq TM1' TM2' ->
+    eval-match (E1:eval G P S1 TM1 S1' TM1')
+	       (E2:eval G P S2 TM2 S2' TM2').
+
+
+
+%%% Full evaluation
+
+
+fulleval : prog -> nat -> state -> state -> type.
+
+
+fulleval/ : {T} {T'}
+	threads`lookup T1 P (thread/ Wo (B T)) ->
+	loc B ->
+	eval G P (state/ M1 T1) T (state/ M2 T2) T' ->
+	threads`lookup T2 P (thread/ W E) ->
+	threads`update T2 P (thread/ W (B T')) T3 ->
+    fulleval G P (state/ M1 T1) (state/ M2 T3).
+
+
+fulleval-eq* : {G1} {P1} {S1} {S1'} {G2} {P2} {S2} {S2'}
+               (fulleval G1 P1 S1 S1') -> (fulleval G2 P2 S2 S2') -> type.
+
+%abbrev fulleval-eq = fulleval-eq* _ _ _ _ _ _ _ _.
+
+
+fulleval-eq/ : fulleval-eq FE FE.
+
+
+%% a weaker relation than equality (needed for reordering lemmas)
+
+fulleval-match* : {G1} {P1} {S1} {S1'} {G2} {P2} {S2} {S2'}
+               (fulleval G1 P1 S1 S1') -> (fulleval G2 P2 S2 S2') -> type.
+
+%abbrev fulleval-match = fulleval-match* _ _ _ _ _ _ _ _.
+
+
+fulleval-match/ : 
+	threads`lookup TS1 P (thread/ W1 T1) ->
+	threads`lookup TS2 P (thread/ W2 T2) ->
+	term`eq T1 T2 ->
+	threads`lookup TS1' P (thread/ W1' T1') ->
+	threads`lookup TS2' P (thread/ W2' T2') ->
+	term`eq T1' T2' ->
+    fulleval-match (FE1:fulleval G P (state/ M1 TS1) (state/ M1' TS1'))
+		   (FE2:fulleval G P (state/ M2 TS2) (state/ M2' TS2')).
+
+
+
+%%% Comparing contexts:
+
+
+%{%
+  Two evaluation contexts that match the same term are equal
+  or one or the other subterm is a value.
+%}%
+
+context-comparison* : 
+        {K2a} {K1a} {K2b} {K1b} 
+	{Fa: term K2a -> term K1a} {Fb: term K2b -> term K1b}
+	{Ta: term K2a} {Tb: term K2b}
+	(term`eq (Fa Ta) (Fb Tb)) -> type.
+
+%abbrev context-comparison = context-comparison* _ _ _ _.
+
+
+context-comparison/= : context-comparison* K2 K1 K2 K1 F F _ _ _.
+
+context-comparison/1 : context-comparison* K2a K1 K2b K1 Fa Fb Ta Tb E
+	<- value Ta.
+
+context-comparison/2 : context-comparison* K2a K1 K2b K1 Fa Fb Ta Tb E
+        <- value Tb.
+
+
+
+
+%%%% Theorems
+
+
+
+%%% Theorems about 'in'
+
+
+%theorem term-in-value-is-value :
+	forall* {K1} {K2} {K3} {F} {T1} {T3}
+        forall {IN:in* K1 K2 F}
+               {E:term`eq* K2 K3 (F T1) T3}
+               {V:value* K3 T3}
+        exists {V:value* K1 T1}
+	true.
+
+- : term-in-value-is-value (cond-in-cond/not) term`eq/ _ (value/true).
+
+- : term-in-value-is-value (expr-in-args/args A) term`eq/ (value/args/+ EV _) 
+			   EV.
+
+- :  term-in-value-is-value (args-in-args/args A) term`eq/ (value/args/+ _ AV) 
+			   AV.
+
+% EXTEND term-in-value-is-value
+
+%worlds () (term-in-value-is-value _ _ _ _).
+%total { } (term-in-value-is-value _ _ _ _).
+
+
+%theorem term-not-in-lit :
+	forall* {K} {K'} {F} {T} {O}
+	forall {I: in* K K' F}
+               {E:term`eq (F T) (lit O)}
+	exists {F:void}
+	true.
+
+%worlds () (term-not-in-lit _ _ _).
+%total { } (term-not-in-lit _ _ _).
+
+
+%theorem term-not-in-true :
+	forall* {K} {K'} {F} {T}
+	forall {I: in* K K' F}
+               {E:term`eq (F T) cond/true}
+	exists {F:void}
+	true.
+
+%worlds () (term-not-in-true _ _ _).
+%total { } (term-not-in-true _ _ _).
+
+
+%theorem in-preserves-eq :
+	forall* {K} {K'} {T1} {T2} {F}
+	forall {E:term`eq* K K T1 T2} {IN:in* K K' F}
+	exists {E':term`eq* K' K' (F T1) (F T2)}
+	true.
+	
+- : in-preserves-eq term`eq/ _ term`eq/.
+
+%worlds () (in-preserves-eq _ _ _).
+%total { } (in-preserves-eq _ _ _).
+
+
+%theorem in-preserves-eq* :
+	forall* {K1} {K1'} {K2} {K2'} {T1} {T2} {F1} {F2}
+	forall {E:term`eq* K1 K2 T1 T2} 
+               {I1:in* K1 K1' F1} {I2:in* K2 K2' F2}
+	       {TFE:term-func-eq F1 F2}
+	exists {E':term`eq* K1' K2' (F1 T1) (F2 T2)}
+	true.
+	
+- : in-preserves-eq* term`eq/ I1 I2 term-func-eq/ term`eq/.
+
+%worlds () (in-preserves-eq* _ _ _ _ _).
+%total { } (in-preserves-eq* _ _ _ _ _).
+
+
+%theorem in-cancels-eq :
+	forall* {K} {K'} {T1} {T2} {F}
+	forall {E:term`eq* K' K' (F T1) (F T2)} 
+               {IN:in* K K' F}
+	exists {E':term`eq* K K T1 T2}
+	true.
+	
+- : in-cancels-eq term`eq/ _ term`eq/.
+
+%worlds () (in-cancels-eq _ _ _).
+%total { } (in-cancels-eq _ _ _).
+
+
+%theorem in-cancels-eq* :
+	forall* {K1} {K1'} {K2} {K2'} {T1} {T2} {F1} {F2}
+	forall {E':term`eq* K1' K2' (F1 T1) (F2 T2)}
+               {I1:in* K1 K1' F1} {I2:in* K2 K2' F2}
+	       {TFE:term-func-eq F1 F2}
+	exists {E:term`eq* K1 K2 T1 T2} 
+	true.
+	
+- : in-cancels-eq* term`eq/ I1 I2 term-func-eq/ term`eq/.
+
+%worlds () (in-cancels-eq* _ _ _ _ _).
+%total { } (in-cancels-eq* _ _ _ _ _).
+
+
+%{%
+
+ This "theorem" is false
+ 
+%theorem in-deterministic :
+	forall* {K1} {K1'} {K2} {K2'} {T1} {T2} {F1} {F2}
+	forall {E':term`eq* K1' K2' (F1 T1) (F2 T2)}
+               {I1:in* K1 K1' F1} {I2:in* K2 K2' F2}
+        exists {TFE:term-func-eq F1 F2}
+	true.
+
+- : in-deterministic term`eq/ (I:in F) (I:in F) term-func-eq/.
+
+%worlds () (in-deterministic _ _ _ _).
+%total { } (in-deterministic _ _ _ _).
+
+%}%
+
+
+%%% theorems about evaluation
+
+
+%theorem state-preserves-eq :
+	forall* {M1} {M2} {T1} {T2}
+	forall {ME:mem`eq M1 M2} {TE:threads`eq T1 T2}
+	exists {SE:state`eq (state/ M1 T1) (state/ M2 T2)}
+	true.
+
+- : state-preserves-eq mem`eq/ threads`eq/ state`eq/.
+
+%worlds () (state-preserves-eq _ _ _).
+%total { } (state-preserves-eq _ _ _).
+
+
+%theorem state-eq-implies-eq :
+	forall* {M1} {M2} {T1} {T2}
+	forall {SE:state`eq (state/ M1 T1) (state/ M2 T2)}
+	exists {ME:mem`eq M1 M2} {TE:threads`eq T1 T2}
+	true.
+
+- : state-eq-implies-eq state`eq/ mem`eq/ threads`eq/.
+
+%worlds () (state-eq-implies-eq _ _ _).
+%total { } (state-eq-implies-eq _ _ _).
+
+
+%theorem state`eq-symmetric :
+	forall* {M1} {M2} {T1} {T2}
+	forall {SE: state`eq (state/ M1 T1) (state/ M2 T2)}
+	exists {SE':state`eq (state/ M2 T2) (state/ M1 T1)}
+	true.
+	
+- : state`eq-symmetric state`eq/ state`eq/.
+
+%worlds () (state`eq-symmetric _ _).
+%total { } (state`eq-symmetric _ _).
+
+
+%theorem false-implies-eval-eq :
+	forall* {K1} {G1} {P1} {S1} {T1} {S1'} {T1'}
+	        {K2} {G2} {P2} {S2} {T2} {S2'} {T2'}
+               {E1:eval* K1 G1 P1 S1 T1 S1' T1'}
+	       {E2:eval* K2 G2 P2 S2 T2 S2' T2'}
+	forall {F:void}
+	exists {EE:eval-eq E1 E2}
+	true.
+
+%worlds () (false-implies-eval-eq _ _).
+%total { } (false-implies-eval-eq _ _).
+
+
+%theorem eval-eq-symmetric :
+	forall* {K1} {G1} {P1} {S1} {T1} {S1'} {T1'}
+	        {K2} {G2} {P2} {S2} {T2} {S2'} {T2'}
+               {E1:eval* K1 G1 P1 S1 T1 S1' T1'}
+	       {E2:eval* K2 G2 P2 S2 T2 S2' T2'}
+	forall {EE:eval-eq E1 E2}
+	exists {EE:eval-eq E2 E1}
+	true.
+
+- : eval-eq-symmetric eval-eq/ eval-eq/.
+
+%worlds () (eval-eq-symmetric _ _).
+%total { } (eval-eq-symmetric _ _).
+
+
+%theorem eval-match-symmetric :
+	forall* {K1} {G1} {P1} {S1} {T1} {S1'} {T1'}
+	        {K2} {G2} {P2} {S2} {T2} {S2'} {T2'}
+               {E1:eval* K1 G1 P1 S1 T1 S1' T1'}
+	       {E2:eval* K2 G2 P2 S2 T2 S2' T2'}
+	forall {EE:eval-match E1 E2}
+	exists {EE:eval-match E2 E1}
+	true.
+
+- : eval-match-symmetric 
+	(eval-match/ term`eq/ term`eq/)
+	(eval-match/ term`eq/ term`eq/).
+
+%worlds () (eval-match-symmetric _ _).
+%total { } (eval-match-symmetric _ _).
+
+
+%theorem eval-match-implies-eq :
+	forall* {K1} {G1} {P1} {S1} {T1} {S1'} {T1'}
+	        {K2} {G2} {P2} {S2} {T2} {S2'} {T2'}
+               {E1:eval* K1 G1 P1 S1 T1 S1' T1'}
+	       {E2:eval* K2 G2 P2 S2 T2 S2' T2'}
+	forall {EE:eval-match E1 E2}
+	exists {GE:prog`eq G1 G2}
+	       {PE:nat`eq P1 P2}
+	       {TE: term`eq T1 T2}
+	       {TE':term`eq T1' T2'}
+	true.
+
+- : eval-match-implies-eq 
+	(eval-match/ TE TE') prog`eq/ nat`eq/ TE TE'.
+
+%worlds () (eval-match-implies-eq _ _ _ _ _).
+%total { } (eval-match-implies-eq _ _ _ _ _).
+
+
+%{%
+% This theorem is hard to prove:
+%theorem eval-preserves-eq :
+	forall* {K1} {G1} {P1} {S1} {S1'}
+	        {K2} {G2} {P2} {S2} {S2'}
+               {E1:eval* K1 G1 P1 S1 S1'}
+	       {E2:eval* K2 G2 P2 S2 S2'}
+	forall {GE:prog-eq G1 G1} {TE:nat`eq P1 P2}
+               {SE:state`eq* K1 K2 S1 S2} {SE':state`eq* K1 K2 S1' S2'}
+	exists {EE:eval-eq E1 E2}
+	true.
+%}%
+
+
+%theorem eval-respects-eq :
+	forall* {K1} {G1} {P1} {S1} {T1} {S1'} {T1'}
+	        {K2} {G2} {P2} {S2} {T2} {S2'} {T2'}
+        forall {E1:eval* K1 G1 P1 S1 T1 S1' T1'}
+               {GE:prog`eq G1 G2} {TE:nat`eq P1 P2} 
+               {SE:state`eq S1 S2} {TE:term`eq T1 T2} 
+	       {SE':state`eq S1' S2'} {TE':term`eq T1' T2'}
+	exists {E2:eval* K2 G2 P2 S2 T2 S2' T2'}
+	true.
+
+- : eval-respects-eq E prog`eq/ nat`eq/ state`eq/ term`eq/ state`eq/ term`eq/ E.
+
+%worlds () (eval-respects-eq _ _ _ _ _ _ _ _).
+%total { } (eval-respects-eq _ _ _ _ _ _ _ _).
+
+
+%theorem lit-does-not-eval :
+	forall* {K} {G} {P} {S} {T} {S'} {T'} {O}
+	forall {E:eval* K G P S T S' T'}
+               {EQ:term`eq T (lit O)}
+	exists {F:void}
+	true.
+
+%worlds () (lit-does-not-eval _ _ _).
+%total { } (lit-does-not-eval _ _ _).
+
+
+%theorem true-does-not-eval :
+	forall* {K} {G} {P} {S} {T} {S'} {T'}
+	forall {E:eval* K G P S T S' T'}
+               {EQ:term`eq T cond/true}
+	exists {F:void}
+	true.
+
+%worlds () (true-does-not-eval _ _ _).
+%total { } (true-does-not-eval _ _ _).
+
+
+%theorem value-does-not-eval :
+	forall* {K} {G} {P} {S} {T} {S'} {T'}
+	forall {V:value T}
+	       {E:eval* K G P S T S' T'}
+        exists {F:void}
+	true.
+
+%worlds () (value-does-not-eval _ _ _).
+%total (E) (value-does-not-eval _ E _).
+
+
+% This is difficult to prove:
+% If I use the same case used above, Twelf complains about missing cases.
+%theorem false-does-not-eval :
+	forall* {K} {G} {P} {S} {T} {S'} {T'}
+	forall {E:eval* K G P S T S' T'}
+               {EQ:term`eq T cond/false}
+	exists {F:void}
+	true.
+
+- : false-does-not-eval E term`eq/ F
+    <- value-does-not-eval value/false E F.
+
+%worlds () (false-does-not-eval _ _ _).
+%total { } (false-does-not-eval _ _ _).
+
+
+%theorem eRead-inversion :
+	forall* {K} {G} {P} {M1} {TS1} {M2} {TS2} {T1} {T2} {O} {F}
+	forall	{EV:eval* K G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+		{TE:term`eq T1 (read (lit (object/ O)) F)}
+	exists	{NF} {VF} {L} {W} {O'} {KS} {PC}
+		{MLU: mem`lookup M1 O (objs/ NF VF L)}
+        	{NFL: normal-fields`lookup NF F (normal-contents/ W O')}
+        	{TL1: threads`lookup TS1 P (thread/ KS PC) }
+        	{SM: set`member KS W}
+		{EQM: mem`eq M1 M2}
+		{EQS: threads`eq TS1 TS2}
+		{EQT: term`eq (lit (object/ O')) T2}
+	true.
+
+- : eRead-inversion (eRead MLU NFL TL1 SM) term`eq/
+                     _ _ _ _ _ _ _
+                     MLU NFL TL1 SM mem`eq/ threads`eq/ term`eq/.
+
+%worlds () (eRead-inversion _ _  _ _ _ _ _ _ _  _ _ _ _  _ _ _).
+%total { } (eRead-inversion _ _  _ _ _ _ _ _ _  _ _ _ _  _ _ _).
+
+
+%theorem eWrite-inversion :
+	forall* {K} {G} {P} {M1} {TS1} {M2} {TS2} {T1} {T2} {O} {F} {O'}
+	forall	{EV:eval* K G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+		{TE:term`eq T1 (write (lit (object/ O)) F (lit (object/ O')))}
+	exists	{NF1} {VF} {L} {W} {O''} {KS} {PC} {NF2} {W'} {KS'}
+		{MLU: mem`lookup M1 O (objs/ NF1 VF L)}
+        	{NFL: normal-fields`lookup NF1 F (normal-contents/ W O'')}
+        	{TL1: threads`lookup TS1 P (thread/ KS PC) }
+        	{SM: set`member KS W}
+        	{NFU: normal-fields`update NF1 F (normal-contents/ W' O') NF2}
+        	{MU: mem`update M1 O (objs/ NF2 VF L) M2}
+		{SU: set`union KS (onewritekey W') KS'}
+        	{TU: threads`update TS1 P (thread/ KS' PC) TS2}
+	true.
+
+- : eWrite-inversion (eWrite MLU NFL TL1 SM NFU MU SU TU) term`eq/
+                     _ _ _ _ _ _ _ _ _ _
+                     MLU NFL TL1 SM NFU MU SU TU.
+
+%worlds () (eWrite-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (eWrite-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem eFork-inversion :
+	forall* {K} {G} {P} {M1} {TS1} {M2} {TS2} {T1} {T2} {TP}
+	forall	{EV:eval* K G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+		{TE:term`eq T1 (fork TP)}
+	exists	{W} {E1} {P'} {X}
+		{TL: threads`lookup TS1 P (thread/ W E1)}
+		{TF: threads`fresh TS1 P'}
+		{MF: mem`fresh M1 P'}
+		{CO: classof* P' threadclass X}
+		{TU: threads`update TS1 P' (thread/ W TP) TS2}
+		{IU: initobj M1 P' threadnormals threadvolatiles M2}
+		{TEQ: term`eq (lit (object/ P')) T2}
+	true.
+
+- : eFork-inversion (eFork TL TF MF CO TU IO) term`eq/ _ _ _ _
+	TL TF MF CO TU IO term`eq/.
+
+%worlds () (eFork-inversion _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (eFork-inversion _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem eFork-inversion* :
+	forall* {K} {G} {P} {M1} {TS1} {M2} {TS2} {T1} {T2} {TP} {P'}
+	forall	{EV:eval* K G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+		{TE1:term`eq T1 (fork TP)}
+		{TE2:term`eq T2 (lit (object/ P'))}
+	exists	{W} {E1} {X}
+		{TL: threads`lookup TS1 P (thread/ W E1)}
+		{TF: threads`fresh TS1 P'}
+		{MF: mem`fresh M1 P'}
+		{CO: classof* P' threadclass X}
+		{TU: threads`update TS1 P' (thread/ W TP) TS2}
+		{IU: initobj M1 P' threadnormals threadvolatiles M2}
+	true.
+
+- : eFork-inversion* (eFork TL TF MF CO TU IO) term`eq/ term`eq/ _ _ _
+	TL TF MF CO TU IO.
+
+%worlds () (eFork-inversion* _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (eFork-inversion* _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem eval-preserves-mem-in-domain :
+	forall* {K} {G} {P} {M1} {TS1} {M2} {TS2} {T1} {T2} {O}
+	forall {MD1:mem`domain? M1 O true}
+	       {E:eval* K G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+	exists {MD2:mem`domain? M2 O true}
+	true.
+
+- : eval-preserves-mem-in-domain MD _ MD.
+
+- : eval-preserves-mem-in-domain MD1
+	(eAlloc _ _ (initobj/ MU _)) MD2
+    <- mem`update-preserves-in-domain MD1 MU MD2.
+
+- : eval-preserves-mem-in-domain MD1
+	(eWrite _ _ _ _ _ MU _ _) MD2
+    <- mem`update-preserves-in-domain MD1 MU MD2.
+
+- : eval-preserves-mem-in-domain MD1
+	(eWriteV _ _ _ _ _ MU) MD2
+    <- mem`update-preserves-in-domain MD1 MU MD2.
+
+- : eval-preserves-mem-in-domain MD1
+	(eAcq _ MU _ _ _) MD2
+    <- mem`update-preserves-in-domain MD1 MU MD2.
+
+- : eval-preserves-mem-in-domain MD1
+	(eRel _ _ MU) MD2
+    <- mem`update-preserves-in-domain MD1 MU MD2.
+
+- : eval-preserves-mem-in-domain MD1
+	(eFork _ _ _ _ _ (initobj/ MU _ )) MD2
+    <- mem`update-preserves-in-domain MD1 MU MD2.
+
+%worlds () (eval-preserves-mem-in-domain _ _ _).
+%total { } (eval-preserves-mem-in-domain _ _ _).
+
+
+%theorem eval-preserves-thread-knowledge :
+	forall* {K} {G} {P} {M1} {TS1} {M2} {TS2} {T1} {T2} {E1} {W1}
+	forall {TL1:threads`lookup TS1 P (thread/ W1 E1)}
+	       {E:eval* K G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+	exists {W2} {E2} {TL2:threads`lookup TS2 P (thread/ W2 E2)} 
+               {SL:set`leq W1 W2}
+	true.
+
+- : eval-preserves-thread-knowledge KL _ _ _ KL W<=W
+    <- set`leq-reflexive _ W<=W.
+
+- : eval-preserves-thread-knowledge 
+	KL1 (eWrite _ _ KL1' _ _ _ SU KU) _ _ KL2 W1<=W2
+    <- threads`update-implies-lookup KU KL2
+    <- threads`lookup-deterministic KL1' KL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 _
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2.
+
+- : eval-preserves-thread-knowledge KL1 (eReadV _ _ KL1' SU KU) _ _ KL2 W1<=W2
+    <- threads`update-implies-lookup KU KL2
+    <- threads`lookup-deterministic KL1' KL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 _
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2.
+
+- : eval-preserves-thread-knowledge KL1 (eAcq _ _ KL1' SU KU) _ _ KL2 W1<=W2
+    <- threads`update-implies-lookup KU KL2
+    <- threads`lookup-deterministic KL1' KL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 _
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2.
+
+- : eval-preserves-thread-knowledge TL1 (eFork TL1' TF _ _ TU _) _ _ TL2 W1<=W1
+    <- threads`fresh-lookup-not-equal TF TL1 R<>P
+    <- nat`ne-symmetric R<>P P<>R
+    <- threads`update-preserves-lookup TL1 TU P<>R TL2
+    <- set`leq-reflexive _ W1<=W1.
+
+- : eval-preserves-thread-knowledge TL1 (eJoin TL1' _ SU TU) _ _ TL2 W1<=W2
+    <- threads`update-implies-lookup TU TL2
+    <- threads`lookup-deterministic TL1' TL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 _
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2.
+
+%worlds () (eval-preserves-thread-knowledge _ _ _ _ _ _).
+%total { } (eval-preserves-thread-knowledge _ _ _ _ _ _).
+
+
+%theorem eval-preserves-thread-knowledge :
+	forall* {K} {G} {P} {M1} {TS1} {M2} {TS2} {T1} {T2} {E1} {W1}
+	forall {TL1:threads`lookup TS1 P (thread/ W1 E1)}
+	       {E:eval* K G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+	exists {W2} {TL2:threads`lookup TS2 P (thread/ W2 E1)} 
+               {SL:set`leq W1 W2}
+	true.
+
+- : eval-preserves-thread-knowledge KL _ _ KL W<=W
+    <- set`leq-reflexive _ W<=W.
+
+- : eval-preserves-thread-knowledge 
+	KL1 (eWrite _ _ KL1' _ _ _ SU KU) _ KL2 W1<=W2
+    <- threads`update-implies-lookup KU KL2'
+    <- threads`lookup-deterministic KL1' KL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 PC1'=PC1
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2
+    <- thread-preserves-eq set`eq/ PC1'=PC1 T2'=T2
+    <- threads`lookup-respects-eq KL2' threads`eq/ nat`eq/ T2'=T2 KL2.
+
+- : eval-preserves-thread-knowledge KL1 (eReadV _ _ KL1' SU KU) _ KL2 W1<=W2
+    <- threads`update-implies-lookup KU KL2'
+    <- threads`lookup-deterministic KL1' KL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 PC1'=PC1
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2
+    <- thread-preserves-eq set`eq/ PC1'=PC1 T2'=T2
+    <- threads`lookup-respects-eq KL2' threads`eq/ nat`eq/ T2'=T2 KL2.
+
+- : eval-preserves-thread-knowledge KL1 (eAcq _ _ KL1' SU KU) _ KL2 W1<=W2
+    <- threads`update-implies-lookup KU KL2'
+    <- threads`lookup-deterministic KL1' KL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 PC1'=PC1
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2
+    <- thread-preserves-eq set`eq/ PC1'=PC1 T2'=T2
+    <- threads`lookup-respects-eq KL2' threads`eq/ nat`eq/ T2'=T2 KL2.
+
+- : eval-preserves-thread-knowledge TL1 (eFork TL1' TF _ _ TU _) _ TL2 W1<=W1
+    <- threads`fresh-lookup-not-equal TF TL1 R<>P
+    <- nat`ne-symmetric R<>P P<>R
+    <- threads`update-preserves-lookup TL1 TU P<>R TL2
+    <- set`leq-reflexive _ W1<=W1.
+
+- : eval-preserves-thread-knowledge TL1 (eJoin TL1' _ SU TU) _ TL2 W1<=W2
+    <- threads`update-implies-lookup TU TL2'
+    <- threads`lookup-deterministic TL1' TL1 threads`eq/ nat`eq/ T1'=T1
+    <- thread-eq-implies-eq T1'=T1 W1'=W1 PC1'=PC1
+    <- set`union-implies-leq SU W1'<=W2 _
+    <- set`leq-respects-eq W1'<=W2 W1'=W1 set`eq/ W1<=W2
+    <- thread-preserves-eq set`eq/ PC1'=PC1 T2'=T2
+    <- threads`lookup-respects-eq TL2' threads`eq/ nat`eq/ T2'=T2 TL2.
+
+%worlds () (eval-preserves-thread-knowledge _ _ _ _ _).
+%total { } (eval-preserves-thread-knowledge _ _ _ _ _).
+
+
+
+%theorem eval-in-other-thread-preserves-thread-state :
+	forall* {TS1} {P} {TH} {G} {Q} {M1} {M2} {TS2} {K} {T1} {T2}
+	forall {TL1:threads`lookup TS1 P TH}
+	       {E:eval* K G Q (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+	       {N:nat`ne P Q}
+	exists {TL2:threads`lookup TS2 P TH}
+	true.
+
+- : eval-in-other-thread-preserves-thread-state TL _ _ TL.
+
+- : eval-in-other-thread-preserves-thread-state
+	TL1 (eWrite _ _ _ _ _ _ _ TU) P<>Q TL2
+    <- threads`update-preserves-lookup TL1 TU P<>Q TL2.
+
+- : eval-in-other-thread-preserves-thread-state
+	TL1 (eReadV _ _ _ _ TU) P<>Q TL2
+    <- threads`update-preserves-lookup TL1 TU P<>Q TL2.
+
+- : eval-in-other-thread-preserves-thread-state
+	TL1 (eAcq _ _ _ _ TU) P<>Q TL2
+    <- threads`update-preserves-lookup TL1 TU P<>Q TL2.
+
+- : eval-in-other-thread-preserves-thread-state 
+	TL1 (eFork TL TF _ _ TU _) _ TL2
+    <- threads`fresh-lookup-not-equal TF TL1 R<>P
+    <- nat`ne-symmetric R<>P P<>R
+    <- threads`update-preserves-lookup TL1 TU P<>R TL2.
+
+- : eval-in-other-thread-preserves-thread-state
+	TL1 (eJoin _ _ _ TU) P<>Q TL2
+    <- threads`update-preserves-lookup TL1 TU P<>Q TL2.
+
+%worlds () (eval-in-other-thread-preserves-thread-state _ _ _ _).
+%total { } (eval-in-other-thread-preserves-thread-state _ _ _ _).
+
+
+%theorem eval-in-other-thread-preserves-locked-status :
+	forall* {TS1} {P} {G} {Q} {M1} {M2} {TS2} {K} {T1} {T2} {O} {NF1} {VF1}
+	forall {ML1:mem`lookup M1 O (objs/ NF1 VF1 (lock-contents/locked P))}
+	       {E:eval* K G Q (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+	       {N:nat`ne P Q}
+	exists {NF2} {VF2} 
+	       {ML2:mem`lookup M2 O (objs/ NF2 VF2 (lock-contents/locked P))}
+	true.
+
+- : eval-in-other-thread-preserves-locked-status
+	ML _ _ _ _ ML.
+
+- : eval-in-other-thread-preserves-locked-status
+	ML1 (eAlloc MF2 _ (initobj/ MU2 _)) _ _ _ ML2
+    <- mem`fresh-lookup-not-equal MF2 ML1 O2<>O1
+    <- nat`ne-symmetric O2<>O1 O1<>O2
+    <- mem`update-preserves-lookup ML1 MU2 O1<>O2 ML2.
+
+- : eval-in-other-thread-preserves-locked-status
+	ML1 (eFork _ _ MF2 _ _ (initobj/ MU2 _)) _ _ _ ML2
+    <- mem`fresh-lookup-not-equal MF2 ML1 O2<>O1
+    <- nat`ne-symmetric O2<>O1 O1<>O2
+    <- mem`update-preserves-lookup ML1 MU2 O1<>O2 ML2.
+
+%theorem eval-in-other-thread-preserves-locked-status/L1 :
+	forall* {M1} {O1} {NF1} {VF1} {LC1} 
+		{M2} {O2} {NF2} {VF2} {LC2} {NF3} {VF3} {B}
+	forall	{ML1: mem`lookup M1 O1 (objs/ NF1 VF1 LC1)}
+		{ML2: mem`lookup M1 O2 (objs/ NF2 VF2 LC2)}
+		{MU2: mem`update M1 O2 (objs/ NF3 VF3 LC2) M2}
+		{EQ?: nat`eq? O1 O2 B}
+	exists	{NF} {VF} {ML1X: mem`lookup M2 O1 (objs/ NF VF LC1)}
+	true.
+
+- : eval-in-other-thread-preserves-locked-status/L1 
+	ML1 _ MU2 (nat`eq?/no O1<>O2) _ _ ML1X
+    <- mem`update-preserves-lookup ML1 MU2 O1<>O2 ML1X.
+
+- : eval-in-other-thread-preserves-locked-status/L1 
+	ML1 ML2 MU2 (nat`eq?/yes) _ _ ML1X
+    <- mem`lookup-deterministic ML2 ML1 mem`eq/ nat`eq/ OS2=OS1
+    <- objs-eq-implies-eq OS2=OS1 _ _ LC2=LC1
+    <- objs-preserves-eq normal-fields`eq/ volatile-fields`eq/ LC2=LC1 EQ
+    <- mem`update-implies-lookup MU2 ML2'
+    <- mem`lookup-respects-eq ML2' mem`eq/ nat`eq/ EQ ML1X.
+
+%worlds () (eval-in-other-thread-preserves-locked-status/L1 _ _ _ _ _ _ _).
+%total { } (eval-in-other-thread-preserves-locked-status/L1 _ _ _ _ _ _ _).
+
+- : eval-in-other-thread-preserves-locked-status
+	ML1 (eWrite ML2 _ _ _ _ MU2 _ _) _ _ _ ML1X
+    <- nat`eq?-total EQ?
+    <- eval-in-other-thread-preserves-locked-status/L1 
+	ML1 ML2 MU2 EQ? _ _ ML1X.
+
+- : eval-in-other-thread-preserves-locked-status
+	ML1 (eWriteV ML2 _ _ _ _ MU2) _ _ _ ML1X
+    <- nat`eq?-total EQ?
+    <- eval-in-other-thread-preserves-locked-status/L1 
+	ML1 ML2 MU2 EQ? _ _ ML1X.
+
+- : eval-in-other-thread-preserves-locked-status
+	ML1 (eAcq ML2 MU2 _ _ _) _ _ _ ML1X
+    <- lock-contents-ne-implies-ne ML1 ML2 lock-contents`ne/LU O1<>O2
+    <- mem`update-preserves-lookup ML1 MU2 O1<>O2 ML1X.
+
+- : eval-in-other-thread-preserves-locked-status
+	ML1 (eRel ML2 _ MU2) P1<>P2 _ _ ML1X
+    <- lock-contents-ne-implies-ne ML1 ML2 (lock-contents`ne/LL P1<>P2) O1<>O2
+    <- mem`update-preserves-lookup ML1 MU2 O1<>O2 ML1X.
+	
+%worlds () (eval-in-other-thread-preserves-locked-status _ _ _ _ _ _).
+%total { } (eval-in-other-thread-preserves-locked-status _ _ _ _ _ _).
+
+
+%{%
+The following mini definition is needed so we can generalize
+the previous lemmas to handle all cases, even when the thread was recently
+created.
+%}%
+
+eval-action : nat -> thread -> (eval* K G Q S1 T1 S2 T2) -> type.
+
+
+eval-action/evaluate :
+    eval-action P TH (E:eval* K G P S1 T1 S2 T2).
+
+eval-action/preserve-converse :
+	nat`ne P Q ->
+	threads`lookup TS1 P TH -> 
+    eval-action P TH (E: eval* K G Q (state/ M1 TS1) T1 S2 T2).
+
+eval-action/eFork : 
+    eval-action P (thread/ W T) 
+	(E:eval G Q S1 (fork T) S2 (lit (object/ P))).
+
+%theorem eval-action-respects-eq :
+	forall* {K} {G} {P} {Q} {M1} {TS1} {M2} {TS2} {T1} {T2} {TH}
+		{E: eval* K G Q (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+		{K'} {G'} {Q'} {S1'} {T1'} {S2'} {T2'} {P'} {TH'}
+		{E': eval* K' G' Q' S1' T1' S2' T2'}
+	forall	{EA: eval-action P TH E}
+		{PE: nat`eq P P'}
+		{TE: thread`eq TH TH'}
+		{EE: eval-eq E E'}
+	exists	{EA': eval-action P' TH' E'}
+	true.
+
+- : eval-action-respects-eq EA nat`eq/ thread`eq/ eval-eq/ EA.
+
+%worlds () (eval-action-respects-eq _ _ _ _ _).
+%total { } (eval-action-respects-eq _ _ _ _ _).
+
+
+%theorem eval-in-thread-had-action :
+	forall* {K} {G} {P} {Q} {M1} {TS1} {M2} {TS2} {T1} {T2} {TH}
+	forall	{TL2:threads`lookup TS2 P TH}
+		{E: eval* K G Q (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+	exists	{EA: eval-action P TH E}
+	true.
+
+%theorem eval-in-thread-had-action/L :
+	forall* {K} {G} {P} {Q} {M1} {TS1} {M2} {TS2} {T1} {T2} {TH} {B}
+	forall	{TL2:threads`lookup TS2 P TH}
+		{E: eval* K G Q (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+		{EQ?: nat`eq? P Q B}
+	exists	{EA: eval-action P TH E}
+	true.
+
+- : eval-in-thread-had-action/L _ _ nat`eq?/yes eval-action/evaluate.
+
+- : eval-in-thread-had-action/L TL _ (nat`eq?/no P<>Q) 
+	(eval-action/preserve-converse P<>Q TL).
+
+- : eval-in-thread-had-action/L 
+	TL2 (eWrite _ _ _ _ _ _ _ TU) (nat`eq?/no P<>Q)
+	(eval-action/preserve-converse P<>Q TL1)
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+- : eval-in-thread-had-action/L 
+	TL2 (eReadV _ _ _ _ TU) (nat`eq?/no P<>Q)
+	(eval-action/preserve-converse P<>Q TL1)
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+- : eval-in-thread-had-action/L 
+	TL2 (eAcq _ _ _ _ TU) (nat`eq?/no P<>Q) 
+	(eval-action/preserve-converse P<>Q TL1)
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+%theorem eval-in-thread-had-action/eFork :
+	forall* {G} {P} {Q} {M1} {TS1} {M2} {TS2} {T1} {TH} {B} {R}
+	forall	{TL2:threads`lookup TS2 P TH}
+		{E: eval  G Q (state/ M1 TS1) (fork T1) (state/ M2 TS2)
+                              (lit (object/ R))}
+		{NE: nat`ne P Q}
+		{EQ?: nat`eq? P R B}
+	exists	{EA: eval-action P TH E}
+	true.
+
+- : eval-in-thread-had-action/eFork TL2 (eFork TL TF _ _ TU _) _ nat`eq?/yes EA
+    <- threads`update-implies-lookup TU TL2'
+    <- threads`lookup-deterministic TL2' TL2 threads`eq/ nat`eq/ THE
+    <- eval-action-respects-eq eval-action/eFork nat`eq/ THE eval-eq/ EA.
+
+- : eval-in-thread-had-action/eFork 
+	TL2 (eFork TL TF _ _ TU _) P<>Q (nat`eq?/no P<>R)
+	(eval-action/preserve-converse P<>Q TL1)
+    <- threads`update-preserves-lookup-converse TL2 TU P<>R TL1.
+
+%worlds () (eval-in-thread-had-action/eFork _ _ _ _ _).
+%total { } (eval-in-thread-had-action/eFork _ _ _ _ _).
+
+- : eval-in-thread-had-action/L 
+	TL2 E (nat`eq?/no P<>Q) EA
+    <- nat`eq?-total EQ?
+    <- eval-in-thread-had-action/eFork TL2 E P<>Q EQ? EA.
+
+- : eval-in-thread-had-action/L 
+	TL2 (eJoin _ _ _ TU) (nat`eq?/no P<>Q) 
+	(eval-action/preserve-converse P<>Q TL1)
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+%worlds () (eval-in-thread-had-action/L _ _ _ _).
+%total { } (eval-in-thread-had-action/L _ _ _ _).
+
+- : eval-in-thread-had-action TL2 E EA
+    <- nat`eq?-total EQ?
+    <- eval-in-thread-had-action/L TL2 E EQ? EA.
+
+%worlds () (eval-in-thread-had-action _ _ _).
+%total { } (eval-in-thread-had-action _ _ _).
+
+
+% this could be rewritten to use eval-action.
+%theorem eval-in-other-thread-preserves-live-thread-converse :
+	forall* {K} {G} {P} {Q} {M1} {TS1} {M2} {TS2} {T1} {T2} {TH}
+	forall	{TL2:threads`lookup TS2 P TH}
+		{E: eval* K G Q (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+		{NE:nat`ne P Q}
+		{TLD:threads`domain? TS1 P true}
+	exists	{TL1:threads`lookup TS1 P TH}
+	true.
+
+- : eval-in-other-thread-preserves-live-thread-converse TL _ _ _ TL.
+
+- : eval-in-other-thread-preserves-live-thread-converse 
+	TL2 (eWrite _ _ _ _ _ _ _ TU) P<>Q _ TL1
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+- : eval-in-other-thread-preserves-live-thread-converse 
+	TL2 (eReadV _ _ _ _ TU) P<>Q _ TL1
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+- : eval-in-other-thread-preserves-live-thread-converse 
+	TL2 (eAcq _ _ _ _ TU) P<>Q _ TL1
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+- : eval-in-other-thread-preserves-live-thread-converse 
+	TL2 (eFork _ TF _ _ TU _) _ (threads`domain?/in TL1') TL1
+    <- threads`fresh-lookup-not-equal TF TL1' R<>P
+    <- nat`ne-symmetric R<>P P<>R
+    <- threads`update-preserves-lookup-converse TL2 TU P<>R TL1.
+
+- : eval-in-other-thread-preserves-live-thread-converse 
+	TL2 (eJoin _ _ _ TU) P<>Q _ TL1
+    <- threads`update-preserves-lookup-converse TL2 TU P<>Q TL1.
+
+%worlds () (eval-in-other-thread-preserves-live-thread-converse _ _ _ _ _).
+%total { } (eval-in-other-thread-preserves-live-thread-converse _ _ _ _ _).
+
+
+%theorem match-deterministic :
+	forall* {F1} {A1} {E1} {F2} {A2} {E2}
+	forall {M1: match F1 A1 E1}
+	       {M2: match F2 A2 E2}
+	       {FE: term`eq F1 F2}
+	       {AE: term`eq A1 A2}
+	exists {EE: term`eq E1 E2}
+	true.
+
+- : match-deterministic match/0 match/0 term`eq/ term`eq/ term`eq/.
+
+- : match-deterministic (match/+ M1) (match/+ M2) term`eq/ term`eq/ TE
+    <- match-deterministic M1 M2 term`eq/ term`eq/ TE.
+
+%worlds () (match-deterministic _ _ _ _ _).
+%total (M) (match-deterministic M _ _ _ _).
+
+
+%theorem match-implies-value :
+	forall* {F} {A} {E}
+	forall {M:match F A E}
+	exists {V:value A}
+	true.
+
+- : match-implies-value match/0 value/args/0.
+
+- : match-implies-value (match/+ M) (value/args/+ value/lit V)
+    <- match-implies-value M V.
+
+%worlds () (match-implies-value _ _).
+%total (M) (match-implies-value M _).
+
+
+%theorem context-comparison-total :
+	forall* {K2a} {K1a} {K2b} {K1b} {Fa} {Fb} {Ta} {Tb}
+	forall {Ia:in* K2a K1a Fa} {Ib:in* K2b K1b Fb}
+	       {E:term`eq (Fa Ta) (Fb Tb)}
+	exists {NC:context-comparison Fa Fb Ta Tb E}
+	true.
+
+- : {I:in* K2 K1 F}
+    context-comparison-total I I (term`eq/ :term`eq (F T) (F T)) context-comparison/=.
+
+- : context-comparison-total (expr-in-expr/write1 _ _) (expr-in-expr/write2 _ _) 
+                             term`eq/ (context-comparison/1 value/lit).
+
+- : context-comparison-total (expr-in-expr/write2 _ _) (expr-in-expr/write1 _ _) 
+                             term`eq/ (context-comparison/2 value/lit).
+
+- : context-comparison-total (expr-in-expr/writev1 _ _) (expr-in-expr/writev2 _ _) 
+                             term`eq/ (context-comparison/1 value/lit).
+
+- : context-comparison-total (expr-in-expr/writev2 _ _) (expr-in-expr/writev1 _ _) 
+                             term`eq/ (context-comparison/2 value/lit).
+
+- : context-comparison-total (expr-in-cond/eql1 _) (expr-in-cond/eql2 _) 
+                             term`eq/ (context-comparison/1 value/lit).
+
+- : context-comparison-total (expr-in-cond/eql2 _) (expr-in-cond/eql1 _) 
+                             term`eq/ (context-comparison/2 value/lit).
+
+- : context-comparison-total (cond-in-expr/if _ _) (cond-in-expr/if _ _)
+     			     term`eq/ context-comparison/=.
+
+- : context-comparison-total (cond-in-cond/not) (cond-in-cond/not)
+                             term`eq/ context-comparison/=.
+
+- : context-comparison-total (cond-in-cond/and _) (cond-in-cond/and _)
+                             term`eq/ context-comparison/=.
+
+- : context-comparison-total (expr-in-args/args _) (args-in-args/args _)
+     			     term`eq/ (context-comparison/1 value/lit).
+
+- : context-comparison-total (args-in-args/args _) (expr-in-args/args _)
+     			     term`eq/ (context-comparison/2 value/lit).
+
+% EXTEND context-comparison-total
+
+%worlds () (context-comparison-total _ _ _ _).
+%total { } (context-comparison-total _ _ _ _).
+
+
+
+%%% Theorems about loc
+
+
+%theorem term-located-in-value-is-value :
+	forall* {K1} {K2} {K3} {F} {T1} {T3}
+        forall {IN:loc* K1 K2 F}
+               {E:term`eq* K2 K3 (F T1) T3}
+               {V:value* K3 T3}
+        exists {V:value* K1 T1}
+	true.
+
+- : term-located-in-value-is-value loc/id term`eq/ V V.
+
+- : term-located-in-value-is-value (loc/in L IN) term`eq/ V3 V1
+    <- term-in-value-is-value IN term`eq/ V3 V2
+    <- term-located-in-value-is-value L term`eq/ V2 V1.
+
+%worlds () (term-located-in-value-is-value _ _ _ _).
+%total (L) (term-located-in-value-is-value L _ _ _).
+
+
+%theorem term-in-ready-is-value :
+	forall* {K1} {K2} {K3} {G} {P} {S} {T1} {T2} {T3} {S'} {F}
+	forall {L:in* K1 K2 F}
+	       {E:eval* K3 G P S T2 S' T3}
+	       {Q:term`eq (F T1) T2}
+	exists {V:value T1}
+	true.
+
+- : term-in-ready-is-value
+	(expr-in-expr/read _) (eRead _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/write1 _ _)) (eWrite _ _ _ _ _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/write2 _ _)) (eWrite _ _ _ _ _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/readv _)) (eReadV _ _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/writev1 _ _)) (eWriteV _ _ _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/writev2 _ _)) (eWriteV _ _ _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/let _)) (eLet) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((cond-in-expr/if _ _)) (eIf1) term`eq/ value/true.
+
+- : term-in-ready-is-value
+	((cond-in-expr/if _ _)) (eIf2) term`eq/ value/false.
+
+- : term-in-ready-is-value
+	((args-in-expr/call _)) (eCall _ M) term`eq/ V
+    <- match-implies-value M V.
+
+- : term-in-ready-is-value
+	((expr-in-expr/join)) (eJoin _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/synch _)) (eRe _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/synch _)) (eAcq _ _ _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-expr/hold _)) (eRel _ _ _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((cond-in-cond/and _)) (eAndT) term`eq/ value/true.
+
+- : term-in-ready-is-value
+	((cond-in-cond/and _)) (eAndF) term`eq/ value/false.
+
+- : term-in-ready-is-value
+	((cond-in-cond/not)) (eNot) term`eq/ value/false.
+
+- : term-in-ready-is-value
+	((expr-in-cond/eql1 _)) (eEqlT _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-cond/eql1 _)) (eEqlF _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-cond/eql2 _)) (eEqlT _) term`eq/ value/lit.
+
+- : term-in-ready-is-value
+	((expr-in-cond/eql2 _)) (eEqlF _) term`eq/ value/lit.
+
+% EXTEND term-in-ready-is-value
+
+%worlds () (term-in-ready-is-value _ _ _ _).
+%total { } (term-in-ready-is-value _ _ _ _).
+
+
+%theorem ready-expr-unique :
+	forall* {K1a} {K1b} {F1} {T1} {G1} {P1} {S1} {S1'} {T1'}
+		{K2a} {K2b} {F2} {T2} {G2} {P2} {S2} {S2'} {T2'}
+	forall {L1:loc* K1a K1b F1} {L2:loc* K2a K2b F2}
+	       {E:term`eq (F1 T1) (F2 T2)}
+	       {E1:eval G1 P1 S1 T1 S1' T1'}
+	       {E2:eval G2 P2 S2 T2 S2' T2'}
+	exists {E':term`eq T1 T2}
+	       {FE:term-func-eq F1 F2}
+	true.
+
+- : ready-expr-unique loc/id loc/id term`eq/ _ _ term`eq/ term-func-eq/.
+
+- : ready-expr-unique (loc/in (L:loc F) (I:in G)) loc/id term`eq/ EV1 EV2 TE2 FE
+    <- term-in-ready-is-value I EV2 term`eq/ V1
+    <- term-located-in-value-is-value L term`eq/ V1 V2
+    <- value-does-not-eval V2 EV1 V
+    <- term`false-implies-eq V TE2
+    <- false-implies-term-func-eq V FE.
+
+- : ready-expr-unique loc/id (loc/in (L:loc F) (I:in G)) term`eq/ EV1 EV2 TE2 FE
+    <- term-in-ready-is-value I EV1 term`eq/ V1
+    <- term-located-in-value-is-value L term`eq/ V1 V2
+    <- value-does-not-eval V2 EV2 V
+    <- term`false-implies-eq V TE2
+    <- false-implies-term-func-eq V FE.
+
+%theorem ready-expr-unique/CC :
+	forall* {K1a} {K1b} {K1c} {F1} {T1} {PG1} {P1} {S1} {S1'} {T1'} {G1}
+		{K2a} {K2b} {K2c} {F2} {T2} {PG2} {P2} {S2} {S2'} {T2'} {G2}
+	forall {L1:loc* K1a K1b F1} {L2:loc* K2a K2b F2}
+	       {I1:in* K1b K1c G1} {I2:in* K2b K2c G2}
+	       {E:term`eq (G1 (F1 T1)) (G2 (F2 T2))}
+	       {CC:context-comparison G1 G2 (F1 T1) (F2 T2) E}
+	       {E1:eval PG1 P1 S1 T1 S1' T1'}
+	       {E2:eval PG2 P2 S2 T2 S2' T2'}
+	exists {E':term`eq T1 T2}
+	       {FE:term-func-eq ([x] (G1 (F1 x))) ([x] (G2 (F2 x)))}
+	true.
+
+- : ready-expr-unique (loc/in (L1:loc F1) (I1:in G1)) 
+		      (loc/in (L2:loc F2) (I2:in G2)) TE EV1 EV2 TE2 FE
+     <- context-comparison-total I1 I2 TE CC
+     <- ready-expr-unique/CC L1 L2 I1 I2 TE CC EV1 EV2 TE2 FE.
+
+- : ready-expr-unique/CC (L1:loc F1) (L2:loc F2) (I1:in G) (I2:in G)
+			 TE context-comparison/= EV1 EV2 TE2 FE
+    <- in-cancels-eq TE I1 TE1
+    <- ready-expr-unique L1 L2 TE1 EV1 EV2 TE2 FE'
+    <- composition-preserves-eq FE' (term-func-eq/:term-func-eq G G) FE.
+
+- : ready-expr-unique/CC (L1:loc F1) _ _ _ _ (context-comparison/1 V1) 
+                         EV1 _ TE2 FE
+    <- term-located-in-value-is-value L1 term`eq/ V1 V2
+    <- value-does-not-eval V2 EV1 FALSE
+    <- term`false-implies-eq FALSE TE2
+    <- false-implies-term-func-eq FALSE FE.
+
+- : ready-expr-unique/CC _ (L2:loc F2) _ _ _ (context-comparison/2 V1) 
+                         _ EV2 TE2 FE
+    <- term-located-in-value-is-value L2 term`eq/ V1 V2
+    <- value-does-not-eval V2 EV2 FALSE
+    <- term`false-implies-eq FALSE TE2
+    <- false-implies-term-func-eq FALSE FE.
+
+%worlds () (ready-expr-unique _ _ _ _ _ _ _)
+           (ready-expr-unique/CC _ _ _ _ _ _ _ _ _ _).
+%total (L1 L2) (ready-expr-unique L1 _ _ _ _ _ _)
+               (ready-expr-unique/CC L2 _ _ _ _ _ _ _ _ _).
+
+% The same as the previous but with T1 and T2 explicit:
+%theorem ready-expr-unique* :
+	forall* {K1a} {K1b} {F1} {G1} {P1} {S1} {S1'} {T1'}
+		{K2a} {K2b} {F2} {G2} {P2} {S2} {S2'} {T2'}
+	forall {L1:loc* K1a K1b F1} {L2:loc* K2a K2b F2} {T1} {T2}
+	       {E:term`eq (F1 T1) (F2 T2)}
+	       {E1:eval G1 P1 S1 T1 S1' T1'}
+	       {E2:eval G2 P2 S2 T2 S2' T2'}
+	exists {E':term`eq T1 T2}
+	       {FE:term-func-eq F1 F2}
+	true.
+
+- : ready-expr-unique* L1 L2 T1 T2 E E1 E2 E' FE
+    <- ready-expr-unique L1 L2 E E1 E2 E' FE.
+
+%worlds () (ready-expr-unique* _ _ _ _ _ _ _ _ _).
+%total { } (ready-expr-unique* _ _ _ _ _ _ _ _ _).
+
+
+%theorem loc-uses-argument :
+	forall* {K1} {K1'} {K2} {K2'} {T1} {T2}
+		{F1:term K1 -> term K1'}
+		{F2:term K2 -> term K2'}
+	forall	{L1: loc F1}
+		{L2: loc F2}
+		{F:term-func-eq F1 F2}
+		{E:term`eq (F1 T1) (F2 T2)}
+	exists	{E':term`eq T1 T2}
+	true.
+
+- : loc-uses-argument (loc/id) _ term-func-eq/ E E.
+
+- : loc-uses-argument (loc/in (L:loc F) (I:in G)) _ term-func-eq/ E E''
+    <- in-cancels-eq E I E'
+    <- loc-uses-argument L L term-func-eq/ E' E''.
+
+%worlds () (loc-uses-argument _ _ _ _ _).
+%total (L) (loc-uses-argument L _ _ _ _).
+
+
+% same as previous but with strict occurrences
+%theorem loc-uses-argument* :
+	forall* {K1} {K1'} {K2} {K2'}
+		{F1:term K1 -> term K1'}
+		{F2:term K2 -> term K2'}
+	forall	{L1: loc F1}
+		{L2: loc F2} {T1} {T2}
+		{F:term-func-eq F1 F2}
+		{E:term`eq (F1 T1) (F2 T2)}
+	exists	{E':term`eq T1 T2}
+	true.
+
+- : loc-uses-argument* L1 L2 T1 T2 F E E'
+    <- loc-uses-argument L1 L2 F E E'.
+
+%worlds () (loc-uses-argument* _ _ _ _ _ _ _).
+%total { } (loc-uses-argument* _ _ _ _ _ _ _).
+
+
+
+%%% Theorems about fulleval
+
+
+%theorem false-implies-fulleval :
+	forall* {G} {P} {S} {S'}
+	forall {F:void}
+	exists {E:fulleval G P S S'}
+	true.
+
+%worlds () (false-implies-fulleval _ _).
+%total { } (false-implies-fulleval _ _).
+
+
+% this trivial lemma is useful to name something complex
+%theorem fulleval-implies-fulleval :
+	forall* {G} {P} {S} {S'}
+	forall {E:fulleval G P S S'}
+	exists {E:fulleval G P S S'}
+	true.
+
+- : fulleval-implies-fulleval F F.
+
+%worlds () (fulleval-implies-fulleval _ _).
+%total { } (fulleval-implies-fulleval _ _).
+
+
+%theorem fulleval-respects-eq :
+	forall* {G1} {P1} {S1} {S1'}
+		{G2} {P2} {S2} {S2'}
+	forall {E1:fulleval G1 P1 S1 S1'}
+	       {GE:prog`eq G1 G2} {TE:nat`eq P1 P2} 
+	       {SE:state`eq S1 S2} {SE':state`eq S1' S2'}
+	exists {E2:fulleval G2 P2 S2 S2'}
+	true.
+
+- : fulleval-respects-eq E prog`eq/ nat`eq/ state`eq/ state`eq/ E.
+
+%worlds () (fulleval-respects-eq _ _ _ _ _ _).
+%total { } (fulleval-respects-eq _ _ _ _ _ _).
+
+
+%{% To do this properly requires atomic-lhs, not defined yet.
+%theorem fulleval-inversion :
+	forall* {G} {P} {M1} {TS1} {M2} {TS2} {K} {F:term K -> expr}
+	forall	{FE:fulleval G P (state/ M1 TS1) (state/ M2 TS2)}
+		{T:term K} {L: loc F} % abandoned
+%}%
+
+%theorem false-implies-fulleval-eq :
+	forall* {G1} {P1} {S1} {S1'} {G2} {P2} {S2} {S2'}
+                {FE1:fulleval G1 P1 S1 S1'}
+                {FE2:fulleval G2 P2 S2 S2'}
+	forall {F:void}
+	exists {E:fulleval-eq FE1 FE2}
+	true.
+
+%worlds () (false-implies-fulleval-eq _ _).
+%total { } (false-implies-fulleval-eq _ _).
+
+
+%theorem fulleval-eq-implies-eq :
+	forall* {G1} {P1} {S1} {S1'} {G2} {P2} {S2} {S2'}
+                {FE1:fulleval G1 P1 S1 S1'}
+                {FE2:fulleval G2 P2 S2 S2'}
+	forall {E:fulleval-eq FE1 FE2}
+	exists {GE:prog`eq G1 G2} {PE:nat`eq P1 P2}
+	       {SE:state`eq S1 S2} {SE':state`eq S1' S2'}
+	true.
+	
+- : fulleval-eq-implies-eq fulleval-eq/ prog`eq/ nat`eq/ state`eq/ state`eq/.
+
+%worlds () (fulleval-eq-implies-eq _ _ _ _ _).
+%total { } (fulleval-eq-implies-eq _ _ _ _ _).
+
+
+%theorem fulleval-eq-implies-eq* :
+	forall* {K1} {P1} {M1} {TS1} {M1'} {TS1'} {B1} {TS1''} {W1} {G1}
+                {K2} {P2} {M2} {TS2} {M2'} {TS2'} {B2} {TS2''} {W2} {G2}
+ 		{L1: loc B1} {U1} {W1'}
+		{L2: loc B2} {U2} {W2'}
+                {T1} {T1'} {T2} {T2'}
+                {E1:eval* K1 G1 P1 (state/ M1 TS1) T1 (state/ M1' TS1') T1'}
+                {E2:eval* K2 G2 P2 (state/ M2 TS2) T2 (state/ M2' TS2') T2'}
+ 	        {TL1: threads`lookup TS1 P1 (thread/ W1 (B1 T1))}
+		{TL2: threads`lookup TS2 P2 (thread/ W2 (B2 T2))}
+		{TL1': threads`lookup TS1' P1 (thread/ W1' U1)}
+		{TL2': threads`lookup TS2' P2 (thread/ W2' U2)}
+                {TU1:threads`update TS1' P1 (thread/ W1' (B1 T1')) TS1''}
+                {TU2:threads`update TS2' P2 (thread/ W2' (B2 T2')) TS2''}
+	forall  {FE:fulleval-eq (fulleval/ T1 T1' TL1 L1 E1 TL1' TU1)
+                                (fulleval/ T2 T2' TL2 L2 E2 TL2' TU2)}
+	exists	{TE:term`eq T1 T2}
+		{TE':term`eq T1' T2'}
+	        {EE:eval-eq E1 E2}
+	true.
+
+- : fulleval-eq-implies-eq* fulleval-eq/ term`eq/ term`eq/ eval-eq/.
+
+%worlds () (fulleval-eq-implies-eq* _ _ _ _).
+%total { } (fulleval-eq-implies-eq* _ _ _ _).
+
+
+%theorem false-implies-fulleval-match :
+	forall* {G1} {P1} {S1} {S1'} {G2} {P2} {S2} {S2'}
+                {FE1:fulleval G1 P1 S1 S1'}
+                {FE2:fulleval G2 P2 S2 S2'}
+	forall {F:void}
+	exists {E:fulleval-match FE1 FE2}
+	true.
+
+%worlds () (false-implies-fulleval-match _ _).
+%total { } (false-implies-fulleval-match _ _).
+
+
+%theorem fulleval-match-respects-eq :
+	forall* {G1} {P1} {S1} {S1'} {FE1: fulleval G1 P1 S1 S1'}
+		{G2} {P2} {S2} {S2'} {FE2: fulleval G2 P2 S2 S2'}
+		{G3} {P3} {S3} {S3'} {FE3: fulleval G3 P3 S3 S3'}
+		{G4} {P4} {S4} {S4'} {FE4: fulleval G4 P4 S4 S4'}
+	forall	{FE12:fulleval-match FE1 FE2}
+		{FE13:fulleval-eq FE1 FE3}
+		{FE24:fulleval-eq FE2 FE4}
+	exists	{FE34:fulleval-match FE3 FE4}
+	true.
+
+- : fulleval-match-respects-eq FEM fulleval-eq/ fulleval-eq/ FEM.
+
+%worlds () (fulleval-match-respects-eq _ _ _ _).
+%total { } (fulleval-match-respects-eq _ _ _ _).
+
+
+%theorem fulleval-match-symmetric :
+	forall* {G1} {P1} {S1} {S1'} {G2} {P2} {S2} {S2'}
+                {FE1:fulleval G1 P1 S1 S1'}
+                {FE2:fulleval G2 P2 S2 S2'}
+	forall	{FM12:fulleval-match FE1 FE2}
+	exists	{FM21:fulleval-match FE2 FE1}
+	true.
+
+- : fulleval-match-symmetric 
+	(fulleval-match/ TL1 TL2 term`eq/ TL1' TL2' term`eq/)
+	(fulleval-match/ TL2 TL1 term`eq/ TL2' TL1' term`eq/).
+
+%worlds () (fulleval-match-symmetric _ _).
+%total { } (fulleval-match-symmetric _ _).
+
+% Probably transitive too.  No need yet.
+
+%theorem fulleval-eq-implies-match :
+	forall* {G1} {P1} {S1} {S1'} {G2} {P2} {S2} {S2'}
+                {FE1:fulleval G1 P1 S1 S1'}
+                {FE2:fulleval G2 P2 S2 S2'}
+	forall {E:fulleval-eq FE1 FE2}
+	exists {M:fulleval-match FE1 FE2}
+	true.
+
+- : fulleval-eq-implies-match 
+     (fulleval-eq/ : fulleval-eq (fulleval/ T T' TL1 L E TL2 TU) _)
+     (fulleval-match/ TL1 TL1 term`eq/ TL3 TL3 term`eq/)
+    <- threads`update-implies-lookup TU TL3.
+
+%worlds () (fulleval-eq-implies-match _ _).
+%total { } (fulleval-eq-implies-match _ _).
+
+%theorem fulleval-match/-inversion :
+	forall* {G1} {P1} {M1} {TS1} {M1'} {TS1'} 
+		{G2} {P2} {M2} {TS2} {M2'} {TS2'} 
+		{FE1:fulleval G1 P1 (state/ M1 TS1) (state/ M1' TS1')}
+		{FE2:fulleval G2 P2 (state/ M2 TS2) (state/ M2' TS2')}
+	forall	{FEM:fulleval-match FE1 FE2}
+	exists	{GE:prog`eq G1 G2}
+		{PE:nat`eq P1 P2}
+		{T} {T'} {W1} {W1'} {W2} {W2'}
+		{TL1:threads`lookup TS1 P1 (thread/ W1 T)}
+		{TL2:threads`lookup TS2 P2 (thread/ W2 T)}
+		{TL1':threads`lookup TS1' P1 (thread/ W1' T')}
+		{TL2':threads`lookup TS2' P2 (thread/ W2' T')}
+	true.
+
+- : fulleval-match/-inversion 
+	(fulleval-match/ TL1 TL2 term`eq/ TL1' TL2' term`eq/)
+	prog`eq/ nat`eq/ _ _ _ _ _ _ TL1 TL2 TL1' TL2'.
+		
+%worlds () (fulleval-match/-inversion _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (fulleval-match/-inversion _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem fulleval-match/-inversion* :
+	forall* {G1} {P1} {M1} {TS1} {M1'} {TS1'} {TS1''} {W1} {K} {T} {F} {U}
+		{G2} {P2} {M2} {TS2} {M2'} {TS2'} {W1'} {T'}
+		{TL1: threads`lookup TS1 P1 (thread/ W1 (F T))} {L1:loc F}
+		{E1: eval* K G1 P1 (state/ M1 TS1) T (state/ M1' TS1') T'}
+		{TL1':threads`lookup TS1' P1 (thread/ W1' U)}
+		{TU1: threads`update TS1' P1 (thread/ W1' (F T')) TS1''}
+		{FE2:fulleval G2 P2 (state/ M2 TS2) (state/ M2' TS2')}
+	forall	{FEM:fulleval-match (fulleval/ T T' TL1 L1 E1 TL1' TU1) FE2}
+	exists	{GE:prog`eq G1 G2}
+		{PE:nat`eq P1 P2}
+		{W2} {W2'}  %% good candidates for exists*
+		{L: loc F}
+		{TL2:threads`lookup TS2 P2 (thread/ W2 (F T))}
+		{TL2':threads`lookup TS2' P2 (thread/ W2' (F T'))}
+	true.
+
+- : fulleval-match/-inversion* 
+	(FEM:fulleval-match (fulleval/ T1 T1' TL1x L1 E1 _ TU1) FE2)
+	GE PE W2 W2' L1 TL2x TL2x'
+    <- fulleval-match/-inversion FEM GE PE _ _ _ _ W2 W2' TL1 TL2 TL1' TL2'
+    <- threads`lookup-deterministic TL1 TL1x threads`eq/ nat`eq/ W1T=W1FT
+    <- thread-eq-implies-eq W1T=W1FT _ T=FT
+    <- thread-preserves-eq set`eq/ T=FT W2T=W2FT
+    <- threads`lookup-respects-eq TL2 threads`eq/ nat`eq/ W2T=W2FT TL2x
+    <- threads`update-implies-lookup TU1 TL1x'
+    <- threads`lookup-deterministic TL1' TL1x' threads`eq/ nat`eq/ W1'T'=W1'FT'
+    <- thread-eq-implies-eq W1'T'=W1'FT' _ T'=FT'
+    <- thread-preserves-eq set`eq/ T'=FT' W2'T'=W2'FT'
+    <- threads`lookup-respects-eq TL2' threads`eq/ nat`eq/ W2'T'=W2'FT' TL2x'.
+
+%worlds () (fulleval-match/-inversion* _ _ _ _ _ _ _ _).
+%total { } (fulleval-match/-inversion* _ _ _ _ _ _ _ _).
+
+
+%theorem fulleval-match-implies-eval-match :
+	forall* {K1} {TM1:term K1} {TM1'} {M1} {TS1} {K1} {F1} {P1} 
+		{K2} {TM2:term K2} {TM2'} {M2} {TS2} {K2} {F2} {P2}
+	        {TL1:threads`lookup TS1 P1 (thread/ K1 (F1 TM1))} {L1: loc F1}
+	        {TL2:threads`lookup TS2 P2 (thread/ K2 (F2 TM2))} {L2: loc F2}
+		{M1'} {TS1'} {K1'} {T1'} {TS1''} {G}
+		{M2'} {TS2'} {K2'} {T2'} {TS2''}
+		{E1: eval G P1 (state/ M1 TS1) TM1 (state/ M1' TS1') TM1'}
+		{E2: eval G P2 (state/ M2 TS2) TM2 (state/ M2' TS2') TM2'}
+		{TL1':threads`lookup TS1' P1 (thread/ K1' T1')}
+		{TL2':threads`lookup TS2' P2 (thread/ K2' T2')}
+		{TU1:threads`update TS1' P1 (thread/ K1' (F1 TM1')) TS1''}
+		{TU2:threads`update TS2' P2 (thread/ K2' (F2 TM2')) TS2''}
+	forall {F:fulleval-match (fulleval/ TM1 TM1' TL1 L1 E1 TL1' TU1)
+                                 (fulleval/ TM2 TM2' TL2 L2 E2 TL2' TU2)}
+	exists {E:eval-match E1 E2}
+	true.
+
+- : fulleval-match-implies-eval-match 
+	(fulleval-match/ TL1 TL2 term`eq/ TL1'' TL2'' term`eq/ :
+         fulleval-match (fulleval/ TM1 TM1' TL1x L1 E1 TL1' TU1)
+                        (fulleval/ TM2 TM2' TL2x L2 E2 TL2' TU2))
+	(eval-match/ TE TE')
+    <- threads`lookup-deterministic TL1x TL1 threads`eq/ nat`eq/ T1x=W1T
+    <- threads`lookup-deterministic TL2 TL2x threads`eq/ nat`eq/ W2T=T2x
+    <- thread-eq-implies-eq T1x=W1T _ T1=T
+    <- thread-eq-implies-eq W2T=T2x _ T=T2
+    <- term`eq-transitive T1=T T=T2 T1=T2
+    <- ready-expr-unique L1 L2 T1=T2 E1 E2 TE F1=F2
+    <- threads`update-implies-lookup TU1 TL1x''
+    <- threads`update-implies-lookup TU2 TL2x''
+    <- threads`lookup-deterministic TL1x'' TL1'' threads`eq/ nat`eq/ T1x''=W1T''
+    <- threads`lookup-deterministic TL2'' TL2x'' threads`eq/ nat`eq/ W2T''=T2x''
+    <- thread-eq-implies-eq T1x''=W1T'' _ T1'=T'
+    <- thread-eq-implies-eq W2T''=T2x'' _ T'=T2'
+    <- term`eq-transitive T1'=T' T'=T2' T1'=T2'
+    <- loc-uses-argument L1 L2 F1=F2 T1'=T2' TE'.
+
+%worlds () (fulleval-match-implies-eval-match _ _).
+%total { } (fulleval-match-implies-eval-match _ _).
+
+
+%theorem fulleval-match-implies-same-thread :
+	forall* {G1} {P1} {S1} {S1'} {FE1:fulleval G1 P1 S1 S1'}
+		{G2} {P2} {S2} {S2'} {FE2:fulleval G2 P2 S2 S2'}
+	forall	{FEM:fulleval-match FE1 FE2}
+	exists	{EQ: nat`eq P1 P2}
+	true.
+
+- : fulleval-match-implies-same-thread FEM P1=P2
+    <- fulleval-match-implies-eval-match FEM EM
+    <- eval-match-implies-eq EM _ P1=P2 _ _.
+
+%worlds () (fulleval-match-implies-same-thread _ _).
+%total { } (fulleval-match-implies-same-thread _ _).
+
+
+%theorem fulleval-halted-contradiction :
+	forall* {G} {P} {M} {T} {S}
+	forall {E:fulleval G P (state/ M T) S}
+	       {H:halted T}
+	exists {F:void}
+	true.
+
+- : fulleval-halted-contradiction 
+	(fulleval/ T T' TL L EV TL' TU) H F
+    <- halted-implies-lookup-value H TL V
+    <- term-located-in-value-is-value L term`eq/ V V2
+    <- value-does-not-eval V2 EV F.
+
+%worlds () (fulleval-halted-contradiction _ _ _).
+%total { } (fulleval-halted-contradiction _ _ _).
+
+
+%theorem fulleval-implies-live-thread :
+	forall* {G} {P} {M1} {TS1} {M2} {TS2}
+	forall	{FE:fulleval G P (state/ M1 TS1) (state/ M2 TS2)}
+	exists	{TD1:threads`domain? TS1 P true}
+		{TD2:threads`domain? TS2 P true}
+	true.
+
+- : fulleval-implies-live-thread (fulleval/ T T' TL1 L E TL2 TU)
+	(threads`domain?/in TL1) (threads`domain?/in TL3)
+    <- threads`update-implies-lookup TU TL3.
+
+%worlds () (fulleval-implies-live-thread _ _ _).
+%total { } (fulleval-implies-live-thread _ _ _).
+
+
+%theorem progress-in-other-thread-preserves-thread-state :
+	forall* {TS1} {P} {E} {G} {Q} {M1} {M2} {TS2}
+	forall {TL1:threads`lookup TS1 P E}
+	       {F:fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	       {N:nat`ne P Q}
+	exists {TL2:threads`lookup TS2 P E}
+	true.
+
+- : progress-in-other-thread-preserves-thread-state 
+	TL1 (fulleval/ _ _ _ _ E _ TU) P<>Q TL3
+    <- eval-in-other-thread-preserves-thread-state TL1 E P<>Q TL2
+    <- threads`update-preserves-lookup TL2 TU P<>Q TL3.
+
+%worlds () (progress-in-other-thread-preserves-thread-state _ _ _ _).
+%total { } (progress-in-other-thread-preserves-thread-state _ _ _ _).
+
+
+%theorem progress-in-other-thread-preserves-live-thread-converse :
+	forall* {G} {P} {Q} {M1} {TS1} {M2} {TS2} {TH}
+	forall	{TL2:threads`lookup TS2 P TH}
+		{FE: fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+		{NE:nat`ne P Q}
+		{TLD:threads`domain? TS1 P true}
+	exists	{TL1:threads`lookup TS1 P TH}
+	true.
+
+- : progress-in-other-thread-preserves-live-thread-converse 
+	TL3 (fulleval/ T T' TLx L E TLy TU) P<>Q TD TL1
+    <- threads`update-preserves-lookup-converse TL3 TU P<>Q TL2
+    <- eval-in-other-thread-preserves-live-thread-converse
+	TL2 E P<>Q TD TL1.
+
+%worlds () (progress-in-other-thread-preserves-live-thread-converse _ _ _ _ _).
+%total { } (progress-in-other-thread-preserves-live-thread-converse _ _ _ _ _).
+
+
+%{%
+The following mini definition is needed so we can generalize
+the previous lemmas to handle all cases, even when the thread was recently
+created.
+%}%
+
+fulleval-action : nat -> thread -> (fulleval G Q S1 S2) -> type.
+
+
+fulleval-action/evaluate :
+    fulleval-action P TH (FE:fulleval G P S1 S2).
+
+fulleval-action/preserve-converse :
+	nat`ne P Q ->
+	threads`lookup TS1 P TH -> 
+    fulleval-action P TH (FE:fulleval G Q (state/ M1 TS1) S2).
+
+fulleval-action/eFork* : 
+    {L:loc F} {T} {P} 
+    {TL1: threads`lookup TS1 Q (thread/ W1 (F (fork T)))} 
+    {E:eval G Q (state/ M1 TS1) (fork T) (state/ M2 TS2) (lit (object/ P))} 
+    {TU: threads`update TS2 Q (thread/ W2 (F (lit (object/ P)))) TS3}
+    fulleval-action P (thread/ W T) 
+	(fulleval/ (fork T) (lit (object/ P))
+		   TL1 L E TL2 TU).
+
+%abbrev fulleval-action/eFork = fulleval-action/eFork* _ _ _ _ _ _.
+
+
+%theorem false-implies-fulleval-action :
+	forall* {G} {P} {Q} {M1} {TS1} {M2} {TS2} {TH}
+		{FE: fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	forall	{F:void}
+	exists	{TL1:fulleval-action P TH FE}
+	true.
+
+%worlds () (false-implies-fulleval-action _ _).
+%total { } (false-implies-fulleval-action _ _).
+
+
+%theorem progress-in-thread-had-action :
+	forall* {G} {P} {Q} {M1} {TS1} {M2} {TS2} {TH}
+	forall	{TL2:threads`lookup TS2 P TH}
+		{FE: fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	exists	{TL1:fulleval-action P TH FE}
+	true.
+
+%theorem progress-in-thread-had-action/L1 :
+	forall* {G} {P} {Q} {M1} {TS1} {M2} {TS2} {TH} {B}
+	forall	{TL2:threads`lookup TS2 P TH}
+		{FE: fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+		{EQ?: nat`eq? P Q B}
+	exists	{TL1:fulleval-action P TH FE}
+	true.
+
+%theorem progress-in-thread-had-action/L2 :
+	forall* {G} {P} {Q} {M1} {TS1} {M2} {TS2} {TS3} {TH}
+		{K} {F} {U} {W1} {W2}
+	forall	{TLP2:threads`lookup TS2 P TH} {T} {T'}
+		{TL1:threads`lookup TS1 Q (thread/ W1 (F T))} {L:loc F}
+		{E:eval* K G Q (state/ M1 TS1) T (state/ M2 TS2) T'}
+		{TL2:threads`lookup TS2 Q (thread/ W2 U)}
+		{TU: threads`update TS2 Q (thread/ W2 (F T')) TS3}
+		{NE: nat`ne P Q}
+		{EA: eval-action P TH E}
+	exists	{FEA:fulleval-action P TH (fulleval/ T T' TL1 L E TL2 TU)}
+	true.
+
+- : progress-in-thread-had-action/L2 
+	_ _ _ _ _ _ _ _ P<>P eval-action/evaluate FEA
+    <- nat`ne-anti-reflexive P<>P F
+    <- false-implies-fulleval-action F FEA.
+
+- : progress-in-thread-had-action/L2
+	TLP2 T T' TL1 L E TL2 TU P<>Q (eval-action/preserve-converse _ TLP1)
+	(fulleval-action/preserve-converse P<>Q TLP1).
+
+- : progress-in-thread-had-action/L2
+	TLP2 _ _ _ _ _ _ _ P<>Q (eval-action/eFork) (fulleval-action/eFork).
+
+%worlds () (progress-in-thread-had-action/L2 _ _ _ _ _ _ _ _ _ _ _).
+%total { } (progress-in-thread-had-action/L2 _ _ _ _ _ _ _ _ _ _ _).
+
+- : progress-in-thread-had-action/L1 TLP FE nat`eq?/yes
+	fulleval-action/evaluate.
+
+- : progress-in-thread-had-action/L1 
+	TLP3 (fulleval/ T T' TL1 L E TL2 TU) (nat`eq?/no P<>Q) FEA
+    <- threads`update-preserves-lookup-converse TLP3 TU P<>Q TLP2
+    <- eval-in-thread-had-action TLP2 E EA
+    <- progress-in-thread-had-action/L2 
+	TLP2 T T' TL1 L E TL2 TU P<>Q EA FEA.
+
+%worlds () (progress-in-thread-had-action/L1 _ _ _ _).
+%total { } (progress-in-thread-had-action/L1 _ _ _ _).
+
+- : progress-in-thread-had-action TLP FE FEA
+    <- nat`eq?-total EQ?
+    <- progress-in-thread-had-action/L1 TLP FE EQ? FEA.
+
+%worlds () (progress-in-thread-had-action _ _ _).
+%total { } (progress-in-thread-had-action _ _ _).
+
+
+%theorem progress-preserves-mem-in-domain :
+	forall* {TS1} {O} {G} {Q} {M1} {M2} {TS2}
+	forall {MD1: mem`domain? M1 O true}
+	       {F:fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	exists {MD2: mem`domain? M2 O true}
+	true.
+
+- : progress-preserves-mem-in-domain MD1
+	(fulleval/ T T' TL1 L E TL2 TU) MD2
+    <- eval-preserves-mem-in-domain MD1 E MD2.
+
+%worlds () (progress-preserves-mem-in-domain _ _ _).
+%total { } (progress-preserves-mem-in-domain _ _ _).
+
+
+%theorem progress-preserves-thread-knowledge :
+	forall* {TS1} {P} {W} {G} {Q} {M1} {M2} {TS2} {E}
+	forall {TL1:threads`lookup TS1 P (thread/ W E)}
+	       {F:fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	exists {W'} {E'} {TL2:threads`lookup TS2 P (thread/ W' E')} 
+               {SL:set`leq W W'}
+	true.
+
+%theorem progress-preserves-thread-knowledge/L :
+	forall* {TS1} {P} {W} {G} {Q} {M1} {M2} {TS2} {E} {B}
+	forall {TL1:threads`lookup TS1 P (thread/ W E)}
+	       {F:fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	       {EQ?:nat`eq? P Q B}
+	exists {W'} {E'} {TL2:threads`lookup TS2 P (thread/ W' E')} 
+               {SL:set`leq W W'}
+	true.
+
+- : progress-preserves-thread-knowledge TL1 FE _ _ TL2 SL
+    <- nat`eq?-total EQ?
+    <- progress-preserves-thread-knowledge/L TL1 FE EQ? _ _ TL2 SL.
+
+- : progress-preserves-thread-knowledge/L 
+	TL1 (fulleval/ _ _ _ _ E TL2' TU') (nat`eq?/yes) _ _ TL3 SL
+    <- eval-preserves-thread-knowledge TL1 E _ TL2 SL
+    <- threads`lookup-deterministic TL2' TL2 threads`eq/ nat`eq/ T2'=T2
+    <- threads`update-implies-lookup TU' TL3'
+    <- thread-eq-implies-eq T2'=T2 W2'=W2 _
+    <- thread-preserves-eq W2'=W2 term`eq/ T3'=T3
+    <- threads`lookup-respects-eq TL3' threads`eq/ nat`eq/ T3'=T3 TL3.
+
+- : progress-preserves-thread-knowledge/L TL1 FE (nat`eq?/no P<>Q) _ _ TL2 W<=W
+    <- progress-in-other-thread-preserves-thread-state TL1 FE P<>Q TL2
+    <- set`leq-reflexive _ W<=W.
+
+%worlds () (progress-preserves-thread-knowledge/L _ _ _ _ _ _ _).
+%total { } (progress-preserves-thread-knowledge/L _ _ _ _ _ _ _).
+
+%worlds () (progress-preserves-thread-knowledge _ _ _ _ _ _).
+%total { } (progress-preserves-thread-knowledge _ _ _ _ _ _).
+
+
+%theorem progress-preserves-thread-fresh-converse :
+	forall* {TS1} {P} {G} {Q} {M1} {M2} {TS2}
+	forall {TF2:threads`fresh TS2 P}
+	       {F:fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	exists {TF1:threads`fresh TS1 P}
+	true.
+
+%theorem progress-preserves-thread-fresh-converse/L :
+	forall* {TS1} {P} {G} {Q} {M1} {M2} {TS2} {B}
+	forall {TF2:threads`fresh TS2 P}
+	       {F:fulleval G Q (state/ M1 TS1) (state/ M2 TS2)}
+	       {TD?:threads`domain? TS1 P B}
+	exists {TF1:threads`fresh TS1 P}
+	true.
+
+- : progress-preserves-thread-fresh-converse/L 
+	_ _ (threads`domain?/out TF1) TF1.
+
+- : progress-preserves-thread-fresh-converse/L
+	TF2 FE (threads`domain?/in TL1) TF1
+    <- progress-preserves-thread-knowledge TL1 FE _ _ TL2 _
+    <- threads`fresh-lookup-not-equal TF2 TL2 NE
+    <- nat`ne-anti-reflexive NE F
+    <- threads`false-implies-fresh F TF1.
+
+%worlds () (progress-preserves-thread-fresh-converse/L _ _ _ _).
+%total { } (progress-preserves-thread-fresh-converse/L _ _ _ _).
+
+- : progress-preserves-thread-fresh-converse TF2 FE TF1
+    <- threads`domain?-total TD?
+    <- progress-preserves-thread-fresh-converse/L TF2 FE TD? TF1.
+
+%worlds () (progress-preserves-thread-fresh-converse _ _ _).
+%total { } (progress-preserves-thread-fresh-converse _ _ _).
+
+
+
+%%% the "every thread knows zero" invariant
+
+
+all-threads-know-zero : threads -> type.
+
+
+all-threads-know-zero/0 : all-threads-know-zero threads`map/0.
+
+all-threads-know-zero/+ :
+	all-threads-know-zero TS ->
+	set`member W z ->
+    all-threads-know-zero (threads`map/+ _ (thread/ W _) TS).
+
+
+%theorem atkz-implies-lookup-contains-zero :
+	forall* {TS} {P} {W} {PC}
+	forall {IN:all-threads-know-zero TS}
+	       {L:threads`lookup TS P (thread/ W PC)}
+	exists {C:set`member W z}
+	true.
+
+- : atkz-implies-lookup-contains-zero 
+	(all-threads-know-zero/+ _ C) (threads`lookup/= nat`eq/) C.
+
+- : atkz-implies-lookup-contains-zero
+	(all-threads-know-zero/+ A _) (threads`lookup/> L _) C
+    <- atkz-implies-lookup-contains-zero A L C.
+
+%worlds () (atkz-implies-lookup-contains-zero _ _ _).
+%total (A) (atkz-implies-lookup-contains-zero A _ _).
+
+
+%theorem update-preserves-atkz :
+	forall* {TS} {P} {W} {PC} {TS'}
+	forall {IN:all-threads-know-zero TS}
+	       {U:threads`update TS P (thread/ W PC) TS'}
+	       {C:set`member W z}
+	exists {IN:all-threads-know-zero TS'}
+	true.
+
+- : update-preserves-atkz all-threads-know-zero/0 (threads`update/0) C
+			  (all-threads-know-zero/+ all-threads-know-zero/0 C).
+
+- : update-preserves-atkz 
+	(all-threads-know-zero/+ A _) (threads`update/= nat`eq/) C
+	(all-threads-know-zero/+ A C).
+
+- : update-preserves-atkz 
+	(all-threads-know-zero/+ A C) (threads`update/< P) C'
+	(all-threads-know-zero/+ (all-threads-know-zero/+ A C) C').
+
+- : update-preserves-atkz 
+	(all-threads-know-zero/+ A C) (threads`update/> U _) C'
+	(all-threads-know-zero/+ A' C)
+    <- update-preserves-atkz A U C' A'.
+
+%worlds () (update-preserves-atkz _ _ _ _).
+%total (U) (update-preserves-atkz _ U _ _).
+
+
+%theorem eval-preserves-atkz :
+	forall* {K} {G} {P} {M} {TS} {M'} {TS'} {T} {T'}
+	forall {IN:all-threads-know-zero TS}
+	       {E:eval* K G P (state/ M TS) T (state/ M' TS') T'}
+	exists {IN:all-threads-know-zero TS'}
+	true.
+
+- : eval-preserves-atkz IN _ IN.
+
+- : eval-preserves-atkz IN (eWrite _ _ TL _ _ _ SU TU) IN'
+    <- atkz-implies-lookup-contains-zero IN TL C
+    <- union-right-preserves-member* C SU C'
+    <- update-preserves-atkz IN TU C' IN'.
+
+- : eval-preserves-atkz IN (eReadV _ _ TL SU TU) IN'
+    <- atkz-implies-lookup-contains-zero IN TL C
+    <- union-right-preserves-member* C SU C'
+    <- update-preserves-atkz IN TU C' IN'.
+
+- : eval-preserves-atkz IN (eAcq _ _ TL SU TU) IN'
+    <- atkz-implies-lookup-contains-zero IN TL C
+    <- union-right-preserves-member* C SU C'
+    <- update-preserves-atkz IN TU C' IN'.
+
+- : eval-preserves-atkz IN (eFork TL _ _ _ TU _) IN'
+    <- atkz-implies-lookup-contains-zero IN TL C
+    <- update-preserves-atkz IN TU C IN'.
+
+- : eval-preserves-atkz IN (eJoin TL _ SU TU) IN'
+    <- atkz-implies-lookup-contains-zero IN TL C
+    <- union-right-preserves-member* C SU C'
+    <- update-preserves-atkz IN TU C' IN'.
+
+%worlds () (eval-preserves-atkz _ _ _).
+%total { } (eval-preserves-atkz _ _ _).
+
+
+%theorem fulleval-preserves-atkz :
+	forall* {G} {P} {M} {TS} {M'} {TS'}
+	forall {A:all-threads-know-zero TS}
+	       {F:fulleval G P (state/ M TS) (state/ M' TS')}
+	exists {A:all-threads-know-zero TS'}
+	true.
+
+- : fulleval-preserves-atkz A (fulleval/ _ _ _ _ E TL TU) A''
+    <- eval-preserves-atkz A E A'
+    <- atkz-implies-lookup-contains-zero A' TL C
+    <- update-preserves-atkz A' TU C A''.
+
+%worlds () (fulleval-preserves-atkz _ _ _).
+%total { } (fulleval-preserves-atkz _ _ _).
+
+
+
+%%% The "no illegal objects" invariant
+
+
+
+
+%theorem in-cancels-all_allocated :
+	forall* {K1} {K2} {F:term K1 -> term K2} {T: term K1} {M}
+	forall	{AA:all_allocated (F T) M}
+		{I: in F}
+	exists	{AA:all_allocated T M}
+	true.
+
+- : in-cancels-all_allocated (all_allocated/read AA) (expr-in-expr/read _) AA.
+
+- : in-cancels-all_allocated 
+	(all_allocated/write AA _) (expr-in-expr/write1 _ _) AA.
+
+- : in-cancels-all_allocated 
+	(all_allocated/write _ AA) (expr-in-expr/write2 _ _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/readv AA) (expr-in-expr/readv _) AA.
+
+- : in-cancels-all_allocated 
+	(all_allocated/writev AA _) (expr-in-expr/writev1 _ _) AA.
+
+- : in-cancels-all_allocated 
+	(all_allocated/writev _ AA) (expr-in-expr/writev2 _ _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/let AA _) (expr-in-expr/let _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/if AA _ _) (cond-in-expr/if _ _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/call AA) (args-in-expr/call _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/join AA) (expr-in-expr/join) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/synch AA _) (expr-in-expr/synch _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/hold _ AA) (expr-in-expr/hold _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/and AA _) (cond-in-cond/and _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/not AA) (cond-in-cond/not) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/eql AA _) (expr-in-cond/eql1 _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/eql _ AA) (expr-in-cond/eql2 _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/args/+ AA _) (expr-in-args/args _) AA.
+
+- : in-cancels-all_allocated
+	(all_allocated/args/+ _ AA) (args-in-args/args _) AA.
+
+% EXTEND in-cancels-all_allocated
+
+%worlds () (in-cancels-all_allocated _ _ _).
+%total { } (in-cancels-all_allocated _ _ _).
+
+
+%theorem loc-cancels-all_allocated :
+	forall* {K1} {K2} {F:term K1 -> term K2} {T: term K1} {M}
+	forall	{AA:all_allocated (F T) M}
+		{L: loc F}
+	exists	{AA:all_allocated T M}
+	true.
+
+- : loc-cancels-all_allocated AA loc/id AA.
+
+- : loc-cancels-all_allocated AA1 (loc/in L I) AA3
+    <- in-cancels-all_allocated AA1 I AA2
+    <- loc-cancels-all_allocated AA2 L AA3.
+
+%worlds () (loc-cancels-all_allocated _ _ _).
+%total (L) (loc-cancels-all_allocated _ L _).
+
+
+%theorem loc-cancels-all_allocated* :
+	forall* {K1} {K2} {F:term K1 -> term K2} {M}
+	forall	{T} {AA:all_allocated (F T) M}
+		{L: loc F}
+	exists	{AA:all_allocated T M}
+	true.
+
+- : loc-cancels-all_allocated* _ AA loc/id AA.
+
+- : loc-cancels-all_allocated* _ AA1 (loc/in L I) AA3
+    <- in-cancels-all_allocated AA1 I AA2
+    <- loc-cancels-all_allocated AA2 L AA3.
+
+%worlds () (loc-cancels-all_allocated* _ _ _ _).
+%total (L) (loc-cancels-all_allocated* _ _ L _).
+
+
+%theorem in-preserves-all_allocated :
+	forall* {K1} {K2} {F:term K1 -> term K2} {M}
+	forall	{T} {AA: all_allocated (F T) M}
+		{I: in F}
+		{T'} {AA: all_allocated T' M}
+	exists	{AA:all_allocated (F T') M}
+	true.
+
+- : in-preserves-all_allocated T 
+	(all_allocated/read _) (expr-in-expr/read F) T' EAA
+	(all_allocated/read EAA).
+
+- : in-preserves-all_allocated T
+	(all_allocated/write _ EAA2) (expr-in-expr/write1 F E') T' EAA1
+	(all_allocated/write EAA1 EAA2).
+
+- : in-preserves-all_allocated T
+	(all_allocated/write EAA1 _) (expr-in-expr/write2 O F) T' EAA2
+	(all_allocated/write EAA1 EAA2).
+
+- : in-preserves-all_allocated T 
+	(all_allocated/readv _) (expr-in-expr/readv F) T' EAA
+	(all_allocated/readv EAA).
+
+- : in-preserves-all_allocated T
+	(all_allocated/writev _ EAA2) (expr-in-expr/writev1 F E') T' EAA1
+	(all_allocated/writev EAA1 EAA2).
+
+- : in-preserves-all_allocated T
+	(all_allocated/writev EAA1 _) (expr-in-expr/writev2 O F) T' EAA2
+	(all_allocated/writev EAA1 EAA2).
+
+- : in-preserves-all_allocated T
+	(all_allocated/let _ F) (expr-in-expr/let _) T' EAA
+	(all_allocated/let EAA F).
+
+- : in-preserves-all_allocated T
+	(all_allocated/if _ EAA2 EAA3) (cond-in-expr/if _ _) T' EAA1
+	(all_allocated/if EAA1 EAA2 EAA3).
+
+- : in-preserves-all_allocated T
+	(all_allocated/call _) (args-in-expr/call _) T' EAA
+	(all_allocated/call EAA).
+
+- : in-preserves-all_allocated T
+	(all_allocated/join _) (expr-in-expr/join) T' EAA
+	(all_allocated/join EAA).
+
+- : in-preserves-all_allocated T
+	(all_allocated/synch _ EAA2) (expr-in-expr/synch _) T' EAA1
+	(all_allocated/synch EAA1 EAA2).
+
+- : in-preserves-all_allocated T
+	(all_allocated/hold MD _) (expr-in-expr/hold _) T' EAA
+	(all_allocated/hold MD EAA).
+
+- : in-preserves-all_allocated T
+	(all_allocated/and _ EAA2) (cond-in-cond/and _) T' EAA1
+	(all_allocated/and EAA1 EAA2).
+
+- : in-preserves-all_allocated T
+	(all_allocated/not _) (cond-in-cond/not) T' EAA
+	(all_allocated/not EAA).
+
+- : in-preserves-all_allocated T
+	(all_allocated/eql _ EAA2) (expr-in-cond/eql1 _) T' EAA1
+	(all_allocated/eql EAA1 EAA2).
+
+- : in-preserves-all_allocated T
+	(all_allocated/eql EAA1 _) (expr-in-cond/eql2 _) T' EAA2
+	(all_allocated/eql EAA1 EAA2).
+
+- : in-preserves-all_allocated T
+	(all_allocated/args/+ _ AAA) (expr-in-args/args _) T' EAA
+	(all_allocated/args/+ EAA AAA).
+
+- : in-preserves-all_allocated T
+	(all_allocated/args/+ EAA _) (args-in-args/args _) T' AAA
+	(all_allocated/args/+ EAA AAA).
+
+% EXTEND in-preserves-all_allocated
+
+%worlds () (in-preserves-all_allocated _ _ _ _ _ _).
+%total { } (in-preserves-all_allocated _ _ _ _ _ _).
+
+
+% NB: This looks like the same thing as in-cancels-all_allocated (see above)
+%theorem in-preserves-all_allocated-converse :
+	forall* {K1} {K2} {F:term K1 -> term K2} {M}
+	forall	{T} {AA: all_allocated (F T) M}
+		{I: in F}
+	exists	{AA:all_allocated T M}
+	true.
+
+- : in-preserves-all_allocated-converse T 
+	(all_allocated/read EAA) (expr-in-expr/read F) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/write EAA _) (expr-in-expr/write1 F E') EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/write _ EAA) (expr-in-expr/write2 O F) EAA.
+
+- : in-preserves-all_allocated-converse T 
+	(all_allocated/readv EAA) (expr-in-expr/readv F) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/writev EAA _) (expr-in-expr/writev1 F E') EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/writev _ EAA) (expr-in-expr/writev2 O F) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/let EAA _) (expr-in-expr/let _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/if EAA _ _) (cond-in-expr/if _ _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/call EAA) (args-in-expr/call _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/join EAA) (expr-in-expr/join) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/synch EAA _) (expr-in-expr/synch _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/hold _ EAA) (expr-in-expr/hold _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/and EAA _) (cond-in-cond/and _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/not EAA) (cond-in-cond/not) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/eql EAA _) (expr-in-cond/eql1 _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/eql _ EAA) (expr-in-cond/eql2 _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/args/+ EAA _) (expr-in-args/args _) EAA.
+
+- : in-preserves-all_allocated-converse T
+	(all_allocated/args/+ _ AAA) (args-in-args/args _) AAA.
+
+% EXTEND in-preserves-all_allocated-converse
+
+%worlds () (in-preserves-all_allocated-converse _ _ _ _).
+%total { } (in-preserves-all_allocated-converse _ _ _ _).
+
+
+%theorem loc-preserves-all_allocated :
+	forall* {K1} {K2} {F:term K1 -> term K2} {M}
+	forall	{T} {AA: all_allocated (F T) M}
+		{L: loc F}
+		{T'} {AA: all_allocated T' M}
+	exists	{AA:all_allocated (F T') M}
+	true.
+
+- : loc-preserves-all_allocated T _ loc/id T' AA AA.
+
+- : {K1} {K2} {K3} {T} {T'} 
+    {F:term K2 -> term K3} {G: term K1 -> term K2} {L:loc G} {I:in F}
+    {AAFGT: all_allocated (F (G T)) M}
+    {AAT': all_allocated T' M}
+    {AAFGT': all_allocated (F (G T')) M}
+    {AAGT: all_allocated (G T) M}
+    {AAGT': all_allocated (G T') M}
+    loc-preserves-all_allocated T AAFGT (loc/in L I) T' AAT' AAFGT'
+    <- in-preserves-all_allocated-converse (G T) AAFGT I AAGT
+    <- loc-preserves-all_allocated T AAGT L T' AAT' AAGT'
+    <- in-preserves-all_allocated (G T) AAFGT I (G T') AAGT' AAFGT'.
+
+%worlds () (loc-preserves-all_allocated _ _ _ _ _ _).
+%total (L) (loc-preserves-all_allocated _ _ L _ _ _).
+
+
+% NB: This looks like the same thing as loc-cancels-all_allocated (see above)
+%theorem loc-preserves-all_allocated-converse :
+	forall* {K1} {K2} {F:term K1 -> term K2} {M}
+	forall	{T} {AA: all_allocated (F T) M}
+		{I: loc F}
+	exists	{AA:all_allocated T M}
+	true.
+
+- : loc-preserves-all_allocated-converse T AA loc/id AA.
+
+- : loc-preserves-all_allocated-converse T AA1 (loc/in L I) AA3
+    <- in-preserves-all_allocated-converse _ AA1 I AA2
+    <- loc-preserves-all_allocated-converse T AA2 L AA3.
+
+%worlds () (loc-preserves-all_allocated-converse _ _ _ _).
+%total (L) (loc-preserves-all_allocated-converse _ _ L _).
+
+
+%theorem eval-preserves-all_allocated :
+	forall* {G} {M1} {TS1} {K} {T1:term K} {M2} {TS2} {T2} {P} {E:expr}
+	forall	{PAA1: prog_all_allocated G M1}
+		{MAA1: mem_all_allocated M1}
+		{TSA1: threads_all_allocated TS1 M1}
+		{EAA1: all_allocated E M1}
+		{TAA1: all_allocated T1 M1}
+		{MD: mem`domain? M1 z true}
+		{EV: eval G P (state/ M1 TS1) T1 (state/ M2 TS2) T2}
+	exists	{PAA2: prog_all_allocated G M2}
+		{MAA2: mem_all_allocated M2}
+		{TSA2: threads_all_allocated TS2 M2}
+		{EAA2: all_allocated E M2}
+		{TAA2: all_allocated T2 M2}
+	true.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/let AAO AAF) _ eLet PAA MAA TAA EAA AA
+    <- subst-all_allocated AAF AAO AA.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/if _ AA _) _ eIf1 PAA MAA TAA EAA AA.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/if _ _ AA) _ eIf2 PAA MAA TAA EAA AA.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/while AAC AAE) MD eWhile PAA MAA TAA EAA
+	(all_allocated/if AAC 
+	  (all_allocated/seq AAE (all_allocated/while AAC AAE))
+	  (all_allocated/lit MD)).
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/not AA) _ eNot PAA MAA TAA EAA
+	(all_allocated/true).
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/and _ AA) _ eAndT PAA MAA TAA EAA AA.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/and AA _) _ eAndF PAA MAA TAA EAA AA.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/eql _ _) _ (eEqlT _) PAA MAA TAA EAA
+	(all_allocated/true).
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/eql _ _) _ (eEqlF _) PAA MAA TAA EAA
+	(all_allocated/false).
+
+%theorem eval-preserves-all_allocated/match :
+	forall* {F} {A} {E} {M}
+	forall	{MM:match F A E}
+		{FAA: all_allocated F M}
+		{AAA: all_allocated A M}
+	exists	{EAA: all_allocated E M}
+	true.
+
+- : eval-preserves-all_allocated/match 
+	match/0 (all_allocated/func/0 EAA) _ EAA.
+
+- : eval-preserves-all_allocated/match
+	(match/+ M) (all_allocated/func/+ FAA1) 
+        (all_allocated/args/+ EAA AAA) EAA'
+    <- subst-all_allocated FAA1 EAA FAA2
+    <- eval-preserves-all_allocated/match M FAA2 AAA EAA'.
+
+%worlds () (eval-preserves-all_allocated/match _ _ _ _).
+%total (M) (eval-preserves-all_allocated/match M _ _ _).
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/call AAA) _ (eCall PL M) PAA MAA TAA EAA AA
+    <- prog_all_allocated-implies-func-all_allocated PAA PL FAA
+    <- eval-preserves-all_allocated/match M FAA AAA AA.
+
+- : eval-preserves-all_allocated PAA1 MAA1 TAA1 EAA1 _ MD
+	(eAlloc _ _ (initobj/ MU (mem`init/ IV IN))) PAA2 MAA2 TAA2 EAA2
+	(all_allocated/lit (mem`domain?/in ML))
+    <- update-preserves-prog_all_allocated PAA1 MU PAA2
+    <- update-preserves-threads_all_allocated TAA1 MU TAA2
+    <- update-preserves-all_allocated EAA1 MU EAA2
+    <- mem`update-implies-lookup MU ML
+    <- init-implies-nf_all_allocated MD IN NFAA
+    <- init-implies-vf_all_allocated MD IV VFAA
+    <- update-preserves-mem_all_allocated MAA1 MU NFAA VFAA MAA2.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/read _) _
+	(eRead ML NFL _ _) PAA MAA TAA EAA
+	(all_allocated/lit MDO)
+    <- mem_all_allocated-implies-objs-all_allocated MAA ML NFAA _
+    <- nf_all_allocated-implies-obj-in-domain NFAA NFL MDO.
+
+- : eval-preserves-all_allocated PAA1 MAA1 TAA1 EAA1
+	(all_allocated/write _ (all_allocated/lit MDO1)) _
+	(eWrite ML1 _ TL1 _ NFU MU _ TU) PAA2 MAA2 TAA2 EAA2
+	(all_allocated/lit MDO2)
+    <- mem_all_allocated-implies-objs-all_allocated MAA1 ML1 NFAA1 VFAA
+    <- normal-update-preserves-nf_all_allocated NFAA1 NFU MDO1 NFAA2
+    <- update-preserves-mem_all_allocated MAA1 MU NFAA2 VFAA MAA2
+    <- update-preserves-prog_all_allocated PAA1 MU PAA2
+    <- threads_all_allocated-implies-thread-all_allocated TAA1 TL1 EAA
+    <- thread-update-preserves-threads_all_allocated TAA1 TU EAA TAA1'
+    <- update-preserves-threads_all_allocated TAA1' MU TAA2
+    <- update-preserves-all_allocated EAA1 MU EAA2
+    <- mem`update-preserves-in-domain MDO1 MU MDO2.
+
+- : eval-preserves-all_allocated PAA MAA TAA1 EAA'
+	(all_allocated/readv _) _
+	(eReadV ML VFL TL1 _ TU) PAA MAA TAA2 EAA'
+	(all_allocated/lit MDO)
+    <- mem_all_allocated-implies-objs-all_allocated MAA ML _ VFAA
+    <- vf_all_allocated-implies-obj-in-domain VFAA VFL MDO
+    <- threads_all_allocated-implies-thread-all_allocated TAA1 TL1 EAA
+    <- thread-update-preserves-threads_all_allocated TAA1 TU EAA TAA2.
+
+- : eval-preserves-all_allocated PAA1 MAA1 TAA1 EAA1
+	(all_allocated/writev _ (all_allocated/lit MDO1)) _
+	(eWriteV ML1 _ _ _ VFU MU) PAA2 MAA2 TAA2 EAA2
+	(all_allocated/lit MDO2)
+    <- mem_all_allocated-implies-objs-all_allocated MAA1 ML1 NFAA VFAA1
+    <- volatile-update-preserves-vf_all_allocated VFAA1 VFU MDO1 VFAA2
+    <- update-preserves-mem_all_allocated MAA1 MU NFAA VFAA2 MAA2
+    <- update-preserves-prog_all_allocated PAA1 MU PAA2
+    <- update-preserves-threads_all_allocated TAA1 MU TAA2
+    <- update-preserves-all_allocated EAA1 MU EAA2
+    <- mem`update-preserves-in-domain MDO1 MU MDO2.
+
+- : eval-preserves-all_allocated PAA MAA TAA EAA
+	(all_allocated/synch _ EAA') _
+	(eRe _) PAA MAA TAA EAA EAA'.
+
+- : eval-preserves-all_allocated PAA1 MAA1 TAA1 EAA1'
+	(all_allocated/synch (all_allocated/lit MDO1) EAA1) _
+	(eAcq ML1 MU TL1 _ TU) PAA2 MAA2 TAA2 EAA2'
+        (all_allocated/hold (all_allocated/lit MDO2) EAA2)
+    <- mem_all_allocated-implies-objs-all_allocated MAA1 ML1 NFAA VFAA
+    <- update-preserves-mem_all_allocated MAA1 MU NFAA VFAA MAA2
+    <- update-preserves-prog_all_allocated PAA1 MU PAA2
+    <- threads_all_allocated-implies-thread-all_allocated TAA1 TL1 EAA'
+    <- thread-update-preserves-threads_all_allocated TAA1 TU EAA' TAA1'
+    <- update-preserves-threads_all_allocated TAA1' MU TAA2
+    <- update-preserves-all_allocated EAA1 MU EAA2
+    <- update-preserves-all_allocated EAA1' MU EAA2'
+    <- mem`update-preserves-in-domain MDO1 MU MDO2.
+	
+- : eval-preserves-all_allocated PAA1 MAA1 TAA1 EAA1'
+	(all_allocated/hold _ EAA1) _
+	(eRel ML1 _ MU) PAA2 MAA2 TAA2 EAA2' EAA2
+    <- mem_all_allocated-implies-objs-all_allocated MAA1 ML1 NFAA VFAA
+    <- update-preserves-mem_all_allocated MAA1 MU NFAA VFAA MAA2
+    <- update-preserves-prog_all_allocated PAA1 MU PAA2
+    <- update-preserves-threads_all_allocated TAA1 MU TAA2
+    <- update-preserves-all_allocated EAA1' MU EAA2'
+    <- update-preserves-all_allocated EAA1 MU EAA2.
+
+- : eval-preserves-all_allocated PAA1 MAA1 TAA1 EAA1
+	(all_allocated/fork EAA) MD
+	(eFork _ TF1 MF1 _ TU (initobj/ MU (mem`init/ IV IN))) 
+	PAA2 MAA2 TAA2 EAA2
+	(all_allocated/lit (mem`domain?/in ML))
+    <- thread-update-preserves-threads_all_allocated TAA1 TU EAA TAA1'
+    <- update-preserves-prog_all_allocated PAA1 MU PAA2
+    <- update-preserves-threads_all_allocated TAA1' MU TAA2
+    <- update-preserves-all_allocated EAA1 MU EAA2
+    <- mem`update-implies-lookup MU ML
+    <- init-implies-nf_all_allocated MD IN NFAA
+    <- init-implies-vf_all_allocated MD IV VFAA
+    <- update-preserves-mem_all_allocated MAA1 MU NFAA VFAA MAA2.
+
+- : eval-preserves-all_allocated PAA MAA TAA1 EAA''
+	(all_allocated/join _) _
+	(eJoin TL1 TL _ TU) PAA MAA TAA2 EAA'' EAA
+    <- threads_all_allocated-implies-thread-all_allocated TAA1 TL EAA
+    <- threads_all_allocated-implies-thread-all_allocated TAA1 TL1 EAA'
+    <- thread-update-preserves-threads_all_allocated TAA1 TU EAA' TAA2.
+
+%worlds () (eval-preserves-all_allocated _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (eval-preserves-all_allocated _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem fulleval-preserves-all_allocated :
+	forall* {G} {P} {M1} {M2} {TS1} {TS2}
+	forall	{PAA1: prog_all_allocated G M1}
+		{MAA1: mem_all_allocated M1}
+		{TSA1: threads_all_allocated TS1 M1}
+		{MD: mem`domain? M1 z true}
+		{FE: fulleval G P (state/ M1 TS1) (state/ M2 TS2)}
+	exists	{PAA2: prog_all_allocated G M2}
+		{MAA2: mem_all_allocated M2}
+		{TSA2: threads_all_allocated TS2 M2}
+	true.
+
+- : fulleval-preserves-all_allocated PAA1 MAA1 TSAA1 MD
+	(fulleval/ T T' TL1 L E TL2 TU) PAA2 MAA2 TSAA3
+    <- threads_all_allocated-implies-thread-all_allocated TSAA1 TL1 EAA1
+    <- loc-preserves-all_allocated-converse T EAA1 L TAA1
+    <- eval-preserves-all_allocated 
+	PAA1 MAA1 TSAA1 EAA1 TAA1 MD E PAA2 MAA2 TSAA2 EAA2 TAA2
+    <- loc-preserves-all_allocated T EAA2 L T' TAA2 EAA3
+    <- thread-update-preserves-threads_all_allocated TSAA2 TU EAA3 TSAA3.
+
+%worlds () (fulleval-preserves-all_allocated _ _ _ _ _ _ _ _).
+%total { } (fulleval-preserves-all_allocated _ _ _ _ _ _ _ _).
+
+%block someobj : block {x:object}.
+
+%theorem argscount-funccount-eq-implies-match :
+    forall* {A} {N1} {F} {N2}
+    forall {FC:funccount F N2} {AC:argscount A N1} {EQ:nat`eq N1 N2} 
+            {V:value A}
+    exists {E} {M:match F A E}
+    true.
+
+- : argscount-funccount-eq-implies-match funccount/0 argscount/0 nat`eq/
+        value/args/0 _ match/0.
+
+- : argscount-funccount-eq-implies-match 
+        (funccount/+ FC)
+        (argscount/+ AC) N1+1=N2+1 (value/args/+ value/lit VA) 
+        _ (match/+* O (M O))
+    <- nat`succ-cancels N1+1=N2+1 N1=N2
+    <- ({o} argscount-funccount-eq-implies-match (FC o) AC N1=N2 VA
+        (E o) (M o)). 
+
+%worlds (someobj) (argscount-funccount-eq-implies-match _ _ _ _ _ _).
+%total {F} (argscount-funccount-eq-implies-match F _ _ _ _ _).

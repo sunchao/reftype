@@ -1,0 +1,1403 @@
+%%%%% heap.elf
+%%%%% Fractional heaps
+%%%%% John Boyland
+
+%{%
+We take the fractional pre-heaps of pheap.elf and add
+convenience methods that work directly on pairs.
+All the main theorems are proved over again.
+We keep the theorems on update so that we can use can-remove.
+%}%
+
+
+
+%%%% Imports
+
+
+ %abbrev natpair = natpair`pair.
+ %abbrev natpair/ = natpair`pair/.
+ %abbrev nat2pair = natpair`nat2pair.
+ %abbrev pair2nat = natpair`pair2nat.
+
+
+%%%% Definitions
+
+
+%abbrev map = pheap`map.
+
+
+%abbrev eq = pheap`eq.
+
+%abbrev eq/ = pheap`eq/.
+
+
+lookup : map -> natpair -> frv -> type.
+
+lookup/ : lookup M P D
+    <- pair2nat P N
+    <- pheap`lookup M N D.
+
+
+fresh : map -> natpair -> type.
+
+fresh/ : fresh M P 
+    <- pair2nat P N
+    <- pheap`fresh M N.
+
+
+domain? : map -> natpair -> bool -> type.
+
+domain?/ : domain? M P B
+    <- pair2nat P N
+    <- pheap`domain? M N B.
+
+
+%abbrev disjoint = pheap`disjoint.
+
+
+%abbrev disjoint? = pheap`disjoint?.
+
+
+%abbrev disjoint?/yes = pheap`disjoint?/yes.
+
+% we intentionally omit this: it has the wrong kinds of lookup in it.
+% abbrev disjoint?/no = pheap`disjoint?/no.
+
+
+
+%abbrev size = pheap`size.
+
+
+%abbrev bound = pheap`bound.
+
+
+update : map -> natpair -> frv -> map -> type.
+
+update/ : update M1 P D M2
+    <- pair2nat P N
+    <- pheap`update M1 N D M2.
+
+
+
+mimics-mem : map -> type.
+
+
+mimics-mem/0 : mimics-mem pheap`map/0.
+
+mimics-mem/+ : mimics-mem H -> mimics-mem (pheap`map/+ _ (frv/ rat`one _) H).
+
+
+
+
+%%%% Theorems
+
+
+
+%%% Theorems about eq
+
+
+%abbrev meta-eq = pheap`meta-eq.
+
+
+%abbrev false-implies-eq = pheap`false-implies-eq.
+
+
+%abbrev eq-reflexive = pheap`eq-reflexive.
+
+
+%abbrev eq-symmetric = pheap`eq-symmetric.
+
+
+%abbrev eq-transitive = pheap`eq-transitive.
+
+
+
+%%% Theorems about lookup
+
+
+%theorem false-implies-lookup : 
+	forall* {M} {P} {D}
+	forall {F:void}
+	exists {L:lookup M P D}
+	true.
+
+%worlds () (false-implies-lookup _ _).
+%total { } (false-implies-lookup _ _).
+
+
+%theorem lookup-respects-eq :
+	forall* {M} {P} {D} {MP} {PP} {DP}
+	forall {L:lookup M P D} {EM:pheap`eq M MP} 
+               {EP:natpair`eq P PP} {ED:frv`eq D DP}
+	exists {LP:lookup MP PP DP}
+	true.
+
+- : lookup-respects-eq L pheap`eq/ natpair`eq/ frv`eq/ L.
+
+%worlds () (lookup-respects-eq _ _ _ _ _).
+%total { } (lookup-respects-eq _ _ _ _ _).
+
+
+%theorem lookup-deterministic :
+	forall* {M} {P} {D} {MP} {PP} {DP}
+	forall {L:lookup M P D} {LP:lookup MP PP DP}
+               {EM:pheap`eq M MP} {EP:natpair`eq P PP}
+	exists {ED:frv`eq D DP}
+	true.
+
+- : lookup-deterministic (lookup/ L P2N) (lookup/ LP P2NP) 
+                         pheap`eq/ natpair`eq/ D=DP
+    <- pair2nat-deterministic P2N P2NP natpair`eq/ N=NP
+    <- pheap`lookup-deterministic L LP pheap`eq/ N=NP D=DP.
+
+
+%worlds () (lookup-deterministic _ _ _ _ _).
+%total { } (lookup-deterministic _ _ _ _ _).
+
+
+%theorem lookup-contradiction :
+	forall* {P} {D}
+	forall {L:lookup pheap`map/0 P D}
+	exists {F:void}
+	true.
+
+- : lookup-contradiction (lookup/ L _) F
+    <- pheap`lookup-contradiction L F.
+
+%worlds () (lookup-contradiction _ _).
+%total { } (lookup-contradiction _ _).
+	
+
+%%% Theorems about fresh
+
+
+%theorem false-implies-fresh : 
+	forall* {M} {P} forall {F:void} exists {D:fresh M P} true.
+
+%worlds () (false-implies-fresh _ _).
+%total { } (false-implies-fresh _ _).
+
+
+%theorem fresh-respects-eq :
+	forall* {M} {P} {MP} {PP}
+	forall {D:fresh M P} {EM:pheap`eq M MP} {EN:natpair`eq P PP}
+	exists {DP:fresh MP PP}
+	true.
+
+- : fresh-respects-eq D pheap`eq/ natpair`eq/ D.
+
+%worlds () (fresh-respects-eq _ _ _ _).
+%total { } (fresh-respects-eq _ _ _ _).
+
+
+%theorem fresh-total* :
+	forall {M}
+	exists {P} {F:fresh M P}
+	true.
+
+- : fresh-total* M P (fresh/ F P2N)
+    <- pheap`fresh-total F
+    <- nat2pair-total P2N.
+
+%worlds () (fresh-total* _ _ _).
+%total { } (fresh-total* _ _ _).
+
+
+%abbrev fresh-total = fresh-total* _ _.
+
+%theorem fresh-lookup-not-equal :
+	forall* {M} {P1} {P2} {D2}
+	forall {F:fresh M P1} {L:lookup M P2 D2}
+	exists {NE:natpair`ne P1 P2}
+	true.
+
+%theorem fresh-lookup-not-equal/L :
+	forall* {M} {P1} {P2} {D2} {B}
+	forall {F:fresh M P1} {L:lookup M P2 D2}
+               {EQ?:natpair`eq? P1 P2 B}
+	exists {NE:natpair`ne P1 P2}
+	true.
+
+- : fresh-lookup-not-equal F L NE
+    <- natpair`eq?-total EQ?
+    <- fresh-lookup-not-equal/L F L EQ? NE.
+
+- : fresh-lookup-not-equal/L _ _ (natpair`eq?/no NE) NE.
+
+- : fresh-lookup-not-equal/L (fresh/ FR P2N1) (lookup/ L P2N2) 
+                             natpair`eq?/yes NE
+    <- pheap`fresh-lookup-not-equal FR L N1<>N2
+    <- natpair`pair2nat-deterministic P2N1 P2N2 natpair`eq/ N1=N2
+    <- nat`eq-ne-implies-false N1=N2 N1<>N2 F
+    <- natpair`false-implies-ne F NE.
+
+%worlds () (fresh-lookup-not-equal/L _ _ _ _).
+%total { } (fresh-lookup-not-equal/L _ _ _ _).
+
+%worlds () (fresh-lookup-not-equal _ _ _).
+%total { } (fresh-lookup-not-equal _ _ _).
+
+
+
+%%% Theorems about map/domain
+
+
+%theorem false-implies-domain? :
+	forall* {M} {P} {D}
+	forall {F:void}
+	exists {MD:domain? M P D}
+	true.
+
+%worlds () (false-implies-domain? _ _).
+%total { } (false-implies-domain? _ _).
+
+
+%theorem domain?-total* :
+	forall {M} {P}
+	exists {B} {MD:domain? M P B}
+	true.
+
+- : domain?-total* M P B (domain?/ D P2N)
+    <- natpair`pair2nat-total P2N
+    <- pheap`domain?-total D.
+
+%worlds () (domain?-total* _ _ _ _).
+%total { } (domain?-total* _ _ _ _).
+
+
+%abbrev domain?-total = domain?-total* _ _ _.
+
+
+
+%%% Theorems about disjoint
+
+
+%abbrev false-implies-disjoint = pheap`false-implies-disjoint.
+
+
+%abbrev disjoint-respects-eq = pheap`disjoint-respects-eq.
+
+
+%abbrev disjoint/<-inversion = pheap`disjoint/<-inversion.
+
+
+%abbrev disjoint/>-inversion = pheap`disjoint/>-inversion.
+
+
+%abbrev disjoint-anti-reflexive = pheap`disjoint-anti-reflexive.
+
+
+%abbrev disjoint-symmetric = pheap`disjoint-symmetric.
+
+
+%theorem disjoint-lookup-contradiction :
+	forall* {M1} {M2} {N} {D1} {D2}
+	forall {A:disjoint M1 M2}
+               {L1:lookup M1 N D1} {L2:lookup M2 N D2}
+	exists {F:void}
+	true.
+
+- : disjoint-lookup-contradiction D (lookup/ L1 P) (lookup/ L2P PP) F
+    <- natpair`pair2nat-deterministic PP P natpair`eq/ NP=N
+    <- pheap`lookup-respects-eq L2P eq/ NP=N frv`eq/ L2
+    <- pheap`disjoint-lookup-contradiction D L1 L2 F.
+
+%worlds () (disjoint-lookup-contradiction _ _ _ _).
+%total { } (disjoint-lookup-contradiction _ _ _ _).
+
+
+%abbrev shift-left-preserves-disjoint = pheap`shift-left-preserves-disjoint.
+
+
+%abbrev shift-left-preserves-disjoint-converse = pheap`shift-left-preserves-disjoint-converse.
+
+
+%abbrev shift-right-preserves-disjoint = pheap`shift-right-preserves-disjoint.
+
+
+%abbrev shift-right-preserves-disjoint-converse = pheap`shift-right-preserves-disjoint-converse.
+
+
+%abbrev shift-preserves-disjoint = pheap`shift-preserves-disjoint.
+
+
+%abbrev shift-preserves-disjoint-converse = pheap`shift-preserves-disjoint-converse.
+
+
+%abbrev disjoint?-total = pheap`disjoint?-total.
+
+
+
+%%% Theorems about size
+
+
+%abbrev false-implies-size = pheap`false-implies-size.
+
+
+%abbrev size-total* = pheap`size-total*.
+
+
+%abbrev size-total = size-total* _ _.
+
+
+%abbrev size-deterministic = pheap`size-deterministic.
+
+
+%abbrev size-unique = pheap`size-unique.
+
+
+
+%%% Theorems about bound
+
+
+%abbrev false-implies-bound = pheap`false-implies-bound.
+
+
+%abbrev bound-total* = pheap`bound-total*.
+
+
+%abbrev bound-total = bound-total* _ _.
+
+
+
+%%% Theorems about update
+
+%theorem false-implies-update :
+	forall* {M} {P} {D} {MP} 
+	forall {F:void} 
+	exists {U:update M P D MP} 
+	true.
+
+%worlds () (false-implies-update _ _).
+%total { } (false-implies-update _ _).
+
+
+%theorem update-respects-eq :
+	forall* {M1} {P} {D} {M2} {M1P} {PP} {DP} {M2P}
+	forall {U:update M1 P D M2} {EM1:eq M1 M1P} 
+               {EP:natpair`eq P PP} {ED:frv`eq D DP} {EM2:eq M2 M2P}
+	exists {UP:update M1P PP DP M2P} 
+	true.
+
+- : update-respects-eq U eq/ natpair`eq/ frv`eq/ pheap`eq/ U.
+
+%worlds () (update-respects-eq _ _ _ _ _ _).
+%total { } (update-respects-eq _ _ _ _ _ _).
+%reduces U = UP (update-respects-eq U _ _ _ _ UP).
+
+
+%theorem update-deterministic :
+	forall* {M1} {P1} {D1} {M1P} {M2} {P2} {D2} {M2P}
+	forall {U1:update M1 P1 D1 M1P} {U2:update M2 P2 D2 M2P}
+	       {EM:eq M1 M2} {EP:natpair`eq P1 P2} {ED:frv`eq D1 D2}
+	exists {EMP:eq M1P M2P}
+	true.
+
+- : update-deterministic (update/ U P2N) (update/ UP P2NP) 
+                         eq/ natpair`eq/ frv`eq/ M2=M2P
+    <- natpair`pair2nat-deterministic P2N P2NP natpair`eq/ N=NP
+    <- pheap`update-deterministic U UP eq/ N=NP frv`eq/ M2=M2P.
+
+
+%worlds () (update-deterministic _ _ _ _ _ _).
+%total { } (update-deterministic _ _ _ _ _ _).
+
+%theorem update-total* :
+	forall {M} {P} {D}
+	exists {MP} {U:update M P D MP}
+	true.
+
+- : update-total* _ _ _ _ (update/ U P2N)
+    <- natpair`pair2nat-total P2N
+    <- pheap`update-total U.
+
+
+%worlds () (update-total* _ _ _ _ _).
+%total { } (update-total* _ _ _ _ _).
+
+
+%abbrev update-total = update-total* _ _ _ _.
+
+
+%theorem update-implies-lookup :
+	forall* {F} {P} {D} {FP}
+	forall {U:update F P D FP} 
+	exists {L:lookup FP P D}
+	true.
+
+- : update-implies-lookup (update/ U P2N) (lookup/ L P2N)
+    <- pheap`update-implies-lookup U L.
+
+%worlds () (update-implies-lookup _ _).
+%total { } (update-implies-lookup _ _).
+
+
+%theorem update-preserves-lookup :
+	forall* {F} {P1} {D1} {FP} {P2} {D2}
+	forall {L:lookup F P2 D2} {U:update F P1 D1 FP} {X:natpair`ne P2 P1}
+        exists {LP:lookup FP P2 D2}
+	true.
+
+- : update-preserves-lookup (lookup/ L P1->N1) (update/ U P2->N2) P1<>P2
+                            (lookup/ LP P1->N1)
+    <- pair2nat-preserves-ne* P1<>P2 P1->N1 P2->N2 N1<>N2
+    <- pheap`update-preserves-lookup L U N1<>N2 LP.
+ 
+%worlds () (update-preserves-lookup _ _ _ _).
+%total { } (update-preserves-lookup _ _ _ _).
+
+
+%theorem update-preserves-lookup-converse :
+	forall* {F1} {P1} {D1} {F2} {P2} {D2}
+	forall {L2:lookup F2 P2 D2} {U:update F1 P1 D1 F2} {X:natpair`ne P2 P1}
+        exists {L1:lookup F1 P2 D2}
+	true.
+
+- : update-preserves-lookup-converse 
+	(lookup/ L P1->N1) (update/ U P2->N2) P1<>P2 (lookup/ LP P1->N1)
+    <- pair2nat-preserves-ne* P1<>P2 P1->N1 P2->N2 N1<>N2
+    <- pheap`update-preserves-lookup-converse L U N1<>N2 LP.
+ 
+%worlds () (update-preserves-lookup-converse _ _ _ _).
+%total { } (update-preserves-lookup-converse _ _ _ _).
+
+
+%theorem update-preserves-fresh :
+	forall* {M1} {P1} {P2} {D} {M2}
+	forall {F1:fresh M1 P1} {U:update M1 P2 D M2} {NE:natpair`ne P1 P2}
+	exists {F2:fresh M2 P1}
+	true.
+
+- : update-preserves-fresh (fresh/ F1 P1->N1) (update/ U P2->N2) P1<>P2
+                           (fresh/ F2 P1->N1)
+    <- pair2nat-preserves-ne* P1<>P2 P1->N1 P2->N2 N1<>N2
+    <- pheap`update-preserves-fresh F1 U N1<>N2 F2.
+
+%worlds () (update-preserves-fresh _ _ _ _).
+%total { } (update-preserves-fresh _ _ _ _).
+
+
+%abbrev update-preserves-fresh-converse = pheap`update-preserves-fresh-converse.
+
+
+%theorem update-preserves-membership :
+	forall* {M1} {P1} {B} {P2} {D} {M2}
+	forall {MD1:domain? M1 P1 B} {U:update M1 P2 D M2} {N:natpair`ne P1 P2}
+	exists {MD2:domain? M2 P1 B}
+	true.
+
+- : update-preserves-membership (domain?/ D1 P1->N1) (update/ U P2->N2) P1<>P2
+                                (domain?/ D2 P1->N1)
+    <- pair2nat-preserves-ne* P1<>P2 P1->N1 P2->N2 N1<>N2
+    <- pheap`update-preserves-membership D1 U N1<>N2 D2.
+
+%worlds () (update-preserves-membership _ _ _ _).
+%total { } (update-preserves-membership _ _ _ _).
+
+
+%theorem update-preserves-membership-converse :
+	forall* {M1} {P1} {B} {P2} {D} {M2}
+	forall {MD2:domain? M2 P1 B} {U:update M1 P2 D M2} {N:natpair`ne P1 P2}
+	exists {MD1:domain? M1 P1 B}
+	true.
+
+- : update-preserves-membership-converse 
+	(domain?/ D1 P1->N1) (update/ U P2->N2) P1<>P2 (domain?/ D2 P1->N1)
+    <- pair2nat-preserves-ne* P1<>P2 P1->N1 P2->N2 N1<>N2
+    <- pheap`update-preserves-membership-converse D1 U N1<>N2 D2.
+
+%worlds () (update-preserves-membership-converse _ _ _ _).
+%total { } (update-preserves-membership-converse _ _ _ _).
+
+
+%theorem update-overwrites :
+	forall* {M1} {P1} {D1} {M2} {P2} {D2} {M3}
+	forall {U1:update M1 P1 D1 M2} {U2:update M2 P2 D2 M3} 
+               {E:natpair`eq P1 P2}
+	exists {U12:update M1 P1 D2 M3}
+	true.
+
+- : update-overwrites (update/ U1 P1->N1) (update/ U2 P2->N2) natpair`eq/
+	              (update/ U12 P1->N1)
+    <- pair2nat-deterministic P1->N1 P2->N2 natpair`eq/ N1=N2
+    <- pheap`update-overwrites U1 U2 N1=N2 U12.
+
+%worlds () (update-overwrites _ _ _ _).
+%total { } (update-overwrites _ _ _ _).
+
+
+%theorem update-may-have-no-effect :
+	forall* {M1} {P} {D} {M2}
+	forall {L:lookup M1 P D} {U:update M1 P D M2}
+	exists {E:eq M1 M2}
+	true.
+
+- : update-may-have-no-effect (lookup/ L P2N) (update/ UP P2NP) M1=M2
+    <- pair2nat-deterministic P2NP P2N natpair`eq/ NP=N
+    <- pheap`update-respects-eq UP eq/ NP=N frv`eq/ eq/ U
+    <- pheap`update-may-have-no-effect L U M1=M2.
+
+%worlds () (update-may-have-no-effect _ _ _).
+%total { } (update-may-have-no-effect _ _ _).
+
+
+%theorem update-idempotent :
+	forall* {M1} {P1} {D1} {M2} {P2} {D2} {M3}
+	forall {U1:update M1 P1 D1 M2} {U2:update M2 P2 D2 M3}
+	       {EP:natpair`eq P1 P2} {ED:frv`eq D1 D2}
+	exists {EM:eq M2 M3}
+	true.
+
+- : update-idempotent (update/ U1 P1->N1) (update/ U2 P2->N2) P1=P2 D1=D2 M2=M3
+    <- pair2nat-deterministic P1->N1 P2->N2 P1=P2 N1=N2
+    <- pheap`update-idempotent U1 U2 N1=N2 D1=D2 M2=M3.
+
+%worlds () (update-idempotent _ _ _ _ _).
+%total { } (update-idempotent _ _ _ _ _).
+
+
+%theorem update-commutes :
+	forall* {M} {P1} {D1} {M1} {P2} {D2} {M12}
+	forall {U1:update M P1 D1 M1} {U12:update M1 P2 D2 M12}
+               {NE:natpair`ne P1 P2}
+        exists {M2} {U2:update M P2 D2 M2} {U21:update M2 P1 D1 M12}
+	true.
+
+- : update-commutes (update/ U1 P1->N1) (update/ U12 P2->N2) P1<>P2
+                    M2 (update/ U2 P2->N2) (update/ U21 P1->N1)
+    <- pair2nat-preserves-ne* P1<>P2 P1->N1 P2->N2 N1<>N2
+    <- pheap`update-commutes U1 U12 N1<>N2 M2 U2 U21.
+
+%worlds () (update-commutes _ _ _ _ _ _).
+%total { } (update-commutes _ _ _ _ _ _).
+
+
+%theorem update-commutes* :
+	forall* {M} {P1} {D1} {M1} {P2} {D2} {M12} {M2}
+	forall {U1:update M P1 D1 M1} {U12:update M1 P2 D2 M12}
+               {NE:natpair`ne P1 P2} {U2:update M P2 D2 M2} 
+        exists {U21:update M2 P1 D1 M12}
+	true.
+
+- : update-commutes* (update/ U1 P1->N1) (update/ U12 P2->N2) P1<>P2
+                     (update/ U2P P2->N2P) (update/ U21 P1->N1)
+    <- pair2nat-preserves-ne* P1<>P2 P1->N1 P2->N2 N1<>N2
+    <- pair2nat-deterministic P2->N2P P2->N2 natpair`eq/ N2P=N2
+    <- pheap`update-respects-eq U2P eq/ N2P=N2 frv`eq/ eq/ U2
+    <- pheap`update-commutes* U1 U12 N1<>N2 U2 U21.
+
+%worlds () (update-commutes* _ _ _ _ _).
+%total { } (update-commutes* _ _ _ _ _). 
+
+
+%theorem can-remove :
+        forall* {M} {S} {P} {D}
+	forall {SZ:size M S} {L:lookup M P D}
+	exists {M-} {S-} {SZ-:size M- S-} {E:nat`eq (s S-) S}
+               {U:update M- P D M} {F:fresh M- P}
+	true.
+
+- : can-remove SZ (lookup/ L P->N) _ _ SZ- SZ+ (update/ U P->N) (fresh/ F P->N)
+    <- pheap`can-remove SZ L _ _ SZ- SZ+ U F.
+
+%worlds () (can-remove _ _ _ _ _ _ _ _).
+%total { } (can-remove _ _ _ _ _ _ _ _).
+
+
+
+%%% Definition of leq
+
+
+%abbrev leq = pheap`leq.
+
+
+
+%%% Theorems about leq
+
+
+%abbrev false-implies-leq = pheap`false-implies-leq.
+
+
+%abbrev leq-respects-eq = pheap`leq-respects-eq.
+
+
+%abbrev leq-reflexive = pheap`leq-reflexive.
+
+
+%abbrev leq-anti-symmetric = pheap`leq-anti-symmetric.
+
+
+%abbrev leq-transitive = pheap`leq-transitive.
+
+
+%theorem lookup-respects-leq :
+	forall* {M} {P} {D} {MP}
+	forall {L:lookup M P D} {ME:leq M MP}
+        exists {DP} {L:lookup MP P DP} {DE:frv`leq D DP}
+	true.
+
+- : lookup-respects-leq (lookup/ L P2N) M<=MP DP (lookup/ LP P2N) D<=DP
+    <- pheap`lookup-respects-leq L M<=MP DP LP D<=DP.
+
+%worlds () (lookup-respects-leq _ _ _ _ _).
+%total { } (lookup-respects-leq _ _ _ _ _).
+
+
+%theorem fresh-respects-geq :
+	forall* {M} {MP} {P}
+	forall {FP:fresh MP P} {L:leq M MP}
+	exists {F:fresh M P}
+	true.
+
+- : fresh-respects-geq (fresh/ FP P2N) M<=MP (fresh/ F P2N)
+    <- pheap`fresh-respects-geq FP M<=MP F.
+
+%worlds () (fresh-respects-geq _ _ _).
+%total { } (fresh-respects-geq _ _ _).
+
+
+%abbrev leq-implies-size-le = pheap`leq-implies-size-le.
+
+
+%abbrev leq-implies-bound-le = pheap`leq-implies-bound-le.
+
+
+%theorem update-left-preserves-leq*:
+	forall* {M1} {M2} {P} {D} {M1P} {M2P}
+	forall {L:leq M1 M2} 
+               {U1:update M1 P D M1P}
+	       {U2:update M2 P D M2P}
+	exists {LP:leq M1P M2P}
+	true.
+
+- : update-left-preserves-leq* M1<=M2 (update/ U1 P->N) (update/ U2P P->NP)
+                               M1P<=M2P
+    <- pair2nat-deterministic P->NP P->N natpair`eq/ NP=N
+    <- pheap`update-respects-eq U2P eq/ NP=N frv`eq/ eq/ U2
+    <- pheap`update-left-preserves-leq* M1<=M2 U1 U2 M1P<=M2P.
+   
+%worlds () (update-left-preserves-leq* _ _ _ _).
+%total { } (update-left-preserves-leq* _ _ _ _).
+
+
+%theorem update-right-preserves-leq*:
+	forall* {M} {P} {D1} {D2} {M1P} {M2P}
+	forall {L:frv`leq D1 D2} 
+               {U1:update M P D1 M1P}
+	       {U2:update M P D2 M2P}
+	exists {LP:leq M1P M2P}
+	true.
+
+- : update-right-preserves-leq* D1<=D2 (update/ U1 P->N) (update/ U2P P->NP)
+                                M1P<=M2P
+    <- pair2nat-deterministic P->NP P->N natpair`eq/ NP=N
+    <- pheap`update-respects-eq U2P eq/ NP=N frv`eq/ eq/ U2
+    <- pheap`update-right-preserves-leq* D1<=D2 U1 U2 M1P<=M2P.
+   
+%worlds () (update-right-preserves-leq* _ _ _ _).
+%total { } (update-right-preserves-leq* _ _ _ _).
+
+%theorem update-preserves-leq* :
+	forall* {M1} {M2} {P} {D1} {D2} {M1P} {M2P}
+	forall {L:leq M1 M2} {L:frv`leq D1 D2} 
+               {U1:update M1 P D1 M1P}
+	       {U2:update M2 P D2 M2P}
+	exists {LP:leq M1P M2P}
+	true.
+
+- : update-preserves-leq* M1<=M2 D1<=D2 (update/ U1 P->N) (update/ U2P P->NP)
+                          M1P<=M2P
+    <- pair2nat-deterministic P->NP P->N natpair`eq/ NP=N
+    <- pheap`update-respects-eq U2P eq/ NP=N frv`eq/ eq/ U2
+    <- pheap`update-preserves-leq* M1<=M2 D1<=D2 U1 U2 M1P<=M2P.
+   
+%worlds () (update-preserves-leq* _ _ _ _ _).
+%total { } (update-preserves-leq* _ _ _ _ _).
+
+
+%theorem fresh-update-implies-leq :
+	forall* {M1} {P} {D} {M2}
+	forall {F:fresh M1 P} {U:update M1 P D M2}
+	exists {L:leq M1 M2}
+	true.
+
+- : fresh-update-implies-leq (fresh/ F P->N) (update/ UP P->NP) M1<=M2
+    <- pair2nat-deterministic P->NP P->N natpair`eq/ NP=N
+    <- pheap`update-respects-eq UP eq/ NP=N frv`eq/ eq/ U
+    <- pheap`fresh-update-implies-leq F U M1<=M2.
+
+%worlds () (fresh-update-implies-leq _ _ _).
+%total { } (fresh-update-implies-leq _ _ _).
+
+
+%theorem lookup-update-preserves-leq :
+	forall* {M1} {P} {D1} {D2} {M2}
+	forall {L:lookup M1 P D1} {U:update M1 P D2 M2}
+               {L:frv`leq D1 D2}
+	exists {L:leq M1 M2}
+	true.
+
+- : lookup-update-preserves-leq (lookup/ L P->N) (update/ UP P->NP) 
+                                D1<=D2 M1<=M2
+    <- pair2nat-deterministic P->NP P->N natpair`eq/ NP=N
+    <- pheap`update-respects-eq UP eq/ NP=N frv`eq/ eq/ U
+    <- pheap`lookup-update-preserves-leq L U D1<=D2 M1<=M2.
+
+%worlds () (lookup-update-preserves-leq _ _ _ _).
+%total { } (lookup-update-preserves-leq _ _ _ _).
+
+
+
+%%%%% map addition
+
+
+%abbrev add = pheap`add.
+
+
+
+%%% Theorems about add
+
+
+%abbrev false-implies-add = pheap`false-implies-add.
+
+
+%abbrev add-respects-eq = pheap`add-respects-eq.
+
+
+%abbrev add-deterministic = pheap`add-deterministic.
+
+
+%abbrev add-unique = pheap`add-unique.
+
+
+%abbrev add-commutative = pheap`add-commutative.
+
+
+%abbrev add-associative = pheap`add-associative.
+
+
+%abbrev add-associative* = pheap`add-associative*.
+
+
+%abbrev add-associative-converse = pheap`add-associative-converse.
+
+
+%abbrev add-associative-converse* = pheap`add-associative-converse*.
+
+
+%abbrev add-assoc-commutative* = pheap`add-assoc-commutative*.
+
+
+%abbrev add-assoc-commutative = pheap`add-assoc-commutative.
+
+
+%abbrev add-double-associative* = pheap`add-double-associative*.
+
+
+%abbrev add-double-associative = pheap`add-double-associative.
+
+
+%abbrev add-right-identity-converse = pheap`add-right-identity-converse.
+
+
+%abbrev add-left-cancels = pheap`add-left-cancels.
+
+
+%abbrev add-implies-leq* = pheap`add-implies-leq*.
+
+
+%abbrev add-implies-leq = pheap`add-implies-leq.
+
+
+%abbrev add-left-preserves-leq* = pheap`add-left-preserves-leq*.
+
+
+%abbrev add-right-preserves-leq* = pheap`add-right-preserves-leq*.
+
+
+%abbrev add-preserves-leq* = pheap`add-preserves-leq*.
+
+
+%abbrev add-left-cancels-leq = pheap`add-left-cancels-leq.
+
+
+%abbrev add-right-cancels-leq = pheap`add-right-cancels-leq.
+
+
+%theorem add-joins-lookup :
+        forall* {M1} {M2} {M3} {N} {D1} {D2}
+        forall {L1:lookup M1 N D1} {L2:lookup M2 N D2}
+               {A:add M1 M2 M3}
+        exists {D3} {J:frv`add D1 D2 D3} {L3:lookup M3 N D3}
+        true.
+
+- : add-joins-lookup (lookup/ L1 P2N) (lookup/ L2P P2NP) HA _ FA (lookup/ L3 P2N)
+    <- natpair`pair2nat-deterministic P2NP P2N natpair`eq/ NP=N
+    <- pheap`lookup-respects-eq L2P eq/ NP=N frv`eq/ L2
+    <- pheap`add-joins-lookup L1 L2 HA _ FA L3.
+
+%worlds () (add-joins-lookup _ _ _ _ _ _).
+%total { } (add-joins-lookup _ _ _ _ _ _).
+
+
+%theorem add-preserves-fresh* :
+	forall* {M1} {M2} {M3} {P}
+	forall {F1:fresh M1 P} {F2:fresh M2 P}
+               {A:add M1 M2 M3}
+	exists {F3:fresh M3 P}
+	true.
+
+- : add-preserves-fresh* (fresh/ F1 P2N) (fresh/ F2P P2NP) A (fresh/ F3 P2N)
+    <- pair2nat-deterministic P2NP P2N natpair`eq/ N2=N1
+    <- pheap`fresh-respects-eq F2P eq/ N2=N1 F2
+    <- pheap`add-preserves-fresh* F1 F2 A F3.
+
+%worlds () (add-preserves-fresh* _ _ _ _).
+%total { } (add-preserves-fresh* _ _ _ _).
+
+
+%theorem add-preserves-fresh-converse* :
+	forall* {M1} {M2} {M3} {P}
+	forall {F3:fresh M3 P}
+               {A:add M1 M2 M3}
+	exists {F1:fresh M1 P} {F2:fresh M2 P}
+	true.
+
+- : add-preserves-fresh-converse* 
+     (fresh/ F3 P2N) A (fresh/ F1 P2N) (fresh/ F2 P2N) 
+    <- pheap`add-preserves-fresh-converse* F3 A F1 F2.
+
+%worlds () (add-preserves-fresh-converse* _ _ _ _).
+%total { } (add-preserves-fresh-converse* _ _ _ _).
+
+
+%theorem fresh-add-left-preserves-lookup* :
+	forall* {M1} {M2} {M3} {P} {D}
+	forall {F1:fresh M1 P} {L2:lookup M2 P D} 
+               {A:add M1 M2 M3}
+	exists {L3:lookup M3 P D}
+	true.
+
+- : fresh-add-left-preserves-lookup* (fresh/ F1P P2NP) (lookup/ L2 P2N) A
+                                     (lookup/ L3 P2N)
+    <- pair2nat-deterministic P2NP P2N natpair`eq/ N1=N2
+    <- pheap`fresh-respects-eq F1P eq/ N1=N2 F1
+    <- pheap`fresh-add-left-preserves-lookup* F1 L2 A L3.
+
+%worlds () (fresh-add-left-preserves-lookup* _ _ _ _).
+%total { } (fresh-add-left-preserves-lookup* _ _ _ _).
+
+
+%theorem fresh-add-right-preserves-lookup* :
+	forall* {M1} {M2} {M3} {P} {D}
+	forall {L1:lookup M1 P D} {F2:fresh M2 P} 
+               {A:add M1 M2 M3}
+	exists {L3:lookup M3 P D}
+	true.
+
+- : fresh-add-right-preserves-lookup* (lookup/ L1 P2N) (fresh/ F2P P2NP) A
+                                      (lookup/ L3 P2N)
+    <- pair2nat-deterministic P2NP P2N natpair`eq/ N1=N2
+    <- pheap`fresh-respects-eq F2P eq/ N1=N2 F2
+    <- pheap`fresh-add-right-preserves-lookup* L1 F2 A L3.
+
+%worlds () (fresh-add-right-preserves-lookup* _ _ _ _).
+%total { } (fresh-add-right-preserves-lookup* _ _ _ _).
+
+
+%theorem disjoint-add-left-preserves-lookup* :
+	forall* {M1} {M2} {M3} {P} {D}
+	forall {L2:lookup M2 P D}
+               {X:disjoint M1 M2}
+               {A:add M1 M2 M3}
+	exists {L3:lookup M3 P D}
+	true.
+
+- : disjoint-add-left-preserves-lookup* (lookup/ L2 P2N) X A (lookup/ L3 P2N)
+    <- pheap`disjoint-add-left-preserves-lookup* L2 X A L3.
+
+%worlds () (disjoint-add-left-preserves-lookup* _ _ _ _).
+%total { } (disjoint-add-left-preserves-lookup* _ _ _ _).
+
+
+%theorem disjoint-add-right-preserves-lookup* :
+	forall* {M1} {M2} {M3} {P} {D}
+	forall {L2:lookup M1 P D}
+               {X:disjoint M1 M2}
+               {A:add M1 M2 M3}
+	exists {L3:lookup M3 P D}
+	true.
+
+- : disjoint-add-right-preserves-lookup* (lookup/ L1 P2N) X A (lookup/ L3 P2N)
+    <- pheap`disjoint-add-right-preserves-lookup* L1 X A L3.
+
+%worlds () (disjoint-add-right-preserves-lookup* _ _ _ _).
+%total { } (disjoint-add-right-preserves-lookup* _ _ _ _).
+
+
+%abbrev add-cross-comparable = pheap`add-cross-comparable.
+
+
+
+%%% scaling heaps
+
+
+%abbrev scale = pheap`scale.
+
+
+%abbrev false-implies-scale = pheap`false-implies-scale.
+
+
+%abbrev scale-respects-eq = pheap`scale-respects-eq.
+
+
+%abbrev scale-deterministic = pheap`scale-deterministic.
+
+
+%abbrev scale-unique = pheap`scale-unique.
+
+
+%abbrev scale-total* = pheap`scale-total*.
+
+
+%abbrev scale-total = pheap`scale-total.
+
+
+%abbrev heap`scale-identity = pheap`scale-identity.
+
+
+%abbrev scale-associates* = pheap`scale-associates*.
+
+
+%abbrev scale-associates = pheap`scale-associates.
+
+
+%abbrev scale-associates-converse* = pheap`scale-associates-converse*.
+
+
+%abbrev scale-cancels = pheap`scale-cancels.
+
+
+%theorem scale-affects-lookup :
+	forall* {S} {M1} {M2} {P} {D1}
+	forall {L1:lookup M1 P D1} {SC:scale S M1 M2}
+	exists {D2} {DS:frv`scale S D1 D2} {L2:lookup M2 P D2}
+	true.
+
+- : scale-affects-lookup (lookup/ L1 P->N) SC D2 DS (lookup/ L2 P->N)
+    <- pheap`scale-affects-lookup L1 SC D2 DS L2.
+
+%worlds () (scale-affects-lookup _ _ _ _ _).
+%total { } (scale-affects-lookup _ _ _ _ _).
+
+
+%theorem scale-preserves-fresh :
+	forall* {S} {M1} {M2} {P}
+	forall {F1:fresh M1 P} {SC:scale S M1 M2}
+	exists {F2:fresh M2 P}
+	true.
+
+- : scale-preserves-fresh (fresh/ F1 P->N) SC (fresh/ F2 P->N)
+    <- pheap`scale-preserves-fresh F1 SC F2.
+
+%worlds () (scale-preserves-fresh _ _ _).
+%total { } (scale-preserves-fresh _ _ _).
+
+
+%theorem scale-preserves-fresh-converse :
+	forall* {S} {M1} {M2} {P}
+	forall {F1:fresh M2 P} {SC:scale S M1 M2}
+	exists {F2:fresh M1 P}
+	true.
+
+- : scale-preserves-fresh-converse (fresh/ F1 P->N) SC (fresh/ F2 P->N)
+    <- pheap`scale-preserves-fresh-converse F1 SC F2.
+
+%worlds () (scale-preserves-fresh-converse _ _ _).
+%total { } (scale-preserves-fresh-converse _ _ _).
+
+
+%theorem scale-preserves-domain? :
+	forall* {S} {M1} {M2} {P} {B}
+	forall {D1:domain? M1 P B} {SC:scale S M1 M2}
+	exists {D2:domain? M2 P B}
+	true.
+
+- : scale-preserves-domain? (domain?/ D1 P->N) SC (domain?/ D2 P->N)
+    <- pheap`scale-preserves-domain? D1 SC D2.
+
+%worlds () (scale-preserves-domain? _ _ _).
+%total { } (scale-preserves-domain? _ _ _).
+
+
+%abbrev scale-preserves-size = pheap`scale-preserves-size.
+
+
+%abbrev scale-preserves-bound = pheap`scale-preserves-bound.
+
+
+%theorem scale-commutes-update :
+	forall* {S} {P} {D1} {D2} {M1} {M2} {M4}
+	forall {SM1:scale S M1 M2} {U2:update M2 P D2 M4} 
+               {SD:frv`scale S D1 D2} 
+        exists {M3} {U1:update M1 P D1 M3} {SM3:scale S M3 M4}
+	true.
+
+- : scale-commutes-update SM1 (update/ U2 P->N) SD M3 (update/ U1 P->N) SM3
+    <- pheap`scale-commutes-update SM1 U2 SD M3 U1 SM3.
+
+%worlds () (scale-commutes-update _ _ _ _ _ _).
+%total { } (scale-commutes-update _ _ _ _ _ _).
+
+
+%theorem scale-commutes-update* :
+	forall* {S} {P} {D1} {D2} {M1} {M2} {M3} {M4}
+	forall {SM1:scale S M1 M2} {U2:update M2 P D2 M4} 
+               {SD:frv`scale S D1 D2} {U1:update M1 P D1 M3}
+        exists {SM3:scale S M3 M4}
+	true.
+
+- : scale-commutes-update* SM1 (update/ U2 P->N) SD (update/ U1P P->NP) SM3
+    <- pair2nat-deterministic P->NP P->N natpair`eq/ NP=N
+    <- pheap`update-respects-eq U1P eq/ NP=N frv`eq/ eq/ U1
+    <- pheap`scale-commutes-update* SM1 U2 SD U1 SM3.
+
+%worlds () (scale-commutes-update* _ _ _ _ _).
+%total { } (scale-commutes-update* _ _ _ _ _).
+
+
+%theorem update-commutes-scale* :
+	forall* {S} {P} {D1} {M1} {M2} {M3} {M4}
+	forall {U1:update M1 P D1 M3} {SM3:scale S M3 M4}
+               {SM1:scale S M1 M2} 
+	exists {D2} {SD:frv`scale S D1 D2} {U2:update M2 P D2 M4} 
+	true.
+
+- : update-commutes-scale* (update/ U1 P->N) SM3 SM1 D2 SD (update/ U2 P->N)
+    <- pheap`update-commutes-scale* U1 SM3 SM1 D2 SD U2.
+
+%worlds () (update-commutes-scale* _ _ _ _ _ _).
+%total { } (update-commutes-scale* _ _ _ _ _ _).
+
+
+%theorem update-commutes-scale :
+	forall* {S} {P} {D1} {M1} {M3} {M4}
+	forall {U1:update M1 P D1 M3} {SM3:scale S M3 M4}
+	exists {D2} {M2} {SD:frv`scale S D1 D2} 
+               {SM1:scale S M1 M2} {U2:update M2 P D2 M4} 
+	true.
+
+- : update-commutes-scale (update/ U1 P->N) SM3 _ _ SD SM1 (update/ U2 P->N)
+    <- pheap`update-commutes-scale U1 SM3 _ _ SD SM1 U2.
+
+%worlds () (update-commutes-scale _ _ _ _ _ _ _).
+%total { } (update-commutes-scale _ _ _ _ _ _ _).
+
+
+%abbrev scale-left-preserves-leq* = pheap`scale-left-preserves-leq*.
+
+
+%abbrev scale-left-cancels-leq = pheap`scale-left-cancels-leq.
+
+
+%abbrev scale-distributes-over-add* = pheap`scale-distributes-over-add*.
+
+
+%abbrev scale-distributes-over-add = pheap`scale-distributes-over-add.
+
+
+%abbrev scale-factors-over-add* = pheap`scale-factors-over-add*.
+
+
+%abbrev scale-factors-over-add = pheap`scale-factors-over-add.
+
+
+
+
+%%%% Specialized Theorems
+
+
+
+%%% integrating rational addition with scaling:
+
+
+%theorem scale-right-preserves-leq* :
+	forall* {Q1} {Q2} {C} {C1} {C2}
+	forall {L:rat`lse Q1 Q2}
+	       {S1:scale Q1 C C1}
+	       {S2:scale Q2 C C2}
+	exists {LC:leq C1 C2}
+	true.
+
+- : scale-right-preserves-leq* _ pheap`scale/0 pheap`scale/0 pheap`leq/0.
+
+- : scale-right-preserves-leq* Q1<=Q2 
+	(pheap`scale/+ S1 (frv`scale/ Q1*Q=Q1Q))
+        (pheap`scale/+ S2 (frv`scale/ Q2*Q=Q2Q))
+	(pheap`leq/= LC (frv`leq/ Q1Q<=Q2Q nat`eq/) nat`eq/)
+    <- rat`mul-right-preserves-lse* Q1<=Q2 Q1*Q=Q1Q Q2*Q=Q2Q Q1Q<=Q2Q
+    <- scale-right-preserves-leq* Q1<=Q2 S1 S2 LC.
+
+%worlds () (scale-right-preserves-leq* _ _ _ _).
+%total (S) (scale-right-preserves-leq* _ S _ _).
+
+
+%theorem scale-right-distributes-over-add* :
+	forall* {Q1} {Q2} {Q3} {C} {C1} {C2} {C3}
+	forall {QA:rat`add Q1 Q2 Q3}
+	       {S3:scale Q3 C C3}
+               {S1:scale Q1 C C1}
+	       {S2:scale Q2 C C2}
+	exists {CA:add C1 C2 C3}
+	true.
+
+- : scale-right-distributes-over-add* _ scale/0 scale/0 scale/0 add/L.
+
+- : scale-right-distributes-over-add* Q1+Q2=Q3 (scale/+ S3 Q3*D=D3)
+	(scale/+ S1 Q1*D=D1) (scale/+ S2 Q2*D=D2) 
+        (add/= C1+C2=C3 D1+D2=D3 nat`eq/)
+    <- scale-right-distributes-over-add* Q1+Q2=Q3 S3 S1 S2 C1+C2=C3
+    <- frv`scale-right-distributes-over-add* Q1+Q2=Q3 Q3*D=D3 Q1*D=D1 Q2*D=D2
+                                           D1+D2=D3.
+
+%worlds () (scale-right-distributes-over-add* _ _ _ _ _).
+%total (S) (scale-right-distributes-over-add* _ S _ _ _).
+
+
+%theorem scale-right-distributes-over-add :
+	forall* {Q1} {Q2} {Q3} {C} {C3}
+	forall {QA:rat`add Q1 Q2 Q3}
+	       {S3:scale Q3 C C3}
+        exists {C1} {C2}
+               {S1:scale Q1 C C1}
+	       {S2:scale Q2 C C2}
+	       {CA:add C1 C2 C3}
+	true.
+
+- : scale-right-distributes-over-add QA S3 _ _ S1 S2 CA
+    <- scale-total S1
+    <- scale-total S2
+    <- scale-right-distributes-over-add* QA S3 S1 S2 CA.
+
+%worlds () (scale-right-distributes-over-add _ _ _ _ _ _ _).
+%total { } (scale-right-distributes-over-add _ _ _ _ _ _ _).
+
+
+%theorem scale-right-factors-over-add* :
+	forall* {Q1} {Q2} {Q3} {C} {C1} {C2} {C3}
+	forall {S1:scale Q1 C C1}
+	       {S2:scale Q2 C C2}
+	       {CA:add C1 C2 C3}
+	       {QA:rat`add Q1 Q2 Q3}
+	exists {S3:scale Q3 C C3}
+	true.
+
+- : scale-right-factors-over-add* scale/0 scale/0 _ _ scale/0.
+
+- : scale-right-factors-over-add* (scale/+ S1 Q1*D=D1) (scale/+ S2 Q2*D=D2) A
+     				  Q1+Q2=Q3 Q3*CCC=C
+    <- add/=-inversion A nat`eq/ D3 C3 D1+D2=D3 C1+C2=C3 C=CCC3
+    <- scale-right-factors-over-add* S1 S2 C1+C2=C3 Q1+Q2=Q3 S3
+    <- frv`scale-right-factors-over-add* Q1*D=D1 Q2*D=D2 D1+D2=D3 Q1+Q2=Q3 Q3*D=D3
+    <- eq-symmetric C=CCC3 CCC3=C
+    <- scale-respects-eq (scale/+ S3 Q3*D=D3) equ/ eq/ CCC3=C Q3*CCC=C.
+
+%worlds () (scale-right-factors-over-add* _ _ _ _ _).
+%total (S) (scale-right-factors-over-add* S _ _ _ _).
+
+%% un-starred version needs to be proved b itself: no add-total
+
+
+
+%%% Theorems about mimics-mem
+
+
+%theorem mimics-mem-implies-one-lookup :
+	forall* {H} {O} {F} {Q} {OP}
+	forall {MH:mimics-mem H}
+	       {HL:lookup H (pair/ O F) (frv/ Q OP)}
+	exists {QE:rat`eq Q rat`one}
+	true.
+
+- : mimics-mem-implies-one-lookup 
+	(mimics-mem/+ MH)
+	(lookup/ (pheap`lookup/= nat`eq/) _) rat`eq/.
+
+- : mimics-mem-implies-one-lookup
+	(mimics-mem/+ MH)
+	(lookup/ (pheap`lookup/> PHL _) _) QE
+    <- nat2pair-total P2N
+    <- mimics-mem-implies-one-lookup MH (lookup/ PHL P2N) QE.
+
+%worlds () (mimics-mem-implies-one-lookup _ _ _).
+%total (M) (mimics-mem-implies-one-lookup M _ _).
+
+
+
+
+%%%% Renamings
+
+
+%abbrev map = pheap`map.
+%abbrev heap = map.
+%abbrev map/0 = pheap`map/0.
+%abbrev 0 = map/0.
+%abbrev heap`map = map.
+%abbrev heap`eq = eq.
+%abbrev heap`eq/ = eq/.
+%abbrev heap`lookup = lookup.
+%abbrev heap`lookup/ = lookup/.
+%abbrev heap`fresh = fresh.
+%abbrev heap`fresh/ = fresh/.
+%abbrev heap`domain? = domain?.
+%abbrev heap`domain?/ = domain?/.
+%abbrev heap`disjoint = disjoint.
+%abbrev heap`disjoint? = disjoint?.
+%abbrev heap`disjoint?/yes = disjoint?/yes.
+%abbrev heap`size = size.
+%abbrev heap`bound = bound.
+%abbrev heap`update = update.
+%abbrev heap`update/ = update/.
+%abbrev heap`mimics-mem = mimics-mem.
+%abbrev heap`mimics-mem/0 = mimics-mem/0.
+%abbrev heap`mimics-mem/+ = mimics-mem/+.
+%abbrev heap`meta-eq = meta-eq.
+%abbrev heap`false-implies-eq = false-implies-eq.
+%abbrev heap`eq-reflexive = eq-reflexive.
+%abbrev heap`eq-symmetric = eq-symmetric.
+%abbrev heap`eq-transitive = eq-transitive.
+%abbrev heap`false-implies-lookup = false-implies-lookup.
+%abbrev heap`lookup-respects-eq = lookup-respects-eq.
+%abbrev heap`lookup-deterministic = lookup-deterministic.
+%abbrev heap`lookup-contradiction = lookup-contradiction.
+%abbrev heap`false-implies-fresh = false-implies-fresh.
+%abbrev heap`fresh-respects-eq = fresh-respects-eq.
+%abbrev heap`fresh-total* = fresh-total*.
+%abbrev heap`fresh-total = fresh-total.
+%abbrev heap`fresh-lookup-not-equal = fresh-lookup-not-equal.
+%abbrev heap`fresh-lookup-not-equal/L = fresh-lookup-not-equal/L.
+%abbrev heap`false-implies-domain? = false-implies-domain?.
+%abbrev heap`domain?-total* = domain?-total*.
+%abbrev heap`domain?-total = domain?-total.
+%abbrev heap`false-implies-disjoint = false-implies-disjoint.
+%abbrev heap`disjoint-respects-eq = disjoint-respects-eq.
+%abbrev heap`disjoint/<-inversion = disjoint/<-inversion.
+%abbrev heap`disjoint/>-inversion = disjoint/>-inversion.
+%abbrev heap`disjoint-anti-reflexive = disjoint-anti-reflexive.
+%abbrev heap`disjoint-symmetric = disjoint-symmetric.
+%abbrev heap`disjoint-lookup-contradiction = disjoint-lookup-contradiction.
+%abbrev heap`shift-left-preserves-disjoint = shift-left-preserves-disjoint.
+%abbrev heap`shift-left-preserves-disjoint-converse = shift-left-preserves-disjoint-converse.
+%abbrev heap`shift-right-preserves-disjoint = shift-right-preserves-disjoint.
+%abbrev heap`shift-right-preserves-disjoint-converse = shift-right-preserves-disjoint-converse.
+%abbrev heap`shift-preserves-disjoint = shift-preserves-disjoint.
+%abbrev heap`shift-preserves-disjoint-converse = shift-preserves-disjoint-converse.
+%abbrev heap`disjoint?-total = disjoint?-total.
+%abbrev heap`false-implies-size = false-implies-size.
+%abbrev heap`size-total* = size-total*.
+%abbrev heap`size-total = size-total.
+%abbrev heap`size-deterministic = size-deterministic.
+%abbrev heap`size-unique = size-unique.
+%abbrev heap`false-implies-bound = false-implies-bound.
+%abbrev heap`bound-total* = bound-total*.
+%abbrev heap`bound-total = bound-total.
+%abbrev heap`false-implies-update = false-implies-update.
+%abbrev heap`update-respects-eq = update-respects-eq.
+%abbrev heap`update-deterministic = update-deterministic.
+%abbrev heap`update-total* = update-total*.
+%abbrev heap`update-total = update-total.
+%abbrev heap`update-implies-lookup = update-implies-lookup.
+%abbrev heap`update-preserves-lookup = update-preserves-lookup.
+%abbrev heap`update-preserves-lookup-converse = update-preserves-lookup-converse.
+%abbrev heap`update-preserves-fresh = update-preserves-fresh.
+%abbrev heap`update-preserves-fresh-converse = update-preserves-fresh-converse.
+%abbrev heap`update-preserves-membership = update-preserves-membership.
+%abbrev heap`update-preserves-membership-converse = update-preserves-membership-converse.
+%abbrev heap`update-overwrites = update-overwrites.
+%abbrev heap`update-may-have-no-effect = update-may-have-no-effect.
+%abbrev heap`update-idempotent = update-idempotent.
+%abbrev heap`update-commutes = update-commutes.
+%abbrev heap`update-commutes* = update-commutes*.
+%abbrev heap`can-remove = can-remove.
+%abbrev heap`leq = leq.
+%abbrev heap`false-implies-leq = false-implies-leq.
+%abbrev heap`leq-respects-eq = leq-respects-eq.
+%abbrev heap`leq-reflexive = leq-reflexive.
+%abbrev heap`leq-anti-symmetric = leq-anti-symmetric.
+%abbrev heap`leq-transitive = leq-transitive.
+%abbrev heap`lookup-respects-leq = lookup-respects-leq.
+%abbrev heap`fresh-respects-geq = fresh-respects-geq.
+%abbrev heap`leq-implies-size-le = leq-implies-size-le.
+%abbrev heap`leq-implies-bound-le = leq-implies-bound-le.
+%abbrev heap`update-left-preserves-leq* = update-left-preserves-leq*.
+%abbrev heap`update-right-preserves-leq* = update-right-preserves-leq*.
+%abbrev heap`update-preserves-leq* = update-preserves-leq*.
+%abbrev heap`fresh-update-implies-leq = fresh-update-implies-leq.
+%abbrev heap`lookup-update-preserves-leq = lookup-update-preserves-leq.
+%abbrev heap`add = add.
+%abbrev heap`false-implies-add = false-implies-add.
+%abbrev heap`add-respects-eq = add-respects-eq.
+%abbrev heap`add-deterministic = add-deterministic.
+%abbrev heap`add-unique = add-unique.
+%abbrev heap`add-commutative = add-commutative.
+%abbrev heap`add-associative = add-associative.
+%abbrev heap`add-associative* = add-associative*.
+%abbrev heap`add-associative-converse = add-associative-converse.
+%abbrev heap`add-associative-converse* = add-associative-converse*.
+%abbrev heap`add-assoc-commutative* = add-assoc-commutative*.
+%abbrev heap`add-assoc-commutative = add-assoc-commutative.
+%abbrev heap`add-double-associative* = add-double-associative*.
+%abbrev heap`add-double-associative = add-double-associative.
+%abbrev heap`add-right-identity-converse = add-right-identity-converse.
+%abbrev heap`add-left-cancels = add-left-cancels.
+%abbrev heap`add-implies-leq* = add-implies-leq*.
+%abbrev heap`add-implies-leq = add-implies-leq.
+%abbrev heap`add-left-preserves-leq* = add-left-preserves-leq*.
+%abbrev heap`add-right-preserves-leq* = add-right-preserves-leq*.
+%abbrev heap`add-preserves-leq* = add-preserves-leq*.
+%abbrev heap`add-left-cancels-leq = add-left-cancels-leq.
+%abbrev heap`add-right-cancels-leq = add-right-cancels-leq.
+%abbrev heap`add-joins-lookup = add-joins-lookup.
+%abbrev heap`add-preserves-fresh* = add-preserves-fresh*.
+%abbrev heap`add-preserves-fresh-converse* = add-preserves-fresh-converse*.
+%abbrev heap`fresh-add-left-preserves-lookup* = fresh-add-left-preserves-lookup*.
+%abbrev heap`fresh-add-right-preserves-lookup* = fresh-add-right-preserves-lookup*.
+%abbrev heap`disjoint-add-left-preserves-lookup* = disjoint-add-left-preserves-lookup*.
+%abbrev heap`disjoint-add-right-preserves-lookup* = disjoint-add-right-preserves-lookup*.
+%abbrev heap`add-cross-comparable = add-cross-comparable.
+%abbrev heap`scale = scale.
+%abbrev heap`false-implies-scale = false-implies-scale.
+%abbrev heap`scale-respects-eq = scale-respects-eq.
+%abbrev heap`scale-deterministic = scale-deterministic.
+%abbrev heap`scale-unique = scale-unique.
+%abbrev heap`scale-total* = scale-total*.
+%abbrev heap`scale-total = scale-total.
+%abbrev heap`scale-associates* = scale-associates*.
+%abbrev heap`scale-associates = scale-associates.
+%abbrev heap`scale-associates-converse* = scale-associates-converse*.
+%abbrev heap`scale-cancels = scale-cancels.
+%abbrev heap`scale-affects-lookup = scale-affects-lookup.
+%abbrev heap`scale-preserves-fresh = scale-preserves-fresh.
+%abbrev heap`scale-preserves-fresh-converse = scale-preserves-fresh-converse.
+%abbrev heap`scale-preserves-domain? = scale-preserves-domain?.
+%abbrev heap`scale-preserves-size = scale-preserves-size.
+%abbrev heap`scale-preserves-bound = scale-preserves-bound.
+%abbrev heap`scale-commutes-update = scale-commutes-update.
+%abbrev heap`scale-commutes-update* = scale-commutes-update*.
+%abbrev heap`update-commutes-scale* = update-commutes-scale*.
+%abbrev heap`update-commutes-scale = update-commutes-scale.
+%abbrev heap`scale-left-preserves-leq* = scale-left-preserves-leq*.
+%abbrev heap`scale-left-cancels-leq = scale-left-cancels-leq.
+%abbrev heap`scale-distributes-over-add* = scale-distributes-over-add*.
+%abbrev heap`scale-distributes-over-add = scale-distributes-over-add.
+%abbrev heap`scale-factors-over-add* = scale-factors-over-add*.
+%abbrev heap`scale-factors-over-add = scale-factors-over-add.
+%abbrev heap`scale-right-preserves-leq* = scale-right-preserves-leq*.
+%abbrev heap`scale-right-distributes-over-add* = scale-right-distributes-over-add*.
+%abbrev heap`scale-right-distributes-over-add = scale-right-distributes-over-add.
+%abbrev heap`scale-right-factors-over-add* = scale-right-factors-over-add*.
+%abbrev heap`mimics-mem-implies-one-lookup = mimics-mem-implies-one-lookup.
+%abbrev heap`map = map.
+%abbrev heap`heap = heap.
+%abbrev heap`map/0 = map/0.
+%abbrev heap`0 = 0.

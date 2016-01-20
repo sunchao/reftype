@@ -1,0 +1,542 @@
+%%%%% bool-eval.elf
+%%%%% Boolean evaluation for permissions
+%%%%% John Boyland
+
+
+%%%% Definitions
+
+
+%{%
+We define boolean evaluation.  We don't try to use
+HO contexts to handle assumptions because we want 
+assumptions to be very limited.  We also want to ensure assumptions
+are empty at the start.
+%}%
+
+
+%%% Assumption about recursive predicate evaluation
+
+assumptions : type.
+
+
+assumptions/0 : assumptions.
+
+assumptions/+ : assumptions -> (predicate N -> predicate N) -> predargs N ->
+	assumptions.
+
+% we don't define equality checking for assumptions.
+
+
+booleval : assumptions -> nesting -> formula -> bool -> type.
+
+
+
+booleval/true : booleval A N t true.
+
+booleval/neg/T : booleval A N G true -> booleval A N (neg G) false.
+
+booleval/neg/F : booleval A N G false -> booleval A N (neg G) true.
+
+booleval/conj/T : booleval A N G1 true -> booleval A N G2 true ->
+	booleval A N (conj G1 G2) true.
+
+booleval/conj/F1 : booleval A N G1 false -> booleval A N (conj G1 G2) false.
+
+booleval/conj/F2 : booleval A N G2 false -> booleval A N (conj G1 G2) false.
+
+booleval/disj/F 
+	: booleval A N G1 false -> booleval A N G2 false ->
+	  booleval A N (disj G1 G2) false
+	= [b1] [b2] 
+	   (booleval/neg/T 
+	      (booleval/conj/T (booleval/neg/F b1)
+		 (booleval/neg/F b2))).
+
+booleval/disj/T1
+	: booleval A N G1 true ->
+	  booleval A N (disj G1 G2) true
+	= [b1] booleval/neg/F (booleval/conj/F1 (booleval/neg/T b1)).
+
+booleval/disj/T2
+	: booleval A N G2 true ->
+	  booleval A N (disj G1 G2) true
+	= [b2] booleval/neg/F (booleval/conj/F2 (booleval/neg/T b2)).
+
+booleval/objequal : nat`eq? O1 O2 B -> 
+	booleval A N (objequal (object/ O1) (object/ O2)) B.
+
+booleval/exists : {V} (booleval A N (E V) true ->
+	booleval A N (exists E) true).
+
+booleval/nested/0 : equiv Pi empty ->
+	booleval A N (nested Pi (object/ O) F) true.
+
+booleval/nested : 
+	pair2nat (pair/ O F) L -> 
+	nesting`lookup N L C ->
+        canon Psi1 C1 -> 
+	canonical`leq C1 C ->
+	booleval A N (nested Psi1 (object/ O) F) true.
+
+booleval/predcall/0 :
+	booleval A N G B ->
+	booleval A N (predcall (predicate/0 G) _) B.
+
+booleval/predcall/+ :
+	booleval A N (predcall (F V) R) B ->
+	booleval A N (predcall (predicate/+ F) (predargs/+ V R)) B.
+
+booleval/predcall/A :
+	booleval (assumptions/+ _ G AS) N (predcall (predicate/Y G) AS) true.
+
+booleval/predcall/AW :
+	booleval A N (predcall (predicate/Y G) AS) true ->
+	booleval (assumptions/+ A _ _) N (predcall (predicate/Y G) AS) true.
+
+booleval/predcall/Y :
+	booleval (assumptions/+ A G AS) N 
+                 (predcall (G (predicate/Y G)) AS) true ->
+        booleval A N (predcall (predicate/Y G) AS) true.
+
+
+% EXTEND booleval-definition
+
+
+
+%%% appending assumptions
+
+%{%
+For lemmas, we need a way to insert into the middle
+of an assumption set so we can handle induction through predicate calls.
+We do with this appends.
+%}%
+
+assumptions/append : 
+	assumptions -> %% inside
+	assumptions -> %% outside
+	assumptions -> %% result
+    type.
+
+assumptions/append/0 : 
+    assumptions/append A assumptions/0 A.
+
+assumptions/append/+ :
+	assumptions/append A A' A'' ->
+    assumptions/append A (assumptions/+ A' F AS) (assumptions/+ A'' F AS).
+
+
+
+%%%% Theorems
+
+
+%theorem false-implies-booleval :
+	forall* {A} {N} {G} {B}
+	forall {F:void}
+	exists {BE:booleval A N G B}
+	true.
+
+%worlds () (false-implies-booleval _ _).
+%total { } (false-implies-booleval _ _).
+
+
+%theorem booleval-respects-eq :
+	forall* {A} {N1} {N2} {G1} {G2} {B1} {B2}
+	forall {BE1:booleval A N1 G1 B1}
+	       {NE:nesting`eq N1 N2}
+	       {GE:permission`eq G1 G2}
+	       {BE:bool`eq B1 B2}
+	exists {BE2:booleval A N2 G2 B2}
+	true.
+
+- : booleval-respects-eq BE nesting`eq/ permission`eq/ bool`eq/ BE.
+
+%worlds () (booleval-respects-eq _ _ _ _ _).
+%total { } (booleval-respects-eq _ _ _ _ _).
+%reduces BE1 = BE2  (booleval-respects-eq BE1 _ _ _ BE2).
+
+
+% In the following theorem, we don't case about A changing.
+%theorem booleval-deterministic :
+	forall* {A1} {N1} {G1} {B1} {A2} {N2} {G2} {B2}
+	forall {BE1:booleval A1 N1 G1 B1} {BE2:booleval A2 N2 G2 B2}
+	       {NE:nesting`eq N1 N2} {GE:permission`eq G1 G2}
+	exists {BE:bool`eq B1 B2}
+	true.
+
+% handle all trivial equality:
+- : booleval-deterministic _ _ _ _ bool`eq/.
+
+- : booleval-deterministic (booleval/neg/T BET) (booleval/neg/F BEF)
+			   NE permission`eq/ F=T
+    <- booleval-deterministic BET BEF NE permission`eq/ T=F
+    <- bool`eq-symmetric T=F F=T.
+
+- : booleval-deterministic (booleval/neg/F BEF) (booleval/neg/T BET)
+			   NE permission`eq/ T=F
+    <- booleval-deterministic BEF BET NE permission`eq/ F=T
+    <- bool`eq-symmetric F=T T=F.
+
+- : booleval-deterministic (booleval/conj/T BET1 BET2) (booleval/conj/F1 BEF1)
+			   NE permission`eq/ T=F
+    <- booleval-deterministic BET1 BEF1 NE permission`eq/ T=F.
+
+- : booleval-deterministic (booleval/conj/T BET1 BET2) (booleval/conj/F2 BEF2)
+			   NE permission`eq/ T=F
+    <- booleval-deterministic BET2 BEF2 NE permission`eq/ T=F.
+
+- : booleval-deterministic (booleval/conj/F1 BEF1) (booleval/conj/T BET1 BET2) 
+			   NE permission`eq/ F=T
+    <- booleval-deterministic BEF1 BET1 NE permission`eq/ F=T.
+
+- : booleval-deterministic (booleval/conj/F2 BEF2) (booleval/conj/T BET1 BET2)
+			   NE permission`eq/ F=T
+    <- booleval-deterministic BEF2 BET2 NE permission`eq/ F=T.
+
+- : booleval-deterministic (booleval/objequal nat`eq?/yes)
+			   (booleval/objequal (nat`eq?/no O<>O))
+			   _ permission`eq/ T=F
+    <- nat`ne-anti-reflexive O<>O F
+    <- bool`false-implies-eq F T=F.
+
+- : booleval-deterministic (booleval/objequal (nat`eq?/no O<>O))
+			   (booleval/objequal nat`eq?/yes)
+			   _ permission`eq/ T=F
+    <- nat`ne-anti-reflexive O<>O F
+    <- bool`false-implies-eq F T=F.
+
+- : booleval-deterministic (booleval/predcall/0 BE1) (booleval/predcall/0 BE2)
+			   NE permission`eq/ E
+    <- booleval-deterministic BE1 BE2 NE permission`eq/ E.
+
+- : booleval-deterministic (booleval/predcall/+ BE1) (booleval/predcall/+ BE2)
+			   NE permission`eq/ E
+    <- booleval-deterministic BE1 BE2 NE permission`eq/ E.
+
+% EXTEND booleval-deterministic
+
+%worlds () (booleval-deterministic _ _ _ _ _).
+%total [BE1 BE2] (booleval-deterministic BE1 BE2 _ _ _).
+
+
+%theorem booleval-stable :
+	forall* {A} {N1} {N2} {G} {B}
+	forall {BE1:booleval A N1 G B} {L:nesting`leq N1 N2}
+	exists {BE2:booleval A N2 G B}
+	true.
+
+- : booleval-stable booleval/true _ booleval/true.
+
+- : booleval-stable (booleval/neg/T BE1) N1<=N2 (booleval/neg/T BE2)
+    <- booleval-stable BE1 N1<=N2 BE2.
+
+- : booleval-stable (booleval/neg/F BE1) N1<=N2 (booleval/neg/F BE2)
+    <- booleval-stable BE1 N1<=N2 BE2.
+
+- : booleval-stable (booleval/conj/T BET1 BET2) N1<=N2 
+		    (booleval/conj/T BET3 BET4)
+    <- booleval-stable BET1 N1<=N2 BET3
+    <- booleval-stable BET2 N1<=N2 BET4.
+
+- : booleval-stable (booleval/conj/F1 BEF) N1<=N2 (booleval/conj/F1 BEF')
+    <- booleval-stable BEF N1<=N2 BEF'.
+
+- : booleval-stable (booleval/conj/F2 BEF) N1<=N2 (booleval/conj/F2 BEF')
+    <- booleval-stable BEF N1<=N2 BEF'.
+
+- : booleval-stable (booleval/objequal E) N1<=N2 (booleval/objequal E).
+
+- : booleval-stable (booleval/exists V BE) N1<=N2 
+                    (booleval/exists V BE')
+    <- booleval-stable BE N1<=N2 BE'.
+
+- : booleval-stable (booleval/nested/0 EQ) _ (booleval/nested/0 EQ).
+
+- : booleval-stable (booleval/nested OF->L N1L K C<=C1) N1<=N2
+                    (booleval/nested OF->L N2L K C<=C2)
+    <- nesting`lookup-respects-leq N1L N1<=N2 C2 N2L C1<=C2
+    <- canonical`leq-transitive C<=C1 C1<=C2 C<=C2.
+
+- : booleval-stable (booleval/predcall/0 BE) N1<=N2 (booleval/predcall/0 BE')
+    <- booleval-stable BE N1<=N2 BE'.
+
+- : booleval-stable (booleval/predcall/+ BE) N1<=N2 (booleval/predcall/+ BE')
+    <- booleval-stable BE N1<=N2 BE'.
+
+- : booleval-stable (booleval/predcall/Y BE) N1<=N2 (booleval/predcall/Y BE')
+    <- booleval-stable BE N1<=N2 BE'.
+
+- : booleval-stable booleval/predcall/A N1<=N2 booleval/predcall/A.
+
+- : booleval-stable (booleval/predcall/AW BE) N1<=N2 (booleval/predcall/AW BE')
+    <- booleval-stable BE N1<=N2 BE'.
+
+% EXTEND booleval-stable
+
+%worlds () (booleval-stable _ _ _).
+%total (B) (booleval-stable B _ _).
+
+
+%theorem booleval/weaken-admissible :
+	forall* {A} {N} {F:predicate N -> predicate N} {AS} {G} {N} {B}
+	forall	{BE:booleval A N G B}
+	exists	{BE:booleval (assumptions/+ A F AS) N G B}
+	true.
+
+%theorem booleval/weaken-admissible/L :
+	forall* {A} {A1} {A2} {A'} {N} {F:predicate N -> predicate N} {AS} 
+		{G} {N} {B}
+	forall	{BE:booleval A N G B}
+		{AA1: assumptions/append A1 A2 A}
+		{AA2: assumptions/append (assumptions/+ A1 F AS) A2 A'}
+	exists	{BE:booleval A' N G B}
+	true.
+
+- : booleval/weaken-admissible/L booleval/true _ _ booleval/true.
+
+- : booleval/weaken-admissible/L
+	(booleval/neg/T BE) AA1 AA2
+	(booleval/neg/T BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/neg/F BE) AA1 AA2
+	(booleval/neg/F BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/conj/T BE1 BE2) AA1 AA2
+	(booleval/conj/T BE1' BE2')
+    <- booleval/weaken-admissible/L BE1 AA1 AA2 BE1'
+    <- booleval/weaken-admissible/L BE2 AA1 AA2 BE2'.
+
+- : booleval/weaken-admissible/L
+	(booleval/conj/F1 BE) AA1 AA2
+	(booleval/conj/F1 BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/conj/F2 BE) AA1 AA2
+	(booleval/conj/F2 BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/objequal EQ) AA1 AA2
+	(booleval/objequal EQ).
+
+- : booleval/weaken-admissible/L
+	(booleval/exists V BE) AA1 AA2
+	(booleval/exists V BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/nested/0 EQ) AA1 AA2
+	(booleval/nested/0 EQ).
+
+- : booleval/weaken-admissible/L
+	(booleval/nested P2N NL K L) AA1 AA2
+	(booleval/nested P2N NL K L).
+
+- : booleval/weaken-admissible/L
+	(booleval/predcall/0 BE) AA1 AA2
+	(booleval/predcall/0 BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/predcall/+ BE) AA1 AA2
+	(booleval/predcall/+ BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/predcall/A) 
+	assumptions/append/0
+        assumptions/append/0
+	(booleval/predcall/AW booleval/predcall/A).
+
+- : booleval/weaken-admissible/L
+	(booleval/predcall/A)
+	(assumptions/append/+ AA1)
+	(assumptions/append/+ AA2)
+	(booleval/predcall/A).
+
+- : booleval/weaken-admissible/L
+	(booleval/predcall/AW BE)
+        assumptions/append/0
+	assumptions/append/0
+	(booleval/predcall/AW (booleval/predcall/AW BE)).
+
+- : booleval/weaken-admissible/L
+	(booleval/predcall/AW BE)
+	(assumptions/append/+ AA1)
+	(assumptions/append/+ AA2)
+	(booleval/predcall/AW BE')
+    <- booleval/weaken-admissible/L BE AA1 AA2 BE'.
+
+- : booleval/weaken-admissible/L
+	(booleval/predcall/Y BE) AA1 AA2
+	(booleval/predcall/Y BE')
+    <- booleval/weaken-admissible/L 
+	BE (assumptions/append/+ AA1) (assumptions/append/+ AA2) BE'.
+
+%worlds (gtermvar) (booleval/weaken-admissible/L _ _ _ _).
+%total (B) (booleval/weaken-admissible/L B _ _ _).
+
+- : booleval/weaken-admissible BE BE'
+    <- booleval/weaken-admissible/L 
+	BE assumptions/append/0 assumptions/append/0 BE'.
+
+%worlds (gtermvar) (booleval/weaken-admissible _ _).
+%total { } (booleval/weaken-admissible _ _).
+
+
+%theorem booleval-unwind-assumption:
+	forall* {A} {N} {F:predicate N -> predicate N} {AS} {G} {N} {B}
+	forall	{BE:booleval (assumptions/+ A F AS) N G B}
+		{CE:booleval (assumptions/+ A F AS) N
+		      (predcall (F (predicate/Y F)) AS) true}
+	exists	{BE:booleval A N G B}
+	true.
+
+%theorem booleval-unwind-assumption/L:
+	forall* {A} {A1} {A2} {A'} 
+		{N} {F:predicate N -> predicate N} {AS} {G} {N} {B}
+	forall	{BE:booleval A N G B}
+		{AA: assumptions/append (assumptions/+ A1 F AS) A2 A}
+		{AA': assumptions/append A1 A2 A'}
+		{CE:booleval (assumptions/+ A1 F AS) N
+		      (predcall (F (predicate/Y F)) AS) true}
+	exists	{BE:booleval A' N G B}
+	true.
+
+- : booleval-unwind-assumption/L booleval/true _ _ _ booleval/true.
+
+- : booleval-unwind-assumption/L
+	(booleval/neg/T BE) AA1 AA2 CE
+	(booleval/neg/T BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/neg/F BE) AA1 AA2 CE
+	(booleval/neg/F BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/conj/T BE1 BE2) AA1 AA2 CE
+	(booleval/conj/T BE1' BE2')
+    <- booleval-unwind-assumption/L BE1 AA1 AA2 CE BE1'
+    <- booleval-unwind-assumption/L BE2 AA1 AA2 CE BE2'.
+
+- : booleval-unwind-assumption/L
+	(booleval/conj/F1 BE) AA1 AA2 CE
+	(booleval/conj/F1 BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/conj/F2 BE) AA1 AA2 CE
+	(booleval/conj/F2 BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/objequal EQ) AA1 AA2 CE
+	(booleval/objequal EQ).
+
+- : booleval-unwind-assumption/L
+	(booleval/exists V BE) AA1 AA2 CE
+	(booleval/exists V BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/nested/0 EQ) AA1 AA2 CE
+	(booleval/nested/0 EQ).
+
+- : booleval-unwind-assumption/L
+	(booleval/nested P2N NL K L) AA1 AA2 CE
+	(booleval/nested P2N NL K L).
+
+- : booleval-unwind-assumption/L
+	(booleval/predcall/0 BE) AA1 AA2 CE
+	(booleval/predcall/0 BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/predcall/+ BE) AA1 AA2 CE
+	(booleval/predcall/+ BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/predcall/A)
+        assumptions/append/0
+	assumptions/append/0
+	BE (booleval/predcall/Y BE).
+
+- : booleval-unwind-assumption/L
+	(booleval/predcall/A)
+	(assumptions/append/+ AA1)
+	(assumptions/append/+ AA2) _
+	(booleval/predcall/A).
+
+- : booleval-unwind-assumption/L
+	(booleval/predcall/AW BE)
+        assumptions/append/0
+	assumptions/append/0 _
+	BE.
+
+- : booleval-unwind-assumption/L
+	(booleval/predcall/AW BE)
+	(assumptions/append/+ AA1)
+	(assumptions/append/+ AA2) CE
+	(booleval/predcall/AW BE')
+    <- booleval-unwind-assumption/L BE AA1 AA2 CE BE'.
+
+- : booleval-unwind-assumption/L
+	(booleval/predcall/Y BE)
+	AA1 AA2 CE
+	(booleval/predcall/Y BE')
+    <- booleval-unwind-assumption/L 
+	BE (assumptions/append/+ AA1) 
+         (assumptions/append/+ AA2) CE BE'.
+
+%worlds (gtermvar) (booleval-unwind-assumption/L _ _ _ _ _).
+%total (B) (booleval-unwind-assumption/L B _ _ _ _).
+
+- : booleval-unwind-assumption BE CE BE'
+    <- booleval-unwind-assumption/L 
+	BE assumptions/append/0 assumptions/append/0 CE BE'.
+
+%worlds (gtermvar) (booleval-unwind-assumption _ _ _).
+%total { } (booleval-unwind-assumption _ _ _).
+
+
+%theorem booleval/conj/F1-inversion:
+	forall*	{A} {N} {G1} {G2}
+	forall	{BE:  booleval A N (conj G1 G2) false}
+		{BE2: booleval A N G2 true}
+	exists	{BE1: booleval A N G1 false}
+	true.
+
+- : booleval/conj/F1-inversion (booleval/conj/F1 BEF) _ BEF.
+
+- : booleval/conj/F1-inversion (booleval/conj/F2 BEF2) BET2 BEF1
+    <- booleval-deterministic BET2 BEF2 nesting`eq/ permission`eq/ T=F
+    <- bool`eq-ne-implies-false T=F bool`ne/TF F
+    <- false-implies-booleval F BEF1.
+
+%worlds () (booleval/conj/F1-inversion _ _ _).
+%total { } (booleval/conj/F1-inversion _ _ _).
+
+
+%theorem booleval/conj/F2-inversion:
+	forall*	{A} {N} {G1} {G2}
+	forall	{BE:  booleval A N (conj G1 G2) false}
+		{BE2: booleval A N G1 true}
+	exists	{BE1: booleval A N G2 false}
+	true.
+
+- : booleval/conj/F2-inversion (booleval/conj/F2 BEF) _ BEF.
+
+- : booleval/conj/F2-inversion (booleval/conj/F1 BEF1) BET1 BEF2
+    <- booleval-deterministic BET1 BEF1 nesting`eq/ permission`eq/ T=F
+    <- bool`eq-ne-implies-false T=F bool`ne/TF F
+    <- false-implies-booleval F BEF2.
+
+%worlds () (booleval/conj/F2-inversion _ _ _).
+%total { } (booleval/conj/F2-inversion _ _ _).

@@ -1,0 +1,1524 @@
+%%%%% Permission typing
+%%%%% John Boyland and Michael Welch
+
+%{%
+A permision type system for the non-concurrent and non-OO
+part of our simple language.
+%}%
+
+
+
+%%%% Definitions
+
+%%% Typing
+
+%{%
+The type relation itself returns an output.
+letTyping types an explicit or implicit let.
+The latter relation functions as  'bind' for our almost monad.
+%}%
+
+
+typing : progtype -> permission -> term K -> output K -> type.
+
+letTyping : progtype -> expr-output -> (object -> term K) -> output K -> type.
+
+ifTyping : progtype -> cond-output -> term K -> term K -> output K -> type.
+
+whileTyping :
+	progtype -> cond-output -> expr -> expr-output -> expr-output -> type.
+
+callTyping : progtype -> args-output -> proctype -> expr-output -> type.
+
+
+letTyping/base : {O}
+	typing W Pi (F O) Out ->
+    letTyping W (output/expr O Pi) F Out.
+
+letTyping/exists :
+        ({v} letTyping W (In v) F (Out v)) ->
+    letTyping W (output/exists In) F (output/exists Out).
+
+
+ifTyping/base :
+	typing W Pi1 C1 Out ->
+	typing W Pi2 C2 Out ->
+    ifTyping W (output/cond G Pi1 Pi2) C1 C2 Out.
+
+ifTyping/exists :
+	({v} ifTyping W (In v) C1 C2 (Out v)) ->
+    ifTyping W (output/exists ([v] (In v))) C1 C2
+               (output/exists ([v] (Out v))).
+
+
+whileTyping/base :
+	typing W Pi1 E Out ->
+    whileTyping W (output/cond _ Pi1 Pi2) E Out (output/expr (object/ z) Pi2).
+
+whileTyping/exists :
+	({v} whileTyping W (F v) E (F' v) (F'' v)) ->
+    whileTyping W (output/exists F) E (output/exists F') (output/exists F'').
+
+
+callTyping/call :
+	envadd Pi2 EO EO' ->
+    callTyping W (output/args/0 (Pi1 , Pi2)) (proctype/base Pi1 EO) EO'.
+
+callTyping/arg : {O}
+	callTyping W OA (FPT O) EO ->
+    callTyping W (output/args/+ O OA) (proctype/arg FPT) EO.
+
+callTyping/exists :
+	({v} callTyping W (OF v) PT (FEO v)) ->
+    callTyping W (output/exists OF) PT (output/exists FEO).
+
+callTyping/forall : {X}
+	callTyping W AO (PTF X) EO ->
+    callTyping W AO (proctype/forall PTF) EO.
+
+
+
+%% now the various type rules.
+
+tObjLoc : typing W Pi (lit O) (output/expr O Pi).
+
+tLet :	typing W Pi E Out1 ->
+	letTyping W Out1 F Out2 ->
+    typing W Pi (let E F) Out2.
+
+tIf :	typing W Pi C Cout ->
+        ifTyping W Cout E1 E2 Out ->
+    typing W Pi (if C E1 E2) Out.
+
+% We need an extra transformation here to get the input
+% permission in the form of the invariant (that may have variables,
+% which are bound to different things in different repetitions).
+tWhile :
+	transform (output/expr (object/ z) Pi) Inv ->
+	letTyping W Inv ([O] C) Cout ->
+	whileTyping W Cout E Out1 Out2 ->
+	discard-value Out1 Out' ->
+	transform Out' Inv ->
+    typing W Pi (while C E) Out2.
+
+andHelp1 : progtype -> output condk -> cond -> output condk -> type.
+
+andHelp2 : formula -> output condk -> permission -> output condk -> type.
+
+andHelp1/base :
+	typing W Pi1 C COut1 ->
+	andHelp2 G COut1 Pi2 COut ->
+    andHelp1 W (output/cond G Pi1 Pi2) C COut.
+
+andHelp1/exists :
+	({x} andHelp1 W (FIn x) C (FOut x)) ->
+    andHelp1 W (output/exists FIn) C (output/exists FOut).
+
+andHelp2/base :
+    andHelp2 G (output/cond G1 Pi1a Pi1b) Pi2
+	(output/cond (conj G G1) Pi1a
+	   (unitperm (conditional G Pi1b Pi2))).
+
+andHelp2/exists :
+	({x} andHelp2 G (F1 x) Pi2 (F x)) ->
+    andHelp2 G (output/exists F1) Pi2 (output/exists F).
+
+
+tAnd :	typing W Pi C1 COut ->
+	andHelp1 W COut C2 COut' ->
+    typing W Pi (and C1 C2) COut'.
+
+
+notEnv : output condk -> output condk -> type.
+
+notEnv/base : notEnv (output/cond G Pi1 Pi2) (output/cond (neg G) Pi2 Pi1).
+
+notEnv/exists :
+	({x} notEnv (Out x) (Out' x)) ->
+    notEnv (output/exists ([x] Out x)) (output/exists ([x] Out' x)).
+
+tNot :	typing W Pi C COut ->
+	notEnv COut COut' ->
+    typing W Pi (not C) COut'.
+
+%{%
+In the following, we can use the first two rules to type
+either expression.  But eventually, one is forced to use
+the main rule that assumes both objects are literals.
+%}%
+
+tEql1 :	typing W Pi E1 Out1 ->
+	letTyping W Out1 ([O] (eql (lit O) E2)) Out2 ->
+    typing W Pi (eql E1 E2) Out2.
+
+tEql2 : typing W Pi E2 Out1 ->
+	letTyping W Out1 ([O2] (eql (lit O1) (lit O2))) Out2 ->
+    typing W Pi (eql (lit O1) E2) Out2.
+
+tEql :	typing W Pi (eql (lit O1) (lit O2))
+               (output/cond (objequal O1 O2)
+                 (unitperm (nonlinear (objequal O1 O2)) , Pi)
+		 (unitperm (nonlinear (neg (objequal O1 O2))) , Pi)).
+
+tTrue : typing W Pi cond/true (output/cond t Pi (unitperm (nonlinear (neg t)))).
+
+
+%% allocation creates a whole bag of new permissions
+
+allocFields : object -> set -> permission -> type.
+
+allocFields/0 : allocFields _ set/0 empty.
+
+allocFields/+ :
+	set`shift F S S1 ->
+	allocFields O S1 Pi1 ->
+    allocFields O (set/+ F S) (Pi1 , unitperm (basic O F (object/ z))).
+
+
+%% memory-related typing rules
+
+tAlloc:	({o} allocFields o S (O o)) ->
+    typing W Pi (alloc C S set/0)
+           (output/exists
+	      ([o] (output/expr o
+		      (Pi ,(unitperm (nonlinear (neg (objequal o (object/ z)))),
+			      (O o)))))).
+
+tRead1:	typing W Pi E Out1 ->
+	letTyping W Out1 ([O] (read (lit O) F)) Out2 ->
+    typing W Pi (read E F) Out2.
+
+tRead :	typing W (scale Q (unitperm (basic O F O')) , Pi) (read (lit O) F)
+	(output/expr O' (scale Q (unitperm (basic O F O')) , Pi)).
+
+tWrite1:typing W Pi E Out1 ->
+	letTyping W Out1 ([o] (write (lit o) F E')) Out2 ->
+    typing W Pi (write E F E') Out2.
+
+tWrite2:typing W Pi E' Out1 ->
+	letTyping W Out1 ([o'] (write (lit O) F (lit o'))) Out2 ->
+    typing W Pi (write (lit O) F E') Out2.
+
+tWrite:	typing W (unitperm (basic O F _) , Pi) (write (lit O) F (lit O'))
+	(output/expr O' (unitperm (basic O F O') , Pi)).
+
+
+%% function call and body
+
+tArgs0 : typing W Pi args/0 (output/args/0 Pi).
+
+tArgs1 : typing W Pi E O1 ->
+	letTyping W O1 ([o] (args/+ (lit o) A)) O2 ->
+    typing W Pi (args/+ E A) O2.
+
+tArgs :	typing W Pi A O1 ->
+    typing W Pi (args/+ (lit O) A) (output/args/+ O O1).
+
+tCall :	progtype`lookup W P PT ->
+	typing W Pi A O1 ->
+	callTyping W O1 PT O2 ->
+    typing W Pi (call P A) O2.
+
+%{%
+NB: We do not type function values because:
+proctypematch does it correctly, and
+In progress/preservation, we never mess around with
+function values.  And if we did, we would need to define
+env-mem on functions which runs into trouble with variables.
+%}%
+
+
+%%% Transformation
+
+%{%
+This is the only non-syntax-directed rule.
+It permits transformation before and after every regular rule.
+Before, we use an expr-output to model a permission.
+%}%
+
+
+tTrans:	transform (output/expr (object/ z) Pi) In ->
+        letTyping W In ([o] X) Out ->
+	transform Out Out' ->
+    typing W Pi X Out'.
+
+%abbrev tTrans2 :
+	typing W Pi X Out ->
+	transform Out Out' ->
+    typing W Pi X Out' =
+        [TY: typing W Pi X Out]
+	  [T : transform Out Out']
+	    (tTrans
+	       (transform/implies implies/reflexive)
+	       (letTyping/base (object/ z) TY)
+	       T).
+
+
+
+proctypematch : progtype -> func -> proctype -> type.
+
+
+proctypematch/base :
+	typing W Pi E EO ->
+    proctypematch W (func/0 E) (proctype/base Pi EO).
+
+proctypematch/arg :
+	({o} proctypematch W (F o) (PTF o)) ->
+    proctypematch W (func/+ F) (proctype/arg PTF).
+
+proctypematch/forall :
+	({o} proctypematch W F (PTF o)) ->
+    proctypematch W F (proctype/forall PTF).
+
+
+
+%%% Program typing
+
+
+progtypematch* : progtype -> progtype -> prog -> type.
+
+%abbrev progtypematch = [W] [G] progtypematch* W W G.
+
+
+progtypematch/0 : progtypematch* _ progtype`map/0 prog`map/0.
+
+progtypematch/+ :
+	progtypematch* W W1 G1 ->
+	proctypematch W FUN PT ->
+    progtypematch* W (progtype`map/+ N PT W1) (prog`map/+ N FUN G1).
+
+
+
+%%% Full state typing
+
+
+alltyped : progtype -> permission -> prog -> threads -> type.
+
+
+alltyped/0 :
+	progtypematch W G ->
+    alltyped W empty G threads`map/0.
+
+alltyped/+ :
+	alltyped W PiX G TS ->
+	typing W Pi PC E ->
+	%% will need to add something about knowledge here for multi-threading
+        %% or maybe that will be added env-mem.  Not sure.
+    alltyped W (Pi , PiX) G (threads`map/+ P (thread/ WS PC) TS).
+
+
+
+
+%%%% Examples
+
+
+%{%
+The following example implements the "member" function.
+
+We have a linked list type:
+
+   class Node {
+     @region All;
+     @identity Object val;
+     @unique Node next;
+   }
+%}%
+
+%abbrev allField : field = nat`z.
+%abbrev valField : field = (nat`s nat`z).
+%abbrev nextField : field = (nat`s (nat`s nat`z)).
+
+%abbrev predtype/1 : vark -> predtype = [K] (predtype/+ K predtype/0).
+%abbrev predargs/1
+	: gterm K -> predargs (predtype/1 K)
+	= [t] (predargs/+ t (predargs/0* nat`z)).
+
+%abbrev valFieldPerm : object -> permission =
+	([r] (unitperm (precise-exists r valField ([v] empty)))).
+%abbrev condNodePerm
+	: predicate (predtype/1 objectk) -> object -> permission
+	= [nodePred] [n]
+	  (unitperm
+	     (conditional (objequal n (object/ z))
+		empty
+		(unitperm
+		   (basic n allField (object/ z)) ,
+		   unitperm
+		   (nonlinear
+		      (predcall nodePred (predargs/1 n)))))).
+%abbrev nextFieldPerm
+	: predicate (predtype/1 objectk) -> object -> permission
+	= [nodePred] [r]
+	  (unitperm
+	     (precise-exists r nextField (condNodePerm nodePred))).
+
+nodePred : predicate (predtype/1 objectk)
+	= predicate/Y
+	  ([nodePred]
+	     (predicate/+
+		([r] (predicate/0
+			(conj
+			   (nested (valFieldPerm r) r allField)
+			   (nested (nextFieldPerm nodePred r) r allField)))))).
+
+
+%{%
+To simulate updateable local variable, we have a frame object:
+
+  class Frame<r> {
+    Object<r> p;
+  }
+
+%}%
+
+%abbrev frameClass : nat = nat`z.
+%abbrev pVar : field = nat`s nat`z.
+
+%abbrev frameFields : set = onewritekey pVar.
+
+
+%{%
+  The function to type check:
+
+  Object member(Node l, Object x) = {
+	let frame = new { Node p } in
+        seq
+          frame.p = l
+	  while (!(frame.p == 0) && !(frame.p.val == x)) {
+	     frame.p = frame.p.next;
+          }
+          frame.p
+  }
+%}%
+
+%abbrev readP : object -> expr = [frame] (read (lit frame) pVar).
+%abbrev writeP : object -> expr -> expr = [fr] [e] (write (lit fr) pVar e).
+
+%abbrev memberFunc : func =
+  func/+ ([l]
+    func/+ ([x]
+      func/0
+        (let (alloc frameClass frameFields set`set/0) ([frame]
+           seq
+             (writeP frame (lit l))
+	     (seq
+	        (while (and (not (eql (readP frame) (lit (object/ z))))
+			    (not (eql (read (readP frame) valField) (lit x))))
+		   (writeP frame (read (readP frame) nextField)))
+	        (readP frame)))))).
+
+%{%
+The procedure type for this function is
+
+  forall l,x :
+    z(l == 0 ? 0 : (l.All -> 0 + Node(l))) ->
+  exists r :
+    z(l == 0 ? 0 : (l.All -> 0 + Node(l)))
+
+%}%
+
+%abbrev memberEffect : fraction -> object -> permission =
+	[z] [l] (scale z (condNodePerm nodePred l)).
+
+%abbrev memberType : proctype =
+	proctype/arg ([l]
+          proctype/arg ([x]
+            proctype/forall ([z]
+              proctype/base (memberEffect z l)
+                (output/exists ([ret]
+                   (output/expr ret (memberEffect z l))))))).
+
+%abbrev noProcs = progtype`map/0.
+%abbrev null = (object/ nat`z).
+
+%abbrev trans01 : transform (output/expr O (Pi1 , (empty , Pi2)))
+			    (output/expr O (Pi2 , Pi1))
+	= (transform/implies
+	     (implies/equiv
+		(equiv/transitive
+		   equiv/commute
+		   (equiv/combine
+		      (equiv/transitive
+			 equiv/commute
+			 equiv/identity)
+		      equiv/reflexive)))).
+
+%abbrev loopinv : fraction -> object -> object -> (output exprk) =
+	[z] [l] [fr]
+        (output/exists ([p]
+	  (output/expr null
+	     (((unitperm (basic fr pVar p)) ,
+	       (memberEffect z p)) ,
+	      (unitperm (encumbered (memberEffect z p)
+			   (memberEffect z l))))))).
+
+%abbrev trans02
+	: {z} {l} {fr}
+	  transform (output/expr null
+		       (unitperm (basic fr pVar l) ,
+		         (memberEffect z l)))
+		    (loopinv  z l fr)
+	= [z] [l] [fr]
+	  (transform/trans
+	     (transform/implies
+		(implies/trans
+		   (implies/equiv (equiv/symmetric equiv/identity))
+		   (implies/combine
+		      implies/reflexive
+		      implies/self-implication)))
+	     (transform/gen-exists* _ _
+		([p] (output/expr null
+			(((unitperm (basic fr pVar p)) ,
+			    (memberEffect z p)) ,
+			   (unitperm (encumbered (memberEffect z p)
+					(memberEffect z l))))))
+		l)).
+
+%abbrev equiv03 : equiv ( (B , C) , D) (scale (fraction/ rat`one) B , (C , D))
+	= (equiv/transitive
+	     (equiv/symmetric equiv/associate)
+	     (equiv/combine
+		(equiv/symmetric equiv/one)
+		equiv/reflexive)).
+
+%abbrev implies/drop-nonlinear : implies (unitperm (nonlinear G)) empty
+	= (implies/trans
+	     (implies/nonlinear bimplies/tt)
+	     implies/true2empty).
+
+%abbrev implies/drop-second-nonlinear
+	: implies (A , (unitperm (nonlinear B) , C)) (A , C)
+	= (implies/combine
+	     implies/reflexive
+	     (implies/trans
+		(implies/combine implies/drop-nonlinear implies/reflexive)
+		(implies/equiv
+		   (equiv/transitive
+		      equiv/commute
+		      equiv/identity)))).
+
+%abbrev implies/linear-modus-ponens*
+	: implies (A , (unitperm (encumbered A B) , C)) (B , C)
+	= (implies/trans
+	     (implies/equiv equiv/associate)
+	     (implies/combine implies/linear-modus-ponens implies/reflexive)).
+
+%abbrev implies/pack-nothing
+	: {v} implies (unitperm (basic O F v))
+	              (unitperm (precise-exists O F ([v] empty)))
+	= [v] (implies/trans (implies/equiv (equiv/symmetric equiv/identity))
+		 (implies/pack v)).
+
+%abbrev expand-nodepred
+	: {p:object}
+	  (bimplies true
+	     (predcall nodePred (predargs/1 p))
+	     (conj
+		(nested (valFieldPerm p) p allField)
+		(nested (nextFieldPerm nodePred p) p allField)))
+	= [p]
+	  (bimplies/trans
+	     (bimplies/trans
+		bimplies/predcall/Y/inline
+		(bimplies/predcall/+/inline _))
+	     bimplies/predcall/0/inline).
+
+%abbrev implies-unwrap
+	: {l} {p:object} {q:fraction}
+	  (implies
+	     (combine (unitperm (nonlinear (neg (objequal p null))))
+		(combine (memberEffect q p)
+		   (unitperm (encumbered (memberEffect q p)
+				(memberEffect q l)))))
+	     (combine
+		(scale q
+		   (combine (unitperm (basic p allField (object/ z)))
+		      (combine
+			 (unitperm
+			    (nonlinear (nested (valFieldPerm p) p allField)))
+			 (unitperm
+			    (nonlinear
+			       (nested
+				  (nextFieldPerm nodePred p) p allField))))))
+		(unitperm
+		   (encumbered
+		      (scale q (unitperm (basic p allField (object/ z))))
+		      (memberEffect q l)))))
+	= [l] [p] [q]
+	   (implies/trans
+	      (implies/combine
+		 (implies/trans implies/scale-into-formula
+		    (implies/trans (implies/scale implies/duplicate)
+		       (implies/equiv equiv/distribute)))
+		 (implies/combine
+		    implies/reflexive
+		    implies/scale-factor-encumbered))
+	      (implies/trans
+		 (implies/equiv
+		    (equiv/transitive equiv/double-associate
+		       (equiv/combine
+			  (equiv/symmetric equiv/distribute)
+			  (equiv/symmetric equiv/distribute))))
+		 (implies/trans
+		    (implies/combine
+		       (implies/scale
+			  (implies/trans
+			     (implies/combine implies/reflexive
+				implies/cond-neg)
+			     implies/cond-elim))
+		       (implies/scale
+			  implies/cond-assoc-encumbered/false))
+		    (implies/trans
+		       (implies/combine
+			  (implies/trans
+			     (implies/scale
+				(implies/combine implies/reflexive
+				   implies/duplicate))
+			     (implies/equiv
+				(equiv/transitive
+				   equiv/distribute
+				   (equiv/combine equiv/reflexive
+				      equiv/distribute))))
+			  (implies/trans
+			     (implies/scale
+				(implies/trans
+				   (implies/equiv-encumbered
+				      equiv/commute equiv/reflexive)
+				   implies/combine-assoc-encumbered))
+			     implies/scale-distribute-encumbered))
+		       (implies/trans
+			  (implies/equiv
+			     (equiv/transitive
+				(equiv/symmetric equiv/associate)
+				(equiv/combine equiv/reflexive
+				   (equiv/symmetric equiv/associate))))
+			  (implies/trans
+			     (implies/combine implies/reflexive
+				(implies/combine
+				   (implies/scale
+				      (implies/trans
+					 (implies/nonlinear
+					    (expand-nodepred p))
+					    implies/conj2combine))
+				   (implies/linear-modus-ponens)))
+			     (implies/trans
+				(implies/equiv equiv/associate)
+				(implies/combine
+				   (implies/equiv
+				      (equiv/symmetric equiv/distribute))
+				   implies/scale-distribute-encumbered)))))))).
+
+%abbrev readValField
+	: {fr} {l} {q:fraction} {p}
+	  typing noProcs
+	   (combine (unitperm (nonlinear (neg (objequal p null))))
+	      (combine (unitperm (basic fr pVar p))
+		 (combine (memberEffect q p)
+		    (unitperm (encumbered (memberEffect q p)
+				 (memberEffect q l))))))
+	   (read (readP fr) valField)
+	   (output/exists ([v]
+             (output/expr v
+		(combine
+		   (scale q (unitperm (basic p valField v)))
+		   (combine
+		      (unitperm
+			 (encumbered
+			    (scale q
+			       (unitperm
+				  (precise-exists p valField ([v1] empty))))
+			    (scale q (unitperm (basic p allField null)))))
+		      (combine
+			 (scale q
+			    (unitperm
+			       (nonlinear
+				  (nested (nextFieldPerm nodePred p)
+				     p allField))))
+			 (combine
+			    (scale (fraction/ rat`one)
+			       (unitperm (basic fr pVar p)))
+			    (unitperm
+			       (encumbered
+				  (scale q (unitperm (basic p allField null)))
+				  (memberEffect q l))))))))))
+	= [fr] [l] [q] [p]
+	  (tRead1
+	     (tTrans
+		(transform/implies
+		   (implies/equiv
+		      (equiv/transitive equiv/roll2
+			 (equiv/combine
+			    (equiv/symmetric equiv/one)
+			    equiv/reflexive))))
+		(letTyping/base null
+		   (tRead:typing _ _ (readP fr) _))
+		(transform/trans
+		   (transform/implies
+		      (implies/trans
+			 (implies/combine implies/reflexive
+			    (implies-unwrap l p q))
+			 (implies/trans
+			    (implies/equiv
+			       (equiv/transitive5
+				  equiv/roll2
+				  (equiv/combine
+				     (equiv/transitive5
+					equiv/distribute
+					equiv/commute
+					(equiv/combine equiv/distribute
+					   equiv/reflexive)
+					(equiv/symmetric equiv/associate)
+					equiv/roll2)
+				     equiv/reflexive)
+				  (equiv/symmetric equiv/associate)
+				  equiv/roll2
+				  (equiv/combine
+				     (equiv/symmetric equiv/distribute)
+				     equiv/reflexive)))
+			    (implies/trans
+			       (implies/combine
+				  (implies/scale implies/carve)
+				  implies/reflexive)
+			       (implies/equiv
+				  (equiv/transitive
+				     (equiv/combine equiv/distribute
+					equiv/reflexive)
+				     (equiv/symmetric equiv/associate)))))))
+		   (transform/trans transform/skolem
+		      (transform/inside ([v]
+                         (transform/implies
+			    (implies/combine
+			       (implies/equiv
+				  (equiv/transitive3
+				     equiv/distribute
+				     (equiv/combine equiv/reflexive equiv/zero)
+				     equiv/identity))
+			       (implies/combine
+				  implies/scale-distribute-encumbered
+				  implies/reflexive))))))))
+	     (letTyping/exists ([v]
+	       (letTyping/base p
+		  (tRead: typing _ _ (read (lit p) valField) _))))).
+
+%abbrev condCheck
+	: {fr} {x:object} {l:object} {q:fraction}
+	  letTyping noProcs (loopinv q l fr)
+	    ([ignore:object]
+	       (and (not (eql (readP fr) (lit null)))
+		  (not (eql (read (readP fr) valField) (lit x)))))
+            (output/exists ([p]
+               (output/exists ([v]
+	          (output/cond
+		     (conj (neg (objequal p null)) (neg (objequal v x)))
+		     (combine
+			(scale q (unitperm (basic p allField null)))
+			(combine
+			   (scale q
+			      (unitperm (nonlinear
+					   (nested (nextFieldPerm nodePred p)
+					      p allField))))
+			   (combine (scale (fraction/ one)
+				       (unitperm (basic fr pVar p)))
+			      (unitperm
+				 (encumbered
+				    (scale q (unitperm (basic p allField null)))
+				    (memberEffect q l))))))
+		     (combine (scale (fraction/ one)
+				 (unitperm (basic fr pVar p)))
+			(memberEffect q l)))))))
+	= [fr] [x] [l] [q]
+	  (letTyping/exists ([p]
+	     (letTyping/base null
+		(tTrans2
+		   (tAnd
+		      (tTrans
+			 (transform/implies (implies/equiv equiv03))
+			 (letTyping/base null
+			    (tNot (tEql1 (tRead:typing _ _ (readP fr) _)
+				     (letTyping/base p
+					(tEql:typing _ _ (eql _ (lit null)) _)))
+			       notEnv/base))
+			 (transform/cond
+			    bimplies/reflexive bimplies/reflexive
+			    implies/reflexive
+			    (implies/combine implies/drop-nonlinear
+			       (implies/combine implies/reflexive
+				  implies/linear-modus-ponens))))
+		      (andHelp1/base
+			 (tTrans
+			    (transform/implies
+			       (implies/combine implies/reflexive
+				  (implies/combine
+				     (implies/equiv equiv/one)
+				     implies/reflexive)))
+			    (letTyping/base null
+			       (tNot (tEql1 (readValField fr l q p)
+					(letTyping/exists ([v]
+				           (letTyping/base v
+					      (tEql:typing _ _
+						      (eql (lit v) (lit x))
+						      _)))))
+				  (notEnv/exists ([v] notEnv/base))))
+			    (transform/inside ([v]
+			       (transform/cond
+			          bimplies/reflexive bimplies/reflexive
+			          implies/reflexive implies/reflexive))))
+			 (andHelp2/exists ([v] andHelp2/base))))
+		   (transform/trans
+		      (transform/inside ([v]
+			 (transform/cond
+			    bimplies/reflexive bimplies/reflexive
+			    (implies/combine implies/drop-nonlinear
+			       (implies/trans
+				  (implies/combine
+				     (implies/scale (implies/pack-nothing v))
+				     implies/reflexive)
+				  implies/linear-modus-ponens*))
+			    (implies/cond-inner
+			       bimplies/reflexive bimplies/reflexive
+			       (implies/combine implies/drop-nonlinear
+				  (implies/trans
+				     (implies/combine
+					(implies/scale (implies/pack-nothing v))
+					(implies/combine implies/reflexive
+					   (implies/trans
+					      (implies/combine
+						 (implies/trans
+						    (implies/scale
+						       implies/drop-nonlinear)
+						    (implies/equiv equiv/zero))
+						 implies/reflexive)
+					      (implies/equiv
+						 (equiv/transitive
+						    equiv/commute
+						    equiv/identity)))))
+				     (implies/trans implies/linear-modus-ponens*
+					(implies/trans
+					   (implies/equiv equiv/roll2)
+					   (implies/combine
+					      implies/reflexive
+					      implies/linear-modus-ponens))
+					)))
+			       implies/reflexive))))
+		      (transform/inside ([v]
+                         (transform/cond
+			    bimplies/reflexive bimplies/reflexive
+			    (implies/equiv (equiv/transitive equiv/commute
+					      equiv/identity))
+			    (implies/trans
+			       implies/cond-equal
+			       (implies/equiv (equiv/transitive equiv/commute
+						 equiv/identity))))))))))).
+
+%abbrev bodyCheckOK
+	: {fr} {l:object} {q:fraction} {p:object}
+	  typing noProcs
+	  (combine
+	     (scale q (unitperm (basic p allField null)))
+	     (combine
+		(scale q
+		   (unitperm
+		      (nonlinear
+			 (nested (nextFieldPerm nodePred p) p allField))))
+		(combine (scale (fraction/ one) (unitperm (basic fr pVar p)))
+		   (unitperm
+		      (encumbered
+			 (scale q (unitperm (basic p allField null)))
+			 (memberEffect q l))))))
+	   (writeP fr (read (readP fr) nextField))
+	   (output/exists ([n]
+              (output/expr n
+		 ((combine
+		     (combine (unitperm (basic fr pVar n))
+			(memberEffect q n))
+		     (unitperm (encumbered (memberEffect q n)
+				  (memberEffect q l))))))))
+        = [fr] [l] [q] [p]
+	  (tWrite2
+	     (tRead1
+		(tTrans
+		   (transform/implies (implies/equiv equiv/roll3))
+		   (letTyping/base null tRead)
+		   (transform/trans
+		      (transform/implies
+			 (implies/trans
+			    (implies/equiv
+			       (equiv/transitive4
+				  equiv/roll2
+				  equiv/roll3
+				  equiv/associate
+				  (equiv/combine
+				     (equiv/symmetric equiv/distribute)
+				     equiv/reflexive)))
+			    (implies/trans
+			       (implies/combine (implies/scale implies/carve)
+				  implies/reflexive)
+			       (implies/equiv
+				  (equiv/transitive
+				     (equiv/combine equiv/distribute
+					equiv/reflexive)
+				     (equiv/symmetric equiv/associate))))))
+		      (transform/trans
+			 transform/skolem
+			 (transform/inside ([n]
+			    (transform/implies
+			       (implies/equiv
+				  (equiv/transitive
+				     (equiv/combine equiv/distribute
+					equiv/reflexive)
+				     (equiv/symmetric equiv/associate)))))))))
+		(letTyping/exists ([n]
+		  (letTyping/base p tRead))))
+	     (letTyping/exists ([n]
+		(letTyping/base n
+		   (tTrans
+		      (transform/implies
+			 (implies/equiv
+			    (equiv/transitive
+			       equiv/roll4
+			       (equiv/combine equiv/one equiv/reflexive))))
+		      (letTyping/base null tWrite)
+		      (transform/implies
+			 (implies/trans10
+			    (implies/equiv
+			       (equiv/transitive4
+				  (equiv/symmetric equiv/identity)
+				  equiv/commute
+				  (equiv/combine
+				     (equiv/symmetric equiv/zero)
+				     (equiv/symmetric equiv/roll4))
+				  (equiv/combine equiv/reflexive
+				     (equiv/combine equiv/reflexive
+					(equiv/combine equiv/reflexive
+					   (equiv/combine equiv/reflexive
+					      equiv/commute))))))
+			    (implies/combine
+			       (implies/trans3
+				  (implies/scale
+				     (implies/gen-pack-encumber n))
+				  implies/scale-distribute-encumbered
+				  (implies/equiv-encumbered
+				     equiv/distribute
+				     equiv/reflexive))
+			       (implies/trans
+				  (implies/equiv equiv/roll3)
+				  (implies/combine
+				     implies/scale-distribute-encumbered
+				     implies/reflexive)))
+			    (implies/equiv equiv/associate)
+			    (implies/combine
+			       implies/chain-implication
+			       implies/reflexive)
+			    (implies/combine
+			       implies/combine-assoc-encumbered
+			       (implies/combine
+				  implies/reflexive
+				  (implies/equiv equiv/roll2)))
+			    (implies/equiv equiv/roll2)
+			    implies/linear-modus-ponens*
+			    (implies/equiv equiv/associate)
+			    (implies/combine
+			       implies/chain-implication
+			       implies/reflexive)
+			    (implies/equiv
+			       (equiv/transitive
+				  equiv/commute
+				  (equiv/combine equiv/commute
+				     equiv/reflexive)))
+			    ))))))).
+
+
+%abbrev memberCheckOK
+	: proctypematch noProcs memberFunc memberType
+	= proctypematch/arg ([l]
+	  proctypematch/arg ([x]
+          proctypematch/forall ([z]
+	  proctypematch/base
+        (tTrans2
+          (tLet (tTrans2
+		   (tAlloc ([fr] (allocFields/+ set`shift/0 allocFields/0)))
+		   (transform/inside [o]
+		      (transform/implies implies/drop-second-nonlinear)))
+	     (letTyping/exists ([fr]
+                (letTyping/base fr
+		   (tLet (tTrans trans01
+			    (letTyping/base null tWrite)
+			    (transform/implies implies/reflexive))
+                      (letTyping/base l
+			 (tLet
+			    (tWhile (trans02 z l fr)
+			       (condCheck fr x l z)
+			       (whileTyping/exists ([p]
+                                  (whileTyping/exists ([v]
+                                     (whileTyping/base (bodyCheckOK fr l z p))))))
+			       (discard-value/exists ([p]
+				  (discard-value/exists ([v]
+				     (discard-value/exists ([n]
+					(discard-value/base)))))))
+			       (transform/trans
+				  transform/rem-unused
+				  transform/rem-unused))
+			    (letTyping/exists ([p]
+			       (letTyping/exists ([v]
+				  (letTyping/base null tRead))))))))))))
+	   (transform/trans
+	      (transform/inside ([fr]
+                 (transform/inside ([p]
+                    (transform/inside ([x]
+                       transform/drop))))))
+	      (transform/trans
+		 transform/rem-unused
+		 (transform/inside ([p]
+                    transform/rem-unused)))))))).
+
+
+
+
+%%%% Theorems
+
+
+
+%%% Theorems about XXX
+
+
+
+%%% Theorems about proctypematch
+
+
+%theorem proctypematch-respects-eq :
+	forall*	{W1} {W2} {F1} {F2} {P1} {P2}
+	forall	{PTM1:proctypematch W1 F1 P1}
+		{WEQ: progtype`eq W1 W2}
+		{FEQ: term`eq F1 F2}
+		{TEQ: proctype`eq P1 P2}
+	exists	{PTM2: proctypematch W2 F2 P2}
+	true.
+
+- : proctypematch-respects-eq PTM progtype`eq/ term`eq/ proctype`eq/ PTM.
+
+%worlds (gtermvar) (proctypematch-respects-eq _ _ _ _ _).
+%total { } (proctypematch-respects-eq _ _ _ _ _).
+
+
+
+%%% Theorems about progtypematch
+
+
+%theorem progtype-lookup-implies-prog-lookup :
+        forall* {W1} {W2} {G} {N} {P}
+        forall {PM:progtypematch* W1 W2 G} {L1:progtype`lookup W2 N P}
+        exists {F} {L2:prog`lookup G N F} {PCTM:proctypematch W1 F P}
+        true.
+
+- : progtype-lookup-implies-prog-lookup (progtypematch/+ _ PCTM)
+        (progtype`lookup/= EQ) F (prog`lookup/= EQ) PCTM.
+
+- : progtype-lookup-implies-prog-lookup
+        (progtypematch/+ PGM PCM)
+        (progtype`lookup/> L- P) F (prog`lookup/> L2- P) PCTM
+    <- progtype-lookup-implies-prog-lookup PGM L- F L2- PCTM.
+
+%worlds () (progtype-lookup-implies-prog-lookup _ _ _ _ _).
+%total {P} (progtype-lookup-implies-prog-lookup P _ _ _ _).
+
+% Like the previous with the prog`lookup provided:
+%theorem progtypematch-implies-proctypematch :
+        forall* {W1} {W2} {G} {N} {P} {F}
+        forall  {PM:progtypematch* W1 W2 G} {L1:progtype`lookup W2 N P}
+        	{L2:prog`lookup G N F}
+	exists  {PCTM:proctypematch W1 F P}
+        true.
+
+- : progtypematch-implies-proctypematch PGTM PGL PL1 PTM1
+    <- progtype-lookup-implies-prog-lookup PGTM PGL _ PL2 PTM2
+    <- prog`lookup-deterministic PL2 PL1 prog`eq/ nat`eq/ FEQ
+    <- proctypematch-respects-eq PTM2 progtype`eq/ FEQ proctype`eq/ PTM1.
+
+%worlds () (progtypematch-implies-proctypematch _ _ _ _).
+%total { } (progtypematch-implies-proctypematch _ _ _ _).
+
+
+%% A proctypematch implies that the number of formal arguments
+%% in a func is equal to the number expected by the proctype.
+%theorem proctypematch-preserves-count :
+        forall* {W} {PT} {F} {N}
+        forall  {PTM:proctypematch W F PT}
+                {FC:funccount F N}
+	exists  {PTC:proctypecount PT N}
+        true.
+
+- : proctypematch-preserves-count (proctypematch/base _) _ (proctypecount/base).
+
+- : proctypematch-preserves-count (proctypematch/arg PTM)
+        (funccount/+ F) (proctypecount/arg PTC)
+    <- ({x} proctypematch-preserves-count (PTM x) (F x) (PTC x)).
+
+- : proctypematch-preserves-count (proctypematch/forall PTM)
+        FC (proctypecount/forall PTC)
+    <- ({x} proctypematch-preserves-count (PTM x) FC (PTC x)).
+
+%worlds (somevar) (proctypematch-preserves-count _ _ _).
+%total {P} (proctypematch-preserves-count P _ _).
+
+
+%theorem callTyping-preserves-count :
+    forall* {W} {AO} {PT} {EO} {N}
+    forall  {CT:callTyping W AO PT EO}
+            {PTC:proctypecount PT N}
+    exists  {AOC:argsoutputcount AO N}
+    true.
+
+- : callTyping-preserves-count (callTyping/call _) _ argsoutputcount/0.
+
+- : callTyping-preserves-count (callTyping/arg O CT)
+        (proctypecount/arg FPTC) (argsoutputcount/+ AOC)
+    <- callTyping-preserves-count CT (FPTC O) AOC.
+
+- : callTyping-preserves-count (callTyping/exists CT)
+        PTC (argsoutputcount/exists AOC)
+    <- ({x} callTyping-preserves-count (CT x) PTC (AOC x)).
+
+- : callTyping-preserves-count (callTyping/forall X CT)
+        (proctypecount/forall PTC) AOC
+    <- callTyping-preserves-count CT (PTC X) AOC.
+
+%worlds (somevar) (callTyping-preserves-count _ _ _).
+%total {C} (callTyping-preserves-count C _ _).
+
+
+%theorem typing-preserves-count :
+	forall* {W} {Pi} {A} {AO} {N}
+	forall  {TYP:typing W Pi A AO}
+		{AOC:argsoutputcount AO N}
+	exists	{AC:argscount A N}
+	true.
+
+%theorem typing-preserves-count/let :
+	forall* {W} {EO} {AO} {N} {FA}
+	forall	{LTYP:letTyping W EO ([o] FA o) AO}
+        	{AOC:argsoutputcount AO N} {O}
+        exists	{ACF: argscount (FA O) N}
+	true.
+
+%theorem typing-preserves-count/let/args :
+	forall*	{N}
+	forall	{FA: object -> args}
+		{O1} {AC1: argscount (FA O1) N} {O2}
+	exists	{AC2: argscount (FA O2) N}
+	true.
+
+- : typing-preserves-count/let/args ([o] args/0) O1 argscount/0 O2 argscount/0.
+
+- : typing-preserves-count/let/args
+	([o] (args/+ (FE o) (FA o))) O1 (argscount/+ AC) O2
+	(argscount/+ AC')
+    <- typing-preserves-count/let/args FA O1 AC O2 AC'.
+
+%worlds (somevar) (typing-preserves-count/let/args _ _ _ _ _).
+%total (C) (typing-preserves-count/let/args _ _ C _ _).
+
+%theorem typing-preserves-count/let/+ :
+	forall* {X} {Y} {A} {N}
+	forall	{AC: argscount (args/+ X A) N}
+	exists	{AC': argscount (args/+ Y A) N}
+	true.
+
+- : typing-preserves-count/let/+ (argscount/+ AC) (argscount/+ AC).
+
+%worlds (somevar) (typing-preserves-count/let/+ _ _).
+%total { } (typing-preserves-count/let/+ _ _).
+
+%% typing-preserves-count/let cases
+
+- : {O:object} {O':object}
+    {AC: argscount (F O) N} {AC': argscount (F O') N}
+    {TYP: typing W Pi (F O) Out}
+    typing-preserves-count/let (letTyping/base O TYP: letTyping W _ F Out) AOC O' AC'
+    <- typing-preserves-count TYP AOC AC
+    <- typing-preserves-count/let/args F O AC O' AC'.
+
+- : typing-preserves-count/let (letTyping/exists LTF)
+        (argsoutputcount/exists AOCF) O' (ACF GT)
+    <- ({x} typing-preserves-count/let (LTF x) (AOCF x) O' (ACF x))
+    <- gterm-inhabited GT.
+
+- : typing-preserves-count tArgs0 _ argscount/0.
+
+- : typing-preserves-count (tArgs1 TYP LTYP) AOC (AC: argscount (args/+ E A) N)
+    <- typing-preserves-count/let LTYP AOC (object/ z) AC'
+    <- typing-preserves-count/let/+ AC' AC.
+
+- : typing-preserves-count (tArgs TYP) (argsoutputcount/+ AOC) (argscount/+ AC)
+    <- typing-preserves-count TYP AOC AC.
+
+- : typing-preserves-count (tTrans TRANS1 LTYP TRANS2) AOC2 AC
+    <- transform-preserves-argsoutputcount-converse AOC2 TRANS2 AOC1
+    <- typing-preserves-count/let LTYP AOC1 (object/ z) AC.
+
+%worlds (somevar)
+    (typing-preserves-count/let _ _ _ _)
+    (typing-preserves-count _ _ _).
+
+%total (T LT)
+    (typing-preserves-count/let LT _ _ _)
+    (typing-preserves-count T _ _).
+
+
+
+%%% equality related theorems
+
+%theorem typing-respects-eq:
+	forall*	{K} {W} {Pi} {T:term K} {O}
+		{W'} {Pi'} {T'} {O'}
+	forall	{TY: typing W Pi T O}
+		{WE: progtype`eq W W'}
+		{PE: permission`eq Pi Pi'}
+		{TE: term`eq T T'}
+		{OE: environment`eq O O'}
+	exists	{TY': typing W' Pi' T' O'}
+	true.
+
+- : typing-respects-eq T progtype`eq/ permission`eq/ term`eq/ environment`eq/ T.
+
+%worlds (somevar) (typing-respects-eq _ _ _ _ _ _).
+%total { } (typing-respects-eq _ _ _ _ _ _).
+
+
+
+%%% Admissibility theorems
+
+
+
+%%% Frame theorems
+
+
+%theorem typing-frame:
+	forall* {W} {Pi1} {Pi2} {K} {T: term K} {Po2}
+	forall	{TY: typing W Pi2 T Po2}
+	exists	{Po} {EA: envadd Pi1 Po2 Po}
+		{TY: typing W (Pi1 , Pi2) T Po}
+	true.
+
+%theorem letTyping-frame:
+	forall* {W} {Pi} {K} {F: object -> term K} {Po1} {Po1'} {Po2}
+	forall	{LT: letTyping W Po1 F Po1'}
+		{EA: envadd Pi Po1 Po2}
+	exists	{Po2'} {EA': envadd Pi Po1' Po2'}
+		{LT: letTyping W Po2 F Po2'}
+	true.
+
+- : letTyping-frame
+	(letTyping/base O TY) envadd/expr _ EA' (letTyping/base O TY')
+    <- typing-frame TY _ EA' TY'.
+
+- : letTyping-frame
+     (letTyping/exists ([v] FLT v)) (envadd/exists ([v] FEA v)) _
+     (envadd/exists ([v] FEA' v)) (letTyping/exists ([v] FLT' v))
+    <- ({v} letTyping-frame (FLT v) (FEA v) _ (FEA' v) (FLT' v)).
+
+%theorem ifTyping-frame:
+	forall* {W} {Pi} {K} {T1:term K} {T2} {Po1} {Po1'} {Po2}
+	forall	{LT: ifTyping W Po1 T1 T2 Po1'}
+		{EA: envadd Pi Po1 Po2}
+	exists	{Po2'} {EA': envadd Pi Po1' Po2'}
+		{LT: ifTyping W Po2 T1 T2 Po2'}
+	true.
+
+- : ifTyping-frame
+     (ifTyping/base TY1 TY2) envadd/cond
+     _ EA2 (ifTyping/base TY1'' TY2')
+    <- typing-frame TY1 _ EA1 TY1'
+    <- typing-frame TY2 _ EA2 TY2'
+    <- envadd-deterministic EA1 EA2 permission`eq/ environment`eq/ O1=O2
+    <- typing-respects-eq TY1' progtype`eq/ permission`eq/ term`eq/ O1=O2 TY1''.
+
+- : ifTyping-frame
+     (ifTyping/exists FIF) (envadd/exists FEA) _
+     (envadd/exists FEA') (ifTyping/exists FIF')
+    <- ({v} ifTyping-frame (FIF v) (FEA v) _ (FEA' v) (FIF' v)).
+
+%theorem whileTyping-frame:
+	forall* {W} {Pi} {T} {PoL} {Po1} {Po1'} {Po2}
+	forall	{LT: whileTyping W Po1 T PoL Po1'}
+		{EA: envadd Pi Po1 Po2}
+	exists	{Po2'} {EA': envadd Pi Po1' Po2'}
+		{PoL'} {EA': envadd Pi PoL PoL'}
+		{LT: whileTyping W Po2 T PoL' Po2'}
+	true.
+
+- : whileTyping-frame
+     (whileTyping/base TY) envadd/cond
+     _ envadd/expr _ EAL
+     (whileTyping/base TY')
+    <- typing-frame TY _ EAL TY'.
+
+- : whileTyping-frame
+     (whileTyping/exists ([v] FWT v)) (envadd/exists ([v] FEA v))
+     _ (envadd/exists ([v] FEA' v)) _ (envadd/exists ([v] FEAL v))
+     (whileTyping/exists ([v] FWT'' v))
+    <- ({v} whileTyping-frame (FWT v) (FEA v) _ (FEA' v) _ (FEAL v) (FWT'' v)).
+
+% we need to handle transformation: on input and output
+%theorem callTyping-frame :
+	forall* {W} {PT} {In} {In'} {Out} {Pi}
+	forall	{CT: callTyping W In PT Out}
+		{EA: envadd Pi In In'}
+	exists	{In''} {T1: transform In' In''}
+		{Out''} {CT: callTyping W In'' PT Out''}
+		{Out'} {T2: transform Out'' Out'}
+		{EA: envadd Pi Out Out'}
+	true.
+
+- : callTyping-frame
+     (callTyping/call EA) envadd/args/0
+     _ (transform/args/0
+	  (implies/equiv
+	     (equiv/transitive3
+		equiv/associate
+		(equiv/combine equiv/commute equiv/reflexive)
+		(equiv/symmetric equiv/associate))))
+     _ (callTyping/call EA') _ T2 EA''
+    <- envadd-total EA''
+    <- envadd-associates EA EA'' _ EA' T2.
+
+- : callTyping-frame
+     (callTyping/arg O CT) (envadd/args/+ EA)
+     _ (transform/args/+ T1)
+     _ (callTyping/arg O CT')
+     _ T2 EA'
+    <- callTyping-frame CT EA _ T1 _ CT' _ T2 EA'.
+
+- : callTyping-frame
+     (callTyping/exists FCT) (envadd/exists FEA)
+     _ (transform/inside FT1)
+     _ (callTyping/exists FCT')
+     _ (transform/inside FT2) (envadd/exists FEA')
+    <- ({v} callTyping-frame (FCT v) (FEA v)
+	  _ (FT1 v) _ (FCT' v) _ (FT2 v) (FEA' v)).
+
+- : callTyping-frame
+     (callTyping/forall X CT) EA
+     _ T1
+     _ (callTyping/forall X CT')
+     _ T2 EA'
+    <- callTyping-frame CT EA _ T1 _ CT' _ T2 EA'.
+
+%% now the main theorem cases:
+
+- : typing-frame tObjLoc _ envadd/expr tObjLoc.
+
+- : typing-frame (tLet TY LT) _ EA' (tLet TY' LT')
+    <- typing-frame TY _ EA TY'
+    <- letTyping-frame LT EA _ EA' LT'.
+
+- : typing-frame (tIf TY IT) _ EA' (tIf TY' IT')
+    <- typing-frame TY _ EA TY'
+    <- ifTyping-frame IT EA _ EA' IT'.
+
+- : typing-frame (tWhile T LT WT DR T2) _ EA'
+     (tWhile T' LT' WT' DR' T2')
+     <- transform-commutes-envadd T envadd/expr _ EAi T'
+     <- letTyping-frame LT EAi _ EAc LT'
+     <- whileTyping-frame WT EAc _ EA' _ EAL WT'
+     <- discard-value-commutes-envadd DR EAL _ EAL' DR'
+     <- transform-commutes-envadd* T2 EAL' EAi T2'.
+
+%theorem andHelp1-frame :
+	forall* {W} {E1} {C} {E1'} {Pi} {E2}
+	forall	{AH1: andHelp1 W E1 C E1'}
+		{EA: envadd Pi E1 E2}
+	exists	{E2'} {EA': envadd Pi E1' E2'}
+		{E2''} {AH1: andHelp1 W E2 C E2''}
+		{T2: transform E2'' E2'}
+	true.
+
+%theorem andHelp2-frame :
+	forall* {G} {E1} {Pi} {E1'} {Pi1} {E2}
+	forall	{AH1: andHelp2 G E1 Pi1 E1'}
+		{EA: envadd Pi E1 E2}
+	exists	{E2'} {EA': envadd Pi E1' E2'}
+		{E2''} {AH1: andHelp2 G E2 (Pi , Pi1) E2''}
+		{T2: transform E2'' E2'}
+	true.
+
+- : andHelp2-frame andHelp2/base envadd/cond _ envadd/cond _ andHelp2/base
+     (transform/cond bimplies/reflexive bimplies/reflexive implies/reflexive
+	implies/cond-pull).
+
+- : andHelp2-frame (andHelp2/exists FAH) (envadd/exists FEA)
+     _ (envadd/exists FEA') _ (andHelp2/exists FAH') (transform/inside FTR)
+    <- ({v} (andHelp2-frame (FAH v) (FEA v) _ (FEA' v) _ (FAH' v) (FTR v))).
+
+%worlds (gtermvar) (andHelp2-frame _ _ _ _ _ _ _).
+%total (A)  (andHelp2-frame A _ _ _ _ _ _).
+
+- : andHelp1-frame (andHelp1/base TY AH2) (envadd/cond) _ EA'' _
+		   (andHelp1/base TY' AH2') TR
+    <- typing-frame TY _ EA' TY'
+    <- andHelp2-frame AH2 EA' _ EA'' _ AH2' TR.
+
+- : andHelp1-frame (andHelp1/exists FAH) (envadd/exists FEA)
+     _ (envadd/exists FEA') _ (andHelp1/exists FAH') (transform/inside FTR)
+    <- ({v} (andHelp1-frame (FAH v) (FEA v) _ (FEA' v) _ (FAH' v) (FTR v))).
+
+- : typing-frame (tAnd TY IT) _ EA' (tTrans2 (tAnd TY' IT') TR)
+    <- typing-frame TY _ EA TY'
+    <- andHelp1-frame IT EA _ EA' _ IT' TR.
+
+%theorem notEnv-frame :
+	forall* {E1} {E1'} {E2} {Pi}
+	forall	{NE:notEnv E1 E1'}
+		{EA:envadd Pi E1 E2}
+	exists	{E2'} {EA:envadd Pi E1' E2'}
+		{NE:notEnv E2 E2'}
+	true.
+
+- : notEnv-frame notEnv/base envadd/cond _ envadd/cond notEnv/base.
+
+- : notEnv-frame (notEnv/exists FNE) (envadd/exists FEA)
+	_ (envadd/exists FEA') (notEnv/exists FNE')
+    <- ({v} notEnv-frame (FNE v) (FEA v) _ (FEA' v) (FNE' v)).
+
+%worlds (gtermvar) (notEnv-frame _ _ _ _ _).
+%total (N) (notEnv-frame N _ _ _ _).
+
+- : typing-frame (tNot TY IT) _ EA' (tNot TY' IT')
+    <- typing-frame TY _ EA TY'
+    <- notEnv-frame IT EA _ EA' IT'.
+
+- : typing-frame (tEql1 TY LT) _ EA' (tEql1 TY' LT')
+    <- typing-frame TY _ EA TY'
+    <- letTyping-frame LT EA _ EA' LT'.
+
+- : typing-frame (tEql2 TY LT) _ EA' (tEql2 TY' LT')
+    <- typing-frame TY _ EA TY'
+    <- letTyping-frame LT EA _ EA' LT'.
+
+- : typing-frame tEql _ envadd/cond
+     (tTrans2 tEql
+	(transform/cond bimplies/reflexive bimplies/reflexive
+	   (implies/equiv equiv/reorder) (implies/equiv equiv/reorder))).
+
+- : typing-frame tTrue _ envadd/cond
+     (tTrans2 tTrue
+	(transform/cond bimplies/reflexive bimplies/reflexive
+	   implies/reflexive implies/contradiction)).
+
+- : typing-frame (tAlloc AF) _ (envadd/exists ([v] envadd/expr))
+     (tTrans2 (tAlloc AF)
+	(transform/inside
+	   ([v] (transform/implies
+		   (implies/equiv
+		      (equiv/symmetric equiv/associate)))))).
+
+- : typing-frame (tRead1 TY LT) _ EA' (tRead1 TY' LT')
+    <- typing-frame TY _ EA TY'
+    <- letTyping-frame LT EA _ EA' LT'.
+
+- : typing-frame tRead _ envadd/expr
+     (tTrans
+	(transform/implies (implies/equiv equiv/reorder))
+	(letTyping/base (object/ z) tRead)
+	(transform/implies (implies/equiv equiv/reorder))).
+
+- : typing-frame (tWrite1 TY LT) _ EA' (tWrite1 TY' LT')
+    <- typing-frame TY _ EA TY'
+    <- letTyping-frame LT EA _ EA' LT'.
+
+- : typing-frame (tWrite2 TY LT) _ EA' (tWrite2 TY' LT')
+    <- typing-frame TY _ EA TY'
+    <- letTyping-frame LT EA _ EA' LT'.
+
+- : typing-frame tWrite _ envadd/expr
+     (tTrans
+	(transform/implies (implies/equiv equiv/reorder))
+	(letTyping/base (object/ z) tWrite)
+	(transform/implies (implies/equiv equiv/reorder))).
+
+- : typing-frame tArgs0 _ envadd/args/0 tArgs0.
+
+- : typing-frame (tArgs1 TY LT) _ EA' (tArgs1 TY' LT')
+    <- typing-frame TY _ EA TY'
+    <- letTyping-frame LT EA _ EA' LT'.
+
+- : typing-frame (tArgs TY) _ (envadd/args/+ EA) (tArgs TY')
+    <- typing-frame TY _ EA TY'.
+
+- : typing-frame (tCall PTL TY CT) _ EA'
+     (tTrans2
+	(tCall PTL (tTrans2 TY' T1) CT')
+	T2)
+    <- typing-frame TY _ EA TY'
+    <- callTyping-frame CT EA In'' T1 Out'' CT' Out' T2 EA'.
+
+- : typing-frame (tTrans T1 LT T2) _ EA'' (tTrans T1' LT' T2')
+    <- transform-commutes-envadd T1 envadd/expr _ EA T1'
+    <- letTyping-frame LT EA _ EA' LT'
+    <- transform-commutes-envadd T2 EA' _ EA'' T2'.
+
+%worlds (somevar)
+ (typing-frame _ _ _ _)
+ (letTyping-frame _ _ _ _ _)
+ (ifTyping-frame _ _ _ _ _)
+ (andHelp1-frame _ _ _ _ _ _ _)
+ (whileTyping-frame _ _ _ _ _ _ _)
+ (callTyping-frame _ _ _ _ _ _ _ _ _).
+
+%total (T L I A W C)
+ (typing-frame T _ _ _)
+ (letTyping-frame L _ _ _ _)
+ (ifTyping-frame I _ _ _ _)
+ (andHelp1-frame A _ _ _ _ _ _)
+ (whileTyping-frame W _ _ _ _ _ _)
+ (callTyping-frame C _ _ _ _ _ _ _ _).
+
+
+%theorem typing-frame*:
+	forall* {W} {Pi1} {Pi2} {K} {T: term K} {Po2} {Po}
+	forall	{TY: typing W Pi2 T Po2}
+		{EA: envadd Pi1 Po2 Po}
+	exists	{TY: typing W (Pi1 , Pi2) T Po}
+	true.
+
+- : typing-frame* TY EA'' TY''
+    <- typing-frame TY _ EA' TY'
+    <- envadd-deterministic EA' EA'' permission`eq/ environment`eq/ EQ
+    <- typing-respects-eq TY' progtype`eq/ permission`eq/ term`eq/ EQ TY''.
+
+%worlds (gtermvar) (typing-frame* _ _ _).
+%total { } (typing-frame* _ _ _).
+
+
+
+%%% Theorems about alltyped
+
+
+%theorem alltyped-respects-eq:
+	forall*	{W1} {Pi1} {G1} {TS1} {W2} {Pi2} {G2} {TS2}
+	forall	{AT1: alltyped W1 Pi1 G1 TS1}
+		{WE: progtype`eq W1 W2}
+		{PE: permission`eq Pi1 Pi2}
+		{GE: prog`eq G1 G2}
+		{TE: threads`eq TS1 TS2}
+	exists	{AT2: alltyped W2 Pi2 G2 TS2}
+	true.
+
+- : alltyped-respects-eq AT progtype`eq/ permission`eq/ prog`eq/ threads`eq/ AT.
+
+%worlds () (alltyped-respects-eq _ _ _ _ _ _).
+%total { } (alltyped-respects-eq _ _ _ _ _ _).
+
+
+%theorem alltyped-implies-progtypematch :
+	forall* {W} {Pi} {G} {TS}
+	forall	{AT: alltyped W Pi G TS}
+	exists	{GTM: progtypematch W G}
+	true.
+
+- : alltyped-implies-progtypematch (alltyped/0 GTM) GTM.
+
+- : alltyped-implies-progtypematch (alltyped/+ AT _) GTM
+    <- alltyped-implies-progtypematch AT GTM.
+
+%worlds (somevar) (alltyped-implies-progtypematch _ _).
+%total (A) (alltyped-implies-progtypematch A _).

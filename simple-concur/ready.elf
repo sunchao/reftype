@@ -1,0 +1,882 @@
+%%%%% ready.elf
+%%%%% John Boyland
+%%%%% October 2007
+
+%{%
+In this file, we define relations implied by evaluation rules:
+which terms are "ready" for evaluation.
+%}%
+
+%%%% Definitions
+
+
+
+%%% ready for atomic evaluation
+
+
+atomic-lhs* : {K} term K -> type.
+
+%abbrev atomic-lhs = atomic-lhs* _.
+
+
+atomic-lhs/let : atomic-lhs (let (lit _) _).
+
+atomic-lhs/if1 : atomic-lhs (if cond/true _ _).
+
+atomic-lhs/if2 : atomic-lhs (if cond/false _ _).
+
+atomic-lhs/while : atomic-lhs (while _ _).
+
+atomic-lhs/not : atomic-lhs (not cond/false).
+
+atomic-lhs/and1 : atomic-lhs (and cond/true _).
+
+atomic-lhs/and2 : atomic-lhs (and cond/false _).
+
+atomic-lhs/eql : atomic-lhs (eql (lit _) (lit _)).
+
+atomic-lhs/call : (value A) -> atomic-lhs (call N A).
+
+atomic-lhs/alloc : atomic-lhs (alloc _ _ _).
+
+atomic-lhs/read : atomic-lhs (read (lit _) _).
+
+atomic-lhs/write : atomic-lhs (write (lit _) _ (lit _)).
+
+atomic-lhs/readv : atomic-lhs (readv (lit _) _).
+
+atomic-lhs/writev : atomic-lhs (writev (lit _) _ (lit _)).
+
+atomic-lhs/synch : atomic-lhs (synch (lit _) _).
+
+atomic-lhs/hold : atomic-lhs (hold _ (lit _)).
+
+atomic-lhs/fork : atomic-lhs (fork _).
+
+atomic-lhs/join : atomic-lhs (join (lit _)).
+
+
+% EXTEND atomic-lhs-definition
+
+
+
+%%% expressions ready to evaluate
+
+
+ready* : {K} threads -> nat -> term K -> type.
+
+%abbrev ready = ready* _.
+
+ready/ : {T}
+	threads`lookup TS P (thread/ W (F T)) -> 
+        loc F ->
+	atomic-lhs T ->
+    ready TS P T.
+
+
+%%%% Theorems
+
+
+
+%%% Theorems about atomic-lhs
+
+
+%theorem atomic-lhs-respects-eq :
+	forall* {K1} {K2} {T1} {T2}
+	forall {A1:atomic-lhs* K1 T1} {E:term`eq T1 T2}
+	exists {A2:atomic-lhs* K2 T2}
+	true.
+
+- : atomic-lhs-respects-eq A term`eq/ A.
+
+%worlds () (atomic-lhs-respects-eq _ _ _).
+%total { } (atomic-lhs-respects-eq _ _ _).
+
+
+%theorem value-not-atomic :
+	forall* {K} {T}
+	forall {V:value* K T}
+	       {A:atomic-lhs* K T}
+	exists {F:void}
+	true.
+
+%worlds () (value-not-atomic _ _ _).
+%total { } (value-not-atomic _ _ _).
+
+
+%theorem eval-implies-atomic-lhs :
+	forall* {K} {G} {P} {S1} {T1} {S2} {T2}
+	forall {E:eval* K G P S1 T1 S2 T2}
+	exists {A:atomic-lhs* K T1}
+	true.
+
+- : eval-implies-atomic-lhs eLet atomic-lhs/let.
+
+- : eval-implies-atomic-lhs eIf1 atomic-lhs/if1.
+
+- : eval-implies-atomic-lhs eIf2 atomic-lhs/if2.
+
+- : eval-implies-atomic-lhs eWhile atomic-lhs/while.
+
+- : eval-implies-atomic-lhs eNot atomic-lhs/not.
+
+- : eval-implies-atomic-lhs eAndT atomic-lhs/and1.
+
+- : eval-implies-atomic-lhs eAndF atomic-lhs/and2.
+
+- : eval-implies-atomic-lhs (eEqlT _) atomic-lhs/eql.
+
+- : eval-implies-atomic-lhs (eEqlF _) atomic-lhs/eql.
+
+- : eval-implies-atomic-lhs (eCall _ M) (atomic-lhs/call V)
+    <- match-implies-value M V.
+
+- : eval-implies-atomic-lhs (eAlloc _ _ _) atomic-lhs/alloc.
+
+- : eval-implies-atomic-lhs (eRead _ _ _ _) atomic-lhs/read.
+
+- : eval-implies-atomic-lhs (eWrite _ _ _ _ _ _ _ _) atomic-lhs/write.
+
+- : eval-implies-atomic-lhs (eReadV _ _ _ _ _) atomic-lhs/readv.
+
+- : eval-implies-atomic-lhs (eWriteV _ _ _ _ _ _) atomic-lhs/writev.
+
+- : eval-implies-atomic-lhs (eRe _) atomic-lhs/synch.
+
+- : eval-implies-atomic-lhs (eAcq _ _ _ _ _) atomic-lhs/synch.
+
+- : eval-implies-atomic-lhs (eRel _ _ _) atomic-lhs/hold.
+
+- : eval-implies-atomic-lhs (eFork _ _ _ _ _ _) atomic-lhs/fork.
+
+- : eval-implies-atomic-lhs (eJoin _ _ _ _) atomic-lhs/join.
+
+% EXTEND eval-implies-atomic
+
+%worlds () (eval-implies-atomic-lhs _ _).
+%total (E) (eval-implies-atomic-lhs E _).
+
+%theorem false-implies-atomic-lhs :
+    forall* {K1} {T:term K1} 
+    forall {F:void} 
+    exists {A:atomic-lhs T}
+    true.
+
+%worlds () (false-implies-atomic-lhs _ _).
+%total { } (false-implies-atomic-lhs _ _).
+
+
+%theorem ready-atomic-exists :
+	forall* {K1} 
+	forall	{T1:term K1}
+		{NV:notvalue T1}
+	exists	{K2} {T2:term K2} {F : term K2 -> term K1} 
+		{L:loc F}
+		{A:atomic-lhs T2}
+		{E:term`eq T1 (F T2)}
+	true.
+
+%theorem ready-atomic-exists/read :
+    forall* {B}
+    forall {E1:expr} {V?:value? E1 B} {N:nat}
+    exists {K2} {E2:term K2} {F:term K2 -> expr}
+        {L:loc F}
+        {A:atomic-lhs E2}
+        {EQ:term`eq (read E1 N) (F E2)}
+    true.
+
+- : ready-atomic-exists/read _ (V:value (lit O)) N _ (read (lit O) N) _ loc/id 
+        atomic-lhs/read term`eq/.
+
+- : ready-atomic-exists/read E (NV:notvalue E) N K2 E2 _ 
+        (loc/in L- (expr-in-expr/read N)) A EQ
+    <- ready-atomic-exists E NV K2 E2 F- L- A EQ-
+    <- read-preserves-eq EQ- nat`eq/ EQ.
+
+%theorem ready-atomic-exists/write :
+    forall* {B1} {E1} {E2} {N} {B2}
+    forall {T:expr} {EQ2:term`eq T (write E1 N E2)} {V1?:value? E1 B1} 
+        {V2?:value? E2 B2}
+    exists {K2} {E3:term K2} {F:term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E3}
+        {EQ:term`eq T (F E3)}
+    true.
+
+- : ready-atomic-exists/write _ term`eq/ (NV:notvalue E1) _ K2 E3 _
+        (loc/in L- (expr-in-expr/write1 N E2)) A EQ
+    <- ready-atomic-exists E1 NV K2 E3 _ L- A EQ-
+    <- write-preserves-eq EQ- nat`eq/ term`eq/ EQ.
+
+- : ready-atomic-exists/write _ term`eq/ (V:value _) (NV:notvalue E2) K2 E3 _
+        (loc/in L- (expr-in-expr/write2 O N)) A EQ
+    <- ready-atomic-exists E2 NV K2 E3 _ L- A EQ-
+    <- write-preserves-eq term`eq/ nat`eq/ EQ- EQ.
+
+- : ready-atomic-exists/write _ term`eq/ _ _ _ _ _ loc/id atomic-lhs/write 
+        term`eq/.
+
+%theorem ready-atomic-exists/readv :
+    forall* {B}
+    forall {E1:expr} {V?:value? E1 B} {N:nat}
+    exists {K2} {E2:term K2} {F:term K2 -> expr}
+        {L:loc F}
+        {A:atomic-lhs E2}
+        {EQ:term`eq (readv E1 N) (F E2)}
+    true.
+
+- : ready-atomic-exists/readv _ (V:value (lit O)) N _ (readv (lit O) N) _ 
+        loc/id atomic-lhs/readv term`eq/.
+
+- : ready-atomic-exists/readv E (NV:notvalue E) N K2 E2 _ 
+        (loc/in L- (expr-in-expr/readv N)) A EQ
+    <- ready-atomic-exists E NV K2 E2 F- L- A EQ-
+    <- readv-preserves-eq EQ- nat`eq/ EQ.
+
+%theorem ready-atomic-exists/writev :
+    forall* {B1} {E1} {E2} {N} {B2}
+    forall {T:expr} {EQ2:term`eq T (writev E1 N E2)} {V1?:value? E1 B1} 
+        {V2?:value? E2 B2}
+    exists {K2} {E3:term K2} {F:term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E3}
+        {EQ:term`eq T (F E3)}
+    true.
+
+- : ready-atomic-exists/writev _ term`eq/ (NV:notvalue E1) _ K2 E3 _
+        (loc/in L- (expr-in-expr/writev1 N E2)) A EQ
+    <- ready-atomic-exists E1 NV K2 E3 _ L- A EQ-
+    <- writev-preserves-eq EQ- nat`eq/ term`eq/ EQ.
+
+- : ready-atomic-exists/writev _ term`eq/ (V:value _) (NV:notvalue E2) K2 E3 _
+        (loc/in L- (expr-in-expr/writev2 O N)) A EQ
+    <- ready-atomic-exists E2 NV K2 E3 _ L- A EQ-
+    <- writev-preserves-eq term`eq/ nat`eq/ EQ- EQ.
+
+- : ready-atomic-exists/writev _ term`eq/ _ _ _ _ _ loc/id atomic-lhs/writev 
+        term`eq/.
+
+%theorem ready-atomic-exists/let :
+    forall* {B}
+    forall {E1:expr} {V?:value? E1 B} {BD:object -> expr} 
+    exists {K2} {E2:term K2} {F: term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E2}
+        {EQ:term`eq (let E1 BD) (F E2)}
+    true.
+
+- : ready-atomic-exists/let _ _ _ _ _ _ loc/id atomic-lhs/let term`eq/.
+
+- : ready-atomic-exists/let E1 (NV:notvalue E1) BD K2 E2 _ 
+        (loc/in L- (expr-in-expr/let BD)) A EQ
+    <- ready-atomic-exists E1 NV K2 E2 _ L- A EQ-
+    <- let-preserves-eq EQ- let-body-eq/ EQ.
+
+%theorem ready-atomic-exists/if :
+    forall* {B}
+    forall {C:cond} {V?:value? C B} {E1:expr} {E2:expr}
+    exists {K2} {E3:term K2} {F: term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E3}
+        {EQ:term`eq (if C E1 E2) (F E3)}
+    true. 
+
+- : ready-atomic-exists/if _ _ _ _ _ _ _ loc/id atomic-lhs/if1 term`eq/.
+- : ready-atomic-exists/if _ _ _ _ _ _ _ loc/id atomic-lhs/if2 term`eq/.
+
+- : ready-atomic-exists/if C (NV:notvalue C) E1 E2 K2 E3 _
+        (loc/in L- (cond-in-expr/if E1 E2)) A EQ
+    <- ready-atomic-exists C NV K2 E3 _ L- A EQ-
+    <- if-preserves-eq EQ- term`eq/ term`eq/ EQ.
+
+%theorem ready-atomic-exists/call :
+    forall* {B}
+    forall {AR:args} {V?:value? AR B} {N:nat}
+    exists {K2} {E2:term K2} {F: term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E2}
+        {EQ:term`eq (call N AR) (F E2)}
+    true.
+
+- : ready-atomic-exists/call _ V _ _ _ _ loc/id (atomic-lhs/call V) term`eq/.
+
+- : ready-atomic-exists/call AR (NV:notvalue AR) N K2 E2 _ 
+        (loc/in L- (args-in-expr/call N)) A EQ
+    <- ready-atomic-exists AR NV K2 E2 _ L- A EQ-
+    <- call-preserves-eq nat`eq/ EQ- EQ.
+
+%theorem ready-atomic-exists/join :
+    forall* {B}
+    forall {E1:expr} {V?:value? E1 B} 
+    exists {K2} {E2:term K2} {F: term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E2}
+        {EQ:term`eq (join E1) (F E2)}
+    true.
+
+- : ready-atomic-exists/join _ _ _ _ _ loc/id atomic-lhs/join term`eq/.
+
+- : ready-atomic-exists/join E1 (NV:notvalue E1) K2 E2 _
+        (loc/in L- expr-in-expr/join) A EQ
+    <- ready-atomic-exists E1 NV K2 E2 _ L- A EQ-
+    <- join-preserves-eq EQ- EQ.
+
+%theorem ready-atomic-exists/synch :
+    forall* {B}
+    forall {E1:expr} {V:value? E1 B} {E2:expr}
+    exists {K2} {E3:term K2} {F: term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E3}
+        {EQ:term`eq (synch E1 E2) (F E3)}
+    true.
+
+- : ready-atomic-exists/synch _ _ _ _ _ _ loc/id atomic-lhs/synch term`eq/.
+
+- : ready-atomic-exists/synch E1 (NV:notvalue E1) E2 K2 E3 _
+        (loc/in L- (expr-in-expr/synch E2)) A EQ
+    <- ready-atomic-exists E1 NV K2 E3 _ L- A EQ-
+    <- synch-preserves-eq EQ- term`eq/ EQ.
+
+%theorem ready-atomic-exists/hold :
+    forall* {B}
+    forall {E1:expr} {V?:value? E1 B} {O:object}
+    exists {K2} {E2:term K2} {F: term K2 -> expr }
+        {L:loc F}
+        {A:atomic-lhs E2}
+        {EQ:term`eq (hold O E1) (F E2)}
+    true.
+
+- : ready-atomic-exists/hold _ _ _ _ _ _ loc/id atomic-lhs/hold term`eq/.
+
+- : ready-atomic-exists/hold E1 (NV:notvalue E1) O K2 E2 _
+        (loc/in L- (expr-in-expr/hold O)) A EQ
+    <- ready-atomic-exists E1 NV K2 E2 _ L- A EQ-
+    <- hold-preserves-eq EQ- object`eq/ EQ.
+
+%theorem ready-atomic-exists/and :
+    forall* {B}
+    forall {C1:cond} {V?:value? C1 B} {C2:cond}
+    exists {K2} {T:term K2} {F: term K2 -> cond}
+        {L:loc F}
+        {A:atomic-lhs T}
+        {EQ:term`eq (and C1 C2) (F T)}
+    true.
+
+- : ready-atomic-exists/and _ _ _ _ _ _ loc/id atomic-lhs/and1 term`eq/.
+- : ready-atomic-exists/and _ _ _ _ _ _ loc/id atomic-lhs/and2 term`eq/.
+
+- : ready-atomic-exists/and C1 (NV:notvalue C1) C2 K2 T _
+        (loc/in L- (cond-in-cond/and C2)) A EQ
+    <- ready-atomic-exists C1 NV K2 T _ L- A EQ-
+    <- and-preserves-eq EQ- term`eq/ EQ.
+
+%theorem ready-atomic-exists/eql :
+    forall* {E1} {E2} {B1} {B2}
+    forall {E:cond} {EQ:term`eq E (eql E1 E2)} {V1?:value? E1 B1}
+            {V2?:value? E2 B2}
+    exists {K2} {T:term K2} {F: term K2 -> cond}
+        {L:loc F}
+        {A:atomic-lhs T}
+        {EQ:term`eq E (F T)}
+    true.
+
+- : ready-atomic-exists/eql _ term`eq/ _ _ _ _ _ loc/id atomic-lhs/eql term`eq/.
+
+- : ready-atomic-exists/eql (eql E1 E2) _ (NV:notvalue E1) _ K2 T _
+        (loc/in L- (expr-in-cond/eql1 E2)) A EQ
+    <- ready-atomic-exists E1 NV K2 T _ L- A EQ-
+    <- eql-preserves-eq EQ- term`eq/ EQ.
+
+- : ready-atomic-exists/eql (eql (lit O) E2) _ _ (NV:notvalue E2) K2 T _
+        (loc/in L- (expr-in-cond/eql2 O)) A EQ
+    <- ready-atomic-exists E2 NV K2 T _ L- A EQ-
+    <- eql-preserves-eq term`eq/ EQ- EQ.
+
+%theorem ready-atomic-exists/not :
+    forall* {C1} {B}
+    forall {C:cond} {EQ:term`eq C (not C1)} {NV:notvalue C} {V?:value? C1 B}
+    exists {K2} {T:term K2} {F: term K2 -> cond}
+        {L:loc F}
+        {A:atomic-lhs T}
+        {EQ2:term`eq C (F T)}
+    true.
+
+- : ready-atomic-exists/not (not cond/false) _ _ _ _ _ _ 
+        loc/id atomic-lhs/not term`eq/.
+
+- : ready-atomic-exists/not (not (not C)) _ _ (NV:notvalue (not C)) K2 T _
+        (loc/in L- cond-in-cond/not) A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/not (not C) term`eq/ NV V? K2 T _ L- A EQ-
+    <- not-preserves-eq EQ- EQ.
+
+- : ready-atomic-exists/not (not (and C1 C2)) _ _ _ K2 T _
+        (loc/in L- cond-in-cond/not) A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/and C1 V? C2 K2 T _ L- A EQ-
+    <- not-preserves-eq EQ- EQ.
+
+- : ready-atomic-exists/not (not (eql E1 E2)) _ _ _ K2 T _
+        (loc/in L- cond-in-cond/not) A EQ
+    <- value?-total V1?
+    <- value?-total V2?
+    <- ready-atomic-exists/eql (eql E1 E2) term`eq/ V1? V2? K2 T _ L- A EQ-
+    <- not-preserves-eq EQ- EQ.
+
+%theorem ready-atomic-exists/args :
+    forall* {E} {AR1} {B1} {B2}
+    forall {AR:args} {EQ:term`eq AR (args/+ E AR1)} {NV:notvalue AR}
+            {V1?:value? E B1} {V2?:value? AR1 B2}
+    exists {K2} {T:term K2} {F:term K2 -> args}
+        {L:loc F}
+        {A:atomic-lhs T}
+        {EQ:term`eq AR (F T)}
+    true.
+
+- : ready-atomic-exists/args (args/+ E AR) term`eq/ _ (NV:notvalue E) _ K2 T _
+        (loc/in L- (expr-in-args/args AR)) A EQ 
+    <- ready-atomic-exists E NV K2 T _ L- A EQ-
+    <- args/+-preserves-eq EQ- term`eq/ EQ.
+
+- : ready-atomic-exists/args (args/+ (lit O) AR) term`eq/ _ _ (NV:notvalue AR) 
+        K2 T _
+        (loc/in L- (args-in-args/args O)) A EQ
+    <- ready-atomic-exists AR NV K2 T _ L- A EQ-
+    <- args/+-preserves-eq term`eq/ EQ- EQ.
+
+- : ready-atomic-exists/args _ _ (NV:notvalue _) (V1:value _) (V2:value _) 
+        _ _ _ loc/id A term`eq/
+    <- value-notvalue-contradiction (value/args/+ V1 V2) NV FA
+    <- false-implies-atomic-lhs FA A.
+   
+%% Some cases need not be considered because they are values: lit true args/0
+%% Cases that are always atomic: while, fork, alloc 
+
+- : ready-atomic-exists _ _ _ _ _ loc/id atomic-lhs/alloc term`eq/.
+
+- : ready-atomic-exists (read E N) notvalue/read K2 T _ L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/read E V? N K2 T _ L A EQ.
+
+- : ready-atomic-exists (write E1 N E2) notvalue/write K2 T _ L A EQ
+    <- value?-total V1?
+    <- value?-total V2?
+    <- ready-atomic-exists/write _ term`eq/ V1? V2? K2 T _ L A EQ.
+
+- : ready-atomic-exists (readv E N) notvalue/readv K2 T _ L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/readv E V? N K2 T _ L A EQ.
+
+- : ready-atomic-exists (writev E1 N E2) _ K2 T _ L A EQ
+    <- value?-total V1?
+    <- value?-total V2?
+    <- ready-atomic-exists/writev _ term`eq/ V1? V2? K2 T _ L A EQ.
+
+- : ready-atomic-exists (let E B) notvalue/let K2 T _ L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/let E V? B K2 T _ L A EQ.
+
+- : ready-atomic-exists (if C E1 E2) notvalue/if K2 T _ L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/if C V? E1 E2 K2 T _ L A EQ.
+
+- : ready-atomic-exists _ _ _ _ _ loc/id atomic-lhs/while term`eq/.
+
+- : ready-atomic-exists (call N AR) notvalue/call K2 T F L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/call AR V? N K2 T F L A EQ.
+
+- : ready-atomic-exists _ _ _ _ _ loc/id atomic-lhs/fork term`eq/.
+
+- : ready-atomic-exists (join E) notvalue/join K2 T F L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/join E V? K2 T F L A EQ.
+
+- : ready-atomic-exists (synch E1 E2) notvalue/synch K2 T F L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/synch E1 V? E2 K2 T F L A EQ.
+
+- : ready-atomic-exists (hold O E) notvalue/hold K2 T F L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/hold E V? O K2 T F L A EQ.
+
+- : ready-atomic-exists (not C) NV K2 T _ L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/not (not C) term`eq/ NV V? K2 T _ L A EQ.
+
+
+- : ready-atomic-exists (and C1 C2) NV K2 T F L A EQ
+    <- value?-total V?
+    <- ready-atomic-exists/and C1 V? C2 K2 T F L A EQ.
+
+- : ready-atomic-exists (eql E1 E2) NV K2 T F L A EQ
+    <- value?-total V1?
+    <- value?-total V2?
+    <- ready-atomic-exists/eql (eql E1 E2) term`eq/ V1? V2? K2 T F L A EQ.
+
+- : ready-atomic-exists (args/+ E AR) NV K2 T _ L A EQ
+    <- value?-total V1?
+    <- value?-total V2?
+    <- ready-atomic-exists/args (args/+ E AR) term`eq/ NV V1? V2? K2 T _ L A EQ.
+
+%worlds () 
+    (ready-atomic-exists/write _ _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/writev _ _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/eql _ _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/not _ _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/args _ _ _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists _ _ _ _ _ _ _ _) 
+    (ready-atomic-exists/read _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/readv _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/let _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/if _ _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/call _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/join _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/synch _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/hold _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/and _ _ _ _ _ _ _ _ _).
+
+%total (E1 E2 E3 E4 E5 E6 E7 E8 E9 E10 E11 E12 E13 E14 E15)
+    (ready-atomic-exists/write E1 _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/writev E2 _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/eql E3 _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/not E4 _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/args E5 _ _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists E6 _ _ _ _ _ _ _) 
+    (ready-atomic-exists/read E7 _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/readv E8 _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/let E9 _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/if E10 _ _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/call E11 _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/join E12 _ _ _ _ _ _ _)
+    (ready-atomic-exists/synch E13 _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/hold E14 _ _ _ _ _ _ _ _)
+    (ready-atomic-exists/and E15 _ _ _ _ _ _ _ _).
+
+%%% theorems about ready
+
+
+%theorem false-implies-ready :
+	forall* {K} {T:term K} {P} {TS}
+	forall	{F:void}
+	exists	{R:ready TS P T}
+	true.
+
+%worlds () (false-implies-ready _ _).
+%total { } (false-implies-ready _ _).
+
+
+%theorem ready-respects-eq :
+	forall* {K1} {K2} {TS1} {TS2} {P1} {P2} {T1} {T2}
+	forall {REEa:ready TS1 P1 T1}
+               {TSE:threads`eq TS1 TS2} {T2E:nat`eq P1 P2}
+               {E1E:term`eq* K1 K2 T1 T2}
+        exists {REEb:ready TS2 P2 T2}
+	true.
+
+- : ready-respects-eq R threads`eq/ nat`eq/ term`eq/ R.
+
+%worlds () (ready-respects-eq _ _ _ _ _).
+%total { } (ready-respects-eq _ _ _ _ _).
+
+%reduces Ra = Ra' (ready-respects-eq Ra _ _ _ Ra').
+
+
+%theorem fulleval-implies-ready :
+	forall* {G} {P} {M} {TS} {S2}
+	forall {FE:fulleval G P (state/ M TS) S2}
+	exists {K} {T:term K} {R:ready TS P T}
+	true.
+
+- : fulleval-implies-ready (fulleval/ _ _ TL L E _ _) _ _ (ready/ _ TL L A)
+    <- eval-implies-atomic-lhs E A.
+
+%worlds () (fulleval-implies-ready _ _ _ _).
+%total { } (fulleval-implies-ready _ _ _ _).
+
+
+%{%
+%theorem active-thread-is-ready :
+	forall*
+	forall	{TL:threads`lookup TS P TH}
+	exists	{T} {R:ready
+%}%
+
+%% where ready things CAN'T be
+
+%theorem term-in-atomic-lhs-is-value :
+	forall* {K1} {K2} {T} {F}
+	forall {IN:in* K2 K1 F}
+	       {A:atomic-lhs (F T)}
+	exists {V:value T}
+	true.
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/read _)
+        (atomic-lhs/read)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/write1 _ _)
+        (atomic-lhs/write)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/write2 _ _)
+        (atomic-lhs/write)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/readv _)
+        (atomic-lhs/readv)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/writev1 _ _)
+        (atomic-lhs/writev)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/writev2 _ _)
+        (atomic-lhs/writev)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/let _)
+        (atomic-lhs/let)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/hold _)
+        (atomic-lhs/hold)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/synch _)
+        (atomic-lhs/synch)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(cond-in-expr/if _ _)
+        (atomic-lhs/if1)
+        (value/true).
+
+- : term-in-atomic-lhs-is-value
+	(cond-in-expr/if _ _)
+        (atomic-lhs/if2)
+        (value/false).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-cond/eql1 (lit _))
+        (atomic-lhs/eql)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-cond/eql2 _)
+        (atomic-lhs/eql)
+        (value/lit).
+
+- : term-in-atomic-lhs-is-value
+	(cond-in-cond/and _)
+	(atomic-lhs/and1)
+	(value/true).
+
+- : term-in-atomic-lhs-is-value
+	(cond-in-cond/and _)
+	(atomic-lhs/and2)
+	(value/false).
+
+- : term-in-atomic-lhs-is-value
+        (cond-in-cond/not)
+        (atomic-lhs/not)
+        (value/false).
+
+- : term-in-atomic-lhs-is-value
+	(args-in-expr/call _)
+	(atomic-lhs/call V)
+	V.
+
+- : term-in-atomic-lhs-is-value
+	(expr-in-expr/join)
+	(atomic-lhs/join)
+	(value/lit).
+
+%worlds () (term-in-atomic-lhs-is-value _ _ _).
+%total { } (term-in-atomic-lhs-is-value _ _ _).
+
+
+%theorem atomic-lhs-unique :
+	forall* {K1a} {K1b} {F1} {T1} 
+		{K2a} {K2b} {F2} {T2} 
+	forall {L1:loc* K1a K1b F1} {L2:loc* K2a K2b F2}
+	       {E:term`eq (F1 T1) (F2 T2)}
+	       {E1:atomic-lhs T1}
+	       {E2:atomic-lhs T2}
+	exists {E':term`eq T1 T2}
+	       {FE:term-func-eq F1 F2}
+	true.
+
+- : atomic-lhs-unique loc/id loc/id term`eq/ _ _ term`eq/ term-func-eq/.
+
+- : atomic-lhs-unique (loc/in (L:loc F) (I:in G)) loc/id term`eq/ A1 A2 TE2 FE
+    <- term-in-atomic-lhs-is-value I A2 V1
+    <- term-located-in-value-is-value L term`eq/ V1 V2
+    <- value-not-atomic V2 A1 V
+    <- term`false-implies-eq V TE2
+    <- false-implies-term-func-eq V FE.
+
+- : atomic-lhs-unique loc/id (loc/in (L:loc F) (I:in G)) term`eq/ A1 A2 TE2 FE
+    <- term-in-atomic-lhs-is-value I A1 V1
+    <- term-located-in-value-is-value L term`eq/ V1 V2
+    <- value-not-atomic V2 A2 V
+    <- term`false-implies-eq V TE2
+    <- false-implies-term-func-eq V FE.
+
+%theorem atomic-lhs-unique/CC :
+	forall* {K1a} {K1b} {K1c} {F1} {T1} {G1}
+		{K2a} {K2b} {K2c} {F2} {T2} {G2}
+	forall {L1:loc* K1a K1b F1} {L2:loc* K2a K2b F2}
+	       {I1:in* K1b K1c G1} {I2:in* K2b K2c G2}
+	       {E:term`eq (G1 (F1 T1)) (G2 (F2 T2))}
+	       {CC:context-comparison G1 G2 (F1 T1) (F2 T2) E}
+	       {E1:atomic-lhs T1}
+	       {E2:atomic-lhs T2}
+	exists {E':term`eq T1 T2}
+	       {FE: term-func-eq ([x] (G1 (F1 x))) ([x] (G2 (F2 x)))}
+	true.
+
+- : atomic-lhs-unique (loc/in (L1:loc F1) (I1:in G1)) 
+		      (loc/in (L2:loc F2) (I2:in G2)) TE A1 A2 TE2 FE
+     <- context-comparison-total I1 I2 TE CC
+     <- atomic-lhs-unique/CC L1 L2 I1 I2 TE CC A1 A2 TE2 FE.
+
+- : atomic-lhs-unique/CC (L1:loc F1) (L2:loc F2) (I1:in G) (I2:in G)
+			 TE context-comparison/= A1 A2 TE2 FE
+    <- in-cancels-eq TE I1 TE1
+    <- atomic-lhs-unique L1 L2 TE1 A1 A2 TE2 FE'
+    <- composition-preserves-eq FE' (term-func-eq/:term-func-eq G G) FE.
+
+- : atomic-lhs-unique/CC (L1:loc F1) _ _ _ _ (context-comparison/1 V1) 
+                         A1 _ TE2 FE
+    <- term-located-in-value-is-value L1 term`eq/ V1 V2
+    <- value-not-atomic V2 A1 FALSE
+    <- term`false-implies-eq FALSE TE2
+    <- false-implies-term-func-eq FALSE FE.
+
+
+- : atomic-lhs-unique/CC _ (L2:loc F2) _ _ _ (context-comparison/2 V1) 
+                         _ A2 TE2 FE
+    <- term-located-in-value-is-value L2 term`eq/ V1 V2
+    <- value-not-atomic V2 A2 FALSE
+    <- term`false-implies-eq FALSE TE2
+    <- false-implies-term-func-eq FALSE FE.
+
+%worlds () (atomic-lhs-unique _ _ _ _ _ _ _)
+           (atomic-lhs-unique/CC _ _ _ _ _ _ _ _ _ _).
+%total (L1 L2) (atomic-lhs-unique L1 _ _ _ _ _ _)
+               (atomic-lhs-unique/CC L2 _ _ _ _ _ _ _ _ _).
+
+
+%theorem ready-deterministic :
+	forall* {K1} {K2} {TS1} {TS2} {P1} {P2} {T1} {T2}
+	forall {R1:ready* K1 TS1 P1 T1}
+	       {R2:ready* K2 TS2 P2 T2}
+	       {SE:threads`eq TS1 TS2}
+	       {PE:nat`eq P1 P2}
+	exists {TE:term`eq T1 T2}
+	true.
+
+- : ready-deterministic (ready/ _ TL1 L1 A1) (ready/ _ TL2 L2 A2) 
+		        threads`eq/ nat`eq/ TE
+    <- threads`lookup-deterministic TL1 TL2 threads`eq/ nat`eq/ T1=T2
+    <- thread-eq-implies-eq T1=T2 _ E1=E2
+    <- atomic-lhs-unique L1 L2 E1=E2 A1 A2 TE _.
+
+%worlds () (ready-deterministic _ _ _ _ _).
+%total { } (ready-deterministic _ _ _ _ _).
+
+
+%theorem ready-implies-thread-live :
+	forall* {K} {TS} {P} {T}
+	forall {R1:ready* K TS P T}
+	exists {TD:threads`domain? TS P true}
+	true.
+
+- : ready-implies-thread-live (ready/ _ TL _ _) (threads`domain?/in TL).
+
+%worlds () (ready-implies-thread-live _ _).
+%total { } (ready-implies-thread-live _ _).
+
+
+%{%
+This is a pain in the neck: missing cases
+
+%theorem fulleval-inversion :
+	forall* {G} {P} {M1} {TS1} {M2} {TS3} {K} {F:term K -> expr} {W1} {TM1}
+	forall	{FE:fulleval G P (state/ M1 TS1) (state/ M2 TS3)}
+		{T:term K} {L: loc F}
+		{TL1: threads`lookup TS1 P (thread/ W1 TM1)}
+		{TEQ: term`eq TM1 (F T)}
+		{A:atomic-lhs T}
+	exists	{TM2} {T'} {TS2} {W2} {U}
+		{E:eval G P (state/ M1 TS1) T (state/ M2 TS2) T'}
+		{TL2: threads`lookup TS2 P (thread/ W2 U)}
+		{TU: threads`update TS2 P (thread/ W2 TM2) TS3}
+		{TEQ': term`eq TM2 (F T')}
+	true.
+
+- : fulleval-inversion 
+	(fulleval/ T1 T1' TL1 L1 E1 TL1' TU1) T2 L2 TL2 TM=F2T2 A2
+	_ T1' _ _ _ E2 TL1' TU1 F1T1'=F2T1'
+    <- eval-implies-atomic-lhs E1 A1
+    <- threads`lookup-deterministic TL1 TL2 threads`eq/ nat`eq/ TH1=TH2
+    <- thread-eq-implies-eq TH1=TH2 _ F1T1=TM
+    <- term`eq-transitive F1T1=TM TM=F2T2 F1T1=F2T2
+    <- atomic-lhs-unique L1 L2 F1T1=F2T2 A1 A2 T1=T2 F1=F2
+    <- eval-respects-eq 
+	E1 prog`eq/ nat`eq/ state`eq/ T1=T2 state`eq/ term`eq/ E2
+    <- app-respects-eq* T1' T1' F1=F2 term`eq/ F1T1'=F2T1'.
+
+%worlds () (fulleval-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (fulleval-inversion _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+%}%
+
+%theorem fulleval-inversion* :
+	forall* {G} {P} {M1} {TS1} {M2} {TS3} {K} {F:term K -> expr} 
+		{W1} {TM1} {W2} {TM3}
+	forall	{FE:fulleval G P (state/ M1 TS1) (state/ M2 TS3)}
+		{T:term K} {T'} {L: loc F} {A:atomic-lhs T}
+		{TL1: threads`lookup TS1 P (thread/ W1 TM1)}
+		{TEQ1: term`eq TM1 (F T)}
+		{TL3: threads`lookup TS3 P (thread/ W2 TM3)}
+		{TEQ3: term`eq TM3 (F T')}
+	exists	{TS2} {U}
+		{E:eval G P (state/ M1 TS1) T (state/ M2 TS2) T'}
+		{TL2: threads`lookup TS2 P (thread/ W2 U)}
+		{TU: threads`update TS2 P (thread/ W2 TM3) TS3}
+	true.
+
+- : fulleval-inversion*
+	(fulleval/ T1 T1' TL1 L1 E1 TL1' TU1) T2 T2' L2 A2
+	TL2 TM=F2T2 TL2'' TM''=F2T2' _ _
+	E2 TL2' TU2
+    <- eval-implies-atomic-lhs E1 A1
+    <- threads`lookup-deterministic TL1 TL2 threads`eq/ nat`eq/ TH1=TH2
+    <- thread-eq-implies-eq TH1=TH2 _ F1T1=TM
+    <- term`eq-transitive F1T1=TM TM=F2T2 F1T1=F2T2
+    <- atomic-lhs-unique L1 L2 F1T1=F2T2 A1 A2 T1=T2 F1=F2
+    <- threads`update-implies-lookup TU1 TL1''
+    <- threads`lookup-deterministic TL1'' TL2'' threads`eq/ nat`eq/ TH1''=TH2''
+    <- thread-eq-implies-eq TH1''=TH2'' W1''=W2'' F1T1'=TM''
+    <- term`eq-transitive F1T1'=TM'' TM''=F2T2' F1T1'=F2T2'
+    <- loc-uses-argument* L1 L2 T1' T2' F1=F2 F1T1'=F2T2' T1'=T2'
+    <- eval-respects-eq E1 prog`eq/ nat`eq/ state`eq/ T1=T2 state`eq/ T1'=T2' E2
+    <- thread-preserves-eq W1''=W2'' term`eq/ TH1'=TH2'
+    <- threads`lookup-respects-eq TL1' threads`eq/ nat`eq/ TH1'=TH2' TL2'
+    <- thread-preserves-eq W1''=W2'' F1T1'=TM'' THE
+    <- threads`update-respects-eq TU1 threads`eq/ nat`eq/ THE threads`eq/ TU2.
+
+%worlds () (fulleval-inversion* _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (fulleval-inversion* _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+

@@ -1,0 +1,2216 @@
+%%%%% Separation lemmas and theorems
+%%%%% Semantics of Fractional Permissions With Nesting
+%%%%% John Boyland
+
+
+
+%%%% Definitions
+
+
+
+models/basic-covered : models H Psi NG Cy T -> cycle N -> type.
+
+%{%
+This relation is a technical relation used to help check
+termination when adding nesting. It says that the instances
+of models/basic in the modeling relation all occur in C,
+which is unrelated to the cycle parameter of M.
+%}%
+
+models/basic-covered/basic : 
+	models/basic-covered M' C ->
+	remcycle C H Psi (natpair`pair/ O F) C' ->
+    models/basic-covered
+	(models/basic _ _ _ 
+	   (M':models _ _ _ (cycle/+ _ H Psi (natpair`pair/ O F)) _) _)
+        C.
+
+models/basic-covered/scale :
+	models/basic-covered M C ->
+    models/basic-covered (models/scale M _) C.
+
+models/basic-covered/combined :
+	models/basic-covered M1 C ->
+	models/basic-covered M2 C ->
+    models/basic-covered (models/combined M1 M2 _) C.
+
+models/basic-covered/obligation :
+    models/basic-covered (models/obligation) C.
+	
+models/basic-covered/equiv :
+	models/basic-covered M C ->
+    models/basic-covered (models/equiv _ _ M) C.
+
+models/basic-covered/unit :
+	models/basic-covered M C ->
+    models/basic-covered (models/unit M) C.
+
+models/basic-covered/nonlinear :
+    models/basic-covered (models/nonlinear _) C.
+	
+models/basic-covered/conditional/T :
+	models/basic-covered M C ->
+    models/basic-covered (models/conditional/T _ M) C.
+
+models/basic-covered/conditional/F :
+	models/basic-covered M C ->
+    models/basic-covered (models/conditional/F _ M) C.
+
+models/basic-covered/exists :
+	models/basic-covered M C ->
+    models/basic-covered (models/exists _ M) C.
+
+models/basic-covered/encumbered :
+	models/basic-covered M C ->
+    models/basic-covered (models/encumbered M) C.
+
+models/basic-covered/basic-co :
+    models/basic-covered (models/basic-co _ _ _) C.
+	
+
+
+addnest : heap -> nat -> heap -> heap -> type.
+
+%{%
+	addnest H1 L H2 H3
+means we updated heap 1 to handle that L now also includes H2 to get H3.
+If H1 includes QL, then H1+Q*H2=H3.  Otherwise (if free) H1=H3
+%}%
+
+addnest/+ :	
+	pheap`lookup H1 L (frv/ Q _) ->
+	heap`scale Q H2 QH2 ->
+	heap`add H1 QH2 H3 ->
+    addnest H1 L H2 H3.
+
+addnest/= : pheap`fresh H1 L -> addnest H1 L _ H1.
+
+
+
+selfaddnest : nat -> permission -> nesting -> cycle N -> heap -> type.
+
+%{%
+	selfaddnest L Pi N Cy H
+This computes the heap for the permission Pi assuming Pi will be nested in L.
+The nesting N is the previous nesting.  It also ensures that the modeling
+relation is "covered" by Cy
+%}%
+
+
+selfaddnest/+ : 
+	{M: models H empty N cycle/0 Pi}
+        models/basic-covered M Cy ->
+	pheap`lookup H L (frv/ R O) ->
+        rat`add RC R rat`one ->
+	rat`mul RI RC rat`one ->
+	heap`scale RI H H' ->
+    selfaddnest L Pi N Cy H'.
+
+selfaddnest/= :
+	{M: models H empty N cycle/0 Pi}
+        models/basic-covered M Cy ->
+	pheap`fresh H L ->
+    selfaddnest L Pi N Cy H.
+
+% we have already done the nesting:
+selfaddnest/> :
+	canon Pi C ->
+	nesting`add N1 (nesting`map/+ L C nesting`map/0) N2 ->
+	models H' empty N2 cycle/0 Pi ->
+    selfaddnest L Pi N1 Cy H'.
+
+
+%{%
+Crossnest computes what happens that two mutually relevant nestings 
+find out about eachother after being put into effect in their own spheres.
+I had originally thought that I would handle 3 or more mutually relevant 
+nestings as a series of cross nestings, but it doesn't work:
+Suppose we have nestings 1,2,3 all with modelings handling only themselves.  
+I can cross nest 1 and 2 together, but when I go to 3's modeling,
+I need to first and 1, using cross nesting and then add 2.
+But to add two, I need to give it BOTH 1 and 3.  So I add 1 using
+cross nesting, and then all I need to do is add 3, and notice we
+have an infinite loop.  So this lemma is too restrictive.
+I need to use nesting inversion which involves inverting the matrix (I-R).
+%}%
+
+crossnest : nat -> canonical -> nat -> canonical -> 
+        nesting -> nesting -> nesting -> cycle N1 -> cycle N2 -> 
+	heap -> heap -> type.
+
+crossnest/ :
+	{M1: models H1 empty N1 cycle/0 Pi1}
+	{M2: models H2 empty N2 cycle/0 Pi2}
+	models/basic-covered M1 Cy1 ->
+	models/basic-covered M2 Cy2 ->
+	canon Pi1 C1 ->
+	canon Pi2 C2 ->
+	nesting`add N1 (nesting`map/+ L2 C2 nesting`map/0) N' ->
+	nesting`add N2 (nesting`map/+ L1 C1 nesting`map/0) N' ->
+	pheap`lookup H1 L2 (frv/ Q12 O2) ->
+	pheap`lookup H2 L1 (frv/ Q21 O1) ->
+	rat`mul Q12 Q21 QQ ->
+	rat`add QR QQ rat`one ->
+	rat`mul QI QR rat`one ->
+	heap`scale QI H1 QIH1 ->
+	heap`scale QI H2 QIH2 ->
+	heap`scale Q21 QIH1 H1' ->
+	heap`scale Q12 QIH2 H2' ->
+	heap`add QIH1 H2' H1'' ->
+	heap`add H1' QIH2 H2'' ->
+    crossnest L1 C1 L2 C2 N1 N2 N' Cy1 Cy2 H1'' H2''.
+
+
+%{%
+When we add nesting relations, we have to update the cycle relation.
+This relation says we have done things correct.
+%}%
+
+cycle-add-nest* : {N} cycle N -> heap -> nat -> cycle N -> type.
+
+
+%abbrev cycle-add-nest = cycle-add-nest* _.
+
+
+cycle-add-nest/z : cycle-add-nest cycle/0  _ _ cycle/0.
+
+cycle-add-nest/+ :
+	cycle-add-nest C1 H L C2 ->
+        nat`ne L L1 ->
+        pair2nat P L1 -> 
+	pheap`lookup H1 L (frv/ Q _) ->
+	pheap`scale Q H QH ->
+	pheap`add H1 QH H2 ->
+    cycle-add-nest (cycle/+ C1 H1 Psi P) H L (cycle/+ C2 H2 Psi P).
+
+cycle-add-nest/= :
+	cycle-add-nest C1 H L C2 ->
+        pair2nat P L ->
+        addnest H0 L H H1 ->
+        pheap`add H1 H H2 ->
+    cycle-add-nest (cycle/+ C1 H0 Psi P) H L (cycle/+ C2 H2 Psi P).
+
+
+
+
+%%%% Theorems
+
+
+
+%%% theorems about addnest
+
+
+%theorem addnest/=-inversion :
+	forall* {H1} {H2} {H3} {L}
+	forall {U:addnest H1 L H2 H3} {H1L:pheap`fresh H1 L}
+        exists {E:heap`eq H1 H3}
+	true.
+
+- : addnest/=-inversion (addnest/= _) _ heap`eq/.
+
+- : addnest/=-inversion (addnest/+ H1L _ _) H1F E
+    <- pheap`fresh-lookup-not-equal H1F H1L N1<>N1
+    <- nat`ne-anti-reflexive N1<>N1 F
+    <- heap`false-implies-eq F E.
+
+%worlds () (addnest/=-inversion _ _ _).
+%total { } (addnest/=-inversion _ _ _).
+
+
+%theorem addnest/+-inversion :
+	forall* {H1} {H2} {H3} {L} {Q} {O}
+	forall {U:addnest H1 L H2 H3} {H1L:pheap`lookup H1 L (frv/ Q O)}
+	exists {QH2}
+	       {HS:heap`scale Q H2 QH2}
+	       {HA:heap`add H1 QH2 H3}
+	true.
+
+- : addnest/+-inversion (addnest/= H1F) H1L pheap`map/0 HS HA
+    <- pheap`fresh-lookup-not-equal H1F H1L N1<>N1
+    <- nat`ne-anti-reflexive N1<>N1 F
+    <- pheap`false-implies-scale F HS
+    <- pheap`false-implies-add F HA.
+
+- : addnest/+-inversion (addnest/+ H1L' HS' HA) H1L _ HS HA
+    <- pheap`lookup-deterministic H1L' H1L pheap`eq/ nat`eq/ FR'=FR
+    <- frv-eq-implies-eq FR'=FR Q'=Q _
+    <- pheap`scale-respects-eq HS' Q'=Q heap`eq/ heap`eq/ HS.
+
+%worlds () (addnest/+-inversion _ _ _ _ _).
+%total { } (addnest/+-inversion _ _ _ _ _).
+
+
+%% following are lemmas for helping unpack nestings:
+
+%theorem combined-addnest-helper :
+	forall* {H1} {H2} {L} {H3} {H11} {H21} {B1} {B2}
+	forall {U:addnest H1 L H2 H3}
+               {A1:heap`add H11 H21 H1}
+	       {D1?:pheap`domain? H11 L B1}
+	       {D2?:pheap`domain? H21 L B2}
+        exists {H13} {H23}
+               {A3:heap`add H13 H23 H3}
+	       {U1:addnest H11 L H2 H13} 
+	       {U2:addnest H21 L H2 H23}
+	true.
+
+- : combined-addnest-helper 
+     U H11+H21=H1 (pheap`domain?/in H11L) (pheap`domain?/in H21L) _ _
+     H13+H23=H3 
+     (addnest/+ H11L Q1*H2=Q1H2 H11+Q1H2=H13)
+     (addnest/+ H21L Q2*H2=Q2H2 H21+Q2H2=H23)
+    <- pheap`add-joins-lookup H11L H21L H11+H21=H1 (frv/ Q O) FR1+FR2=FR H1L
+    <- frv`add-inversion FR1+FR2=FR Q1+Q2=Q _ _ _
+    <- addnest/+-inversion U H1L QH2 Q*H2=QH2 H1+QH2=H3
+    <- heap`scale-right-distributes-over-add  
+       Q1+Q2=Q Q*H2=QH2 Q1H2 Q2H2 Q1*H2=Q1H2 Q2*H2=Q2H2 Q1H2+Q2H2=QH2
+    <- heap`add-double-associative H11+H21=H1 Q1H2+Q2H2=QH2 H1+QH2=H3 H13 H23
+                                   H11+Q1H2=H13 H21+Q2H2=H23 H13+H23=H3.
+
+- : combined-addnest-helper 
+     U H11+H21=H1 (pheap`domain?/in H11L) (pheap`domain?/out H21F) _ _
+     H13+H21=H3 
+     (addnest/+ H11L Q1*H2=QH2 H11+QH2=H13)
+     (addnest/= H21F)
+    <- pheap`fresh-add-right-preserves-lookup* H11L H21F H11+H21=H1 H1L
+    <- addnest/+-inversion U H1L QH2 Q1*H2=QH2 H1+QH2=H3
+    <- heap`add-commutative H11+H21=H1 H21+H11=H1
+    <- heap`add-associative H21+H11=H1 H1+QH2=H3 H13 H11+QH2=H13 H21+H13=H3
+    <- heap`add-commutative H21+H13=H3 H13+H21=H3.
+
+- : combined-addnest-helper
+     U H11+H21=H1 (pheap`domain?/out H11F) (pheap`domain?/in H21L) _ _
+     H11+H23=H3 (addnest/= H11F) (addnest/+ H21L Q2*H2=QH2 H21+QH2=H23)
+    <- pheap`fresh-add-left-preserves-lookup* H11F H21L H11+H21=H1 H1L
+    <- addnest/+-inversion U H1L QH2 Q2*H2=QH2 H1+QH2=H3
+    <- heap`add-associative H11+H21=H1 H1+QH2=H3 H23 H21+QH2=H23 H11+H23=H3.
+
+- : combined-addnest-helper 
+     U H11+H21=H1 (pheap`domain?/out H11F) (pheap`domain?/out H21F) _ _
+     H11+H21=H3 (addnest/= H11F) (addnest/= H21F)
+    <- pheap`add-preserves-fresh* H11F H21F H11+H21=H1 H1F
+    <- addnest/=-inversion U H1F H1=H3
+    <- pheap`add-respects-eq H11+H21=H1 heap`eq/ heap`eq/ H1=H3 H11+H21=H3.
+
+%worlds () (combined-addnest-helper _ _ _ _ _ _ _ _ _).
+%total { } (combined-addnest-helper _ _ _ _ _ _ _ _ _).
+
+
+%theorem basic-addnest-helper :
+	forall* {H1} {H2} {L} {H1'} {H0} {O'} {B}
+	forall {U:addnest H1 L H2 H1'}
+               {A1:heap`add H0 (pheap`map/+ L (frv/ rat`one O') heap`0) H1}
+	       {D1?:pheap`domain? H0 L B}
+        exists {H0'} {H0''}
+	       {U1:addnest H0 L H2 H0'} 
+	       {A2:heap`add H0' H2 H0''}
+               {A3:heap`add H0'' (pheap`map/+ L (frv/ rat`one O') heap`0) H1'}
+	true.
+
+- : basic-addnest-helper 
+     (addnest/= H1F) H0+U=H1 _ H0 H0 (addnest/= H0F) H0+H2=H0 H0+U=H1 
+    <- pheap`add-preserves-fresh-converse* H1F H0+U=H1 H0F UF
+    <- pheap`fresh-contradiction UF F
+    <- pheap`false-implies-add F H0+H2=H0.
+
+- : basic-addnest-helper (addnest/+ H1L' Q*H2=QH2 H1+QH2=H1') H0+U=H1
+     (pheap`domain?/in H0L) H0' H0''
+     (addnest/+ H0L Q0*H2=Q0H2 H0+Q0H2=H0') H0'+H2=H0'' H0''+U=H1' 
+    <- pheap`add-joins-lookup H0L (pheap`lookup/= nat`eq/) H0+U=H1 (frv/ Q1 O1)
+                              FRV0+UV=FRV1 H1L
+    <- frv`add-inversion FRV0+UV=FRV1 Q0+1=Q1 _ _ _
+    <- pheap`lookup-deterministic H1L' H1L heap`eq/ nat`eq/ FRV1'=FRV1
+    <- frv-eq-implies-eq FRV1'=FRV1 (Q=Q1:equ Q Q1) O1'=O
+    <- pheap`scale-respects-eq Q*H2=QH2 Q=Q1 heap`eq/ heap`eq/ Q1*H2=QH2
+    <- pheap`scale-total Q0*H2=Q0H2
+    <- pheap`scale-identity _ ONE*H2=H2
+    <- heap`scale-right-distributes-over-add* 
+       Q0+1=Q1 Q1*H2=QH2 Q0*H2=Q0H2 ONE*H2=H2 Q0H2+H2=QH2
+    <- pheap`add-assoc-commutative 
+       H0+U=H1 H1+QH2=H1' H0'' H0+QH2=H0'' H0''+U=H1'
+    <- pheap`add-associative-converse 
+       Q0H2+H2=QH2 H0+QH2=H0'' H0' H0+Q0H2=H0' H0'+H2=H0''.
+
+- : basic-addnest-helper (addnest/+ H1L' Q*H2=QH2 H1+QH2=H1') H0+U=H1
+     (pheap`domain?/out H0F) H0 H0''
+     (addnest/= H0F) H0+H2=H0'' H0''+U=H1' 
+    <- pheap`fresh-add-left-preserves-lookup*
+       H0F (pheap`lookup/= nat`eq/) H0+U=H1 H1L
+    <- pheap`lookup-deterministic H1L' H1L heap`eq/ nat`eq/ FRV1'=FRV1
+    <- frv-eq-implies-eq FRV1'=FRV1 (Q=1:equ Q rat`one) O1'=O
+    <- pheap`scale-identity _ ONE*H2=H2
+    <- pheap`scale-deterministic Q*H2=QH2 ONE*H2=H2 Q=1 heap`eq/ QH2=H2
+    <- pheap`add-respects-eq H1+QH2=H1' heap`eq/ QH2=H2 heap`eq/ H1+H2=H1'
+    <- pheap`add-assoc-commutative 
+       H0+U=H1 H1+H2=H1' H0'' H0+H2=H0'' H0''+U=H1'.
+
+%worlds () (basic-addnest-helper _ _ _ _ _ _ _ _).
+%total { } (basic-addnest-helper _ _ _ _ _ _ _ _).
+
+
+
+%%% Theorems about models/basic-covered
+
+
+%theorem catcycle-right-preserves-models/basic-covered :
+	forall* {K} {N} {T:term K} {Cy:cycle N} {H} {Psi} {NG} 
+                {M:models H Psi NG Cy T} {N1} {C1:cycle N1} {N2} {C2:cycle N2}
+		{N3} {P:plus N1 N2 N3} {C3}
+	forall {MBC:models/basic-covered M C1}
+               {CC:catcycle P C1 C2 C3}
+	exists {MBC':models/basic-covered M C3}
+	true.
+
+- : catcycle-right-preserves-models/basic-covered 
+     (models/basic-covered/basic MBC RC) CC
+     (models/basic-covered/basic MBC' RC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'
+    <- catcycle-right-preserves-remcycle RC CC _ _ _ RC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/scale MBC) CC (models/basic-covered/scale MBC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/combined MBC1 MBC2) CC 
+     (models/basic-covered/combined MBC1' MBC2')
+    <- catcycle-right-preserves-models/basic-covered MBC1 CC MBC1'
+    <- catcycle-right-preserves-models/basic-covered MBC2 CC MBC2'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/obligation) CC (models/basic-covered/obligation).
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/equiv MBC) CC (models/basic-covered/equiv MBC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/unit MBC) CC (models/basic-covered/unit MBC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/nonlinear) CC (models/basic-covered/nonlinear).
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/conditional/T MBC) CC 
+     (models/basic-covered/conditional/T MBC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/conditional/F MBC) CC 
+     (models/basic-covered/conditional/F MBC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/exists MBC) CC (models/basic-covered/exists MBC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/encumbered MBC) CC 
+     (models/basic-covered/encumbered MBC')
+    <- catcycle-right-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-right-preserves-models/basic-covered
+     (models/basic-covered/basic-co) CC (models/basic-covered/basic-co).
+
+%worlds () (catcycle-right-preserves-models/basic-covered _ _ _).
+%total (M) (catcycle-right-preserves-models/basic-covered M _ _).
+
+
+%theorem catcycle-left-preserves-models/basic-covered :
+	forall* {K} {N} {T:term K} {Cy:cycle N} {H} {Psi} {NG} 
+                {M:models H Psi NG Cy T} {N1} {C1:cycle N1} {N2} {C2:cycle N2}
+		{N3} {P:plus N1 N2 N3} {C3}
+	forall {MBC:models/basic-covered M C2}
+               {CC:catcycle P C1 C2 C3}
+	exists {MBC':models/basic-covered M C3}
+	true.
+
+- : catcycle-left-preserves-models/basic-covered 
+     (models/basic-covered/basic MBC RC) CC
+     (models/basic-covered/basic MBC' RC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'
+    <- catcycle-left-preserves-remcycle RC CC _ _ _ RC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/scale MBC) CC (models/basic-covered/scale MBC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/combined MBC1 MBC2) CC 
+     (models/basic-covered/combined MBC1' MBC2')
+    <- catcycle-left-preserves-models/basic-covered MBC1 CC MBC1'
+    <- catcycle-left-preserves-models/basic-covered MBC2 CC MBC2'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/obligation) CC (models/basic-covered/obligation).
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/equiv MBC) CC (models/basic-covered/equiv MBC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/unit MBC) CC (models/basic-covered/unit MBC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/nonlinear) CC (models/basic-covered/nonlinear).
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/conditional/T MBC) CC 
+     (models/basic-covered/conditional/T MBC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/conditional/F MBC) CC 
+     (models/basic-covered/conditional/F MBC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/exists MBC) CC (models/basic-covered/exists MBC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/encumbered MBC) CC 
+     (models/basic-covered/encumbered MBC')
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-models/basic-covered
+     (models/basic-covered/basic-co) CC (models/basic-covered/basic-co).
+
+%worlds () (catcycle-left-preserves-models/basic-covered _ _ _).
+%total (M) (catcycle-left-preserves-models/basic-covered M _ _).
+
+
+%theorem models/basic-covered-total* :
+	forall* {K} {N} {H} {Psi} {NG} {C:cycle N} {T:term K}
+	forall {M:models H Psi NG C T}
+        exists {N1} {C1:cycle N1}
+	       {MBC:models/basic-covered M C1}
+	true.
+
+%abbrev models/basic-covered-total = models/basic-covered-total* _ _ _.
+
+- : models/basic-covered-total (models/basic-covered/basic MBC' remcycle/here)
+    <- models/basic-covered-total* _ _ C1 MBC
+    <- catcycle-left-preserves-models/basic-covered 
+       MBC (catcycle/s catcycle/z:catcycle (plus/s plus/z) _ C1 _) MBC'.
+
+- : models/basic-covered-total (models/basic-covered/scale MBC)
+    <- models/basic-covered-total MBC.
+
+- : models/basic-covered-total (models/basic-covered/combined MBC1' MBC2')
+    <- models/basic-covered-total* _ _ C1 MBC1
+    <- models/basic-covered-total* _ _ C2 MBC2
+    <- plus-total P
+    <- catcycle-total* P C1 C2 C3 CC
+    <- catcycle-right-preserves-models/basic-covered MBC1 CC MBC1' 
+    <- catcycle-left-preserves-models/basic-covered MBC2 CC MBC2'.
+ 
+- : models/basic-covered-total* _ _ cycle/0 (models/basic-covered/obligation).
+
+- : models/basic-covered-total (models/basic-covered/equiv MBC)
+    <- models/basic-covered-total MBC.
+
+- : models/basic-covered-total (models/basic-covered/unit MBC)
+    <- models/basic-covered-total MBC.
+
+- : models/basic-covered-total* _ _ cycle/0 (models/basic-covered/nonlinear).
+
+- : models/basic-covered-total (models/basic-covered/conditional/T MBC)
+    <- models/basic-covered-total MBC.
+
+- : models/basic-covered-total (models/basic-covered/conditional/F MBC)
+    <- models/basic-covered-total MBC.
+
+- : models/basic-covered-total (models/basic-covered/exists MBC)
+    <- models/basic-covered-total MBC.
+
+- : models/basic-covered-total (models/basic-covered/encumbered MBC)
+    <- models/basic-covered-total MBC.
+
+- : models/basic-covered-total* _ _ cycle/0 (models/basic-covered/basic-co).
+
+%worlds () (models/basic-covered-total* _ _ _ _).
+%total (M) (models/basic-covered-total* M _ _ _).
+
+
+%theorem swap-catend-preserves-models/basic-covered :
+	forall* {N1} {C1:cycle (s N1)} {H1} {Psi1} {L1}
+                {N2} {C2:cycle N2} {N3} {C3:cycle (s N3)}
+                {P:plus (s N1) N2 (s N3)} {P':plus N1 (s N2) (s N3)}
+		{N} {Cy:cycle N} {K} {T:term K} {H} {Psi} {NG}
+		{M:models H Psi NG Cy T}
+                {C1':cycle N1} {C3':cycle (s N3)}
+	forall {CC:catcycle P C1 C2 C3}
+	       {MBC:models/basic-covered M C3}
+	       {RC1:remcycle C1 H1 Psi1 L1 C1'}
+	       {CC':catcycle P' C1' (cycle/+ C2 H1 Psi1 L1) C3'}
+	exists {MBC':models/basic-covered M C3'}
+	true.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/basic MBC RC) RC1 CC'
+     (models/basic-covered/basic MBC' RC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC1 CC' MBC'
+    <- swap-catend-preserves-remcycle CC RC RC1 CC' _ RC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/scale MBC) RC CC' (models/basic-covered/scale MBC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/combined MBC1 MBC2) RC CC' 
+     (models/basic-covered/combined MBC1' MBC2')
+    <- swap-catend-preserves-models/basic-covered CC MBC1 RC CC' MBC1'
+    <- swap-catend-preserves-models/basic-covered CC MBC2 RC CC' MBC2'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/obligation) RC CC' (models/basic-covered/obligation).
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/equiv MBC) RC CC' (models/basic-covered/equiv MBC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/unit MBC) RC CC' (models/basic-covered/unit MBC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/nonlinear) RC CC' (models/basic-covered/nonlinear).
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/conditional/T MBC) RC CC' 
+     (models/basic-covered/conditional/T MBC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/conditional/F MBC) RC CC' 
+     (models/basic-covered/conditional/F MBC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/exists MBC) RC CC' (models/basic-covered/exists MBC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/encumbered MBC) RC CC' 
+     (models/basic-covered/encumbered MBC')
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-models/basic-covered CC
+     (models/basic-covered/basic-co) RC CC' (models/basic-covered/basic-co).
+
+%worlds () (swap-catend-preserves-models/basic-covered _ _ _ _ _).
+%total (M) (swap-catend-preserves-models/basic-covered _ M _ _ _).
+
+
+%theorem weaken-preserves-models/basic-covered :
+	forall* {N} {C:cycle N} {K} {N'} {Cy:cycle N'}
+		{H} {Psi} {NG} {T:term K}
+		{H'} {Psi'} {P'}
+	forall {M1:models H Psi NG Cy T}
+               {MBC:models/basic-covered M1 C}
+        exists {M2:models H Psi NG (cycle/+ Cy H' Psi' P') T}
+               {MBC:models/basic-covered M2 C}
+	true.
+
+%theorem weaken-preserves-models/basic-covered/L :
+	forall* {H} {Psi} {NG} {K} {T:term K}
+	        {H'} {Psi'} {P'}
+	        {N1} {N2} {N3} {A:plus N1 N2 N3} {N}
+		{C1:cycle N1} {C2:cycle N2} {C3:cycle N3} {C:cycle N}
+		{N3'} {A':plus N1 (s N2) N3'} {C3':cycle N3'}
+	forall {CC:catcycle A C1 C2 C3}
+               {M:models H Psi NG C3 T}
+               {CC':catcycle A' C1 (cycle/+ C2 H' Psi' P') C3'}
+               {MBC:models/basic-covered M C}
+	exists {M':models H Psi NG C3' T}
+               {MBC:models/basic-covered M' C}
+	true.
+
+- : weaken-preserves-models/basic-covered M MBC M' MBC'
+    <- weaken-preserves-models/basic-covered/L 
+       catcycle/z M catcycle/z MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/scale M Q*H=QH) CC' (models/basic-covered/scale MBC)
+     (models/scale M' Q*H=QH) (models/basic-covered/scale MBC')
+    <- weaken-preserves-models/basic-covered/L CC M CC' MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/combined M1 M2 A) CC' (models/basic-covered/combined MBC1 MBC2)
+     (models/combined M1' M2' A) (models/basic-covered/combined MBC1' MBC2')
+    <- weaken-preserves-models/basic-covered/L CC M1 CC' MBC1 M1' MBC1'
+    <- weaken-preserves-models/basic-covered/L CC M2 CC' MBC2 M2' MBC2'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/obligation) CC' _ (models/obligation) 
+     (models/basic-covered/obligation).
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/equiv E1 E2 M) CC' (models/basic-covered/equiv MBC)
+     (models/equiv E1 E2 M') (models/basic-covered/equiv MBC')
+    <- weaken-preserves-models/basic-covered/L CC M CC' MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/unit M) CC' (models/basic-covered/unit MBC)
+     (models/unit M') (models/basic-covered/unit MBC')
+    <- weaken-preserves-models/basic-covered/L CC M CC' MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/nonlinear BE) CC' _ (models/nonlinear BE)
+     (models/basic-covered/nonlinear).
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/conditional/T BE M) CC' (models/basic-covered/conditional/T MBC)
+     (models/conditional/T BE M') (models/basic-covered/conditional/T MBC')
+    <- weaken-preserves-models/basic-covered/L CC M CC' MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/conditional/F BE M) CC' (models/basic-covered/conditional/F MBC)
+     (models/conditional/F BE M') (models/basic-covered/conditional/F MBC')
+    <- weaken-preserves-models/basic-covered/L CC M CC' MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/exists V M) CC' (models/basic-covered/exists MBC)
+     (models/exists V M') (models/basic-covered/exists MBC')
+    <- weaken-preserves-models/basic-covered/L CC M CC' MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/encumbered M) CC' (models/basic-covered/encumbered MBC)
+     (models/encumbered M') (models/basic-covered/encumbered MBC')
+    <- weaken-preserves-models/basic-covered/L CC M CC' MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/basic P2N HL K M A) CC' (models/basic-covered/basic MBC RC)
+     (models/basic P2N HL K M' A) (models/basic-covered/basic MBC' RC)
+    <- weaken-preserves-models/basic-covered/L 
+       (catcycle/s CC) M (catcycle/s CC') MBC M' MBC'.
+
+- : weaken-preserves-models/basic-covered/L 
+     CC (models/basic-co P2N RMC A) CC' _
+     (models/basic-co P2N RMC' A) (models/basic-covered/basic-co)
+    <- insert-preserves-remcycle CC RMC CC' _ RMC'.
+
+%worlds () (weaken-preserves-models/basic-covered/L _ _ _ _ _ _).
+%total (M) (weaken-preserves-models/basic-covered/L _ M _ _ _ _).
+
+%worlds () (weaken-preserves-models/basic-covered _ _ _ _).
+%total { } (weaken-preserves-models/basic-covered _ _ _ _).
+
+
+%theorem weaken*-preserves-models/basic-covered :
+	forall* {N} {C:cycle N} {K}
+		{H} {Psi} {NG} {T:term K} {N2}
+	forall {M1:models H Psi NG cycle/0 T}
+               {MBC:models/basic-covered M1 C}
+	       {C2:cycle N2}
+        exists {M2:models H Psi NG C2 T}
+               {MBC:models/basic-covered M2 C}
+	true.
+
+- : weaken*-preserves-models/basic-covered M MBC cycle/0 M MBC.
+
+- : weaken*-preserves-models/basic-covered 
+     M MBC (cycle/+ C _ _ _) M'' MBC''
+    <- weaken*-preserves-models/basic-covered M MBC C M' MBC'
+    <- weaken-preserves-models/basic-covered M' MBC' M'' MBC''.
+
+%worlds () (weaken*-preserves-models/basic-covered _ _ _ _ _).
+%total (C) (weaken*-preserves-models/basic-covered _ _ C _ _).
+
+
+
+%%% Theorems about selfaddnest
+
+
+%theorem catcycle-left-preserves-selfaddnest :
+	forall* {L} {Pi} {NG} {H}
+                {N1} {C1:cycle N1} {N2} {C2:cycle N2}
+		{N3} {P:plus N1 N2 N3} {C3}
+	forall {SAN:selfaddnest L Pi NG C2 H}
+               {CC:catcycle P C1 C2 C3}
+	exists {SAN':selfaddnest L Pi NG C3 H}
+	true.
+
+- : catcycle-left-preserves-selfaddnest 
+     (selfaddnest/+ M MBC  HL RA RM HS) CC
+     (selfaddnest/+ M MBC' HL RA RM HS)
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-selfaddnest
+     (selfaddnest/= M MBC  HF) CC
+     (selfaddnest/= M MBC' HF)
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+- : catcycle-left-preserves-selfaddnest
+     (selfaddnest/> K NA M) CC
+     (selfaddnest/> K NA M).
+
+%worlds () (catcycle-left-preserves-selfaddnest _ _ _).
+%total { } (catcycle-left-preserves-selfaddnest _ _ _).
+
+
+%theorem swap-catend-preserves-selfaddnest :
+	forall* {N1} {C1:cycle (s N1)} {H1} {Psi1} {L1}
+                {N2} {C2:cycle N2} {N3} {C3:cycle (s N3)}
+                {P:plus (s N1) N2 (s N3)} {P':plus N1 (s N2) (s N3)}
+                {L} {Pi} {NG} {H}
+                {C1':cycle N1} {C3':cycle (s N3)}
+	forall {CC:catcycle P C1 C2 C3}
+	       {SAN:selfaddnest L Pi NG C3 H}
+	       {RC1:remcycle C1 H1 Psi1 L1 C1'}
+	       {CC':catcycle P' C1' (cycle/+ C2 H1 Psi1 L1) C3'}
+	exists {SAN':selfaddnest L Pi NG C3' H}
+	true.
+
+- : swap-catend-preserves-selfaddnest 
+     CC  (selfaddnest/+ M MBC  HL RA RM HS) RC
+     CC' (selfaddnest/+ M MBC' HL RA RM HS)
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-selfaddnest
+     CC  (selfaddnest/= M MBC  HF) RC
+     CC' (selfaddnest/= M MBC' HF)
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+- : swap-catend-preserves-selfaddnest
+     CC  (selfaddnest/> K NA M) RC
+     CC' (selfaddnest/> K NA M).
+
+%worlds () (swap-catend-preserves-selfaddnest _ _ _ _ _).
+%total { } (swap-catend-preserves-selfaddnest _ _ _ _ _).
+
+
+
+%%% Theorems about crossnest
+
+
+%theorem crossnest-inversion:
+	forall*	{N1} {Cy1:cycle N1} {L1} {C1} {NG1} {H1} {NG'}
+		{N2} {Cy2:cycle N2} {L2} {C2} {NG2} {H2} 
+	forall	{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1 Cy2 H1 H2}
+	exists	{NA1: nesting`add NG1 (nesting`map/+ L2 C2 nesting`map/0) NG'}
+		{NA2: nesting`add NG2 (nesting`map/+ L1 C1 nesting`map/0) NG'}
+	true.
+
+- : crossnest-inversion
+	(crossnest/ _ _ _ _ _ _ NA1 NA2 _ _ _ _ _ _ _ _ _ _ _) NA1 NA2.
+
+%worlds () (crossnest-inversion _ _ _).
+%total { } (crossnest-inversion _ _ _).
+
+
+%theorem catcycle-left-preserves-crossnest :
+	forall*	{N1} {Cy1:cycle N1} {L1} {C1} {NG1} {H1} {NG'}
+		{N2} {Cy2:cycle N2} {L2} {C2} {NG2} {H2} 
+		{N0} {N1'} {P: plus N0 N1 N1'} {Cy0} {Cy1'}
+	forall	{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1 Cy2 H1 H2}
+		{CC: catcycle P Cy0 Cy1 Cy1'}
+	exists	{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1' Cy2 H1 H2}
+	true.
+
+- : catcycle-left-preserves-crossnest
+	(crossnest/ X1 X2 MBC X4 X5 X6 X7 X8 X9 Xa Xb Xc Xd Xe Xf Xg Xh Xi Xj)
+	CC
+	(crossnest/ X1 X2 MBC' X4 X5 X6 X7 X8 X9 Xa Xb Xc Xd Xe Xf Xg Xh Xi Xj)
+    <- catcycle-left-preserves-models/basic-covered MBC CC MBC'.
+
+%worlds () (catcycle-left-preserves-crossnest _ _ _).
+%total { } (catcycle-left-preserves-crossnest _ _ _).
+
+
+%theorem swap-catend-preserves-crossnest :
+	forall*	{N1+-} {Cy1+:cycle (s N1+-)} {L1} {C1} {NG1} {H1} {NG'}
+		{N2+} {Cy2+:cycle N2+} {L2} {C2} {NG2} {H2} 
+		{N1--} {Cy1-:cycle (s N1--)} {N1} {Cy1:cycle N1}
+		{P: plus (s N1--) N1 (s N1+-)}
+		{P':plus N1-- (s N1) (s N1+-)}
+		{Cy1-' : cycle N1--}
+		{Cy1+' : cycle (s N1+-)}
+		{H} {Psi} {L}
+	forall	{CC: catcycle P Cy1- Cy1 Cy1+}
+		{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1+ Cy2+ H1 H2}
+		{RC1:remcycle Cy1- H Psi L Cy1-'}
+		{CC':catcycle P' Cy1-' (cycle/+ Cy1 H Psi L) Cy1+'}
+	exists	{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1+' Cy2+ H1 H2}
+	true.
+
+- : swap-catend-preserves-crossnest CC
+	(crossnest/ X1 X2 MBC X4 X5 X6 X7 X8 X9 Xa Xb Xc Xd Xe Xf Xg Xh Xi Xj)
+	RC CC'
+	(crossnest/ X1 X2 MBC' X4 X5 X6 X7 X8 X9 Xa Xb Xc Xd Xe Xf Xg Xh Xi Xj)
+    <- swap-catend-preserves-models/basic-covered CC MBC RC CC' MBC'.
+
+%worlds () (swap-catend-preserves-crossnest _ _ _ _ _).
+%total { } (swap-catend-preserves-crossnest _ _ _ _ _).
+
+
+%theorem crossnest-swap:
+	forall*	{N1} {Cy1:cycle N1} {L1} {C1} {NG1} {H1} {NG'}
+		{N2} {Cy2:cycle N2} {L2} {C2} {NG2} {H2} 
+	forall	{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1 Cy2 H1 H2}
+	exists	{CN: crossnest L2 C2 L1 C1 NG2 NG1 NG' Cy2 Cy1 H2 H1}
+	true.
+
+- : crossnest-swap
+	(crossnest/ M1 M2 MBC1 MBC2 K1 K2 NA1 NA2 HL1 HL2 M A M' 
+	            HS1 HS2 HS1' HS2' HA1 HA2)
+	(crossnest/ M2 M1 MBC2 MBC1 K2 K1 NA2 NA1 HL2 HL1 Mc A M'
+	            HS2 HS1 HS2' HS1' HA2c HA1c)
+    <- rat`mul-commutative M Mc
+    <- heap`add-commutative HA1 HA1c
+    <- heap`add-commutative HA2 HA2c.
+
+%worlds () (crossnest-swap _ _).
+%total { } (crossnest-swap _ _).
+
+
+
+%%% Separation Theorems
+
+
+% Most of the work done by "models-equiv-added-implies-models-added"
+%theorem discard-separation :
+	forall* {Pi1} {Pi2} {N} {H}
+	forall {M:models H empty N cycle/0 (Pi1 , Pi2)}
+	exists {H'} {L:heap`leq H' H}
+	       {M':models H' empty N cycle/0 Pi1}
+	true.
+
+- : discard-separation M H1 H1<=H 
+                       (models/equiv Psi1==0 equiv/reflexive M1)
+    <- canon-total Pi1->C1
+    <- canon-total Pi2->C2
+    <- canonical`add-total C1+C2=C
+    <- models-equiv-added-implies-models-added
+       M (canon/+ Pi1->C1 Pi2->C2 C1+C2=C) Pi1->C1 Pi2->C2 C1+C2=C 
+       H1 _ H1+H2=H Psi1 _ Psi1,Psi2==0 M1 _
+    <- equiv-empty-implies-null Psi1,Psi2==0 (null/+ Psi1=0 _)
+    <- null-implies-equiv-empty Psi1=0 Psi1==0
+    <- heap`add-implies-leq H1+H2=H H1<=H _.
+
+%worlds () (discard-separation _ _ _ _).
+%total { } (discard-separation _ _ _ _).
+
+
+% not really separation, but similar to the following
+% more interesting theorems.
+
+%theorem nesting-nothing-separation :
+	forall* {K} {N} {T} {H} {Psi} {N1} {Cy:cycle N} {L} {N2}
+	forall {M:models* K N H Psi N1 Cy T}
+	       {NA:nesting`add N1 (nesting`map/+ L canonical`map/0 
+				     nesting`map/0) N2}
+	exists {M':models H Psi N2 Cy T}
+	true.
+
+- : nesting-nothing-separation (models/scale M Q*H=QH) NA
+			       (models/scale M' Q*H=QH)
+    <- nesting-nothing-separation M NA M'.
+
+- : nesting-nothing-separation (models/combined M1 M2 H1+H2=H) NA
+			       (models/combined M1' M2' H1+H2=H)
+    <- nesting-nothing-separation M1 NA M1'
+    <- nesting-nothing-separation M2 NA M2'.
+
+- : nesting-nothing-separation (models/obligation) _ (models/obligation).
+
+- : nesting-nothing-separation (models/equiv E1 E2 M) NA
+                               (models/equiv E1 E2 M')
+    <- nesting-nothing-separation M NA M'.
+
+- : nesting-nothing-separation (models/unit M) NA
+                               (models/unit M')
+    <- nesting-nothing-separation M NA M'.
+
+- : nesting-nothing-separation (models/nonlinear G) NA
+                               (models/nonlinear G')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable G N1<=N2 G'.
+
+- : nesting-nothing-separation (models/conditional/T G M) NA
+                               (models/conditional/T G' M')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable G N1<=N2 G'
+    <- nesting-nothing-separation M NA M'.
+
+- : nesting-nothing-separation (models/conditional/F G M) NA
+                               (models/conditional/F G' M')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable G N1<=N2 G'
+    <- nesting-nothing-separation M NA M'.
+
+- : nesting-nothing-separation (models/exists V M) NA
+                               (models/exists V M')
+    <- nesting-nothing-separation M NA M'.
+
+- : nesting-nothing-separation (models/encumbered M) NA
+                               (models/encumbered M')
+    <- nesting-nothing-separation M NA M'.
+
+%theorem nesting-nothing-separation/basic :
+	forall*	{N} {L} {C} {N'} {L'} {B}
+	forall	{NL: nesting`lookup N L C}
+		{NA: nesting`add N (nesting`map/+ L' canonical`map/0 
+				      nesting`map/0) N'}
+		{EQ?: nat`eq? L L' B}
+	exists	{NL': nesting`lookup N' L C}
+	true.
+
+- : nesting-nothing-separation/basic NL N+0=N' nat`eq?/yes NL'
+    <- nesting`add-joins-lookup* 
+	NL (nesting`lookup/= nat`eq/) N+0=N' canonical`add/R NL'.
+
+- : nesting-nothing-separation/basic NL N+0=N' (nat`eq?/no NE) NL'
+    <- nat`ne-symmetric NE NEs
+    <- nesting`ne-implies-unit-map-fresh NEs NF
+    <- nesting`fresh-add-right-preserves-lookup* NL NF N+0=N' NL'.
+
+%worlds () (nesting-nothing-separation/basic _ _ _ _).
+%total { } (nesting-nothing-separation/basic _ _ _ _).
+
+- : nesting-nothing-separation (models/basic P2N N1L K M HA) N1+NEW=N2
+                               (models/basic P2N N2L K M' HA)
+    <- nat`eq?-total EQ?
+    <- nesting-nothing-separation/basic N1L N1+NEW=N2 EQ? N2L
+    <- nesting-nothing-separation M N1+NEW=N2 M'.
+
+- : nesting-nothing-separation (models/basic-co P RMC HA) _
+                               (models/basic-co P RMC HA).
+
+%worlds () (nesting-nothing-separation _ _ _).
+%total (M) (nesting-nothing-separation M _ _).
+
+
+% separation where the location is irrelevant. Very easy.
+
+%theorem nesting-full-separation :
+	forall* {K} {N} {T:term K} {H} {Psi} {N1} {Cy:cycle N} {Pi} {C} {L} {N2}
+	forall {M:models H Psi N1 Cy T}
+	       {K:canon Pi C}
+	       {NA:nesting`add N1 (nesting`map/+ L C nesting`map/0) N2}
+	       {F:pheap`fresh H L}
+	exists {M':models H Psi N2 Cy T}
+	true.
+
+- : nesting-full-separation (models/scale M Q*H=QH) K NA QHF
+			    (models/scale M' Q*H=QH)
+    <- pheap`scale-preserves-fresh-converse QHF Q*H=QH HF
+    <- nesting-full-separation M K NA HF M'.
+
+- : nesting-full-separation (models/combined M1 M2 H1+H2=H) K NA HF
+			    (models/combined M1' M2' H1+H2=H)
+    <- pheap`add-implies-leq H1+H2=H H1<=H H2<=H
+    <- pheap`fresh-respects-geq HF H1<=H H1F
+    <- pheap`fresh-respects-geq HF H2<=H H2F
+    <- nesting-full-separation M1 K NA H1F M1'
+    <- nesting-full-separation M2 K NA H2F M2'.
+
+- : nesting-full-separation (models/obligation) _ _ _ (models/obligation).
+
+- : nesting-full-separation (models/equiv E1 E2 M) K NA F
+                            (models/equiv E1 E2 M')
+    <- nesting-full-separation M K NA F M'.
+
+- : nesting-full-separation (models/unit M)  K NA F
+                            (models/unit M')
+    <- nesting-full-separation M K NA F M'.
+
+- : nesting-full-separation (models/nonlinear G) _ NA _
+                            (models/nonlinear G')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable G N1<=N2 G'.
+
+- : nesting-full-separation (models/conditional/T G M) K NA F
+                            (models/conditional/T G' M')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable G N1<=N2 G'
+    <- nesting-full-separation M K NA F M'.
+
+- : nesting-full-separation (models/conditional/F G M) K NA F
+                            (models/conditional/F G' M')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable G N1<=N2 G'
+    <- nesting-full-separation M K NA F M'.
+
+- : nesting-full-separation (models/exists V M) K NA F
+                            (models/exists V M')
+    <- nesting-full-separation M K NA F M'.
+
+- : nesting-full-separation (models/encumbered M) K NA F
+                            (models/encumbered M')
+    <- nesting-full-separation M K NA F M'.
+
+- : nesting-full-separation (models/basic P2N N1L K M HA) K2 N1+NEW=N2 H'F
+                            (models/basic P2N N2L K M' HA)
+    <- heap`add-implies-leq HA H<=H' U<=H'
+    <- pheap`fresh-respects-geq H'F H<=H' HF
+    <- pheap`fresh-respects-geq H'F U<=H' UF
+    <- pheap`fresh-lookup-not-equal UF (pheap`lookup/= nat`eq/) L<>L'
+    <- nesting`ne-implies-unit-map-fresh L<>L' NF
+    <- nesting`fresh-add-right-preserves-lookup* N1L NF N1+NEW=N2 N2L
+    <- nesting-full-separation M K2 N1+NEW=N2 HF M'.
+
+- : nesting-full-separation (models/basic-co P RMC HA) _ _ _ 
+                            (models/basic-co P RMC HA).
+
+%worlds () (nesting-full-separation _ _ _ _ _).
+%total (M) (nesting-full-separation M _ _ _ _).
+
+
+
+%{%
+We need a version of the full-separation lemma that lets
+us substitute a new cycle relation.  The idea is that
+the cycle information couldn't be used because it contradicts
+the fact that we don't use the location.
+%}%
+
+%theorem nesting-unused-permission :
+	forall* {K} {N} {T:term K} {H1} {Psi} {N1} {Cy1:cycle N} {Pi} {C} {L}
+		{N2} {H2} {Cy2}
+	forall {M1:models H1 Psi N1 Cy1 T}
+	       {K:canon Pi C}
+	       {NA:nesting`add N1 (nesting`map/+ L C nesting`map/0) N2}
+	       {F:pheap`fresh H1 L}
+	       {CN:cycle-add-nest Cy1 H2 L Cy2}
+	exists {M:models H1 Psi N2 Cy2 T}
+	true.
+
+- : nesting-unused-permission M1 K NA H1F cycle-add-nest/z M1'
+    <- nesting-full-separation M1 K NA H1F M1'.
+
+- : nesting-unused-permission M1 K NA H1F 
+     (cycle-add-nest/+ CAN _ _ H3L _ _) M1'''
+    <- can-drop-unused-cycle2 (catcycle/z) M1 H1F H3L catcycle/z M1'
+    <- nesting-unused-permission M1' K NA H1F CAN M1''
+    <- models/weaken-admissible M1'' M1'''.
+
+- : nesting-unused-permission M1 K NA H1F 
+     (cycle-add-nest/= CAN P2N _ _) M1'''
+    <- can-drop-unused-cycle1 
+       (catcycle/z) M1 (heap`fresh/ H1F P2N) catcycle/z M1'
+    <- nesting-unused-permission M1' K NA H1F CAN M1''
+    <- models/weaken-admissible M1'' M1'''.
+    
+%worlds () (nesting-unused-permission _ _ _ _ _ _).
+%total (C) (nesting-unused-permission _ _ _ _ C _).
+
+
+%theorem nesting-separation/L :
+	forall* {H1} {Psi} {NG1} {N1} {Cy1:cycle N1} {K} {T:term K}
+		{Pi} {C} {L} {NG2} {H2} {H3} {Cy2}
+	forall {M1:models H1 Psi NG1 Cy1 T}
+	       {K:canon Pi C}
+	       {NA:nesting`add NG1 (nesting`map/+ L C nesting`map/0) NG2}
+	       {N0} {Cy0:cycle N0}
+	       {N} {Cy:cycle N}
+               {P:plus N0 N1 N}
+               {CC:catcycle P Cy0 Cy1 Cy}
+	       {MBC:models/basic-covered M1 Cy}
+	       {SAN:selfaddnest L Pi NG1 Cy H2}
+	       {AN:addnest H1 L H2 H3}
+	       {CAN:cycle-add-nest Cy1 H2 L Cy2}
+	exists {M3:models H3 Psi NG2 Cy2 T}
+	true.
+
+- : nesting-separation/L M K NA _ _ _ _ _ CC _ SAN (addnest/= HF) CAN M'
+    <- nesting-unused-permission M K NA HF CAN M'.
+
+- : nesting-separation/L
+        (models/scale M Q*H1=QH1) K NA _ _ _ _ _ CC
+        (models/basic-covered/scale MBC) SAN 
+        (addnest/+ QH1L QQ1*H2=QQ1H2 QH1+QQ1H2=QH1') CAN
+        (models/scale M' Q*H1'=QH1')
+    <- pheap`scale-affects-lookup-converse QH1L Q*H1=QH1 _ Q*FRV=QFRV H1L
+    <- frv`scale-inversion Q*FRV=QFRV Q*Q1=QQ1 _
+    <- pheap`scale-associates Q*Q1=QQ1 QQ1*H2=QQ1H2 Q1H2 Q1*H2=Q1H2 Q*Q1H2=QQ1H2
+    <- pheap`scale-factors-over-add Q*H1=QH1 Q*Q1H2=QQ1H2 QH1+QQ1H2=QH1' H1'
+                                    H1+Q1H2=H1' Q*H1'=QH1'
+    <- nesting-separation/L M K NA _ _ _ _ _ CC MBC SAN 
+       (addnest/+ H1L Q1*H2=Q1H2 H1+Q1H2=H1') CAN M'.
+
+- : nesting-separation/L 
+	(models/combined M1 M2 H1+H2=H3) K NA _ Cy0 _ Cy _ CC 
+        (models/basic-covered/combined MBC1 MBC2)
+        SAN AN3 CAN (models/combined M1' M2' H1'+H2'=H3')
+    <- pheap`domain?-total D1?
+    <- pheap`domain?-total D2?
+    <- combined-addnest-helper AN3 H1+H2=H3 D1? D2? _ _ H1'+H2'=H3' AN1 AN2
+    <- nesting-separation/L M1 K NA _ Cy0 _ Cy _ CC MBC1 SAN AN1 CAN M1'
+    <- nesting-separation/L M2 K NA _ Cy0 _ Cy _ CC MBC2 SAN AN2 CAN M2'.
+
+- : nesting-separation/L
+	(models/obligation) _ _ _ _ _ _ _ _ _ _ (addnest/+ H0L _ _) _ M'
+    <- pheap`lookup-contradiction H0L F
+    <- false-implies-models F M'.
+
+- : nesting-separation/L
+	(models/equiv E1 E2 M) K NA _ _ _ _ _ CC 
+        (models/basic-covered/equiv MBC) SAN AN CAN 
+	(models/equiv E1 E2 M')
+    <- nesting-separation/L M K NA _ _ _ _ _ CC MBC SAN AN CAN M'.
+
+- : nesting-separation/L
+	(models/unit M) K NA _ _ _ _ _ CC 
+        (models/basic-covered/unit MBC) SAN AN CAN 
+	(models/unit M')
+    <- nesting-separation/L M K NA _ _ _ _ _ CC MBC SAN AN CAN M'.
+
+- : nesting-separation/L
+	(models/nonlinear BE) _ _ _ _ _ _ _ _ _ _ (addnest/+ H0L _ _) _ M'
+    <- pheap`lookup-contradiction H0L F
+    <- false-implies-models F M'.
+
+- : nesting-separation/L
+	(models/conditional/T BE M) K NA _ _ _ _ _ CC 
+        (models/basic-covered/conditional/T MBC) SAN AN CAN 
+	(models/conditional/T BE' M')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable BE N1<=N2 BE'
+    <- nesting-separation/L M K NA _ _ _ _ _ CC MBC SAN AN CAN M'.
+
+- : nesting-separation/L
+	(models/conditional/F BE M) K NA _ _ _ _ _ CC 
+        (models/basic-covered/conditional/F MBC) SAN AN CAN 
+	(models/conditional/F BE' M')
+    <- nesting`add-implies-leq NA N1<=N2 _
+    <- booleval-stable BE N1<=N2 BE'
+    <- nesting-separation/L M K NA _ _ _ _ _ CC MBC SAN AN CAN M'.
+
+- : nesting-separation/L
+	(models/exists V M) K NA _ _ _ _ _ CC 
+        (models/basic-covered/exists MBC) SAN AN CAN 
+	(models/exists V M')
+    <- nesting-separation/L M K NA _ _ _ _ _ CC MBC SAN AN CAN M'.
+
+- : nesting-separation/L
+	(models/encumbered M) K NA _ _ _ _ _ CC 
+        (models/basic-covered/encumbered MBC) SAN AN CAN 
+	(models/encumbered M')
+    <- nesting-separation/L M K NA _ _ _ _ _ CC MBC SAN AN CAN M'.
+
+%theorem nesting-separation/basic :
+	forall* {N1} {H1} {Psi} {NG1} {C1} {Cy1:cycle N1}
+                {O} {F} {O'} {L1} {Pi1} {H0} {Pi2} {C2} {L2}
+		{NG2} {Q} {O2} {H2} {QH2} {H3} {Cy2} {B}
+	forall {P2N:pair2nat (natpair/ O F) L1}
+               {N1L:nesting`lookup NG1 L1 C1}
+               {K1:canon Pi1 C1}
+               {M1:models H0 Psi NG1 (cycle/+ Cy1 H0 Psi (natpair/ O F)) Pi1}
+               {HA0:heap`add H0 (pheap`map/+ L1 (frv/ rat`one O') heap`0) H1}
+	       {K2:canon Pi2 C2}
+	       {NA:nesting`add NG1 (nesting`map/+ L2 C2 nesting`map/0) NG2}
+               {N0} {Cy0:cycle N0} {N} {Cy:cycle N} {P:plus N0 N1 N} 
+	       {CC:catcycle P Cy0 Cy1 Cy}
+               {MBC:models/basic-covered M1 Cy}
+               {SAN:selfaddnest L2 Pi2 NG1 Cy H2}
+	       {H1L:pheap`lookup H1 L2 (frv/ Q O2)}
+	       {HS:heap`scale Q H2 QH2}
+	       {HA1:heap`add H1 QH2 H3}
+	       {CN:cycle-add-nest Cy1 H2 L2 Cy2} 
+               {RCC:remcycle-choice Cy0 Cy1 H0 Psi (natpair/ O F)}
+	       {NE?:nat`eq? L1 L2 B}
+        exists {M':models H3 Psi NG2 Cy2 (basic (object/ O) F (object/ O'))}
+	true.
+
+% thaw nesting-separation/L.
+
+- : nesting-separation/L
+     (models/basic P2N N1L K1 M0 H0+U=H1) K2 NA _ _ _ _ _ CC
+     (models/basic-covered/basic MBC0 RMC) SAN 
+     (addnest/+ H1L Q*H2=QH2 H1+QH2=H1') CAN M'
+   <- catcycle-chooses-remcycle CC RMC RCC
+   <- nat`eq?-total NE?
+   <- nesting-separation/basic P2N N1L K1 M0 H0+U=H1 K2 NA _ _ _ _ _ CC
+      MBC0 SAN H1L Q*H2=QH2 H1+QH2=H1' CAN RCC NE? M'.
+
+- : nesting-separation/basic
+     P2N N1L K1 M0 H0+U=H1 K2 NA N0 Cy0 N Cy P CC MBC0
+     SAN
+     H1L (Q*H2=QH2:pheap`scale Q H2 QH2)  H1+QH2=H1' CAN
+     RCC (nat`eq?/no (L1<>L2:nat`ne L1 L2))
+     (models/basic P2N N2L K1 M0' H0'+U=H1')
+    %% first the nesting
+    <- nat`ne-symmetric L1<>L2 L2<>L1
+    <- nesting`ne-implies-unit-map-fresh L2<>L1 HUF
+    <- nesting`fresh-add-right-preserves-lookup* N1L HUF NA N2L
+    %% now the additional factor
+    <- pheap`ne-implies-unit-map-fresh L1<>L2 UF
+    <- pheap`fresh-add-right-preserves-lookup-converse H1L UF H0+U=H1 H0L
+    <- pheap`add-assoc-commutative H0+U=H1 H1+QH2=H1' H0' H0+QH2=H0' H0'+U=H1'
+    %% now getting the cycle check set up
+    <- plus-right-increase P P'
+    <- catcycle-total CC'
+    <- catcycle-left-preserves-models/basic-covered 
+       MBC0 (catcycle/s catcycle/z) MBC0'
+    <- catcycle-left-preserves-selfaddnest
+       SAN (catcycle/s catcycle/z) SAN'
+    <- catcycle-associative-converse* 
+       CC (catcycle/s catcycle/z) (catcycle/s catcycle/z) _ CC2
+    <- swap-catend-preserves-models/basic-covered 
+       CC2 MBC0' remcycle/here CC' MBC0''
+    <- swap-catend-preserves-selfaddnest
+       CC2 SAN' remcycle/here CC' SAN''
+    <- nesting-separation/L 
+       M0 K2 NA _ _ (s N) Cy' P' CC' MBC0'' SAN''
+       (addnest/+ H0L Q*H2=QH2 H0+QH2=H0')
+       (cycle-add-nest/+ CAN L2<>L1 P2N H0L Q*H2=QH2 H0+QH2=H0') M0'.
+
+- : nesting-separation/basic
+     P2N N1L K1 M0 H0+U=H1 K2 NA (s N0) Cy0 (s N) Cy P CC MBC0
+     (selfaddnest/+ M2 MBC2 H2L RC+R=1 RI*RC=1 RI*H2=H2')
+     H1L (Q*H2'=QH2':pheap`scale Q H2' QH2')  H1+QH2'=H1' CAN
+     (remcycle-choice/1 (RMC:remcycle Cy0 H0 Psi _ Cy0')) (nat`eq?/yes)
+     (models/basic P2N N2L (canon/+ K1 K2 C1+C2=C3)
+	(models/equiv equiv/identity equiv/reflexive
+	   (models/combined M0' M2'' H0'+H2'=H0''))
+        H0''+U=H1')
+    %% first we get the heaps into the right shape for recursion
+    <- nesting`add-joins-lookup N1L (lookup/= nat`eq/) NA C3 C1+C2=C3 N2L
+    <- pheap`domain?-total D0?
+    <- basic-addnest-helper 
+       (addnest/+ H1L Q*H2'=QH2' H1+QH2'=H1') H0+U=H1 D0? H0' H0'' 
+       AN0 H0'+H2'=H0'' H0''+U=H1' 
+    %% then we handle the cycles used for covering models/basic instances
+    <- plus-swap-succ P P'
+    <- catcycle-total* P' Cy0' (cycle/+ Cy1 H0 Psi _) Cy' CC'
+    <- swap-catend-preserves-models/basic-covered CC MBC0 RMC CC' MBC0'
+    <- swap-catend-preserves-models/basic-covered CC MBC2 RMC CC' MBC2'
+    %% Here we do interesting rational scaling to get the co-inductive solution
+    <- pheap`scale-identity _ ONE*H2=H2
+    <- rat`mul-commutative RI*RC=1 RC*RI=1
+    <- pheap`scale-associates* RC*RI=1 ONE*H2=H2 RI*H2=H2' RC*H2'=H2
+    <- pheap`scale-identity _ ONE*H2'=H2'
+    <- pheap`scale-total R*H2'=RH2'
+    <- heap`scale-right-distributes-over-add* 
+       RC+R=1 ONE*H2'=H2' RC*H2'=H2 R*H2'=RH2' H2+RH2'=H2'
+    %% do our inductive cases: NB induction for M2' relies on reducing N0!
+    <- nesting-separation/L
+       M0 K2 NA N0 Cy0' _ _ _ CC' MBC0'
+       (selfaddnest/+ M2 MBC2' H2L RC+R=1 RI*RC=1 RI*H2=H2') 
+       AN0 (cycle-add-nest/= CAN P2N AN0 H0'+H2'=H0'') M0'
+    <- weaken*-preserves-models/basic-covered M2 MBC2' _ M2' MBC2''
+    <- nesting-separation/L
+       M2' K2 NA N0 Cy0' _ _ _ CC' MBC2''
+       (selfaddnest/+ M2 MBC2' H2L RC+R=1 RI*RC=1 RI*H2=H2') 
+       (addnest/+ H2L R*H2'=RH2' H2+RH2'=H2')
+       (cycle-add-nest/= CAN P2N AN0 H0'+H2'=H0'')
+       M2''.
+
+% simpler than the previous case because no (new) cyclic nesting
+- : nesting-separation/basic
+     P2N N1L K1 M0 H0+U=H1 K2 NA (s N0) Cy0 (s N) Cy P CC MBC0
+     (selfaddnest/= M2 MBC2 H2F)
+     H1L (Q*H2=QH2:pheap`scale Q H2 QH2)  H1+QH2=H1' CAN
+     (remcycle-choice/1 (RMC:remcycle Cy0 H0 Psi _ Cy0')) (nat`eq?/yes)
+     (models/basic P2N N2L (canon/+ K1 K2 C1+C2=C3)
+	(models/equiv equiv/identity equiv/reflexive
+	   (models/combined M0' M2'' H0'+H2=H0''))
+        H0''+U=H1')
+    %% first we get the heaps into the right shape for recursion
+    <- nesting`add-joins-lookup N1L (lookup/= nat`eq/) NA C3 C1+C2=C3 N2L
+    <- pheap`domain?-total D0?
+    <- basic-addnest-helper 
+       (addnest/+ H1L Q*H2=QH2 H1+QH2=H1') H0+U=H1 D0? H0' H0'' 
+       AN0 H0'+H2=H0'' H0''+U=H1' 
+    %% then we handle the cycles used for covering models/basic instances
+    <- plus-swap-succ P P'
+    <- catcycle-total* P' Cy0' (cycle/+ Cy1 H0 Psi _) Cy' CC'
+    <- swap-catend-preserves-models/basic-covered CC MBC0 RMC CC' MBC0'
+    <- swap-catend-preserves-models/basic-covered CC MBC2 RMC CC' MBC2'
+    %% do our inductive cases: NB induction for M2' relies on reducing N0!
+    <- nesting-separation/L
+       M0 K2 NA N0 Cy0' _ _ _ CC' MBC0'
+       (selfaddnest/= M2 MBC2' H2F) AN0
+       (cycle-add-nest/= CAN P2N AN0 H0'+H2=H0'')
+       M0'
+    <- nesting-full-separation M2 K2 NA H2F M2'
+    <- models/weaken*-admissible M2' M2''.
+
+% for this case, we don't even need to recurse for the self nesting part
+- : nesting-separation/basic
+     P2N N1L K1 M0 H0+U=H1 K2 NA (s N0) Cy0 (s N) Cy P CC MBC0
+     (selfaddnest/> K2' NA' M2)
+     H1L (Q*H2=QH2:pheap`scale Q H2 QH2)  H1+QH2=H1' CAN
+     (remcycle-choice/1 (RMC:remcycle Cy0 H0 Psi _ Cy0')) (nat`eq?/yes)
+     (models/basic P2N N2L (canon/+ K1 K2 C1+C2=C3)
+	(models/equiv equiv/identity equiv/reflexive
+	   (models/combined M0' M2'' H0'+H2=H0''))
+        H0''+U=H1')
+    %% first we get the heaps into the right shape for recursion
+    <- nesting`add-joins-lookup N1L (lookup/= nat`eq/) NA C3 C1+C2=C3 N2L
+    <- pheap`domain?-total D0?
+    <- basic-addnest-helper 
+       (addnest/+ H1L Q*H2=QH2 H1+QH2=H1') H0+U=H1 D0? H0' H0'' 
+       AN0 H0'+H2=H0'' H0''+U=H1' 
+    %% then we handle the cycles used for covering models/basic instances
+    <- plus-swap-succ P P'
+    <- catcycle-total* P' Cy0' (cycle/+ Cy1 H0 Psi _) Cy' CC'
+    <- swap-catend-preserves-models/basic-covered CC MBC0 RMC CC' MBC0'
+    %% do our inductive case:
+    <- nesting-separation/L
+       M0 K2 NA N0 Cy0' _ _ _ CC' MBC0'
+       (selfaddnest/> K2' NA' M2) AN0
+       (cycle-add-nest/= CAN P2N AN0 H0'+H2=H0'')
+       M0'
+    <- canon-deterministic K2' K2 permission`eq/ KE
+    <- nesting`map/+-preserves-eq nat`eq/ KE nesting`eq/ NUE
+    <- nesting`add-deterministic NA' NA nesting`eq/ NUE NE
+    <- models-respects-eq 
+	M2 heap`eq/ permission`eq/ NE cycle`eq/ permission`eq/ M2'
+    <- models/weaken*-admissible M2' M2''.
+
+%{%
+% the mutual nesting case is like our first case, but needs to recurse
+% on the *other* one.
+- : {K2: canon Pi2 C2} {Kb:canon Pi2 Cb} {NAa: nesting`add N1 (nesting`map/+ L2 Cb nesting`map/0) Nab} {NAb:nesting`add Nb (nesting`map/+ La Ca nesting`map/0) Nab}
+nesting-separation/basic
+     P2N N1L K1 M0 H0+U=H1 (K2:canon Pi2 C2) (NA:nesting`add N1 (nesting`map/+ L2 C2 nesting`map/0) N2) (s N0) Cy0 (s N) Cy P CC MBC0
+     (selfaddnest/2 Ma Mb MBCa MBCb (Ka:canon Pia Ca) (Kb:canon Pi2 Cb) (NAa: nesting`add N1 (nesting`map/+ L2 Cb nesting`map/0) Nab) (NAb:nesting`add Nb (nesting`map/+ La Ca nesting`map/0) Nab) HLa HLb 
+	(Qab*Qba=QQ:rat`mul Qab Qba QQ) QR+QQ=1 (QI*QR=1:rat`mul QI QR _)
+	(QI*Ha=QIHa:heap`scale QI Ha QIHa) (QI*Hb=QIHb:heap`scale QI Hb QIHb) Qba*QIHa=Ha' Qab*QIHb=Hb' 
+	(QIHa+Hb'=Ha'':heap`add QIHa Hb' Ha'')
+	(Ha'+QIHb=H2':heap`add Ha' QIHb H2'))
+     H1L (Q*H2'=QH2':pheap`scale Q H2' QH2')  H1+QH2'=H1' CAN
+     (remcycle-choice/1 (RMC:remcycle Cy0 H0 Psi _ Cy0')) (nat`eq?/yes)
+     (models/basic P2N N2L (canon/+ K1 K2 C1+C2=C3)
+	(models/equiv equiv/identity equiv/reflexive
+	   (models/combined M0' M2'' H0'+H2'=H0''))
+        H0''+U=H1')
+    %% first we get the heaps into the right shape for recursion
+    <- nesting`add-joins-lookup N1L (lookup/= nat`eq/) NA C3 C1+C2=C3 N2L
+    <- pheap`domain?-total D0?
+    <- basic-addnest-helper 
+       (addnest/+ H1L Q*H2'=QH2' H1+QH2'=H1') H0+U=H1 D0? H0' H0'' 
+       AN0 H0'+H2'=H0'' H0''+U=H1' 
+    %% then we handle the cycles used for covering models/basic instances
+    <- plus-swap-succ P P'
+    <- catcycle-total* P' Cy0' (cycle/+ Cy1 H0 Psi _) Cy' CC'
+    <- swap-catend-preserves-models/basic-covered CC MBC0 RMC CC' MBC0'
+    <- swap-catend-preserves-models/basic-covered CC MBCa RMC CC' MBCa'
+    <- swap-catend-preserves-models/basic-covered CC MBCb RMC CC' MBCb'
+    %% uniqueness
+    <- canon-unique Kb K2 permission`eq/ Cb=C2
+    <- nesting`map/+-preserves-eq nat`eq/ Cb=C2 nesting`eq/ NUb=NU2
+    <- nesting`add-unique NAa NA nesting`eq/ NUb=NU2 Nab=N2
+    <- nesting`add-respects-eq NAb nesting`eq/ nesting`eq/ Nab=N2 NA2
+    %% Here we do rational arithmetic
+    <- rat`mul-commutative Qab*Qba=QQ Qba*Qab=QQ
+    <- rat`mul-total QI*QQ=QQQI
+    <- rat`mul-commutative QI*QQ=QQQI QQ*QI=QQQI
+    <- rat`mul-right-identity QI QI*1=QI
+    <- rat`mul-left-distributes-over-add* 
+	QR+QQ=1 QI*1=QI QI*QR=1 QI*QQ=QQQI ONE+QQQI=QI
+    <- rat`mul-associative Qba*Qab=QQ QQ*QI=QQQI QabI Qab*QI=QabI Qba*QabI=QQQI
+    <- heap`add-commutative QIHa+Hb'=Ha'' Hb'+QIHa=Ha''
+    <- heap`add-commutative Ha'+QIHb=H2' QIHb+Ha'=H2'
+    <- heap`scale-identity Hb ONE*Hb=Hb
+    <- heap`scale-total* QQQI Hb QQQIHb QQQI*Hb=QQQIHb
+    <- heap`scale-right-distributes-over-add* ONE+QQQI=QI
+       QI*Hb=QIHb ONE*Hb=Hb QQQI*Hb=QQQIHb Hb+QQQIHb=QIHb
+    <- heap`add-associative Hb+QQQIHb=QIHb QIHb+Ha'=H2' Hab 
+	QQQIHb+Ha'=Hab Hb+Hab=H2'
+    <- heap`scale-associates-converse*
+	QI*Hb=QIHb Qab*QIHb=Hb' Qab*QI=QabI QabI*Hb=Hb'
+    <- heap`scale-associates* 
+	Qba*QabI=QQQI QQQI*Hb=QQQIHb QabI*Hb=Hb' Qba*Hb'=QQQIHb 
+    <- heap`scale-factors-over-add* Qba*Hb'=QQQIHb Qba*QIHa=Ha' QQQIHb+Ha'=Hab
+	Hb'+QIHa=Ha'' Qba*Ha''=Hab
+    %% do our inductive cases: NB induction for M2' relies on reducing N0!
+    <- nesting-separation/L
+       M0 K2 NA N0 Cy0' _ _ _ CC' MBC0'
+       (selfaddnest/2 Ma Mb MBCa' MBCb' Ka Kb NAa NAb HLa HLb 
+	Qab*Qba=QQ QR+QQ=1 QI*QR=1
+	QI*Ha=QIHa QI*Hb=QIHb Qba*QIHa=Ha' Qab*QIHb=Hb' 
+	QIHa+Hb'=Ha'' Ha'+QIHb=H2')
+       AN0 (cycle-add-nest/= CAN P2N AN0 H0'+H2'=H0'') M0'
+    <- weaken*-preserves-models/basic-covered Mb MBCb' _ Mb' MBCb''
+% HERE!! We need to redo ALL the cycle-add-nest
+% MAJOR PROBLEM: originally everything was using the same (old) nesting.
+% but now, Mb' uses a different nesting.  So covering ...
+% Maybe what we need to do is define a whole new set of
+% lemmas that crawl over the tree and do the substitution.
+% We need to have catcycle, but we don't have self-recursion,
+% and mutual recursion is guaranteed to end in two stages.
+    <- nesting-separation/L
+       Mb' Ka NA2 N0 Cy0'? _ _ _ CC'? MBCb''
+       (selfaddnest/2 Mb Ma MBCb' MBCa' Kb Ka NAb NAa HLb HLa
+	Qba*Qab=QQ QR+QQ=1 QI*QR=1
+	QI*Hb=QIHb QI*Ha=QIHa 
+	Qab*QIHb=Hb' Qba*QIHa=Ha' 
+	QIHb+Ha'=H2' Hb'+QIHa=Ha'')
+       (addnest/+ HLb Qba*Ha''=Hab Hb+Hab=H2')
+       CANX
+       M2''.
+%}%
+
+% little non-mutually recursive lemma:
+%theorem nesting-separation/basic/co :
+	forall* {N} {Cy1:cycle (s N)} {H2} {L2} {Cy2}
+                {H0} {Psi} {O} {F} {O'} {Cy1'} {L} {H1} {H1'} {NG2}
+	forall {CAN:cycle-add-nest Cy1 H2 L2 Cy2}
+               {RMC:remcycle Cy1 H0 Psi (natpair/ O F) Cy1'}
+               {P2N:pair2nat (natpair/ O F) L}
+               {HA:heap`add H0 (pheap`map/+ L (frv/ rat`one O') pheap`map/0) H1}
+               {AN:addnest H1 L2 H2 H1'}
+        exists {M:models H1' Psi NG2 Cy2 (basic (object/ O) F (object/ O'))}
+	true.
+
+- : nesting-separation/basic 
+     P2N N1L K1 M0 H0+U=H1 K2 NA N0 Cy0 (s N) Cy P CC MBC0
+     _ (H1L:pheap`lookup H1 L (frv/ Q O1)) (Q*H2'=QH2':pheap`scale Q H2' QH2') 
+     (H1+QH2'=H1':heap`add H1 QH2' H1') (CAN:cycle-add-nest Cy1 H2' L Cy2)
+     (remcycle-choice/2 (RC:remcycle Cy1 H0 Psi _ _)) (nat`eq?/yes) M
+    <- nesting-separation/basic/co 
+       CAN RC P2N H0+U=H1 (addnest/+ H1L Q*H2'=QH2' H1+QH2'=H1') M.
+
+- : nesting-separation/basic/co 
+     (cycle-add-nest/+ CAN L2<>L' P2N' H0L2 Q02*H2=Q02H2 H0+Q02H2=H0'')
+     (remcycle/here) P2N H0+U=H1 (addnest/+ H1L2 Q12*H2=Q12H2 H1+Q12H2=H1')
+     (models/basic-co P2N remcycle/here H0''+U=H1')
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ L'=L
+    <- nat`ne-respects-eq L2<>L' nat`eq/ L'=L L2<>L
+    <- nat`ne-symmetric L2<>L L<>L2
+    <- pheap`ne-implies-unit-map-fresh L<>L2 UF
+    <- pheap`fresh-add-right-preserves-lookup* H0L2 UF H0+U=H1 H1L2'
+    <- pheap`lookup-deterministic H1L2' H1L2 pheap`eq/ nat`eq/ FRV12'=FRV12
+    <- frv-eq-implies-eq FRV12'=FRV12 Q02=Q12 _
+    <- pheap`scale-deterministic Q02*H2=Q02H2 Q12*H2=Q12H2 Q02=Q12 heap`eq/
+                                 Q02H2=Q12H2
+    <- heap`add-respects-eq H0+Q02H2=H0'' heap`eq/ Q02H2=Q12H2 heap`eq/
+                            H0+Q12H2=H0''
+    <- heap`add-assoc-commutative* 
+       H0+U=H1 H1+Q12H2=H1' H0+Q12H2=H0'' H0''+U=H1'.
+
+- : nesting-separation/basic/co 
+     (cycle-add-nest/+ CAN L2<>L' P2N' H0L2 _ _)
+     (remcycle/here) P2N H0+U=H1 (addnest/= H1F2) M
+    <- pheap`add-preserves-fresh-converse* H1F2 H0+U=H1 H0F2 _
+    <- pheap`fresh-lookup-not-equal H0F2 H0L2 L2<>L2
+    <- nat`ne-anti-reflexive L2<>L2 F
+    <- false-implies-models F M.
+
+- : nesting-separation/basic/co 
+     (cycle-add-nest/+ CAN _ _ _ _ _)
+     (remcycle/there RC) P2N H0+U=H1 AN M'
+    <- nesting-separation/basic/co CAN RC P2N H0+U=H1 AN M
+    <- models/weaken-admissible M M'.
+
+- : nesting-separation/basic/co 
+     (cycle-add-nest/= CAN P2N' (addnest/+ H0L2' Q02*H2=Q02H2 H0+Q02H2=H0') H0'+H2=H0'')
+     (remcycle/here) P2N H0+U=H1 (addnest/+ H1L2' Q12*H2=Q12H2 H1+Q12H2=H1')
+     (models/basic-co P2N remcycle/here H0''+U=H1')
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ L'=L
+    <- nat`eq-symmetric L'=L L=L'
+    <- pheap`add-joins-lookup H0L2' (pheap`lookup/= L=L') H0+U=H1 _ 
+       FRV0'+U'=FRV1'' H1L2''
+    <- pheap`lookup-deterministic H1L2'' H1L2' pheap`eq/ nat`eq/ FRV1''=FRV1'
+    <- frv`add-respects-eq FRV0'+U'=FRV1'' frv`eq/ frv`eq/ FRV1''=FRV1'
+                           FRV0'+U'=FRV1'
+    <- frv`add-inversion FRV0'+U'=FRV1' Q02+1=Q12 _ _ _
+    <- pheap`scale-identity _ ONE*H2=H2
+    <- heap`scale-right-distributes-over-add* 
+       Q02+1=Q12 Q12*H2=Q12H2 Q02*H2=Q02H2 ONE*H2=H2 Q02H2+H2=Q12H2
+    <- heap`add-associative* 
+       H0+Q02H2=H0' H0'+H2=H0'' Q02H2+H2=Q12H2 H0+Q12H2=H0''
+    <- heap`add-assoc-commutative* 
+       H0+U=H1 H1+Q12H2=H1' H0+Q12H2=H0'' H0''+U=H1'.
+	
+- : nesting-separation/basic/co 
+     (cycle-add-nest/= CAN P2N' (addnest/= H0F2') H0+H2=H0'')
+     (remcycle/here) P2N H0+U=H1 (addnest/+ H1L2' Q12*H2=Q12H2 H1+Q12H2=H1')
+     (models/basic-co P2N remcycle/here H0''+U=H1')
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ L'=L
+    <- nat`eq-symmetric L'=L L=L'
+    <- pheap`fresh-add-left-preserves-lookup* 
+       H0F2' (pheap`lookup/= L=L') H0+U=H1 H1L2''
+    <- pheap`lookup-deterministic H1L2'' H1L2' pheap`eq/ nat`eq/ FRV1''=FRV1'
+    <- frv-eq-implies-eq FRV1''=FRV1' ONE=Q12 _
+    <- pheap`scale-identity _ ONE*H2=H2
+    <- pheap`scale-deterministic 
+       ONE*H2=H2 Q12*H2=Q12H2 ONE=Q12 heap`eq/ H2=Q12H2
+    <- heap`add-respects-eq H0+H2=H0'' heap`eq/ H2=Q12H2 heap`eq/ H0+Q12H2=H0''
+    <- heap`add-assoc-commutative* 
+       H0+U=H1 H1+Q12H2=H1' H0+Q12H2=H0'' H0''+U=H1'.
+
+- : nesting-separation/basic/co 
+     (cycle-add-nest/= CAN P2N' (addnest/+ H0L2 _ _) _)
+     (remcycle/here) P2N H0+U=H1 (addnest/= H1F2) M
+    <- pheap`add-preserves-fresh-converse* H1F2 H0+U=H1 H0F2 _
+    <- pheap`fresh-lookup-not-equal H0F2 H0L2 L2<>L2
+    <- nat`ne-anti-reflexive L2<>L2 F
+    <- false-implies-models F M.
+
+- : nesting-separation/basic/co 
+     (cycle-add-nest/= CAN P2N' (addnest/= H0F2) H0+H2=H0'')
+     (remcycle/here) P2N H0+U=H1 (addnest/= H1F2) M
+    <- pheap`add-preserves-fresh-converse* H1F2 H0+U=H1 _ UF'
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ L'=L
+    <- pheap`fresh-respects-eq UF' heap`eq/ L'=L UF
+    <- pheap`fresh-contradiction UF F
+    <- false-implies-models F M.
+
+- : nesting-separation/basic/co 
+     (cycle-add-nest/= CAN _ _ _)
+     (remcycle/there RC) P2N H0+U=H1 AN M'
+    <- nesting-separation/basic/co CAN RC P2N H0+U=H1 AN M
+    <- models/weaken-admissible M M'.
+
+%worlds () (nesting-separation/basic/co _ _ _ _ _ _).
+%total (R) (nesting-separation/basic/co _ R _ _ _ _).
+
+% use the above lemma for basic-co too
+
+- : nesting-separation/L
+     (models/basic-co P2N RMC H0+U=H1) K2 NA _ _ _ _ _ CC _ SAN 
+     (addnest/+ H1L Q*H2=QH2 H1+QH2=H1') CAN M'
+    <- nesting-separation/basic/co CAN RMC P2N H0+U=H1
+       (addnest/+ H1L Q*H2=QH2 H1+QH2=H1') M'.
+
+% thaw nesting-separation/basic.
+
+%worlds () (nesting-separation/basic _ _ _ _ _ _ _ _ _ _
+                                     _ _ _ _ _ _ _ _ _ _ _ _)
+           (nesting-separation/L     _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+%total {(N N0) (M M0)} 
+           (nesting-separation/L     M _ _ N _ _ _ _ _ _ _ _ _ _)
+           (nesting-separation/basic _ _ _ M0 _ _ _ N0 _ _
+                                     _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem nesting-separation :
+	forall* {H} {N} {Psi} {H'} {Pi:permission} {HC} {HM} {C} {L} {N'}
+	forall {M:models H empty N cycle/0 Psi}
+               {M':models H' empty N cycle/0 Pi}
+	       {A:heap`add H H' HC}
+	       {HL:heap`leq HC HM}
+	       {MM:mimics-mem HM}
+	       {K:canon Psi C}
+               {AN:nesting`add N (nesting`map/+ L C nesting`map/0) N'}
+	exists {H''}
+	       {HL2:heap`leq H'' HC}
+	       {M'':models H'' empty N' cycle/0 Pi}
+	true.
+
+%theorem nesting-separation/L2 :
+	forall* {H} {N} {Psi} {H'} {Pi:permission} {HC} {HM} {C} {L} {N'}
+		{B} {B'}
+	forall {M:models H empty N cycle/0 Psi}
+               {M':models H' empty N cycle/0 Pi}
+	       {A:heap`add H H' HC}
+	       {HL:heap`leq HC HM}
+	       {MM:mimics-mem HM}
+	       {K:canon Psi C}
+               {AN:nesting`add N (nesting`map/+ L C nesting`map/0) N'}
+	       {D?:pheap`domain? H L B}
+	       {D'?:pheap`domain? H' L B'}
+	exists {H''}
+	       {HL2:heap`leq H'' HC}
+	       {M'':models H'' empty N' cycle/0 Pi}
+	true.
+
+- : nesting-separation M M' H+H'=HC HC<=HM MM K N+L,C=N' H'' H''<=HC M''
+    <- pheap`domain?-total D?
+    <- pheap`domain?-total D'?
+    <- nesting-separation/L2 M M' H+H'=HC HC<=HM MM K N+L,C=N' D? D'?
+                             H'' H''<=HC M''.
+
+- : nesting-separation/L2 M M' H+H'=HC HC<=HM MM K N+L,C=N' 
+     (pheap`domain?/in HL) (pheap`domain?/in H'L) H'' H''<=HC M''
+    <- models/basic-covered-total* 
+	(models/combined M M' H+H'=HC) N0 Cy0
+        (models/basic-covered/combined MBC MBC')
+    <- catcycle-right-identity _ _ C0
+    <- pheap`add-joins-lookup HL H'L H+H'=HC _ Q,_+Q',_=QC,_ HCL
+    <- frv`add-inversion Q,_+Q',_=QC,_ Q+Q'=QC _ _ _
+    <- pheap`lookup-respects-leq HCL HC<=HM _ HML QC,_<=QM,_
+    <- frv`leq-inversion QC,_<=QM,_ QC<=QM _
+    <- nat2pair-total P2N
+    <- mimics-mem-implies-one-lookup MM (heap`lookup/ HML P2N) QM=1
+    <- rat`gre-respects-equ QC<=QM QM=1 rat`equ/ QC<=1
+    <- rat`add-implies-grt Q+Q'=QC Q<QC Q'<QC
+    <- rat`lst-transitive-lse Q<QC QC<=1 (Q<1:rat`lst Q rat`one)
+    <- rat`lst-transitive-lse Q'<QC QC<=1 (Q'<1:rat`lst Q' rat`one)
+    <- rat`grt-implies-add Q<1 RC RC+Q=1
+    <- rat`add-commutative RC+Q=1 Q+RC=1
+    <- rat`add-left-cancels-lse Q+Q'=QC Q+RC=1 equ/ QC<=1 Q'<=RC
+    <- rat`div-total RI*RC=1
+    <- rat`mul-total RI*Q'=S          % S = Q'/(1-Q)
+    <- rat`mul-left-preserves-lse* Q'<=RC RI*Q'=S RI*RC=1 S<=1
+    <- rat`mul-commutative RI*Q'=S Q'*RI=S
+    <- heap`scale-total S*H=SH
+    <- pheap`scale-associates Q'*RI=S S*H=SH H2 RI*H=H2 Q'*H2=SH
+    <- pheap`scale-identity _ ONE*H=H
+    <- heap`scale-right-preserves-leq* S<=1 S*H=SH ONE*H=H SH<=H
+    <- pheap`leq-implies-add SH<=H _ XH+SH=H
+    <- heap`add-associative XH+SH=H H+H'=HC H'' SH+H'=H'' XH+H''=HC
+    <- heap`add-commutative SH+H'=H'' H'+SH=H''
+    <- heap`add-implies-leq XH+H''=HC _ H''<=HC
+    <- nesting-separation/L 
+       M' K N+L,C=N' _ Cy0 _ _ _ C0 MBC'
+       (selfaddnest/+ M MBC HL RC+Q=1 RI*RC=1 RI*H=H2) 
+       (addnest/+ H'L Q'*H2=SH H'+SH=H'')
+       cycle-add-nest/z M''.
+
+- : nesting-separation/L2 M M' H+H'=HC HC<=HM MM K N+L,C=N' 
+     (pheap`domain?/out HF) (pheap`domain?/in H'L) H'' H''<=HC M''
+    <- models/basic-covered-total* 
+	(models/combined M M' H+H'=HC) N0 Cy0
+        (models/basic-covered/combined MBC MBC')
+    <- catcycle-right-identity _ _ C0
+    <- heap`scale-total Q*H=QH
+    <- pheap`fresh-add-left-preserves-lookup* HF H'L H+H'=HC HCL
+    <- pheap`lookup-respects-leq HCL HC<=HM _ HML Q,_<=Q',_
+    <- frv`leq-inversion Q,_<=Q',_ Q<=Q' _
+    <- nat2pair-total P2N
+    <- mimics-mem-implies-one-lookup MM (heap`lookup/ HML P2N) Q'=1
+    <- rat`gre-respects-equ Q<=Q' Q'=1 rat`equ/ Q<=1
+    <- pheap`scale-identity _ ONE*H=H
+    <- heap`scale-right-preserves-leq* Q<=1 Q*H=QH ONE*H=H QH<=H
+    <- pheap`leq-implies-add QH<=H _ RH+QH=H
+    <- heap`add-associative RH+QH=H H+H'=HC H'' QH+H'=H'' RH+H''=HC
+    <- heap`add-commutative QH+H'=H'' H'+QH=H''
+    <- heap`add-implies-leq RH+H''=HC _ H''<=HC
+    <- nesting-separation/L 
+       M' K N+L,C=N' _ Cy0 _ _ _ C0 MBC' 
+       (selfaddnest/= M MBC HF)
+       (addnest/+ H'L Q*H=QH H'+QH=H'')
+       cycle-add-nest/z M''.
+
+- : nesting-separation/L2 M M' H+H'=HC _ _ K NA
+     _ (pheap`domain?/out H'F) H' H'<=HC M''
+    <- heap`add-implies-leq H+H'=HC _ H'<=HC
+    <- nesting-full-separation M' K NA H'F M''.
+
+%worlds () (nesting-separation/L2 _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (nesting-separation/L2 _ _ _ _ _ _ _ _ _ _ _ _).
+
+%worlds () (nesting-separation _ _ _ _ _ _ _ _ _ _).
+%total { } (nesting-separation _ _ _ _ _ _ _ _ _ _).
+
+
+%{%
+A nesting that doesn't causes a full-cycle
+(in other words, a nesting that doesn't pull itself out of circulation)
+means that the (remaining) nested permission can still be modeled,
+within the same heap.
+%}%
+
+%theorem visible-nesting-separation :
+	forall* {H} {N} {Psi} {H2} {HC} {HM} {C} {L} {N'} 
+		{Q2} {O2}
+	forall {M:models H empty N cycle/0 Psi}
+	       {A:heap`add H H2 HC}
+	       {HL:heap`leq HC HM}
+	       {MM:mimics-mem HM}
+	       {K:canon Psi C}
+               {AN:nesting`add N (nesting`map/+ L C nesting`map/0) N'}
+	       {HL2: pheap`lookup H2 L (frv/ Q2 O2)}
+	exists {H'} {Q2H'}
+	       {HS: heap`scale Q2 H' Q2H'}
+	       {HL2:heap`leq Q2H' H}
+	       {M':models H' empty N' cycle/0 Psi}
+	true.
+
+%theorem visible-nesting-separation/L :
+	forall* {H} {N} {Psi} {H2} {HC} {HM} {C} {L} {N'} 
+		{Q2} {O2} {B1}
+	forall {M:models H empty N cycle/0 Psi}
+	       {A:heap`add H H2 HC}
+	       {HL:heap`leq HC HM}
+	       {MM:mimics-mem HM}
+	       {K:canon Psi C}
+               {AN:nesting`add N (nesting`map/+ L C nesting`map/0) N'}
+	       {HL2: pheap`lookup H2 L (frv/ Q2 O2)}
+	       {HD1: pheap`domain? H L B1}
+	exists {H'} {Q2H'}
+	       {HS: heap`scale Q2 H' Q2H'}
+	       {HL2:heap`leq Q2H' H}
+	       {M':models H' empty N' cycle/0 Psi}
+	true.
+
+ - : visible-nesting-separation/L M H+H2=HC HC<=HM MM K NA HL2 
+	(pheap`domain?/out HF) _ _ HS Q2H'<=H M'
+    <- nesting-full-separation M K NA HF M'
+    <- pheap`fresh-add-left-preserves-lookup* HF HL2 H+H2=HC HLC
+    <- pheap`lookup-respects-leq HLC HC<=HM _ HLM FC<=FM
+    <- frv`leq-inversion FC<=FM Q2<=QM _
+    <- nat2pair-total P2N
+    <- mimics-mem-implies-one-lookup MM (heap`lookup/ HLM P2N) QM=1
+    <- rat`leq-respects-eq Q2<=QM rat`eq/ QM=1 Q2<=1
+    <- pheap`scale-total HS
+    <- pheap`scale-identity _ HS1
+    <- scale-right-preserves-leq* Q2<=1 HS HS1 Q2H'<=H.
+
+- : visible-nesting-separation/L M H+H2=HC HC<=HM MM K NA HL2
+	(pheap`domain?/in HL) H' SH Q2*H'=SH SH<=H M'
+    <- models/basic-covered-total* M N0 Cy0 MBC
+    <- catcycle-right-identity _ _ C0
+    <- pheap`add-joins-lookup HL HL2 H+H2=HC _ F+F2=FC HLC
+    <- frv`add-inversion F+F2=FC Q+Q2=QC _ _ _
+    <- pheap`lookup-respects-leq HLC HC<=HM _ HLM FC<=FM
+    <- frv`leq-inversion FC<=FM QC<=QM _
+    <- nat2pair-total P2N
+    <- mimics-mem-implies-one-lookup MM (heap`lookup/ HLM P2N) QM=1
+    <- rat`gre-respects-equ QC<=QM QM=1 rat`equ/ QC<=1
+    <- rat`add-implies-grt Q+Q2=QC Q<QC Q2<QC
+    <- rat`lst-transitive-lse Q<QC QC<=1 (Q<1:rat`lst Q rat`one)
+    <- rat`lst-transitive-lse Q2<QC QC<=1 (Q2<1:rat`lst Q2 rat`one)
+    <- rat`grt-implies-add Q<1 RC RC+Q=1
+    <- rat`add-commutative RC+Q=1 Q+RC=1
+    <- rat`add-left-cancels-lse Q+Q2=QC Q+RC=1 equ/ QC<=1 Q2<=RC
+    <- rat`div-total RI*RC=1          % RI = 1/(1-Q)
+    <- rat`mul-total RI*Q2=S          % S = Q2/(1-Q)
+    <- rat`mul-left-preserves-lse* Q2<=RC RI*Q2=S RI*RC=1 S<=1
+    <- rat`mul-commutative RI*Q2=S Q2*RI=S
+    <- heap`scale-total* S H SH S*H=SH
+    <- pheap`scale-associates Q2*RI=S S*H=SH H' RI*H=H' Q2*H'=SH
+    <- pheap`scale-identity H ONE*H=H
+    <- heap`scale-right-preserves-leq* S<=1 S*H=SH ONE*H=H SH<=H
+    <- heap`scale-total* Q H' QH' Q*H'=QH'
+    <- rat`mul-total* Q RI Q' Q*RI=Q'
+    <- pheap`scale-associates-converse* RI*H=H' Q*H'=QH' Q*RI=Q' Q'*H=QH'
+    <- rat`mul-right-identity Q Q*1=Q
+    <- rat`mul-associative-converse* RI*RC=1 Q*1=Q Q*RI=Q' Q'*RC=Q
+    <- rat`mul-left-identity RC ONE*RC=RC
+    <- rat`div-right-distributes-over-add* 
+	Q+RC=1 RI*RC=1 Q'*RC=Q ONE*RC=RC Q'+1=RI
+    <- heap`scale-right-distributes-over-add*
+       Q'+1=RI RI*H=H' Q'*H=QH' ONE*H=H QH'+H=H'
+    <- heap`add-commutative QH'+H=H' H+QH'=H'
+    <- nesting-separation/L
+       M K NA _ Cy0 _ _ _ C0 MBC
+       (selfaddnest/+ M MBC HL RC+Q=1 RI*RC=1 RI*H=H')
+       (addnest/+ HL Q*H'=QH' H+QH'=H')
+       cycle-add-nest/z M'.
+
+%worlds () (visible-nesting-separation/L _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (visible-nesting-separation/L _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+- : visible-nesting-separation M A HL MM K AN HL2 H' Q2H' HS HL2' M'
+    <- pheap`domain?-total HD1
+    <- visible-nesting-separation/L M A HL MM K AN HL2 HD1 H' Q2H' HS HL2' M'.
+
+%worlds () (visible-nesting-separation _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (visible-nesting-separation _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem nesting-adds-fractional-heap :
+	forall* {N} {Psi} {H2} {K} {T: permission`term K} {C} {L} {N'} 
+		{Q2} {O2} {H'} {Q2H'} {H2'}
+	forall {M:models H2 empty N cycle/0 T}
+	       {K:canon Psi C}
+               {AN:nesting`add N (nesting`map/+ L C nesting`map/0) N'}
+	       {HL2: pheap`lookup H2 L (frv/ Q2 O2)}
+	       {M':models H' empty N' cycle/0 Psi}
+	       {HS: heap`scale Q2 H' Q2H'}
+	       {HA: heap`add H2 Q2H' H2'}
+	exists {M: models H2' empty N' cycle/0 T}
+	true.
+
+- : nesting-adds-fractional-heap M2 K NA HL2 M' Q2*H'=Q2H' H2+Q2H'=H2' M2'
+    <- models/basic-covered-total* M2 _ Cy2 MBC
+    <- catcycle-right-identity _ _ C0
+    <- nesting-separation/L
+       M2 K NA _ Cy2 _ _ _ C0 MBC
+       (selfaddnest/> K NA M')
+       (addnest/+ HL2 Q2*H'=Q2H' H2+Q2H'=H2')
+       cycle-add-nest/z M2'.
+
+%worlds () (nesting-adds-fractional-heap _ _ _ _ _ _ _ _).
+%total { } (nesting-adds-fractional-heap _ _ _ _ _ _ _ _).
+
+
+%{%
+At this point, I could (re-)prove nesting-separation/L2 using 
+visible-nesting-separation and nesting-add-fractional-heap,
+which would avoid "duplicated" code, 
+but I'm too lazy to do that yet.
+%}%
+
+%{%
+The following theorem is the kernel lemma saying that nesting that
+was carried out in separate threads can be combined together while
+preserving semantics.  It's a special case because we assume the 
+two nestings are ignorant only of each other but that each nesting
+includes the other location.  Crucially, we require Q12*Q21 < 1.
+
+Unfortunately, nesting-separation/L can only handle
+one nesting change, and so we need to redo the whole
+proof, this time with crossnest/ instead of selfaddnest.
+The only thing easier is that we don't need to handle self
+nesting, but we have to handle mutual nesting.  (Indeed
+cross nesting requires that there be mutual nesting.)
+%}%
+
+%theorem cross-nesting/L :
+	forall*	{K} {T:term K} {Psi} {H} {H'} {NG'}
+		{N1-} {N1} {N1+} {L1} {C1} {NG1} {H1}
+		{N2-} {N2} {N2+} {L2} {C2} {NG2} {H2}
+		{Cy1-: cycle N1-} {Cy1: cycle N1} {Cy1+: cycle N1+} {Cy1'}
+		{Cy2-: cycle N2-} {Cy2: cycle N2} {Cy2+: cycle N2+} {Cy2'}
+		{N3} {Cy3': cycle N3} {P: plus N1 N2 N3}
+	forall	{M: models H Psi NG1 Cy1 T} {N3-}
+		{P1: plus N1- N1 N1+}
+		{P2: plus N2- N2 N2+}
+		{P3: plus N1- N2- N3-}
+		{CC1: catcycle P1 Cy1- Cy1 Cy1+}
+		{CC2: catcycle P2 Cy2- Cy2 Cy2+}
+		{MBC: models/basic-covered M Cy1+}
+		{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1+ Cy2+ H1 H2}
+		{AN: addnest H L2 H2 H'}
+		{CA1: cycle-add-nest Cy1 H2 L2 Cy1'}
+		{CA2: cycle-add-nest Cy2 H1 L1 Cy2'}
+		{MC: mixcycle P Cy1' Cy2' Cy3'}
+	exists	{M': models H' Psi NG' Cy3' T}
+	true.
+
+- : cross-nesting/L M _ _ _ _ _ _ _
+	(crossnest/ _ _ _ _ _ K2 NA1 _ _ _ _ _ _ _ _ _ _ _ _)
+	(addnest/= HF) CAN1 _ MC M''
+    <- nesting-unused-permission M K2 NA1 HF CAN1 M'
+    <- mixcycle-preserves-models M' MC M''.
+
+- : cross-nesting/L 
+	(models/scale M Q*H=QH) _ P1 P2 P3 CC1 CC2
+	(models/basic-covered/scale MBC) CN 
+	(addnest/+ QHL QQ1*H2=QQ1H2 QH+QQ1H2=QH') CAN1 CAN2 MX
+	(models/scale M' Q*H'=QH')
+    <- pheap`scale-affects-lookup-converse QHL Q*H=QH _ Q*FRV=QFRV HL
+    <- frv`scale-inversion Q*FRV=QFRV Q*Q1=QQ1 _
+    <- pheap`scale-associates Q*Q1=QQ1 QQ1*H2=QQ1H2 Q1H2 Q1*H2=Q1H2 Q*Q1H2=QQ1H2
+    <- pheap`scale-factors-over-add Q*H=QH Q*Q1H2=QQ1H2 QH+QQ1H2=QH' H'
+                                    H+Q1H2=H' Q*H'=QH'
+    <- cross-nesting/L M _ P1 P2 P3 CC1 CC2 MBC CN
+	(addnest/+ HL Q1*H2=Q1H2 H+Q1H2=H') CAN1 CAN2 MX M'.
+
+- : cross-nesting/L
+        (models/combined M1 M2 H1+H2=H3) _ _ _ P3 CC1 CC2
+        (models/basic-covered/combined MBC1 MBC2) CN AN3 CAN1 CAN2 MX
+	(models/combined M1' M2' H1'+H2'=H3')
+    <- pheap`domain?-total D1?
+    <- pheap`domain?-total D2?
+    <- combined-addnest-helper AN3 H1+H2=H3 D1? D2? _ _ H1'+H2'=H3' AN1 AN2
+    <- cross-nesting/L M1 _ _ _ P3 CC1 CC2 MBC1 CN AN1 CAN1 CAN2 MX M1'
+    <- cross-nesting/L M2 _ _ _ P3 CC1 CC2 MBC2 CN AN2 CAN1 CAN2 MX M2'.
+
+- : cross-nesting/L
+        (models/obligation) _ _ _ _ _ _ _ _  (addnest/+ H0L _ _) _ _ _ M'
+    <- pheap`lookup-contradiction H0L F
+    <- false-implies-models F M'.
+
+- : cross-nesting/L
+        (models/equiv E1 E2 M) _ _ _ P3 CC1 CC2
+        (models/basic-covered/equiv MBC) CN AN CAN1 CAN2 MX
+        (models/equiv E1 E2 M')
+    <- cross-nesting/L M _ _ _ P3 CC1 CC2 MBC CN AN CAN1 CAN2 MX M'.
+
+- : cross-nesting/L
+        (models/unit M) _ _ _ P3 CC1 CC2
+        (models/basic-covered/unit MBC) CN AN CAN1 CAN2 MX
+        (models/unit M')
+    <- cross-nesting/L M _ _ _ P3 CC1 CC2 MBC CN AN CAN1 CAN2 MX M'.
+
+- : cross-nesting/L
+        (models/nonlinear _) _ _ _ _ _ _ _ _  (addnest/+ H0L _ _) _ _ _ M'
+    <- pheap`lookup-contradiction H0L F
+    <- false-implies-models F M'.
+
+- : cross-nesting/L
+        (models/conditional/T BE M) _ _ _ P3 CC1 CC2
+        (models/basic-covered/conditional/T MBC) CN AN CAN1 CAN2 MX
+        (models/conditional/T BE' M')
+    <- crossnest-inversion CN NA1 _
+    <- nesting`add-implies-leq NA1 N<=N' _
+    <- booleval-stable BE N<=N' BE'
+    <- cross-nesting/L M _ _ _ P3 CC1 CC2 MBC CN AN CAN1 CAN2 MX M'.
+
+- : cross-nesting/L
+        (models/conditional/F BE M) _ _ _ P3 CC1 CC2
+        (models/basic-covered/conditional/F MBC) CN AN CAN1 CAN2 MX
+        (models/conditional/F BE' M')
+    <- crossnest-inversion CN NA1 _
+    <- nesting`add-implies-leq NA1 N<=N' _
+    <- booleval-stable BE N<=N' BE'
+    <- cross-nesting/L M _ _ _ P3 CC1 CC2 MBC CN AN CAN1 CAN2 MX M'.
+
+- : cross-nesting/L
+        (models/exists V M) _ _ _ P3 CC1 CC2
+        (models/basic-covered/exists MBC) CN AN CAN1 CAN2 MX
+        (models/exists V M')
+    <- cross-nesting/L M _ _ _ P3 CC1 CC2 MBC CN AN CAN1 CAN2 MX M'.
+
+- : cross-nesting/L
+        (models/encumbered M) _ _ _ P3 CC1 CC2
+        (models/basic-covered/encumbered MBC) CN AN CAN1 CAN2 MX
+        (models/encumbered M')
+    <- cross-nesting/L M _ _ _ P3 CC1 CC2 MBC CN AN CAN1 CAN2 MX M'.
+
+%theorem cross-nesting/basic :
+	forall*	{O} {O'} {F} {L} {C} {Pi} {Psi} {H0} {H} {H'} {NG'} {Q} {B}
+		{N1-} {N1} {N1+} {L1} {C1} {NG1} {H1}
+		{N2-} {N2} {N2+} {L2} {C2} {NG2} {H2} {O2} {QH2}
+		{Cy1-: cycle N1-} {Cy1: cycle N1} {Cy1+: cycle N1+} {Cy1'}
+		{Cy2-: cycle N2-} {Cy2: cycle N2} {Cy2+: cycle N2+} {Cy2'}
+		{N3} {Cy3': cycle N3} {P: plus N1 N2 N3}
+	forall	{P2N:pair2nat (natpair/ O F) L}
+                {N1L:nesting`lookup NG1 L C}
+                {K1:canon Pi C}
+                {M0:models H0 Psi NG1 (cycle/+ Cy1 H0 Psi (natpair/ O F)) Pi}
+                {HA0:heap`add H0 (pheap`map/+ L (frv/ rat`one O') heap`0) H}
+		{N3-}
+		{P1: plus N1- N1 N1+}
+		{P2: plus N2- N2 N2+}
+		{P3: plus N1- N2- N3-}
+		{CC1: catcycle P1 Cy1- Cy1 Cy1+}
+		{CC2: catcycle P2 Cy2- Cy2 Cy2+}
+		{MBC: models/basic-covered M0 Cy1+}
+		{CN: crossnest L1 C1 L2 C2 NG1 NG2 NG' Cy1+ Cy2+ H1 H2}
+                {PHL: pheap`lookup H L2 (frv/ Q O2)}
+		{HS: heap`scale Q H2 QH2}
+		{HA: heap`add H QH2 H'}
+		{CA1: cycle-add-nest Cy1 H2 L2 Cy1'}
+		{CA2: cycle-add-nest Cy2 H1 L1 Cy2'}
+		{MX: mixcycle P Cy1' Cy2' Cy3'}
+		{RCC: remcycle-choice Cy1- Cy1 H0 Psi (natpair/ O F)}
+		{NE?: nat`eq? L L2 B}
+	exists	{M': models H' Psi NG' Cy3' (basic (object/ O) F (object/ O'))}
+	true.
+
+- : cross-nesting/L
+        (models/basic P2N N1L K M0 H0+U=H1) _ _ _ P3 CC1 CC2
+        (models/basic-covered/basic MBC0 RMC) CN 
+	(addnest/+ HL2 Q*H2=QH2 H+QH2=H') CAN1 CAN2 MX M'
+    <- catcycle-chooses-remcycle CC1 RMC RCC
+    <- nat`eq?-total EQ?
+    <- cross-nesting/basic P2N N1L K M0 H0+U=H1 _ _ _ P3 CC1 CC2 MBC0 CN 
+	HL2 Q*H2=QH2 H+QH2=H' CAN1 CAN2 MX RCC EQ? M'.
+
+- : cross-nesting/L
+     (models/basic-co P2N RMC H0+U=H1) _ _ _ _ CC1 _ _ _
+     (addnest/+ H1L Q*H2=QH2 H1+QH2=H1') CAN1 _ MX M''
+    <- nesting-separation/basic/co CAN1 RMC P2N H0+U=H1
+       (addnest/+ H1L Q*H2=QH2 H1+QH2=H1') M'
+    <- mixcycle-preserves-models M' MX M''.
+
+- : cross-nesting/basic P2N N1L K M0 H0+U=H _ _ _ _ CC1 _ MBC0 CN
+	HL2 Q*H2=QH2 H+QH2=H' CAN1 _ MX
+	(remcycle-choice/2 RC) (nat`eq?/yes) M''
+    <- nesting-separation/basic/co 
+       CAN1 RC P2N H0+U=H (addnest/+ HL2 Q*H2=QH2 H+QH2=H') M'
+    <- mixcycle-preserves-models M' MX M''.
+
+- : cross-nesting/basic
+     P2N N1L K M0 H0+U=H _ P1 P2 P3 CC1 CC2 MBC0 CN
+     HL2 (Q*H2=QH2:pheap`scale Q H2 QH2)  H+QH2=H' CAN1 CAN2 MX RCC
+     (nat`eq?/no (L<>L2:nat`ne L L2))
+     (models/basic P2N NL' K M0' H0'+U=H')
+    %% first the nesting
+    <- nat`ne-symmetric L<>L2 L2<>L
+    <- nesting`ne-implies-unit-map-fresh L2<>L HUF
+    <- crossnest-inversion CN NA _
+    <- nesting`fresh-add-right-preserves-lookup* N1L HUF NA NL'
+    %% now the additional factor
+    <- pheap`ne-implies-unit-map-fresh L<>L2 UF
+    <- pheap`fresh-add-right-preserves-lookup-converse HL2 UF H0+U=H H0L
+    <- pheap`add-assoc-commutative H0+U=H H+QH2=H' H0' H0+QH2=H0' H0'+U=H'
+    %% now getting the cycle check set up
+    <- plus-right-increase P1 P1'
+    <- catcycle-total CC1''
+    <- catcycle-left-preserves-models/basic-covered 
+       MBC0 (catcycle/s catcycle/z) MBC0'
+    <- catcycle-left-preserves-crossnest
+       CN (catcycle/s catcycle/z) CN'
+    <- catcycle-associative-converse* 
+       CC1 (catcycle/s catcycle/z) (catcycle/s catcycle/z) _ CC1'
+    <- swap-catend-preserves-models/basic-covered 
+       CC1' MBC0' remcycle/here CC1'' MBC0''
+    <- swap-catend-preserves-crossnest
+       CC1' CN' remcycle/here CC1'' CN''
+    <- cross-nesting/L
+       M0 _ P1' P2 P3 CC1'' CC2 MBC0'' CN''
+       (addnest/+ H0L Q*H2=QH2 H0+QH2=H0')
+       (cycle-add-nest/+ CAN1 L2<>L P2N H0L Q*H2=QH2 H0+QH2=H0') CAN2
+       (mixcycle/L MX) M0'.
+
+- :  {K2: canon Pi2 C2} {K12:canon Pi12 C12} 
+     {NA1: nesting`add NG1 (nesting`map/+ L2 C2 nesting`map/0) NG'}
+     {NA2: nesting`add NG2 (nesting`map/+ L1 C1 nesting`map/0) NG'}
+     {H0+U=H: heap`add H0 _ H}
+     {N1L: nesting`lookup NG1 L2 C12}
+     {HL12: pheap`lookup H1 L2 (frv/ Q12 O2)}
+     {HL21: pheap`lookup H2 L1 (frv/ Q21 O1)}
+     {Q12*Q21=QQ: rat`mul Q12 Q21 QQ}
+     {QR+QQ=1: rat`add QR QQ rat`one}
+     {QI*QR=1: rat`mul QI QR rat`one}
+     {QI*H1=QIH1: heap`scale QI H1 QIH1}
+     {QI*H2=QIH2: heap`scale QI H2 QIH2}
+     {Q21*QIH1=H1': heap`scale Q21 QIH1 H1'}
+     {Q12*QIH2=H2': heap`scale Q12 QIH2 H2'}
+     {QIH1+H2'=H1'': heap`add QIH1 H2' H1''}
+     {H1'+QIH2=H2'': heap`add H1' QIH2 H2''}
+     {HL2: pheap`lookup H L2 (frv/ Q O2')}
+     {Q*H2''=QH2'': heap`scale Q H2'' QH2''}
+     {P1: plus (s N1--) N1 (s N1+-)}
+     {P2: plus N2- N2 N2+}
+     {P3: plus N1-- N2- N3-}
+     {P1': plus N1-- (s N1) (s N1+-)}
+     {P3c: plus N2- N1-- N3-}
+     {CC1:catcycle P1 Cy1- Cy1 Cy1+}
+     {CC2:catcycle P2 Cy2- Cy2 Cy2+}
+     {CC1':catcycle P1' _ _ _}
+     {P: plus N1 N2 N3}
+     {MX: mixcycle P Cy1' Cy2' Cy3'}
+cross-nesting/basic P2N N1L K12 M0 H0+U=H _ P1 P2 (plus/s P3) CC1 CC2 MBC0
+	(crossnest/ M1 M2 MBC1 MBC2 K1 K2 NA1 NA2 HL12 HL21
+	   Q12*Q21=QQ QR+QQ=1 QI*QR=1
+	   QI*H1=QIH1 QI*H2=QIH2 Q21*QIH1=H1' Q12*QIH2=H2' 
+	   QIH1+H2'=H1'' H1'+QIH2=H2'')
+     HL2 Q*H2''=QH2'' H+QH2''=H' CAN1 CAN2 MX
+     (remcycle-choice/1 (RMC:remcycle Cy1- H0 Psi _ Cy1-')) (nat`eq?/yes)
+     (models/basic P2N NL' (canon/+ K12 K2 C12+C2=C3)
+        (models/equiv equiv/identity equiv/reflexive
+           (models/combined M0' M2'' H0'+H2''=H0''))
+        H0''+U=H')
+    %% first we get the heaps into the right shape for recursion
+    <- nesting`add-joins-lookup N1L (lookup/= nat`eq/) NA1 C3 C12+C2=C3 NL'
+    <- pheap`domain?-total D0?
+    <- basic-addnest-helper 
+       (addnest/+ HL2 Q*H2''=QH2'' H+QH2''=H') H0+U=H D0? H0' H0'' 
+       AN0 H0'+H2''=H0'' H0''+U=H' 
+    %% then we handle the cycles used for covering models/basic instances
+    <- plus-swap-succ P1 P1'
+    <- catcycle-total* P1' Cy1-' (cycle/+ Cy1 H0 Psi _) Cy1+' CC1'
+    <- swap-catend-preserves-models/basic-covered CC1 MBC0 RMC CC1' MBC0'
+    <- swap-catend-preserves-models/basic-covered CC1 MBC1 RMC CC1' MBC1'
+    <- plus-commutative P3 P3c
+    %% Here we do rational arithmetic
+    <- rat`mul-commutative Q12*Q21=QQ Q21*Q12=QQ
+    <- rat`mul-total QI*QQ=QQQI
+    <- rat`mul-commutative QI*QQ=QQQI QQ*QI=QQQI
+    <- rat`mul-right-identity QI QI*1=QI
+    <- rat`mul-left-distributes-over-add* 
+        QR+QQ=1 QI*1=QI QI*QR=1 QI*QQ=QQQI ONE+QQQI=QI
+    <- rat`mul-associative Q21*Q12=QQ QQ*QI=QQQI Q12I Q12*QI=Q12I Q21*Q12I=QQQI
+    <- heap`add-commutative QIH1+H2'=H1'' H2'+QIH1=H1''
+    <- heap`add-commutative H1'+QIH2=H2'' QIH2+H1'=H2''
+    <- heap`scale-identity H2 ONE*H2=H2
+    <- heap`scale-total* QQQI H2 QQQIH2 QQQI*H2=QQQIH2
+    <- heap`scale-right-distributes-over-add* ONE+QQQI=QI
+       QI*H2=QIH2 ONE*H2=H2 QQQI*H2=QQQIH2 H2+QQQIH2=QIH2
+    <- heap`add-associative H2+QQQIH2=QIH2 QIH2+H1'=H2'' H12 
+        QQQIH2+H1'=H12 H2+H12=H2''
+    <- heap`scale-associates-converse*
+        QI*H2=QIH2 Q12*QIH2=H2' Q12*QI=Q12I Q12I*H2=H2'
+    <- heap`scale-associates* 
+        Q21*Q12I=QQQI QQQI*H2=QQQIH2 Q12I*H2=H2' Q21*H2'=QQQIH2 
+    <- heap`scale-factors-over-add* Q21*H2'=QQQIH2 Q21*QIH1=H1' QQQIH2+H1'=H12
+        H2'+QIH1=H1'' Q21*H1''=H12
+    <- cross-nesting/L
+       	M0 _ P1' P2 P3 CC1' CC2 MBC0'
+        (crossnest/ M1 M2 MBC1' MBC2 K1 K2 NA1 NA2 HL12 HL21 
+         Q12*Q21=QQ QR+QQ=1 QI*QR=1
+         QI*H1=QIH1 QI*H2=QIH2 Q21*QIH1=H1' Q12*QIH2=H2' 
+         QIH1+H2'=H1'' H1'+QIH2=H2'')
+        AN0 (cycle-add-nest/= CAN1 P2N AN0 H0'+H2''=H0'') CAN2 
+	(mixcycle/L MX) M0'
+    <- weaken*-preserves-models/basic-covered M2 MBC2 _ M2' MBC2'
+    <- mixcycle-commutative (mixcycle/L MX) _ MX'
+    <- cross-nesting/L
+       M2' _ P2 P1' P3c CC2 CC1' MBC2'
+       (crossnest/ M2 M1 MBC2 MBC1' K2 K1 NA2 NA1 HL21 HL12
+        Q21*Q12=QQ QR+QQ=1 QI*QR=1
+        QI*H2=QIH2 QI*H1=QIH1 
+        Q12*QIH2=H2' Q21*QIH1=H1' 
+        QIH2+H1'=H2'' H2'+QIH1=H1'')
+       (addnest/+ HL21 Q21*H1''=H12 H2+H12=H2'')
+       CAN2 (cycle-add-nest/= CAN1 P2N AN0 H0'+H2''=H0'') MX'
+       M2''.
+
+%worlds () (cross-nesting/basic _ _ _ _ _ _ _ _ _ _ _ _
+                                _ _ _ _ _ _ _ _ _ _)
+           (cross-nesting/L     _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+%total {(N N0) (M M0)} 
+           (cross-nesting/L     M N _ _ _ _ _ _ _ _ _ _ _ _)
+           (cross-nesting/basic _ _ _ M0 _ N0 _ _ _ _ _ _
+                                _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem separate-nesting-combines :
+	forall*	{H1} {N1} {Pi1} {C1} {L1} {O1} {Q12} {QIH1}
+		{H2} {N2} {Pi2} {C2} {L2} {O2} {Q21} {QIH2}
+		{N'} {N} {QQ} {QR} {QI} {QI12} {H1'}
+	forall	{M1: models H1 empty N1 cycle/0 Pi1}
+		{M2: models H2 empty N2 cycle/0 Pi2}
+		{K1: canon Pi1 C1}
+		{K2: canon Pi2 C2}
+		{NA1: nesting`add N (nesting`map/+ L1 C1 nesting`map/0) N1}
+		{NA2: nesting`add N (nesting`map/+ L2 C2 nesting`map/0) N2}
+		{NA: nesting`add N1 (nesting`map/+ L2 C2 nesting`map/0) N'}
+		{HL12: pheap`lookup H1 L2 (frv/ Q12 O2)}
+		{HL21: pheap`lookup H2 L1 (frv/ Q21 O1)}
+		{QM: rat`mul Q12 Q21 QQ}
+		{QA: rat`add QR QQ rat`one}
+		{QQI: rat`mul QI QR rat`one}
+		{QMI: rat`mul QI Q12 QI12}
+		{HSI1: heap`scale QI H1 QIH1}
+		{HSI2: heap`scale QI12 H2 QIH2}
+		{HAI: heap`add QIH1 QIH2 H1'}
+	exists	{M1: models H1' empty N' cycle/0 Pi1}
+	true.
+				   
+- : separate-nesting-combines M1 M2 K1 K2 NA1 NA2 NA1' HL12 HL21 
+        Q12*Q21=QQ QR+QQ=1 QI*QR=1 QI*Q12=Q12I 
+	QI*H1=QIH1 Q12I*H2=H2' QIH1+H2'=H1'' 
+	M1'
+    %% get the covering
+    <- models/basic-covered-total* M1 N1 Cy1 MBC1
+    <- models/basic-covered-total* M2 N2 Cy2 MBC2
+    <- catcycle-right-identity _ _ CC1
+    <- catcycle-right-identity _ _ CC2
+    <- plus-total P12
+    %% reorder nesting
+    <- nesting`add-commutative NA1 NA1c
+    <- nesting`add-associative* NA1c NA1' NA2 NA2c'
+    <- nesting`add-commutative NA2c' NA2'
+    %% rational arithmetic
+    <- rat`mul-commutative Q12*Q21=QQ Q21*Q12=QQ
+    <- rat`mul-total QI*QQ=QQQI
+    <- rat`mul-commutative QI*QQ=QQQI QQ*QI=QQQI
+    <- rat`mul-right-identity QI QI*1=QI
+    <- rat`mul-left-distributes-over-add* 
+        QR+QQ=1 QI*1=QI QI*QR=1 QI*QQ=QQQI ONE+QQQI=QI
+    <- rat`mul-associative Q12*Q21=QQ QQ*QI=QQQI Q21I Q21*QI=Q21I Q12*Q21I=QQQI
+    <- rat`mul-commutative QI*Q12=Q12I Q12*QI=Q12I
+    %% reorganize heaps
+    <- heap`scale-associates
+	Q12*QI=Q12I Q12I*H2=H2' QIH2 QI*H2=QIH2 Q12*QIH2=H2'
+    <- heap`scale-identity H1 ONE*H1=H1
+    <- heap`scale-total QQQI*H1=QQQIH1
+    <- heap`scale-right-distributes-over-add* ONE+QQQI=QI
+	QI*H1=QIH1 ONE*H1=H1 QQQI*H1=QQQIH1 H1+QQQIH1=QIH1
+    <- heap`add-associative H1+QQQIH1=QIH1 QIH1+H2'=H1'' H12
+	QQQIH1+H2'=H12 H1+H12=H1''
+    <- heap`scale-total Q21*QIH1=H1'
+    <- heap`scale-associates-converse*
+        QI*H1=QIH1 Q21*QIH1=H1' Q21*QI=Q21I Q21I*H1=H1'
+    <- heap`scale-associates*
+	Q12*Q21I=QQQI QQQI*H1=QQQIH1 Q21I*H1=H1' Q12*H1'=QQQIH1
+    <- heap`scale-factors-over-add Q12*H1'=QQQIH1 Q12*QIH2=H2' QQQIH1+H2'=H12
+        H2'' H1'+QIH2=H2'' Q12*H2''=H12
+    %% use the cross-nesting lemma
+    <- cross-nesting/L M1 _ _ _ P12 CC1 CC2 MBC1
+	(crossnest/ M1 M2 MBC1 MBC2 K1 K2 NA1' NA2' HL12 HL21 
+	   Q12*Q21=QQ QR+QQ=1 QI*QR=1
+	   QI*H1=QIH1 QI*H2=QIH2 Q21*QIH1=H1' Q12*QIH2=H2' 
+	   QIH1+H2'=H1'' H1'+QIH2=H2'')
+	(addnest/+ HL12 Q12*H2''=H12 H1+H12=H1'')
+        cycle-add-nest/z cycle-add-nest/z mixcycle/0 M1'.
+
+%worlds () (separate-nesting-combines _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total { } (separate-nesting-combines _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).

@@ -1,0 +1,851 @@
+%%%%% allalloc.elf
+%%%%% John Boyland
+%%%%% March 2008
+
+%{%
+This file contains the definitions of a family of related invariants 
+concerning the objects that can appear in syntax/programs/threads/memory.
+We want the fact that no object appears before it has been allocated.
+%}%
+
+
+
+
+%%%% Definitions
+
+
+
+all_allocated : term K -> mem -> type.
+
+assume_allocated : object -> type.
+
+
+all_allocated/var :
+	assume_allocated O ->
+    all_allocated (lit O) M.
+
+all_allocated/lit : 
+	mem`domain? M N true -> 
+    all_allocated (lit (object/ N)) M.
+
+all_allocated/alloc : all_allocated (alloc C F VF) M.
+
+all_allocated/read :
+	all_allocated E1 M ->
+    all_allocated (read E1 F) M.
+
+all_allocated/write :
+	all_allocated E1 M ->
+	all_allocated E2 M ->
+    all_allocated (write E1 F E2) M.
+
+all_allocated/readv :
+	all_allocated E1 M ->
+    all_allocated (readv E1 F) M.
+
+all_allocated/writev :
+	all_allocated E1 M ->
+	all_allocated E2 M ->
+    all_allocated (writev E1 F E2) M.
+
+all_allocated/let :
+	all_allocated E1 M ->
+	({o} assume_allocated o -> all_allocated (F o) M) ->
+    all_allocated (let E1 F) M.
+
+all_allocated/if :
+	all_allocated C M ->
+	all_allocated E1 M ->
+	all_allocated E2 M ->
+    all_allocated (if C E1 E2) M.
+
+all_allocated/while :
+	all_allocated C M ->
+	all_allocated E1 M ->
+    all_allocated (while C E1) M.
+
+all_allocated/call :
+	all_allocated A M ->
+    all_allocated (call F A) M.
+
+all_allocated/fork :
+	all_allocated E1 M ->
+    all_allocated (fork E1) M.
+
+all_allocated/join :
+	all_allocated E1 M ->
+    all_allocated (join E1) M.
+
+all_allocated/synch :
+	all_allocated E1 M ->
+	all_allocated E2 M ->
+    all_allocated (synch E1 E2) M.
+
+all_allocated/hold :
+	all_allocated (lit O) M -> % we permit O to be let-bound (may change)
+	all_allocated E2 M ->
+    all_allocated (hold O E2) M.
+
+all_allocated/true : all_allocated (cond/true) M.
+
+all_allocated/not :
+	all_allocated C1 M ->
+    all_allocated (not C1) M.
+
+all_allocated/and :
+	all_allocated C1 M ->
+	all_allocated C2 M ->
+    all_allocated (and C1 C2) M.
+
+all_allocated/eql :
+	all_allocated E1 M ->
+	all_allocated E2 M ->
+    all_allocated (eql E1 E2) M.
+
+all_allocated/args/0 : all_allocated args/0 M.
+
+all_allocated/args/+ :
+	all_allocated E M ->
+	all_allocated A M ->
+    all_allocated (args/+ E A) M.
+
+all_allocated/func/0 :
+	all_allocated E M ->
+    all_allocated (func/0 E) M.
+
+all_allocated/func/+ :
+	({o} assume_allocated o -> all_allocated (F o) M) ->
+    all_allocated (func/+ F) M.
+
+% EXTEND all_allocated
+
+%abbrev all_allocated/seq :
+	all_allocated E1 M ->
+	all_allocated E2 M ->
+    all_allocated (seq E1 E2) M =
+	([AA1] [AA2] all_allocated/let AA1 ([o] [a] AA2)).
+
+%abbrev all_allocated/false :
+	all_allocated cond/false M =
+	(all_allocated/not all_allocated/true).
+
+
+
+nf_all_allocated : normal-fields -> mem -> type.
+
+
+nf_all_allocated/0 : nf_all_allocated (normal-fields`map/0) M.
+
+nf_all_allocated/+ :
+	nf_all_allocated NF M ->
+	mem`domain? M O true ->
+    nf_all_allocated (normal-fields`map/+ N (normal-contents/ _ O) NF) M.
+
+
+vf_all_allocated : volatile-fields -> mem -> type.
+
+
+vf_all_allocated/0 : vf_all_allocated (volatile-fields`map/0) M.
+
+vf_all_allocated/+ :
+	vf_all_allocated NF M ->
+	mem`domain? M O true ->
+    vf_all_allocated (volatile-fields`map/+ N (volatile-contents/ _ O) NF) M.
+
+
+mem_all_allocated* : mem -> mem -> type.
+
+%abbrev mem_all_allocated = [M] mem_all_allocated* M M.
+
+
+mem_all_allocated/0 : mem_all_allocated* (mem`map/0) M.
+
+mem_all_allocated/+ :
+	mem_all_allocated* M1 M2 ->
+	nf_all_allocated NF M2 ->
+	vf_all_allocated VF M2 ->
+    mem_all_allocated* (mem`map/+ N (objs/ NF VF _) M1) M2.
+
+
+
+prog_all_allocated : prog -> mem -> type.
+
+
+prog_all_allocated/0 : prog_all_allocated (prog`map/0) M.
+
+prog_all_allocated/+ :
+	prog_all_allocated P M ->
+	all_allocated F M ->
+    prog_all_allocated (prog`map/+ N F P) M.
+
+
+
+threads_all_allocated : threads -> mem -> type.
+
+
+threads_all_allocated/0 : threads_all_allocated (threads`map/0) M.
+
+threads_all_allocated/+ :
+	threads_all_allocated TS M ->
+	all_allocated E M ->
+    threads_all_allocated (threads`map/+ N (thread/ S E) TS) M.
+
+
+
+%%%% Theorems
+
+
+
+%%% Theorems about all_allocated and relatives
+
+
+%theorem false-implies-all_allocated :
+	forall* {K} {T:term K} {M}
+	forall	{F:void}
+	exists	{AA:all_allocated T M}
+	true.
+
+%worlds () (false-implies-all_allocated _ _).
+%total { } (false-implies-all_allocated _ _).
+
+
+%theorem all_allocated-respects-eq :
+	forall* {K1} {T1:term K1} {M1}
+		{K2} {T2:term K2} {M2}
+	forall	{AA1:all_allocated T1 M1}
+		{TE:term`eq T1 T2}
+		{ME:mem`eq M1 M2}
+	exists	{AA2:all_allocated T2 M2}
+	true.
+
+- : all_allocated-respects-eq AA term`eq/ mem`eq/ AA.
+
+%worlds () (all_allocated-respects-eq _ _ _ _).
+%total { } (all_allocated-respects-eq _ _ _ _).
+
+
+%theorem nf_all_allocated-implies-obj-in-domain :
+	forall* {NF} {M} {N} {W} {O}
+	forall	{NFAA: nf_all_allocated NF M}
+		{PL: normal-fields`lookup NF N (normal-contents/ W O)}
+	exists	{MD: mem`domain? M O true}
+	true.
+
+- : nf_all_allocated-implies-obj-in-domain
+	(nf_all_allocated/+ _ MD) (normal-fields`lookup/= nat`eq/) MD.
+
+- : nf_all_allocated-implies-obj-in-domain
+	(nf_all_allocated/+ NFAA _) (normal-fields`lookup/> NFL _) MD
+    <- nf_all_allocated-implies-obj-in-domain NFAA NFL MD.
+
+%worlds () (nf_all_allocated-implies-obj-in-domain _ _ _).
+%total (N) (nf_all_allocated-implies-obj-in-domain N _ _).
+
+
+%theorem vf_all_allocated-implies-obj-in-domain :
+	forall* {VF} {M} {N} {W} {O}
+	forall	{VFAA: vf_all_allocated VF M}
+		{PL: volatile-fields`lookup VF N (volatile-contents/ W O)}
+	exists	{MD: mem`domain? M O true}
+	true.
+
+- : vf_all_allocated-implies-obj-in-domain
+	(vf_all_allocated/+ _ MD) (volatile-fields`lookup/= nat`eq/) MD.
+
+- : vf_all_allocated-implies-obj-in-domain
+	(vf_all_allocated/+ VFAA _) (volatile-fields`lookup/> VFL _) MD
+    <- vf_all_allocated-implies-obj-in-domain VFAA VFL MD.
+
+%worlds () (vf_all_allocated-implies-obj-in-domain _ _ _).
+%total (V) (vf_all_allocated-implies-obj-in-domain V _ _).
+
+
+%theorem mem_all_allocated-implies-objs-all_allocated :
+	forall* {M} {M'} {N} {NF} {VF} {LC}
+	forall	{MAA: mem_all_allocated* M' M}
+		{ML: mem`lookup M' N (objs/ NF VF LC)}
+	exists	{NFAA: nf_all_allocated NF M}
+		{VFAA: vf_all_allocated VF M}
+	true.
+
+- : mem_all_allocated-implies-objs-all_allocated
+	(mem_all_allocated/+ _ NFAA VFAA) (mem`lookup/= nat`eq/) NFAA VFAA.
+
+- : mem_all_allocated-implies-objs-all_allocated
+	(mem_all_allocated/+ MAA _ _) (mem`lookup/> ML _) NFAA VFAA
+    <- mem_all_allocated-implies-objs-all_allocated MAA ML NFAA VFAA.
+
+%worlds () (mem_all_allocated-implies-objs-all_allocated _ _ _ _).
+%total (M) (mem_all_allocated-implies-objs-all_allocated M _ _ _).
+
+
+%theorem prog_all_allocated-implies-func-all_allocated :
+	forall* {P} {M} {N} {F}
+	forall	{PAA: prog_all_allocated P M}
+		{PL: prog`lookup P N F}
+	exists	{AA: all_allocated F M}
+	true.
+
+- : prog_all_allocated-implies-func-all_allocated
+	(prog_all_allocated/+ _ FA) (prog`lookup/= nat`eq/) FA.
+
+- : prog_all_allocated-implies-func-all_allocated
+	(prog_all_allocated/+ PAA _) (prog`lookup/> PL _) FA
+    <- prog_all_allocated-implies-func-all_allocated PAA PL FA.
+
+%worlds () (prog_all_allocated-implies-func-all_allocated _ _ _).
+%total (P) (prog_all_allocated-implies-func-all_allocated P _ _).
+
+
+%theorem threads_all_allocated-implies-thread-all_allocated :
+	forall* {TS} {M} {N} {K} {E}
+	forall	{TSAA: threads_all_allocated TS M}
+		{TSL: threads`lookup TS N (thread/ K E)}
+	exists	{AA: all_allocated E M}
+	true.
+
+- : threads_all_allocated-implies-thread-all_allocated
+	(threads_all_allocated/+ _ FA) (threads`lookup/= nat`eq/) FA.
+
+- : threads_all_allocated-implies-thread-all_allocated
+	(threads_all_allocated/+ TSAA _) (threads`lookup/> TSL _) FA
+    <- threads_all_allocated-implies-thread-all_allocated TSAA TSL FA.
+
+%worlds () (threads_all_allocated-implies-thread-all_allocated _ _ _).
+%total (T) (threads_all_allocated-implies-thread-all_allocated T _ _).
+
+
+%theorem update-preserves-all_allocated :
+	forall* {K} {T:term K} {M1} {N} {C} {M2}
+	forall	{AA1: all_allocated T M1}
+		{U: mem`update M1 N C M2}
+	exists	{AA2: all_allocated T M2}
+	true.
+
+- : update-preserves-all_allocated
+	(all_allocated/var AO) MU (all_allocated/var AO).
+
+- : update-preserves-all_allocated 
+	(all_allocated/lit MD1) MU (all_allocated/lit MD2)
+    <- mem`update-preserves-in-domain MD1 MU MD2.
+
+- : update-preserves-all_allocated
+	(all_allocated/alloc) MU (all_allocated/alloc).
+
+- : update-preserves-all_allocated
+	(all_allocated/read AA1) MU (all_allocated/read AA2)
+    <- update-preserves-all_allocated AA1 MU AA2.
+
+- : update-preserves-all_allocated
+	(all_allocated/write AA1 AA2) MU (all_allocated/write AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/readv AA1) MU (all_allocated/readv AA2)
+    <- update-preserves-all_allocated AA1 MU AA2.
+
+- : update-preserves-all_allocated
+	(all_allocated/writev AA1 AA2) MU (all_allocated/writev AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/let AA1 ([o] [ao] (FL1 o ao))) MU
+	(all_allocated/let AA2 ([o] [ao] (FL2 o ao)))
+    <- update-preserves-all_allocated AA1 MU AA2
+    <- ({o} {a: assume_allocated o}
+	update-preserves-all_allocated (FL1 o a) MU (FL2 o a)).
+
+- : update-preserves-all_allocated
+	(all_allocated/if AA1 AA2 AA3) MU (all_allocated/if AA1' AA2' AA3')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'
+    <- update-preserves-all_allocated AA3 MU AA3'.
+
+- : update-preserves-all_allocated
+	(all_allocated/while AA1 AA2) MU (all_allocated/while AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/call AA) MU (all_allocated/call AA')
+    <- update-preserves-all_allocated AA MU AA'.
+
+- : update-preserves-all_allocated
+	(all_allocated/fork AA) MU (all_allocated/fork AA')
+    <- update-preserves-all_allocated AA MU AA'.
+
+- : update-preserves-all_allocated
+	(all_allocated/join AA) MU (all_allocated/join AA')
+    <- update-preserves-all_allocated AA MU AA'.
+
+- : update-preserves-all_allocated
+	(all_allocated/synch AA1 AA2) MU (all_allocated/synch AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/hold AA1 AA2) MU (all_allocated/hold AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/true) MU (all_allocated/true).
+
+- : update-preserves-all_allocated
+	(all_allocated/not AA) MU (all_allocated/not AA')
+    <- update-preserves-all_allocated AA MU AA'.
+
+- : update-preserves-all_allocated
+	(all_allocated/and AA1 AA2) MU (all_allocated/and AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/eql AA1 AA2) MU (all_allocated/eql AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/args/0) MU (all_allocated/args/0).
+
+- : update-preserves-all_allocated
+	(all_allocated/args/+ AA1 AA2) MU (all_allocated/args/+ AA1' AA2')
+    <- update-preserves-all_allocated AA1 MU AA1'
+    <- update-preserves-all_allocated AA2 MU AA2'.
+
+- : update-preserves-all_allocated
+	(all_allocated/func/0 AA) MU (all_allocated/func/0 AA')
+    <- update-preserves-all_allocated AA MU AA'.
+
+- : update-preserves-all_allocated
+	(all_allocated/func/+ ([o] [aa] (FL1 o aa))) MU
+	(all_allocated/func/+ ([o] [aa] (FL2 o aa)))
+    <- ({o} {a: assume_allocated o}
+	update-preserves-all_allocated (FL1 o a) MU (FL2 o a)).
+
+% EXTEND update-preserves-all_allocated
+
+%block blockupdate : block {o} {a: assume_allocated o}.
+
+%worlds (blockupdate) (update-preserves-all_allocated _ _ _).
+%total (A) (update-preserves-all_allocated A _ _).
+
+
+%theorem init-implies-nf_all_allocated :	
+	forall* {M} {NS} {NF}
+	forall	{Z: mem`domain? M nat`z true}
+		{I: init-normals NS NF}
+	exists	{NFAA: nf_all_allocated NF M}
+	true.
+
+- : init-implies-nf_all_allocated MD init-normals/0 nf_all_allocated/0.
+
+- : init-implies-nf_all_allocated MD 
+	(init-normals/+ I)
+	(nf_all_allocated/+ NFAA MD)
+    <- init-implies-nf_all_allocated MD I NFAA.
+
+%worlds () (init-implies-nf_all_allocated _ _ _).
+%total (I) (init-implies-nf_all_allocated _ I _).
+
+
+%theorem init-implies-vf_all_allocated :	
+	forall* {M} {VS} {VF}
+	forall	{Z: mem`domain? M nat`z true}
+		{I: init-volatiles VS VF}
+	exists	{VFAA: vf_all_allocated VF M}
+	true.
+
+- : init-implies-vf_all_allocated MD init-volatiles/0 vf_all_allocated/0.
+
+- : init-implies-vf_all_allocated MD 
+	(init-volatiles/+ I)
+	(vf_all_allocated/+ VFAA MD)
+    <- init-implies-vf_all_allocated MD I VFAA.
+
+%worlds () (init-implies-vf_all_allocated _ _ _).
+%total (I) (init-implies-vf_all_allocated _ I _).
+
+
+%theorem update-preserves-nf_all_allocated :
+	forall* {NF} {M1} {N} {C} {M2}
+	forall	{PAA1: nf_all_allocated NF M1}
+		{U: mem`update M1 N C M2}
+	exists	{PAA2: nf_all_allocated NF M2}
+	true.
+	
+- : update-preserves-nf_all_allocated 
+	(nf_all_allocated/0) U
+	(nf_all_allocated/0).
+
+- : update-preserves-nf_all_allocated 
+	(nf_all_allocated/+ PAA1 MD1) U
+	(nf_all_allocated/+ PAA2 MD2)
+    <- update-preserves-nf_all_allocated PAA1 U PAA2
+    <- mem`update-preserves-in-domain MD1 U MD2.
+
+%worlds () (update-preserves-nf_all_allocated _ _ _).
+%total (P) (update-preserves-nf_all_allocated P _ _).
+
+	
+%theorem update-preserves-vf_all_allocated :
+	forall* {VF} {M1} {N} {C} {M2}
+	forall	{PAA1: vf_all_allocated VF M1}
+		{U: mem`update M1 N C M2}
+	exists	{PAA2: vf_all_allocated VF M2}
+	true.
+	
+- : update-preserves-vf_all_allocated 
+	(vf_all_allocated/0) U
+	(vf_all_allocated/0).
+
+- : update-preserves-vf_all_allocated 
+	(vf_all_allocated/+ PAA1 MD1) U
+	(vf_all_allocated/+ PAA2 MD2)
+    <- update-preserves-vf_all_allocated PAA1 U PAA2
+    <- mem`update-preserves-in-domain MD1 U MD2.
+
+%worlds () (update-preserves-vf_all_allocated _ _ _).
+%total (P) (update-preserves-vf_all_allocated P _ _).
+
+
+%theorem normal-update-preserves-nf_all_allocated :
+	forall* {NF1} {M} {S} {O} {NF2} {N}
+	forall	{PAA1: nf_all_allocated NF1 M}
+		{U: normal-fields`update NF1 N (normal-contents/ S O) NF2}
+		{MD: mem`domain? M O true}
+	exists	{PAA2: nf_all_allocated NF2 M}
+	true.
+	
+- : normal-update-preserves-nf_all_allocated
+	nf_all_allocated/0 normal-fields`update/0 MD
+	(nf_all_allocated/+ nf_all_allocated/0 MD).
+
+- : normal-update-preserves-nf_all_allocated
+	(nf_all_allocated/+ NFAA _) (normal-fields`update/= nat`eq/) MD
+	(nf_all_allocated/+ NFAA MD).
+
+- : normal-update-preserves-nf_all_allocated
+	(nf_all_allocated/+ NFAA MD1) (normal-fields`update/< L) MD2
+	(nf_all_allocated/+ (nf_all_allocated/+ NFAA MD1) MD2).
+
+- : normal-update-preserves-nf_all_allocated
+	(nf_all_allocated/+ NFAA1 MD1) (normal-fields`update/> U _) MD2
+	(nf_all_allocated/+ NFAA2 MD1) 
+    <- normal-update-preserves-nf_all_allocated NFAA1 U MD2 NFAA2.
+
+%worlds () (normal-update-preserves-nf_all_allocated _ _ _ _).
+%total (A) (normal-update-preserves-nf_all_allocated A _ _ _).
+
+
+%theorem volatile-update-preserves-vf_all_allocated :
+	forall* {VF1} {M} {S} {O} {VF2} {N}
+	forall	{PAA1: vf_all_allocated VF1 M}
+		{U: volatile-fields`update VF1 N (volatile-contents/ S O) VF2}
+		{MD: mem`domain? M O true}
+	exists	{PAA2: vf_all_allocated VF2 M}
+	true.
+	
+- : volatile-update-preserves-vf_all_allocated
+	vf_all_allocated/0 volatile-fields`update/0 MD
+	(vf_all_allocated/+ vf_all_allocated/0 MD).
+
+- : volatile-update-preserves-vf_all_allocated
+	(vf_all_allocated/+ VFAA _) (volatile-fields`update/= nat`eq/) MD
+	(vf_all_allocated/+ VFAA MD).
+
+- : volatile-update-preserves-vf_all_allocated
+	(vf_all_allocated/+ VFAA MD1) (volatile-fields`update/< L) MD2
+	(vf_all_allocated/+ (vf_all_allocated/+ VFAA MD1) MD2).
+
+- : volatile-update-preserves-vf_all_allocated
+	(vf_all_allocated/+ VFAA1 MD1) (volatile-fields`update/> U _) MD2
+	(vf_all_allocated/+ VFAA2 MD1) 
+    <- volatile-update-preserves-vf_all_allocated VFAA1 U MD2 VFAA2.
+
+%worlds () (volatile-update-preserves-vf_all_allocated _ _ _ _).
+%total (A) (volatile-update-preserves-vf_all_allocated A _ _ _).
+
+
+%theorem update-preserves-mem_all_allocated :
+	forall* {M1} {N} {M2} {NF} {VF} {LC}
+	forall	{MA1: mem_all_allocated M1}
+		{U: mem`update M1 N (objs/ NF VF LC) M2}
+		{NFAA: nf_all_allocated NF M1}
+		{VFAA: vf_all_allocated VF M1}
+	exists	{MA2: mem_all_allocated M2}
+	true.
+	
+%theorem update-preserves-mem_all_allocated/L0 :
+	forall* {M1} {NF} {VF} {LC} {MX1} {MX2} {NX}
+	forall	{MA1: mem_all_allocated* M1 MX1}
+		{UX: mem`update MX1 NX (objs/ NF VF LC) MX2}
+	exists	{MA2: mem_all_allocated* M1 MX2}
+	true.
+	
+- : update-preserves-mem_all_allocated/L0
+	(mem_all_allocated/0) _ (mem_all_allocated/0).
+
+- : update-preserves-mem_all_allocated/L0
+	(mem_all_allocated/+ MAA1 NFAA1 VFAA1) UX
+	(mem_all_allocated/+ MAA2 NFAA2 VFAA2)
+    <- update-preserves-mem_all_allocated/L0 MAA1 UX MAA2
+    <- update-preserves-nf_all_allocated NFAA1 UX NFAA2
+    <- update-preserves-vf_all_allocated VFAA1 UX VFAA2.
+
+%worlds () (update-preserves-mem_all_allocated/L0 _ _ _).
+%total (M) (update-preserves-mem_all_allocated/L0 M _ _).
+
+%theorem update-preserves-mem_all_allocated/L1 :
+	forall* {M1} {N} {M2} {NF} {VF} {LC} {MX1} {MX2} {NX}
+	forall	{MA1: mem_all_allocated* M1 MX1}
+		{U: mem`update M1 N (objs/ NF VF LC) M2}
+		{UX: mem`update MX1 NX (objs/ NF VF LC) MX2}
+		{NFAA: nf_all_allocated NF MX1}
+		{VFAA: vf_all_allocated VF MX1}
+	exists	{MA2: mem_all_allocated* M2 MX2}
+	true.
+	
+- : update-preserves-mem_all_allocated/L1 
+	(mem_all_allocated/0) update/0 UX NFAA VFAA
+	(mem_all_allocated/+ mem_all_allocated/0 NFAA' VFAA')
+    <- update-preserves-nf_all_allocated NFAA UX NFAA'
+    <- update-preserves-vf_all_allocated VFAA UX VFAA'.
+
+- : update-preserves-mem_all_allocated/L1 
+	(mem_all_allocated/+ MAA1 _ _) (update/= nat`eq/) UX NFAA1 VFAA1
+	(mem_all_allocated/+ MAA2 NFAA2 VFAA2)
+    <- update-preserves-mem_all_allocated/L0 MAA1 UX MAA2
+    <- update-preserves-nf_all_allocated NFAA1 UX NFAA2
+    <- update-preserves-vf_all_allocated VFAA1 UX VFAA2.
+
+- : update-preserves-mem_all_allocated/L1 
+	(mem_all_allocated/+ MAA NFAA1 VFAA1) 
+	(update/< _) UX NFAA2 VFAA2
+	(mem_all_allocated/+ (mem_all_allocated/+ MAA' NFAA1' VFAA1')
+                             NFAA2' VFAA2')
+    <- update-preserves-mem_all_allocated/L0 MAA UX MAA'
+    <- update-preserves-nf_all_allocated NFAA1 UX NFAA1'
+    <- update-preserves-vf_all_allocated VFAA1 UX VFAA1'
+    <- update-preserves-nf_all_allocated NFAA2 UX NFAA2'
+    <- update-preserves-vf_all_allocated VFAA2 UX VFAA2'.
+
+- : update-preserves-mem_all_allocated/L1 
+	(mem_all_allocated/+ MAA NFAA1 VFAA1) 
+	(update/> U _) UX NFAA2 VFAA2
+	(mem_all_allocated/+ MAA' NFAA1' VFAA1')
+    <- update-preserves-mem_all_allocated/L1 MAA U UX NFAA2 VFAA2 MAA'
+    <- update-preserves-nf_all_allocated NFAA1 UX NFAA1'
+    <- update-preserves-vf_all_allocated VFAA1 UX VFAA1'.
+
+%worlds () (update-preserves-mem_all_allocated/L1 _ _ _ _ _ _).
+%total (M) (update-preserves-mem_all_allocated/L1 M _ _ _ _ _).
+
+- : update-preserves-mem_all_allocated MAA1 U NFAA VFAA MAA2
+    <- update-preserves-mem_all_allocated/L1 MAA1 U U NFAA VFAA MAA2.
+
+%worlds () (update-preserves-mem_all_allocated _ _ _ _ _).
+%total { } (update-preserves-mem_all_allocated _ _ _ _ _).
+
+
+%theorem update-preserves-prog_all_allocated :
+	forall* {G} {M1} {N} {C} {M2}
+	forall	{PAA1: prog_all_allocated G M1}
+		{U: mem`update M1 N C M2}
+	exists	{PAA2: prog_all_allocated G M2}
+	true.
+	
+- : update-preserves-prog_all_allocated 
+	(prog_all_allocated/0) U
+	(prog_all_allocated/0).
+
+- : update-preserves-prog_all_allocated 
+	(prog_all_allocated/+ PAA1 EAA1) U
+	(prog_all_allocated/+ PAA2 EAA2)
+    <- update-preserves-prog_all_allocated PAA1 U PAA2
+    <- update-preserves-all_allocated EAA1 U EAA2.
+
+%worlds () (update-preserves-prog_all_allocated _ _ _).
+%total (P) (update-preserves-prog_all_allocated P _ _).
+
+
+%theorem update-preserves-threads_all_allocated :
+	forall* {TS} {M1} {N} {C} {M2}
+	forall	{PAA1: threads_all_allocated TS M1}
+		{U: mem`update M1 N C M2}
+	exists	{PAA2: threads_all_allocated TS M2}
+	true.
+	
+- : update-preserves-threads_all_allocated 
+	(threads_all_allocated/0) U
+	(threads_all_allocated/0).
+
+- : update-preserves-threads_all_allocated 
+	(threads_all_allocated/+ PAA1 EAA1) U
+	(threads_all_allocated/+ PAA2 EAA2)
+    <- update-preserves-threads_all_allocated PAA1 U PAA2
+    <- update-preserves-all_allocated EAA1 U EAA2.
+
+%worlds () (update-preserves-threads_all_allocated _ _ _).
+%total (P) (update-preserves-threads_all_allocated P _ _).
+
+
+%theorem thread-update-preserves-threads_all_allocated :
+	forall* {TS1} {N} {S} {E} {TS2} {M}
+	forall	{TAA1: threads_all_allocated TS1 M}
+		{TU: threads`update TS1 N (thread/ S E) TS2}
+		{EAA: all_allocated E M}
+	exists	{TAA2: threads_all_allocated TS2 M}
+	true.
+
+- :  thread-update-preserves-threads_all_allocated
+        TAA
+	(threads`update/0) EAA
+	(threads_all_allocated/+ TAA EAA).
+
+- : thread-update-preserves-threads_all_allocated
+	(threads_all_allocated/+ TAA _)
+	(threads`update/= nat`eq/) EAA
+	(threads_all_allocated/+ TAA EAA).
+
+- : thread-update-preserves-threads_all_allocated
+	(threads_all_allocated/+ TAA EAA1)
+	(threads`update/< _) EAA2
+	(threads_all_allocated/+ (threads_all_allocated/+ TAA EAA1) EAA2).
+
+- : thread-update-preserves-threads_all_allocated
+	(threads_all_allocated/+ TAA1 EAA1)
+	(threads`update/> TU _) EAA2
+	(threads_all_allocated/+ TAA2 EAA1)
+   <- thread-update-preserves-threads_all_allocated TAA1 TU EAA2 TAA2.
+
+%worlds () (thread-update-preserves-threads_all_allocated _ _ _ _).
+%total (T) (thread-update-preserves-threads_all_allocated T _ _ _).
+
+
+%theorem subst-all_allocated :
+	forall*	{K} {F: object -> term K} {O} {M}
+	forall	{AAF: {o} (assume_allocated o) -> (all_allocated (F o) M)}
+		{AAO: all_allocated (lit O) M}
+	exists	{AA: all_allocated (F O) M}
+	true.
+
+- : subst-all_allocated ([o] [a] (all_allocated/var a)) AAO AAO.
+
+- : subst-all_allocated ([o] [a] AA) _ AA.
+
+- : subst-all_allocated ([o] [a] (all_allocated/read (AAF o a) :
+                                  all_allocated (read _ F) _)) AAO
+		        (all_allocated/read AA)
+    <- subst-all_allocated AAF AAO AA.
+
+- : subst-all_allocated ([o] [a] (all_allocated/write (AAF1 o a) (AAF2 o a) :
+                                  all_allocated (write _ F _) _)) AAO
+		        (all_allocated/write AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated ([o] [a] (all_allocated/readv (AAF o a) :
+                                  all_allocated (readv _ F) _)) AAO
+		        (all_allocated/readv AA)
+    <- subst-all_allocated AAF AAO AA.
+
+- : subst-all_allocated ([o] [a] (all_allocated/writev (AAF1 o a) (AAF2 o a) :
+                                  all_allocated (writev _ F _) _)) AAO
+		        (all_allocated/writev AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/let (AAF1 o a) ([o'] [a'] AAF2 o' a' o a))) AAO
+	(all_allocated/let AA1 ([o'] [a'] AA2 o' a'))
+    <- subst-all_allocated AAF1 AAO AA1
+    <- ({o'} {a': assume_allocated o'}
+	subst-all_allocated ([o] [a] (AAF2 o' a' o a)) AAO (AA2 o' a')).
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/if (AAF1 o a) (AAF2 o a) (AAF3 o a))) AAO
+        (all_allocated/if AA1 AA2 AA3)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2
+    <- subst-all_allocated AAF3 AAO AA3.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/while (AAF1 o a) (AAF2 o a))) AAO
+        (all_allocated/while AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated ([o] [a] (all_allocated/call (AAF o a) :
+                                  all_allocated (call N _) _)) AAO
+		        (all_allocated/call AA)
+    <- subst-all_allocated AAF AAO AA.
+
+- : subst-all_allocated ([o] [a] (all_allocated/fork (AAF o a))) AAO
+		        (all_allocated/fork AA)
+    <- subst-all_allocated AAF AAO AA.
+
+- : subst-all_allocated ([o] [a] (all_allocated/join (AAF o a))) AAO
+		        (all_allocated/join AA)
+    <- subst-all_allocated AAF AAO AA.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/synch (AAF1 o a) (AAF2 o a))) AAO
+        (all_allocated/synch AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+% two cases for hold: one for the object equal, one for not equal
+- : subst-all_allocated 
+	([o] [a] (all_allocated/hold (AAF1 o a) (AAF2 o a) :
+                  all_allocated (hold o _) _)) AAO
+        (all_allocated/hold AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/hold (AAF1 o a) (AAF2 o a) :
+                  all_allocated (hold O _) _)) AAO
+        (all_allocated/hold AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated ([o] [a] (all_allocated/not (AAF o a))) AAO
+		        (all_allocated/not AA)
+    <- subst-all_allocated AAF AAO AA.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/and (AAF1 o a) (AAF2 o a))) AAO
+        (all_allocated/and AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/eql (AAF1 o a) (AAF2 o a))) AAO
+        (all_allocated/eql AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/args/+ (AAF1 o a) (AAF2 o a))) AAO
+        (all_allocated/args/+ AA1 AA2)
+    <- subst-all_allocated AAF1 AAO AA1
+    <- subst-all_allocated AAF2 AAO AA2.
+
+- : subst-all_allocated ([o] [a] (all_allocated/func/0 (AAF o a))) AAO
+		        (all_allocated/func/0 AA)
+    <- subst-all_allocated AAF AAO AA.
+
+- : subst-all_allocated 
+	([o] [a] (all_allocated/func/+ ([o'] [a'] AAF o' a' o a))) AAO
+	(all_allocated/func/+ ([o'] [a'] AA o' a'))
+    <- ({o'} {a': assume_allocated o'}
+	subst-all_allocated ([o] [a] (AAF o' a' o a)) AAO (AA o' a')).
+
+% EXTEND subst-all_allocated
+
+%worlds (blockupdate) (subst-all_allocated _ _ _).
+%total (A) (subst-all_allocated A _ _).
+

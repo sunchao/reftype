@@ -1,0 +1,855 @@
+%%%%% Environments
+%%%%% John Boyland
+
+%{%
+Environment are permission with variables and possibly output objects.
+We also define procedure types and some operations on environments,
+notably transformation.
+%}%
+
+
+
+%%%% Definitions
+
+
+
+%%% Output
+
+%{%
+The result of typing is an "output"  This functions
+very similarly to a monad.  The output is an object
+reference and an output permission.  But sometimes this
+result is existential on a object/fraction/permission variable.
+For conditions, there are two permissions in the output,
+rather than an object and a permission.
+%}%
+
+
+output : kind -> type.
+
+%abbrev expr-output = output exprk.
+
+%abbrev cond-output = output condk.
+
+%abbrev args-output = output argsk.
+
+%abbrev func-output = output funck.
+
+
+output/expr : object -> permission -> output exprk.
+
+output/cond : formula -> permission -> permission -> output condk.
+
+output/args/0 : permission -> output argsk.
+
+output/args/+ : object -> output argsk -> output argsk.
+
+output/func/0 : expr-output -> output funck.
+
+output/func/+ : (object -> output funck) -> output funck.
+
+output/exists : ((gterm V) -> output K) -> output K.
+
+
+eq : output K -> output K -> type.
+
+eq/ : eq O O.
+
+
+proctype : type.
+
+
+proctype/base : permission -> expr-output -> proctype.
+
+proctype/arg : (object -> proctype) -> proctype.
+
+proctype/forall : ((gterm V) -> proctype) -> proctype.
+
+
+%%% Counts
+
+
+argsoutputcount : args-output -> nat`nat -> type.
+
+
+argsoutputcount/0 : argsoutputcount (output/args/0 Pi) nat`z.
+
+argsoutputcount/+ :
+    argsoutputcount AO N ->
+    argsoutputcount (output/args/+ O AO) (nat`s N).
+
+argsoutputcount/exists :
+    ({v} argsoutputcount (AO v) N) ->
+    argsoutputcount (output/exists AO) N.
+
+
+proctypecount : proctype -> nat`nat -> type.
+
+
+proctypecount/base : proctypecount (proctype/base Pi EO) nat`z.
+
+proctypecount/arg :
+    ({o} proctypecount (F o) N) ->
+    proctypecount (proctype/arg F) (nat`s N).
+
+proctypecount/forall :
+    ({v} proctypecount (F v) N) ->
+    proctypecount (proctype/forall F) N.
+
+
+
+envadd : permission -> output K -> output K -> type.
+
+
+envadd/expr : envadd Pi1 (output/expr O Pi2) (output/expr O (Pi1 , Pi2)).
+
+envadd/cond : envadd Pi (output/cond G Pi1 Pi2)
+	       (output/cond G (Pi , Pi1) (Pi , Pi2)).
+
+envadd/args/0 : envadd Pi1 (output/args/0 Pi2) (output/args/0 (Pi1 , Pi2)).
+
+envadd/args/+ : envadd Pi AO AO' ->
+    envadd Pi (output/args/+ O AO) (output/args/+ O AO').
+
+envadd/func/0 : envadd Pi EO EO' ->
+    envadd Pi (output/func/0 EO) (output/func/0 EO').
+
+envadd/func/+ : ({v} envadd Pi (O v) (O' v)) ->
+    envadd Pi (output/func/+ O) (output/func/+ O').
+
+envadd/exists :
+	({v} envadd Pi (O v) (O' v)) ->
+    envadd Pi (output/exists O) (output/exists O').
+
+
+
+%%% Discard value
+
+%{%
+Discarding the value packaged in an environment, essentially
+replaces it with the null value.  This is needed in
+sequencing, especially with while loops.
+%}%
+
+discard-value : output exprk -> output exprk -> type.
+
+discard-value/base : discard-value (output/expr O Pi)
+		                   (output/expr (object/ nat`z) Pi).
+
+discard-value/exists :
+	({v} discard-value (E v) (E' v)) ->
+    discard-value (output/exists ([v] E v)) (output/exists ([v] E' v)).
+
+
+
+%%% Transformation
+
+%{%
+Transformation changes the output to a new one which has the
+same connection with memory.  It is related to (indeed,
+includes) permission implication, dropping permissions,
+and permission nesting.
+%}%
+
+
+transform : output K -> output K -> type.
+
+
+transform/implies : implies Pi1 Pi2 ->
+    transform (output/expr O Pi1) (output/expr O Pi2).
+
+transform/skolem :
+    transform (output/expr O
+		 (combine (scale Q (unitperm (precise-exists O' F G))) Pi))
+              (output/exists
+                ([o:object] (output/expr O
+                       (combine (scale Q (combine (unitperm (basic O' F o))
+					    (G o)))
+			  Pi)))).
+
+transform/gen-exists* : {K1} {K2} {F: gterm K1 -> output K2} {O}
+    transform (F O) (output/exists F).
+
+%abbrev transform/gen-exists : {O} transform (F O) (output/exists F)
+   = [O] transform/gen-exists* _ _ F O.
+
+
+transform/new
+  : {F: object -> formula} transform
+    (output/expr O
+      (combine Pi
+        (unitperm
+          (nonlinear
+            (disj G (disj (objequal O O1) (F O)))))))
+    (output/exists [x]
+      (output/expr O
+        (combine Pi
+          (combine
+            (unitperm
+              (nonlinear
+                (disj (objequal x O1) (F x))))
+            (unitperm (nonlinear (disj G (objequal O x)))))))).
+
+transform/nest :
+    transform (output/expr O (Pi1 , Pi2))
+              (output/expr O (unitperm (nonlinear (nested Pi1 O' F)) , Pi2)).
+
+transform/cond/nest:
+    transform (output/expr O (unitperm (conditional G (Pi1 , Pi2) Pi3) , Pi4))
+              (output/expr O (unitperm (conditional G
+                 (unitperm (nonlinear (nested Pi1 O' F)) , Pi2) Pi3), Pi4)).
+
+transform/cond :
+	bimplies true G G' ->
+	bimplies false G G' ->
+        implies Pi1 Pi1' ->
+        implies Pi2 Pi2' ->
+    transform (output/cond G Pi1 Pi2)
+              (output/cond G' Pi1' Pi2').
+
+transform/args/0 :
+	implies Pi Pi' ->
+    transform (output/args/0 Pi) (output/args/0 Pi').
+
+transform/args/+ :
+	transform E1 E2 ->
+    transform (output/args/+ O E1) (output/args/+ O E2).
+
+transform/args/0/nest :
+    transform (output/args/0 (Pi1 , Pi2))
+              (output/args/0 (unitperm (nonlinear (nested Pi1 O' F)) , Pi2)).
+
+transform/args/0/cond/nest:
+    transform (output/args/0 (unitperm (conditional G (Pi1 , Pi2) Pi3) , Pi4))
+              (output/args/0 (unitperm (conditional G (unitperm (nonlinear (nested Pi1 O' F)) , Pi2) Pi3), Pi4)).
+
+
+transform/func/0 :
+	transform E1 E2 ->
+    transform (output/func/0 E1) (output/func/0 E2).
+
+transform/func/+ :
+	({v} transform (O1 v) (O2 v)) ->
+    transform (output/func/+ ([v] (O1 v))) (output/func/+ ([v] (O2 v))).
+
+%% unused variables can be removed
+
+transform/rem-unused : transform (output/exists ([v] O)) O.
+
+transform/add-unused : transform O (output/exists ([v] O)).
+
+transform/inside :
+	({v} transform (O1 v) (O2 v)) ->
+    transform (output/exists ([v] (O1 v))) (output/exists ([v] (O2 v))).
+
+transform/reorder :
+    transform (output/exists ([v1:gterm V1] (output/exists ([v2:gterm V2] (O v1 v2)))))
+              (output/exists ([v2] (output/exists ([v1] (O v1 v2))))).
+
+transform/trans :
+	transform O1 O2 ->
+	transform O2 O3 ->
+    transform O1 O3.
+
+%abbrev
+transform/reflexive : transform O O
+	= (transform/trans
+	    (transform/add-unused : transform O (output/exists ([v:object] O)))
+	    (transform/rem-unused)).
+
+
+%% shortcuts
+
+
+%abbrev
+transform/trans3 = [1->2:transform O1 O2]
+		    [2->3:transform O2 O3]
+		    [3->4:transform O3 O4]
+		    (transform/trans (transform/trans 1->2 2->3) 3->4).
+
+%abbrev
+transform/drop : transform (output/expr O (Pi1 , Pi2)) (output/expr O Pi2)
+    = transform/trans
+      (transform/nest :
+         transform (output/expr O (Pi1 , Pi2))
+           (output/expr O
+             (unitperm (nonlinear (nested Pi1 (object/ z) z)), Pi2)))
+      (transform/implies
+        (implies/trans
+          (implies/combine
+            (implies/trans (implies/nonlinear bimplies/tt)
+              implies/true2empty)
+            implies/reflexive)
+          (implies/equiv (equiv/transitive equiv/commute equiv/identity)))).
+
+
+%%%% Blocks
+
+
+
+%block somevar : some {v:vark} block {x:gterm v}.
+
+
+%block someobj : block {x:object}.
+
+
+
+
+%%%% Theorems
+
+
+%%% Theorems about eq
+
+
+%theorem output/expr-preserves-eq:
+	forall*	{O1} {O2} {P1} {P2}
+	forall	{OE: object`eq O1 O2}
+		{PE: permission`eq P1 P2}
+	exists	{E: eq (output/expr O1 P1) (output/expr O2 P2)}
+	true.
+
+- : output/expr-preserves-eq object`eq/ permission`eq/ eq/.
+
+%worlds (objvar) (output/expr-preserves-eq _ _ _).
+%total { } (output/expr-preserves-eq _ _ _).
+
+
+
+%%% Theorems about envadd
+
+%theorem envadd-total* :
+	forall* {K}
+	forall  {Pi} {O1:output K}
+	exists  {O2}
+		{EA: envadd Pi O1 O2}
+	true.
+
+%abbrev envadd-total = envadd-total* _ _ _.
+
+- : envadd-total envadd/expr.
+
+- : envadd-total envadd/cond.
+
+- : envadd-total envadd/args/0.
+
+- : envadd-total (envadd/args/+ EA)
+    <- envadd-total EA.
+
+- : envadd-total (envadd/func/0 EA)
+    <- envadd-total EA.
+
+- : envadd-total (envadd/func/+ ([v] EA v))
+    <- ({v} envadd-total (EA v)).
+
+- : envadd-total (envadd/exists ([v] EA v))
+    <- ({v} envadd-total (EA v)).
+
+%worlds (somevar) (envadd-total* _ _ _ _).
+%total (O) (envadd-total* _ O _ _).
+
+
+%theorem envadd-deterministic:
+	forall*	{K} {Pi1} {E1:output K} {O1}
+		{Pi2} {E2} {O2}
+	forall	{EA1: envadd Pi1 E1 O1}
+		{EA2: envadd Pi2 E2 O2}
+		{PE: permission`eq Pi1 Pi2}
+		{EE: eq E1 E2}
+	exists	{EE: eq O1 O2}
+	true.
+
+- : envadd-deterministic envadd/expr envadd/expr permission`eq/ eq/ eq/.
+
+- : envadd-deterministic envadd/cond envadd/cond permission`eq/ eq/ eq/.
+
+- : envadd-deterministic envadd/args/0 envadd/args/0 permission`eq/ eq/ eq/.
+
+%theorem envadd-deterministic/args/+:
+	forall* {E} {O} {E'}
+	forall	{EE: eq E E'}
+	exists	{EE: eq (output/args/+ O E) (output/args/+ O E')}
+	true.
+
+- : envadd-deterministic/args/+ eq/ eq/.
+
+%worlds (somevar) (envadd-deterministic/args/+ _ _).
+%total { } (envadd-deterministic/args/+ _ _).
+
+- : envadd-deterministic (envadd/args/+ EA1) (envadd/args/+ EA2)
+     permission`eq/ eq/ EE'
+    <- envadd-deterministic EA1 EA2 permission`eq/ eq/ EE
+    <- envadd-deterministic/args/+ EE EE'.
+
+%theorem envadd-deterministic/func/0:
+	forall* {E} {E'}
+	forall	{EE: eq E E'}
+	exists	{EE: eq (output/func/0 E) (output/func/0 E')}
+	true.
+
+- : envadd-deterministic/func/0 eq/ eq/.
+
+%worlds (somevar) (envadd-deterministic/func/0 _ _).
+%total { } (envadd-deterministic/func/0 _ _).
+
+- : envadd-deterministic (envadd/func/0 EA1) (envadd/func/0 EA2)
+     permission`eq/ eq/ EE'
+    <- envadd-deterministic EA1 EA2 permission`eq/ eq/ EE
+    <- envadd-deterministic/func/0 EE EE'.
+
+%theorem envadd-deterministic/func/+:
+	forall* {F: object -> output funck} {F'}
+	forall	{FEE: {x} eq (F x) (F' x)}
+	exists	{EE: eq (output/func/+ F) (output/func/+ F')}
+	true.
+
+- : envadd-deterministic/func/+ ([x] eq/) eq/.
+
+%worlds (somevar) (envadd-deterministic/func/+ _ _).
+%total { } (envadd-deterministic/func/+ _ _).
+
+- : envadd-deterministic
+     (envadd/func/+ ([v] FEA1 v))
+     (envadd/func/+ ([v] FEA2 v))
+     permission`eq/ eq/ EE
+    <- ({v} envadd-deterministic (FEA1 v) (FEA2 v) permission`eq/ eq/ (FEE v))
+    <- envadd-deterministic/func/+ FEE EE.
+
+%theorem envadd-deterministic/exists:
+	forall* {K1} {K2} {F: gterm K1 -> output K2} {F'}
+	forall	{FEE: {x} eq (F x) (F' x)}
+	exists	{EE: eq (output/exists F) (output/exists F')}
+	true.
+
+- : envadd-deterministic/exists ([x] eq/) eq/.
+
+%worlds (somevar) (envadd-deterministic/exists _ _).
+%total { } (envadd-deterministic/exists _ _).
+
+- : envadd-deterministic
+     (envadd/exists ([v] FEA1 v))
+     (envadd/exists ([v] FEA2 v))
+     permission`eq/ eq/ EE
+    <- ({v} envadd-deterministic (FEA1 v) (FEA2 v) permission`eq/ eq/ (FEE v))
+    <- envadd-deterministic/exists FEE EE.
+
+%worlds (somevar) (envadd-deterministic _ _ _ _ _).
+%total (E) (envadd-deterministic E _ _ _ _).
+
+
+%theorem envadd-associates :
+	forall* {K} {Pi1} {Pi2} {E1:output K} {E2} {E3}
+	forall	{EA1: envadd Pi1 E1 E2}
+		{EA2: envadd Pi2 E2 E3}
+	exists	{E} {EA3: envadd (Pi2 , Pi1) E1 E}
+		{T: transform E E3}
+	true.
+
+- : envadd-associates envadd/expr envadd/expr _ envadd/expr
+     (transform/implies (implies/equiv (equiv/symmetric equiv/associate))).
+
+- : envadd-associates envadd/cond envadd/cond _ envadd/cond
+     (transform/cond bimplies/reflexive bimplies/reflexive
+	(implies/equiv (equiv/symmetric equiv/associate))
+	(implies/equiv (equiv/symmetric equiv/associate))).
+
+- : envadd-associates envadd/args/0 envadd/args/0 _ envadd/args/0
+     (transform/args/0 (implies/equiv (equiv/symmetric equiv/associate))).
+
+- : envadd-associates (envadd/args/+ EA1) (envadd/args/+ EA2) _
+     (envadd/args/+ EA3) (transform/args/+ T)
+    <- envadd-associates EA1 EA2 _ EA3 T.
+
+- : envadd-associates (envadd/func/0 EA1) (envadd/func/0 EA2) _
+     (envadd/func/0 EA3) (transform/func/0 T)
+    <- envadd-associates EA1 EA2 _ EA3 T.
+
+- : envadd-associates (envadd/func/+ FEA1) (envadd/func/+ FEA2) _
+     (envadd/func/+ FEA3) (transform/func/+ FT)
+    <- ({v} envadd-associates (FEA1 v) (FEA2 v) _ (FEA3 v) (FT v)).
+
+- : envadd-associates (envadd/exists FEA1) (envadd/exists FEA2) _
+     (envadd/exists FEA3) (transform/inside FT)
+    <- ({v} envadd-associates (FEA1 v) (FEA2 v) _ (FEA3 v) (FT v)).
+
+%worlds (somevar) (envadd-associates _ _ _ _ _).
+%total (E) (envadd-associates E _ _ _ _).
+
+
+%theorem envadd-lifts:
+	forall* {K} {K'} {Pi} {FO1: gterm K' -> output K} {O2}
+	forall	{O} {EA: envadd Pi (FO1 O) O2}
+	exists	{FO2}
+		{FEA: {x} envadd Pi (FO1 x) (FO2 x)}
+	true.
+
+- : {O} envadd-lifts O envadd/expr
+      ([x] (output/expr (FO1a x) (Pi , FO1b x))) ([x] envadd/expr).
+
+- : {O} envadd-lifts O envadd/cond
+     ([x] (output/cond (FG x) (Pi , F1 x) (Pi , F2 x)))
+     ([x] envadd/cond).
+
+- : {O} envadd-lifts O envadd/args/0
+     ([x] (output/args/0 (Pi , F x))) ([x] envadd/args/0).
+
+- : envadd-lifts O (envadd/args/+ EA)
+     ([x] (output/args/+ (FO x) (F x))) ([x] envadd/args/+ (FEA x))
+    <- envadd-lifts O EA F FEA.
+
+- : envadd-lifts O (envadd/func/0 EA)
+     ([x] (output/func/0 (F x))) ([x] envadd/func/0 (FEA x))
+    <- envadd-lifts O EA F FEA.
+
+- : envadd-lifts O (envadd/func/+ ([y] FEA y))
+     ([x] (output/func/+ ([y] FF y x))) ([x] envadd/func/+ ([y] FFEA y x))
+    <- ({y} envadd-lifts O (FEA y) ([x] FF y x) ([x] FFEA y x)).
+
+- : envadd-lifts O (envadd/exists ([y] FEA y))
+     ([x] (output/exists ([y] FF y x))) ([x] envadd/exists ([y] FFEA y x))
+    <- ({y} envadd-lifts O (FEA y) ([x] FF y x) ([x] FFEA y x)).
+
+%worlds (somevar) (envadd-lifts _ _ _ _).
+%total (E) (envadd-lifts _ E _ _).
+
+
+
+%%% Theorems about discard-value
+
+
+%theorem discard-value-commutes-envadd :
+	forall* {E1} {E2} {Pi} {E1'}
+	forall	{D: discard-value E1 E2}
+		{EA: envadd Pi E1 E1'}
+	exists	{E2'} {EA': envadd Pi E2 E2'}
+		{T': discard-value E1' E2'}
+	true.
+
+- : discard-value-commutes-envadd
+     discard-value/base envadd/expr _ envadd/expr discard-value/base.
+
+- : discard-value-commutes-envadd
+     (discard-value/exists ([x] FT x)) (envadd/exists ([x] FEA x)) _
+     (envadd/exists ([x] FEA' x)) (discard-value/exists ([x] FT' x))
+   <- ({x} discard-value-commutes-envadd (FT x) (FEA x) _ (FEA' x) (FT' x)).
+
+%worlds (gtermvar) (discard-value-commutes-envadd _ _ _ _ _).
+%total (D) (discard-value-commutes-envadd D _ _ _ _).
+
+
+
+%%% Theorems about transform
+
+
+%theorem transform-respects-eq :
+	forall* {K} {E1:output K} {E2} {E1'} {E2'}
+	forall	{T1:transform E1 E1'}
+		{EQ1: eq E1 E2}
+		{EQ2: eq E1' E2'}
+	exists	{T2: transform E2 E2'}
+	true.
+
+- : transform-respects-eq T eq/ eq/ T.
+
+%worlds (somevar) (transform-respects-eq _ _ _ _).
+%total { } (transform-respects-eq _ _ _ _).
+
+
+% order of arguments is strange -- hence "SW" at end of name.  More below:
+%theorem transform-commutes-envaddSW:
+	forall* {K} {E1:output K} {E2} {Pi} {E1'}
+	forall	{EA: envadd Pi E1 E1'}
+		{T: transform E1 E2}
+	exists	{E2'} {EA': envadd Pi E2 E2'}
+		{T': transform E1' E2'}
+	true.
+
+% expected order of arguments
+%abbrev transform-commutes-envadd :
+	(transform E1 E2) -> (envadd Pi E1 E1') ->
+	({E2'} (envadd Pi E2 E2') -> (transform E1' E2') -> type) =
+     [T] [EA] [E2'] [EA'] [T'] transform-commutes-envaddSW EA T E2' EA' T'.
+
+%{%
+The order of arguments in the theorem needs to have T after EA
+in order to force Twelf to split on T before EA.  If it splits on EA
+first, then it will never be able to split on T afterwards because
+of functional unification problems.
+%}%
+
+- : transform-commutes-envadd
+    (transform/new _) envadd/expr
+    _ (envadd/exists ([_] envadd/expr))
+    (transform/trans3
+      (transform/implies
+        (implies/equiv equiv/associate))
+      (transform/new _)
+      (transform/inside [_]
+        (transform/implies
+          (implies/equiv (equiv/symmetric equiv/associate))))).
+
+- : transform-commutes-envadd
+    transform/cond/nest envadd/expr
+    _ envadd/expr
+    (transform/trans3
+      (transform/implies (implies/equiv equiv/roll2))
+      transform/cond/nest
+      (transform/implies (implies/equiv equiv/roll2))).
+
+- : transform-commutes-envadd
+     (transform/implies I) envadd/expr _ envadd/expr
+     (transform/implies (implies/combine (implies/equiv equiv/reflexive) I)).
+
+- : transform-commutes-envadd
+     transform/skolem envadd/expr
+     _ (envadd/exists ([v] envadd/expr))
+     (transform/trans3
+       (transform/implies (implies/equiv equiv/roll2))
+       transform/skolem
+       (transform/inside
+         ([v]
+           (transform/implies (implies/equiv equiv/roll2))))).
+
+- :  {Y1:kind} {Y2:vark} {Y3:gterm Y2 -> output Y1} {O:gterm Y2}
+      {Y4:gterm (termk permissionk)} {Y5:output Y1} {EA:envadd Y4 (Y3 O) Y5}
+      {Y6:gterm Y2 -> output Y1}
+      {T':transform Y5 (output/exists Y6)}
+      {FEA: {x} envadd Y4 (Y3 x) (Y6 x)}
+	{E: eq (Y6 O) Y5}
+     transform-commutes-envadd
+     (transform/gen-exists O) EA _ (envadd/exists FEA) T'
+    <- envadd-lifts O EA _ FEA
+    <- envadd-deterministic (FEA O) EA permission`eq/ eq/ E
+    <- transform-respects-eq (transform/gen-exists O) E eq/ T'.
+
+- : transform-commutes-envadd
+     transform/nest envadd/expr
+     _ envadd/expr
+     (transform/trans3
+       (transform/implies (implies/equiv equiv/roll2))
+       transform/nest
+       (transform/implies (implies/equiv equiv/roll2))).
+
+- : transform-commutes-envadd
+    transform/args/0/nest envadd/args/0
+    _ envadd/args/0
+    (transform/trans3
+      (transform/args/0 (implies/equiv equiv/roll2))
+      transform/args/0/nest
+      (transform/args/0 (implies/equiv equiv/roll2))).
+
+- : transform-commutes-envadd
+    transform/args/0/cond/nest envadd/args/0
+    _ envadd/args/0
+    (transform/trans3
+      (transform/args/0 (implies/equiv equiv/roll2))
+      transform/args/0/cond/nest
+      (transform/args/0 (implies/equiv equiv/roll2))).
+
+- : transform-commutes-envadd
+     (transform/cond BIT BIF I1 I2) envadd/cond
+     _ envadd/cond
+     (transform/cond BIT BIF
+	(implies/combine implies/reflexive I1)
+	(implies/combine implies/reflexive I2)).
+
+- : transform-commutes-envadd
+     (transform/args/0 I) envadd/args/0 _
+     envadd/args/0 (transform/args/0 (implies/combine implies/reflexive I)).
+
+- : transform-commutes-envadd
+     (transform/args/+ T) (envadd/args/+ EA) _
+     (envadd/args/+ EA') (transform/args/+ T')
+    <- transform-commutes-envadd T EA _ EA' T'.
+
+- : transform-commutes-envadd
+     (transform/func/0 T) (envadd/func/0 EA) _
+     (envadd/func/0 EA') (transform/func/0 T')
+    <- transform-commutes-envadd T EA _ EA' T'.
+
+- : transform-commutes-envadd
+     (transform/func/+ FT) (envadd/func/+ FEA) _
+     (envadd/func/+ FEA') (transform/func/+ FT')
+   <- ({x} transform-commutes-envadd (FT x) (FEA x) _ (FEA' x) (FT' x)).
+
+%theorem transform-commutes-envadd/rem-unused :
+	forall* {K} {E: output K} {K'} {F: gterm K' -> output K}
+	forall  {EE: {x} eq (F x) E}
+	exists	{T: transform (output/exists F) E}
+	true.
+
+- : transform-commutes-envadd/rem-unused ([x] eq/)
+     transform/rem-unused.
+
+%worlds (somevar) (transform-commutes-envadd/rem-unused _ _).
+%total { } (transform-commutes-envadd/rem-unused _ _).
+
+- : transform-commutes-envadd
+     transform/rem-unused (envadd/exists FAE) _ (FAE X) T
+    <- gterm-inhabited X
+    <- ({x} envadd-deterministic (FAE x) (FAE X) permission`eq/ eq/ (EE x))
+    <- transform-commutes-envadd/rem-unused EE T.
+
+- : transform-commutes-envadd
+     transform/add-unused EA _ (envadd/exists ([x] EA)) transform/add-unused.
+
+- : transform-commutes-envadd
+     (transform/inside ([x] FT x)) (envadd/exists ([x] FEA x)) _
+     (envadd/exists ([x] FEA' x)) (transform/inside ([x] FT' x))
+   <- ({x} transform-commutes-envadd (FT x) (FEA x) _ (FEA' x) (FT' x)).
+
+- : transform-commutes-envadd
+     transform/reorder
+     (envadd/exists ([x:gterm K1] envadd/exists ([y:gterm K2] FFEA x y))) _
+     (envadd/exists ([y:gterm K2] envadd/exists ([x:gterm K1] FFEA x y)))
+     transform/reorder.
+
+- : transform-commutes-envadd
+     (transform/trans T1 T2) EA _ EA'' (transform/trans T1' T2')
+    <- transform-commutes-envadd T1 EA _ EA' T1'
+    <- transform-commutes-envadd T2 EA' _ EA'' T2'.
+
+%worlds (somevar) (transform-commutes-envaddSW _ _ _ _ _).
+%total (T) (transform-commutes-envaddSW _ T _ _ _).
+
+%theorem transform-commutes-envadd*:
+	forall* {K} {E1:output K} {E2} {Pi} {E1'} {E2'}
+	forall	{T: transform E1 E2}
+		{EA: envadd Pi E1 E1'}
+		{EA': envadd Pi E2 E2'}
+	exists	{T': transform E1' E2'}
+	true.
+
+- : transform-commutes-envadd* T EA EA' T'
+    <- transform-commutes-envadd T EA _ EA'' T''
+    <- envadd-deterministic EA'' EA' permission`eq/ eq/ Env''=Env'
+    <- transform-respects-eq T'' eq/ Env''=Env' T'.
+
+%worlds (somevar) (transform-commutes-envadd* _ _ _ _).
+%total { } (transform-commutes-envadd* _ _ _ _).
+
+
+%% MGW: Proves that argsoutputcount doesn't depend on the unused var.
+%theorem transform-preserves-argsoutputcount-converse/add-unused :
+    forall* {V} {N} {AO}
+    forall {F:gterm V -> argsoutputcount AO N}
+    exists {AOC:argsoutputcount AO N}
+    true.
+
+- : transform-preserves-argsoutputcount-converse/add-unused
+    ([v] argsoutputcount/0) argsoutputcount/0.
+
+- : transform-preserves-argsoutputcount-converse/add-unused
+    ([v] argsoutputcount/+ (AOC1 v)) (argsoutputcount/+ AOC2)
+    <- transform-preserves-argsoutputcount-converse/add-unused AOC1 AOC2.
+
+%% MGW: Look at how the 2 variables were ordered to make sure we could
+%% make the recursive call.
+- : transform-preserves-argsoutputcount-converse/add-unused
+    ([v1] argsoutputcount/exists ([v2] AOC1 v2 v1))
+    (argsoutputcount/exists ([v2] AOC2 v2))
+    <- ({v2} transform-preserves-argsoutputcount-converse/add-unused
+        (AOC1 v2) (AOC2 v2)).
+
+%worlds (somevar) (transform-preserves-argsoutputcount-converse/add-unused _ _).
+%total {A} (transform-preserves-argsoutputcount-converse/add-unused A _).
+
+
+%theorem transform-preserves-argsoutputcount-converse :
+    forall* {AO1} {AO2} {N}
+    forall {AOC2:argsoutputcount AO2 N} {TRANS:transform AO1 AO2}
+    exists {AOC1:argsoutputcount AO1 N}
+    true.
+
+- : transform-preserves-argsoutputcount-converse
+     (argsoutputcount/0) (transform/args/0 _)
+     (argsoutputcount/0).
+
+- : transform-preserves-argsoutputcount-converse
+     (argsoutputcount/0) (transform/args/0/nest)
+     (argsoutputcount/0).
+
+- : transform-preserves-argsoutputcount-converse
+     (argsoutputcount/0) (transform/args/0/cond/nest)
+     (argsoutputcount/0).
+
+- : transform-preserves-argsoutputcount-converse
+     (argsoutputcount/+ AC) (transform/args/+ T)
+     (argsoutputcount/+ AC')
+    <- transform-preserves-argsoutputcount-converse AC T AC'.
+
+- : transform-preserves-argsoutputcount-converse
+        AOC (transform/rem-unused) (argsoutputcount/exists ([x] AOC)).
+
+- : transform-preserves-argsoutputcount-converse
+        (argsoutputcount/exists ([x] AOC2 x)) (transform/add-unused) AOC1
+    <- transform-preserves-argsoutputcount-converse/add-unused AOC2 AOC1.
+
+- : transform-preserves-argsoutputcount-converse
+	(argsoutputcount/exists ([x] FAO2 x)) (transform/gen-exists O)
+        (FAO2 O).
+
+- : transform-preserves-argsoutputcount-converse
+        (argsoutputcount/exists AOC2) (transform/inside T)
+        (argsoutputcount/exists AOC1)
+    <- ({v} transform-preserves-argsoutputcount-converse (AOC2 v) (T v)
+            (AOC1 v)).
+
+- : transform-preserves-argsoutputcount-converse
+        (argsoutputcount/exists ([v1] (argsoutputcount/exists ([v2] FFAOC v1 v2))))
+ 	(transform/reorder)
+	(argsoutputcount/exists ([v2] (argsoutputcount/exists ([v1] FFAOC v1 v2)))).
+
+- : transform-preserves-argsoutputcount-converse
+        AOC2 (transform/trans T1 T2) AOC1
+    <- transform-preserves-argsoutputcount-converse AOC2 T2 AOC2'
+    <- transform-preserves-argsoutputcount-converse AOC2' T1 AOC1.
+
+%worlds (somevar) (transform-preserves-argsoutputcount-converse _ _ _).
+%total {T} (transform-preserves-argsoutputcount-converse _ T _).
+
+
+%theorem proctypecount-total* :
+    forall {PT:proctype}
+    exists {N:nat} {PTC:proctypecount PT N}
+    true.
+
+- : proctypecount-total* _ _ proctypecount/base.
+
+- : proctypecount-total* (proctype/arg FPT) (nat`s N) (proctypecount/arg FPTC)
+    <- ( {o} proctypecount-total* (FPT o) N (FPTC o)).
+
+- : proctypecount-total* (proctype/forall FPT) N (proctypecount/forall FPTC)
+    <- ({v} proctypecount-total* (FPT v) N (FPTC v)).
+
+%worlds (someobj | somevar) (proctypecount-total* _ _ _).
+%total {PT} (proctypecount-total* PT _ _).
+
+%abbrev proctypecount-total = proctypecount-total* _ _.
+
+
+%theorem argsoutputcount-total* :
+    forall {AO:args-output}
+    exists {N:nat} {AOC:argsoutputcount AO N}
+    true.
+
+- : argsoutputcount-total* _ _ argsoutputcount/0.
+
+- : argsoutputcount-total* (output/args/+ O AO) (nat`s N)
+        (argsoutputcount/+ AOC)
+    <- argsoutputcount-total* AO N AOC.
+
+- : argsoutputcount-total* (output/exists F) N (argsoutputcount/exists FAOC)
+    <- ({v} argsoutputcount-total* (F v) N (FAOC v)).
+
+%worlds (somevar) (argsoutputcount-total* _ _ _).
+%total {AO} (argsoutputcount-total* AO _ _).
+
+%abbrev argsoutputcount-total = argsoutputcount-total* _ _.
+
+
+
+
+%%%% Exports
+
+%abbrev environment`eq = eq.
+%abbrev environment`eq/ = eq/.

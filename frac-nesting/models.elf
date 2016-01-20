@@ -1,0 +1,2983 @@
+%%%%% models.elf
+%%%%% semantics of fractional permissions
+%%%%% John Boyland
+
+
+%%%% Definitions
+
+
+
+%abbrev location = natpair.
+ %abbrev scale = permission`scale.
+
+
+cycle : nat -> type.
+
+
+cycle/0 : cycle z.
+
+cycle/+ : cycle L -> heap -> permission -> location -> cycle (s L).
+
+
+
+cycle`eq : cycle M -> cycle N -> type.
+
+
+cycle`eq/ : cycle`eq C C.
+
+
+
+catcycle : plus N1 N2 N3 -> cycle N1 -> cycle N2 -> cycle N3 -> type.
+
+
+catcycle/z : catcycle (plus/z) cycle/0 C C.
+
+catcycle/s : catcycle P C1 C2 C3 -> 
+    catcycle (plus/s P) (cycle/+ C1 H Psi L) C2 (cycle/+ C3 H Psi L).
+
+
+
+mixcycle : plus N1 N2 N3 -> cycle N1 -> cycle N2 -> cycle N3 -> type.
+
+
+mixcycle/0 : mixcycle plus/z cycle/0 C C.
+
+mixcycle/L : mixcycle P C1 C2 C3 ->
+    mixcycle (plus/s P) (cycle/+ C1 H Psi OF) C2 (cycle/+ C3 H Psi OF).
+
+mixcycle/R : mixcycle (P:plus N1 N2 N3) C1 C2 C3 ->
+    mixcycle _ C1 (cycle/+ C2 H Psi OF) (cycle/+ C3 H Psi OF).
+
+
+
+remcycle* : {N} cycle (s N) -> heap -> permission -> natpair -> 
+                    cycle N -> type.
+
+%abbrev remcycle = remcycle* _.
+
+
+remcycle/here : remcycle (cycle/+ C H Psi P) H Psi P C.
+
+remcycle/there : remcycle C H Psi P C' ->
+	remcycle (cycle/+ C H' Psi' P') H Psi P (cycle/+ C' H' Psi' P').
+
+
+
+remcycle-choice : cycle N1 -> cycle N2 -> heap -> permission -> natpair -> type.
+
+
+remcycle-choice/1 : remcycle C1 H Psi P _ -> remcycle-choice C1 _ H Psi P.
+
+remcycle-choice/2 : remcycle C2 H Psi P _ -> remcycle-choice _ C2 H Psi P.
+
+
+
+models* : {K} {L} heap -> permission -> nesting -> cycle L -> term K -> type.
+
+
+%abbrev models = models* _ _.
+
+models/scale : models H Psi N C Pi -> heap`scale Q H QH ->
+    models QH (scale (fraction/ Q) Psi) N C 
+              (scale (fraction/ Q) Pi).
+
+models/combined : models H1 Psi1 N C Pi1 -> models H2 Psi2 N C Pi2 ->
+	heap`add H1 H2 H ->
+    models H (Psi1 , Psi2) N C (Pi1 , Pi2).
+
+models/obligation : models heap`map/0 Psi N C Psi.
+
+%abbrev models/empty = models/obligation.
+
+models/equiv : equiv Psi Psi' -> equiv Pi Pi' -> models H Psi N C Pi ->
+    models H Psi' N C Pi'.
+
+%abbrev models/combined* : 
+	models H1 empty N C Pi1 -> 
+	models H2 empty N C Pi2 ->
+	heap`add H1 H2 H ->
+    models H empty N C (Pi1 , Pi2) =
+	[M1] [M2] [H2] 
+	(models/equiv equiv/identity equiv/reflexive
+	   (models/combined M1 M2 H2)).
+
+models/unit : models H Psi N C U ->
+    models H Psi N C (unitperm U).
+
+models/nonlinear : booleval assumptions/0 N G true ->
+    models heap`map/0 empty N C (nonlinear G).
+
+models/conditional/T : 
+	booleval assumptions/0 N G true ->
+	models H Psi N C Pi ->
+    models H Psi N C (conditional G Pi _).
+
+models/conditional/F : 
+	booleval assumptions/0 N G false ->
+	models H Psi N C Pi ->
+    models H Psi N C (conditional G _ Pi).
+
+models/exists* : {E} {V}
+	models H Psi N C (unitperm (basic O F V), (E V)) ->
+    models H Psi N C (precise-exists O F E).
+
+%abbrev models/exists = models/exists* _.
+
+models/encumbered : models H (Psi , Psi') N C Pi ->
+    models H Psi N C (encumbered Psi' Pi).
+
+models/basic : 
+	pair2nat (natpair/ O F) L ->
+	nesting`lookup N L C ->
+        canon Pi C ->
+	models H Psi N (cycle/+ Cy H Psi (natpair/ O F)) Pi ->
+        heap`add H (pheap`map/+ L (frv/ rat`one O') pheap`map/0) H' ->
+    models H' Psi N Cy (basic (object/ O) F (object/ O')).
+
+models/basic-co :
+	pair2nat (natpair/ O F) L ->
+	remcycle C H Psi (natpair/ O F) _ ->
+	heap`add H (pheap`map/+ L (frv/ rat`one O') heap`0) H' ->
+    models H' Psi N C (basic (object/ O) F (object/ O')).
+
+
+
+modelsize : models H Psi N C Pi -> nat -> type.
+
+
+modelsize/scale : modelsize M N -> modelsize (models/scale M _) (s N).
+
+modelsize/combined : 
+	modelsize M1 N1 -> 
+	modelsize M2 N2 ->
+	nat`max N1 N2 N3 -> 
+    modelsize (models/combined M1 M2 _) (s N3).
+
+modelsize/obligation : modelsize (models/obligation) z.
+
+modelsize/equiv : modelsize M N -> modelsize (models/equiv _ _ M) (s N).
+
+modelsize/unit : modelsize M N -> modelsize (models/unit M) (s N).
+
+modelsize/nonlinear : modelsize (models/nonlinear _) z.
+
+modelsize/conditional/T : modelsize M N -> 
+    modelsize (models/conditional/T _ M) (s N).
+
+modelsize/conditional/F : modelsize M N -> 
+    modelsize (models/conditional/F _ M) (s N).
+
+modelsize/exists : modelsize M N -> modelsize (models/exists _ M) (s N).
+
+modelsize/encumbered : modelsize M N -> modelsize (models/encumbered M) (s N).
+
+modelsize/basic : modelsize M N ->
+    modelsize (models/basic _ _ _ M _) (s N).
+
+modelsize/basic-co : modelsize (models/basic-co _ _ _) z.
+
+
+
+cycle-models : nesting -> cycle N -> type.
+
+
+cycle-models/0 : cycle-models _ cycle/0.
+
+cycle-models/+ :
+	pair2nat (natpair/ O F) L ->
+	nesting`lookup N L C ->
+        canon Pi C ->
+	models H Psi N (cycle/+ Cy H Psi (natpair/ O F)) Pi ->
+	cycle-models N Cy ->
+    cycle-models N (cycle/+ Cy H Psi (natpair/ O F)).
+
+
+cycle-provide : cycle N -> nat -> permission -> heap -> cycle N -> type.
+
+
+cycle-provide/0 : cycle-provide cycle/0 U Psi0 H cycle/0.
+
+cycle-provide/+ :
+	cycle-provide Cy U Psi0 HU Cy' ->
+	canon Psi C ->
+	canonical`lookup C U Q ->
+        heap`scale Q HU QHU ->
+	heap`add H QHU H' ->
+	canon Psi' C' ->
+	canonical`add (canonical`map/+ U Q canonical`map/0) C' C ->
+    cycle-provide 
+	(cycle/+ Cy H Psi P) U Psi0 HU 
+	(cycle/+ Cy' H' (scale (fraction/ Q) Psi0 , Psi') P).
+
+
+
+
+%%%% Theorems
+
+
+
+%%% Theorems for cycles
+
+
+%theorem cycle`false-implies-eq :
+        forall* {N1} {X1:cycle N1} {N2} {X2:cycle N2}
+        forall {F:void}
+        exists {E:cycle`eq X1 X2}
+        true.
+
+%worlds () (cycle`false-implies-eq _ _).
+%total { } (cycle`false-implies-eq _ _).
+
+
+%theorem cycle`meta-eq :
+	forall* {N1} {N2}
+        forall {X1: cycle N1} {X2:cycle N2} {E:cycle`eq X1 X2}
+        true.
+
+- : cycle`meta-eq _ _ cycle`eq/.
+
+%worlds () (cycle`meta-eq _ _ _).
+%total { } (cycle`meta-eq _ _ _).
+%reduces X = Y (cycle`meta-eq X Y _).
+
+        
+%theorem cycle`eq-reflexive : 
+	forall* {N}
+        forall {X: cycle N} 
+        exists {E:cycle`eq X X} 
+        true.
+
+- : cycle`eq-reflexive _ cycle`eq/.
+
+%worlds () (cycle`eq-reflexive _ _).
+%total { } (cycle`eq-reflexive _ _).
+
+
+%theorem cycle`eq-symmetric : 
+        forall* {N1} {X:cycle N1} {N2} {Y:cycle N2}
+        forall {E:cycle`eq X Y}
+        exists {F:cycle`eq Y X}
+        true.
+
+- : cycle`eq-symmetric (cycle`eq/) (cycle`eq/).
+
+%worlds () (cycle`eq-symmetric _ _).
+%total { } (cycle`eq-symmetric _ _).
+
+
+%theorem cycle`eq-transitive : 
+        forall* {N1} {X: cycle N1} {N2} {Y:cycle N2} {N3} {Z:cycle N3}
+        forall {E1:cycle`eq X Y} {E2:cycle`eq Y Z}
+        exists {F:cycle`eq X Z}
+        true.
+
+- : cycle`eq-transitive (cycle`eq/) (cycle`eq/) (cycle`eq/).
+
+%worlds () (cycle`eq-transitive _ _ _).
+%total { } (cycle`eq-transitive _ _ _).
+
+
+%theorem cycle/+-eq-implies-eq :
+	forall* {N1} {C1:cycle N1} {H1} {Psi1} {L1} 
+                {N2} {C2:cycle N2} {H2} {Psi2} {L2}
+        forall {E:cycle`eq (cycle/+ C1 H1 Psi1 L1) (cycle/+ C2 H2 Psi2 L2)}
+	exists {E2:cycle`eq C1 C2} {EH:heap`eq H1 H2}
+               {PE:permission`eq Psi1 Psi2} {NPE:natpair`eq L1 L2}
+	true.
+
+- : cycle/+-eq-implies-eq cycle`eq/ cycle`eq/ heap`eq/ permission`eq/ natpair`eq/.
+
+%worlds () (cycle/+-eq-implies-eq _ _ _ _ _).
+%total { } (cycle/+-eq-implies-eq _ _ _ _ _).
+
+
+%theorem cycle/+-preserves-eq :
+	forall* {N1} {C1:cycle N1} {H1} {Psi1} {L1} 
+                {N2} {C2:cycle N2} {H2} {Psi2} {L2}
+	forall {E2:cycle`eq C1 C2} {EH:heap`eq H1 H2}
+               {PE:permission`eq Psi1 Psi2} {NPE:natpair`eq L1 L2}
+        exists {E:cycle`eq (cycle/+ C1 H1 Psi1 L1) (cycle/+ C2 H2 Psi2 L2)}
+	true.
+
+- : cycle/+-preserves-eq cycle`eq/ heap`eq/ permission`eq/ natpair`eq/ cycle`eq/.
+
+%worlds () (cycle/+-preserves-eq _ _ _ _ _).
+%total { } (cycle/+-preserves-eq _ _ _ _ _).
+
+
+%theorem false-implies-catcycle :
+	forall* {N1} {N2} {N3} {A:plus N1 N2 N3}
+		{C1:cycle N1} {C2:cycle N2} {C3:cycle N3}
+	forall {F:void}
+	exists {CC:catcycle A C1 C2 C3}
+	true.
+
+%worlds () (false-implies-catcycle _ _).
+%total { } (false-implies-catcycle _ _).
+
+
+%theorem catcycle-respects-eq :
+	forall* {N1} {N2} {N3} {A:plus N1 N2 N3}
+		{C1:cycle N1} {C2:cycle N2} {C3:cycle N3}
+	        {N1'} {N2'} {N3'}
+		{C1':cycle N1'} {C2':cycle N2'} {C3':cycle N3'}
+	forall {CC:catcycle A C1 C2 C3}
+               {A':plus N1' N2' N3'}
+	       {E1:cycle`eq C1 C1'} {E2:cycle`eq C2 C2'} {E3:cycle`eq C3 C3'}
+	exists {CC':catcycle A' C1' C2' C3'}
+	true.
+
+- : catcycle-respects-eq catcycle/z _ cycle`eq/ cycle`eq/ cycle`eq/ catcycle/z.
+
+- : catcycle-respects-eq 
+     (catcycle/s CC) (plus/s A) cycle`eq/ cycle`eq/ cycle`eq/ (catcycle/s CC')
+    <- catcycle-respects-eq CC A cycle`eq/ cycle`eq/ cycle`eq/ CC'.
+
+%worlds () (catcycle-respects-eq _ _ _ _ _ _).
+%total (C) (catcycle-respects-eq C _ _ _ _ _).
+
+
+%theorem catcycle-total* :
+	forall* {N1} {N2} {N3}
+	forall {A:plus N1 N2 N3} {C1:cycle N1} {C2:cycle N2}
+	exists {C3:cycle N3} 
+	       {CC:catcycle A C1 C2 C3}
+	true.
+
+- : catcycle-total* _ cycle/0 C2 _ catcycle/z.
+
+- : catcycle-total* _ _ _ _ (catcycle/s CC)
+    <- catcycle-total* _ _ _ _ CC.
+
+%worlds () (catcycle-total* _ _ _ _ _).
+%total (C) (catcycle-total* C _ _ _ _).
+
+
+%abbrev catcycle-total = catcycle-total* _ _ _ _.
+
+
+%theorem catcycle/s-total* :
+	forall* {N1} {N2} {N3}
+	forall {A:plus N1 N2 N3} {C1:cycle (s N1)} {C2:cycle N2}
+	exists {C3:cycle (s N3)} 
+	       {CC:catcycle (plus/s A) C1 C2 C3}
+	true.
+
+- : catcycle/s-total* _ _ _ _ (catcycle/s CC)
+    <- catcycle-total CC.
+
+%worlds () (catcycle/s-total* _ _ _ _ _).
+%total { } (catcycle/s-total* _ _ _ _ _).
+
+
+%abbrev catcycle/s-total = catcycle/s-total* _ _ _ _.
+
+
+%theorem catcycle-deterministic :
+	forall* {N1} {N2} {N3} {A:plus N1 N2 N3} 
+		{N1'} {N2'} {N3'} {A':plus N1' N2' N3'}
+		{C1:cycle N1} {C2:cycle N2} {C3:cycle N3}
+		{C1':cycle N1'} {C2':cycle N2'} {C3':cycle N3'}
+	forall {CC:catcycle A C1 C2 C3} {CC':catcycle A' C1' C2' C3'}
+	       {E1:cycle`eq C1 C1'} {E2:cycle`eq C2 C2'} 
+	exists {E3:cycle`eq C3 C3'}
+	true.
+
+- : catcycle-deterministic catcycle/z catcycle/z cycle`eq/ cycle`eq/ cycle`eq/.
+
+- : catcycle-deterministic 
+     (catcycle/s CC) (catcycle/s CC') cycle`eq/ cycle`eq/ E
+    <- catcycle-deterministic CC CC' cycle`eq/ cycle`eq/ C=C'
+    <- cycle/+-preserves-eq C=C' heap`eq/ permission`eq/ natpair`eq/ E.
+
+%worlds () (catcycle-deterministic _ _ _ _ _).
+%total (C) (catcycle-deterministic C _ _ _ _).
+
+
+%theorem catcycle/z-inversion :
+	forall* {N2} {C2:cycle N2} {C3:cycle N2}
+	forall {CC:catcycle (plus/z) cycle/0 C2 C3}
+        exists {CE:cycle`eq C3 C2}
+	true.
+
+- : catcycle/z-inversion catcycle/z cycle`eq/.
+
+%worlds () (catcycle/z-inversion _ _).
+%total { } (catcycle/z-inversion _ _).
+
+
+%theorem catcycle/s-inversion :
+	forall* {N1} {N2} {N3} {C1:cycle N1} {C2:cycle N2}
+                {XC3:cycle (s N3)} {H1} {Psi1} {L1} {P:plus N1 N2 N3}
+	forall {CC:catcycle (plus/s P) (cycle/+ C1 H1 Psi1 L1) C2 XC3}
+        exists {C3:cycle N3} {CC':catcycle P C1 C2 C3}
+               {CE:cycle`eq (cycle/+ C3 H1 Psi1 L1) XC3}
+	true.
+
+- : catcycle/s-inversion (catcycle/s CC) _ CC cycle`eq/.
+
+%worlds () (catcycle/s-inversion _ _ _ _).
+%total { } (catcycle/s-inversion _ _ _ _).
+	       
+
+%theorem catcycle-right-identity :
+	forall* {N}
+	forall {C:cycle N}
+	exists {A} {CC:catcycle A C cycle/0 C}
+	true.
+
+- : catcycle-right-identity cycle/0 _ catcycle/z.
+
+- : catcycle-right-identity (cycle/+ C _ _ _) _ (catcycle/s CC)
+    <- catcycle-right-identity C _ CC.
+
+%worlds () (catcycle-right-identity _ _ _).
+%total (C) (catcycle-right-identity C _ _).
+
+
+%theorem catcycle-associative* :
+	forall* {N1} {N2} {N3} {N4} {N6} {N7}
+		{P12:plus N1 N2 N3} {P34:plus N3 N4 N7} {P24:plus N2 N4 N6}
+		{C1} {C2} {C3} {C4} {C6} {C7}
+	forall {CC12:catcycle P12 C1 C2 C3}
+	       {CC34:catcycle P34 C3 C4 C7}
+	       {CC24:catcycle P24 C2 C4 C6}
+	exists {P16:plus N1 N6 N7} {CC16:catcycle P16 C1 C6 C7}
+	true.
+
+% this case isn't sufficiently general because 
+% Twelf doesn't know plus is deterministic
+- : catcycle-associative* catcycle/z CC24' CC24 _ CC16
+    <- catcycle-deterministic CC24' CC24 cycle`eq/ cycle`eq/ C7=C6
+    <- catcycle-respects-eq catcycle/z plus/z cycle`eq/ C7=C6 cycle`eq/ CC16.
+
+% lemma
+%theorem catcycle-associative*/z :
+	forall* {N1} {N2} {P:plus z N1 N2} {C1:cycle N1} {C2:cycle N2}
+		{H} {Psi} {OF}
+	forall {CC:catcycle P cycle/0 C1 C2}
+	exists {P'} 
+	       {CC':catcycle P' cycle/0 (cycle/+ C1 H Psi OF) 
+		      (cycle/+ C2 H Psi OF)}
+	true.
+
+- : catcycle-associative*/z catcycle/z plus/z catcycle/z.
+
+%worlds () (catcycle-associative*/z _ _ _).
+%total { } (catcycle-associative*/z _ _ _).
+
+- : catcycle-associative* catcycle/z (catcycle/s CC24') (catcycle/s CC24)
+                          X CC16
+    <- catcycle-associative* catcycle/z CC24' CC24 X' CC16'
+    <- catcycle-associative*/z CC16' X CC16.
+
+- : catcycle-associative* (catcycle/s CC12) (catcycle/s CC34) CC24 (plus/s P16) (catcycle/s CC16)
+    <- catcycle-associative* CC12 CC34 CC24 P16 CC16.
+
+%worlds () (catcycle-associative* _ _ _ _ _).
+%total (C) (catcycle-associative* _ C _ _ _).
+
+
+%theorem catcycle-associative :
+	forall* {N1} {N2} {N3} {N4} {N7}
+		{P12:plus N1 N2 N3} {P34:plus N3 N4 N7}
+		{C1} {C2} {C3} {C4} {C7}
+	forall {CC12:catcycle P12 C1 C2 C3}
+	       {CC34:catcycle P34 C3 C4 C7}
+	exists {N6} {C6} {P24} {CC24:catcycle P24 C2 C4 C6}
+	       {P16:plus N1 N6 N7} {CC16:catcycle P16 C1 C6 C7}
+	true.
+
+- : catcycle-associative CC12 CC34 _ _ _ CC24 _ CC16
+    <- plus-total P24
+    <- catcycle-total* P24 _ _ _ CC24
+    <- catcycle-associative* CC12 CC34 CC24 _ CC16.
+
+%worlds () (catcycle-associative _ _ _ _ _ _ _ _).
+%total { } (catcycle-associative _ _ _ _ _ _ _ _).
+
+
+
+%theorem catcycle-associative-converse* :
+	forall* {N1} {N2} {N3} {N4} {N6} {N7}
+		{P12:plus N1 N2 N3} {P16:plus N1 N6 N7} {P24:plus N2 N4 N6}
+		{C1} {C2} {C3} {C4} {C6} {C7}
+	forall {CC24:catcycle P24 C2 C4 C6}
+	       {CC16:catcycle P16 C1 C6 C7}
+	       {CC12:catcycle P12 C1 C2 C3}
+	exists {P34:plus N3 N4 N7} {CC34:catcycle P34 C3 C4 C7}
+	true.
+
+- : catcycle-associative-converse* CC24 catcycle/z catcycle/z _ CC24.
+
+- : catcycle-associative-converse* 
+     CC24 (catcycle/s CC16) (catcycle/s CC12) _ (catcycle/s CC34)
+    <- catcycle-associative-converse* CC24 CC16 CC12 _ CC34.
+
+%worlds () (catcycle-associative-converse* _ _ _ _ _).
+%total (C) (catcycle-associative-converse* _ C _ _ _).
+
+
+%theorem catcycle-associative-converse :
+	forall* {N1} {N2} {N4} {N6} {N7}
+		{P16:plus N1 N6 N7} {P24:plus N2 N4 N6}
+		{C1} {C2} {C4} {C6} {C7}
+	forall {CC24:catcycle P24 C2 C4 C6}
+	       {CC16:catcycle P16 C1 C6 C7}
+	exists {N3} {C3} {P12} {CC12:catcycle P12 C1 C2 C3}
+	       {P34:plus N3 N4 N7} {CC34:catcycle P34 C3 C4 C7}
+	true.
+
+- : catcycle-associative-converse CC24 CC16 _ _ _ CC12 _ CC34
+    <- plus-total P12
+    <- catcycle-total* P12 _ _ _ CC12
+    <- catcycle-associative-converse* CC24 CC16 CC12 _ CC34.
+
+%worlds () (catcycle-associative-converse _ _ _ _ _ _ _ _).
+%total { } (catcycle-associative-converse _ _ _ _ _ _ _ _).
+
+
+
+%%% Theorems for mixcycle
+
+
+%theorem mixcycle/0R-admissible:
+	forall* {N}
+	forall	{C: cycle N}
+	exists	{P:plus N nat`z N} 
+		{M:mixcycle P C cycle/0 C}
+	true.
+
+- : mixcycle/0R-admissible cycle/0 plus/z mixcycle/0.
+
+- : mixcycle/0R-admissible (cycle/+ C H Psi OF) (plus/s P) (mixcycle/L M)
+    <- mixcycle/0R-admissible C P M.
+
+%worlds () (mixcycle/0R-admissible _ _ _).
+%total (C) (mixcycle/0R-admissible C _ _).
+
+
+%theorem catcycle-implies-mixcycle:
+	forall* {N1} {N2} {N3} {C1: cycle N1} {C2: cycle N2} {C3: cycle N3}
+		{P: plus N1 N2 N3}
+	forall	{C: catcycle P C1 C2 C3}
+	exists	{M: mixcycle P C1 C2 C3}
+	true.
+
+- : catcycle-implies-mixcycle catcycle/z mixcycle/0.
+
+- : catcycle-implies-mixcycle (catcycle/s C) (mixcycle/L M)
+    <- catcycle-implies-mixcycle C M.
+
+%worlds () (catcycle-implies-mixcycle _ _).
+%total (C) (catcycle-implies-mixcycle C _).
+
+
+%theorem mixcycle-commutative : 
+	forall*	{N1} {N2} {N3} {C1: cycle N1} {C2: cycle N2} {C3: cycle N3}
+		{P: plus N1 N2 N3}
+	forall	{M: mixcycle P C1 C2 C3}
+	exists	{Pc: plus N2 N1 N3}
+		{M': mixcycle Pc C2 C1 C3}
+	true.
+
+- : mixcycle-commutative mixcycle/0 P M
+    <- mixcycle/0R-admissible _ P M.
+
+- : mixcycle-commutative (mixcycle/R M) (plus/s P') (mixcycle/L M')
+    <- mixcycle-commutative M P' M'.
+
+- : mixcycle-commutative (mixcycle/L M) P'' (mixcycle/R M')
+    <- mixcycle-commutative M P' M'
+    <- plus-right-increase P' P''.
+
+%worlds () (mixcycle-commutative _ _ _).
+%total (M) (mixcycle-commutative M _ _).
+
+
+%theorem mixcycle-commute-remcycle:
+	forall* {N1} {N2} {N3} {P: plus N1 N2 N3} {H} {Psi} {OF}
+		{C1: cycle (s N1)} {C2: cycle N2} {C3: cycle (s N3)} {C1'}
+	forall	{M: mixcycle (plus/s P) C1 C2 C3}
+		{R: remcycle C1 H Psi OF C1'}
+	exists	{C3'}
+		{M': mixcycle P C1' C2 C3'}
+		{R': remcycle C3 H Psi OF C3'}
+	true.
+
+- : mixcycle-commute-remcycle (mixcycle/L M) remcycle/here _ M remcycle/here.
+
+- : mixcycle-commute-remcycle (mixcycle/L M) (remcycle/there R) _
+	(mixcycle/L M') (remcycle/there R')
+    <- mixcycle-commute-remcycle M R _ M' R'.
+
+- : mixcycle-commute-remcycle (mixcycle/R M) R _ 
+	(mixcycle/R M') (remcycle/there R')
+    <- mixcycle-commute-remcycle M R _ M' R'.
+
+%worlds () (mixcycle-commute-remcycle _ _ _ _ _).
+%total (M) (mixcycle-commute-remcycle M _ _ _ _).
+
+
+%theorem mixcycle-preserves-models:
+	forall*	{H} {Psi} {K} {T: term K} {NG}
+		{N1} {C1: cycle N1}
+		{N2} {C2: cycle N2}
+		{N3} {C3: cycle N3}
+		{P: plus N1 N2 N3}
+	forall	{M: models H Psi NG C1 T}
+		{MX: mixcycle P C1 C2 C3}
+	exists	{M': models H Psi NG C3 T}
+	true.
+
+- : mixcycle-preserves-models 
+	(models/scale M HS) MX 
+	(models/scale M' HS)
+    <- mixcycle-preserves-models M MX M'.
+
+- : mixcycle-preserves-models
+	(models/combined M1 M2 HA) MX
+	(models/combined M1' M2' HA)
+    <- mixcycle-preserves-models M1 MX M1'
+    <- mixcycle-preserves-models M2 MX M2'.
+
+- : mixcycle-preserves-models
+	(models/equiv E1 E2 M) MX
+	(models/equiv E1 E2 M')
+    <- mixcycle-preserves-models M MX M'.
+
+- : mixcycle-preserves-models
+	models/obligation MX models/obligation.
+
+- : mixcycle-preserves-models 
+	(models/unit M) MX 
+	(models/unit M')
+    <- mixcycle-preserves-models M MX M'.
+
+- : mixcycle-preserves-models 
+	(models/nonlinear BE) MX 
+	(models/nonlinear BE).
+
+- : mixcycle-preserves-models 
+	(models/conditional/T BE M) MX 
+	(models/conditional/T BE M')
+    <- mixcycle-preserves-models M MX M'.
+
+- : mixcycle-preserves-models 
+	(models/conditional/F BE M) MX 
+	(models/conditional/F BE M')
+    <- mixcycle-preserves-models M MX M'.
+
+- : mixcycle-preserves-models 
+	(models/exists V M) MX 
+	(models/exists V M')
+    <- mixcycle-preserves-models M MX M'.
+
+- : mixcycle-preserves-models 
+	(models/encumbered M) MX 
+	(models/encumbered M')
+    <- mixcycle-preserves-models M MX M'.
+
+- : mixcycle-preserves-models
+	(models/basic P2N NL K M0 HA) MX
+        (models/basic P2N NL K M0' HA)
+    <- mixcycle-preserves-models M0 (mixcycle/L MX) M0'.
+
+- : mixcycle-preserves-models
+	(models/basic-co P2N RC HA) MX
+	(models/basic-co P2N RC' HA)
+    <- mixcycle-commute-remcycle MX RC _ MX' RC'.
+
+%worlds () (mixcycle-preserves-models _ _ _).
+%total (M) (mixcycle-preserves-models M _ _).
+
+
+
+%%% Theorems for remcycle
+
+
+%theorem false-implies-remcycle :
+	forall* {N} {C:cycle (s N)} {H} {Psi} {L} {C'}
+	forall {F:void}
+	exists {RC:remcycle C H Psi L C'}
+	true.
+
+%worlds () (false-implies-remcycle _ _).
+%total { } (false-implies-remcycle _ _).
+
+
+%theorem remcycle-respects-eq :
+	forall* {N1} {C1:cycle (s N1)} {H1} {Pi1} {L1} {C1'}
+		{N2} {C2:cycle (s N2)} {H2} {Pi2} {L2} {C2'}
+	forall {RC1:remcycle C1 H1 Pi1 L1 C1'}
+               {CE:cycle`eq C1 C2} {HE:heap`eq H1 H2} {PE:permission`eq Pi1 Pi2}
+               {PE:natpair`eq L1 L2} {CE':cycle`eq C1' C2'}
+	exists {RC2:remcycle C2 H2 Pi2 L2 C2'}
+	true.
+	
+- : remcycle-respects-eq 
+     RC cycle`eq/ heap`eq/ permission`eq/ natpair`eq/ cycle`eq/ RC.
+
+%worlds () (remcycle-respects-eq _ _ _ _ _ _ _).
+%total { } (remcycle-respects-eq _ _ _ _ _ _ _).
+
+
+%{%
+remcycle is neither total nor deterministic
+%}%
+
+%theorem catcycle-right-preserves-remcycle* :
+	forall* {N1} {C1:cycle (s N1)} {H} {Psi} {L} {C1'}
+                {N2} {C2:cycle N2} {N3} {C3:cycle (s N3)} {C3'}
+                {P:plus (s N1) N2 (s N3)} {P':plus N1 N2 N3}
+	forall {RC1:remcycle C1 H Psi L C1'}
+	       {CC:catcycle P C1 C2 C3}
+	       {CC':catcycle P' C1' C2 C3'}
+	exists {RC2:remcycle C3 H Psi L C3'}
+	true.
+
+- : catcycle-right-preserves-remcycle* 
+     remcycle/here (catcycle/s CC) CC' RC
+    <- catcycle-deterministic CC CC' cycle`eq/ cycle`eq/ CE
+    <- remcycle-respects-eq 
+       (remcycle/here) cycle`eq/ heap`eq/ permission`eq/ natpair`eq/ CE RC.
+
+- : catcycle-right-preserves-remcycle* 
+     (remcycle/there RC) (catcycle/s CC) (catcycle/s CC') (remcycle/there RC')
+    <- catcycle-right-preserves-remcycle* RC CC CC' RC'.
+
+%worlds () (catcycle-right-preserves-remcycle* _ _ _ _).
+%total (R) (catcycle-right-preserves-remcycle* R _ _ _).
+
+
+%theorem catcycle-right-preserves-remcycle :
+	forall* {N1} {C1:cycle (s N1)} {H} {Psi} {L} {C1'}
+                {N2} {C2:cycle N2} {N3} {C3:cycle (s N3)}
+                {P:plus (s N1) N2 (s N3)}
+	forall {RC1:remcycle C1 H Psi L C1'}
+	       {CC:catcycle P C1 C2 C3}
+        exists {P'} {C3'}
+	       {CC':catcycle P' C1' C2 C3'}
+	       {RC2:remcycle C3 H Psi L C3'}
+	true.
+
+- : catcycle-right-preserves-remcycle 
+     RC1 (CC:catcycle (plus/s P) _ _ _) P C3' CC' RC2
+    <- catcycle-total CC'
+    <- catcycle-right-preserves-remcycle* RC1 CC CC' RC2.
+
+%worlds () (catcycle-right-preserves-remcycle  _ _ _ _ _ _).
+%total { } (catcycle-right-preserves-remcycle  _ _ _ _ _ _).
+
+
+%theorem catcycle-left-preserves-remcycle* :
+	forall* {N1} {C1:cycle N1} {H} {Psi} {L}
+                {N2} {C2:cycle (s N2)} {C2'} {N3} {C3:cycle (s N3)} {C3'}
+                {P:plus N1 (s N2) (s N3)} {P':plus N1 N2 N3}
+	forall {RC2:remcycle C2 H Psi L C2'}
+	       {CC:catcycle P C1 C2 C3}
+	       {CC':catcycle P' C1 C2' C3'}
+	exists {RC2:remcycle C3 H Psi L C3'}
+	true.
+
+- : catcycle-left-preserves-remcycle* 
+     RC catcycle/z catcycle/z RC.
+
+- : catcycle-left-preserves-remcycle*
+     RC (catcycle/s CC) (catcycle/s CC') (remcycle/there RC')
+    <- catcycle-left-preserves-remcycle* RC CC CC' RC'.
+
+%worlds () (catcycle-left-preserves-remcycle* _ _ _ _).
+%total (C) (catcycle-left-preserves-remcycle* _ C _ _).
+
+
+%theorem catcycle-left-preserves-remcycle :
+	forall* {N1} {C1:cycle N1} {H} {Psi} {L}
+                {N2} {C2:cycle (s N2)} {C2'} {N3} {C3:cycle (s N3)}
+                {P:plus N1 (s N2) (s N3)}
+	forall {RC2:remcycle C2 H Psi L C2'}
+	       {CC:catcycle P C1 C2 C3}
+	exists {P'} {C3'} {CC':catcycle P' C1 C2' C3'}
+	       {RC3:remcycle C3 H Psi L C3'}
+	true.
+
+- : catcycle-left-preserves-remcycle RC2 (CC:catcycle P _ _ _)
+                                     P' _ CC' RC3
+    <- plus-swap-succ-converse P (plus/s P')
+    <- catcycle-total CC'
+    <- catcycle-left-preserves-remcycle* RC2 CC CC' RC3.
+
+%worlds () (catcycle-left-preserves-remcycle _ _ _ _ _ _).
+%total { } (catcycle-left-preserves-remcycle _ _ _ _ _ _).
+
+
+
+%theorem catcycle-chooses-remcycle :
+	forall* {N1} {N2} {N3} {P:plus N1 N2 (s N3)}
+                {C1:cycle N1} {C2:cycle N2} {C3:cycle (s N3)} {C3':cycle N3}
+		{H} {Psi} {L}
+	forall {CC:catcycle P C1 C2 C3}
+	       {RC:remcycle C3 H Psi L C3'}
+	exists {RCC:remcycle-choice C1 C2 H Psi L}
+	true.
+
+- : catcycle-chooses-remcycle catcycle/z RC (remcycle-choice/2 RC).
+
+%theorem catcycle-chooses-remcycle/L :
+	forall* {N1} {N2}
+                {C1:cycle N1} {C2:cycle N2}
+		{H} {Psi} {L} {H'} {Psi'} {L'}
+	forall {RCC:remcycle-choice C1 C2 H Psi L}
+	exists {RCC:remcycle-choice (cycle/+ C1 H' Psi' L') C2 H Psi L}
+	true.
+
+- : catcycle-chooses-remcycle 
+     (catcycle/s CC) (remcycle/here) (remcycle-choice/1 remcycle/here).
+
+- : catcycle-chooses-remcycle (catcycle/s CC) (remcycle/there RC) RCC'
+    <- catcycle-chooses-remcycle CC RC RCC
+    <- catcycle-chooses-remcycle/L RCC RCC'.
+    
+- : catcycle-chooses-remcycle/L (remcycle-choice/2 RC) (remcycle-choice/2 RC).
+
+- : catcycle-chooses-remcycle/L (remcycle-choice/1 RC)
+     (remcycle-choice/1 (remcycle/there RC)).
+
+%worlds () (catcycle-chooses-remcycle/L _ _).
+%total { } (catcycle-chooses-remcycle/L _ _).
+
+%worlds () (catcycle-chooses-remcycle _ _ _).
+%total (C) (catcycle-chooses-remcycle C _ _).
+
+
+%theorem insert-preserves-remcycle :
+	forall* {N1} {C1:cycle N1} {H} {Psi} {P}
+                {N2} {C2:cycle N2} {N3} {C3:cycle (s N3)} {C4:cycle N3}
+                {A:plus N1 N2 (s N3)} 
+		{N3'} {A':plus N1 (s N2) (s N3')}  %% NB: N3' will be (s N3)
+		{H'} {Psi'} {P'} {C3'}
+	forall {CC:catcycle A C1 C2 C3}
+	       {RMC:remcycle C3 H Psi P C4}
+	       {CC':catcycle A' C1 (cycle/+ C2 H' Psi' P') C3'}
+	exists {C4'} {RMC':remcycle C3' H Psi P C4'}
+	true.
+
+- : insert-preserves-remcycle catcycle/z RMC catcycle/z _ (remcycle/there RMC).
+
+- : insert-preserves-remcycle (catcycle/s CC) remcycle/here (catcycle/s CC') _
+			      remcycle/here.
+
+- : insert-preserves-remcycle (catcycle/s CC) (remcycle/there RMC)
+                              (catcycle/s CC') _ (remcycle/there RMC')
+    <- insert-preserves-remcycle CC RMC CC' _ RMC'.
+
+%worlds () (insert-preserves-remcycle _ _ _ _ _).
+%total (C) (insert-preserves-remcycle C _ _ _ _).
+
+
+
+%{%
+A theorem that says if C1 + C2 = C3 and we remcycle something from C3
+yielding C4
+and if we remcycle something else in particular from C1 and add it to C2,
+and if C1' + C2' = C3'
+then we can still remcycle the first thing from C3' yielding C4'
+%}%
+
+%theorem swap-catend-preserves-remcycle :
+	forall* {N1} {C1:cycle (s N1)} {H1} {Psi1} {L1}
+                {N2} {C2:cycle N2} {N3} {C3:cycle (s N3)} {C4:cycle N3}
+                {P:plus (s N1) N2 (s N3)} {P':plus N1 (s N2) (s N3)}
+		{H3} {Psi3} {L3}
+                {C1':cycle N1} {C3':cycle (s N3)}
+	forall {CC:catcycle P C1 C2 C3}
+               {RC3:remcycle C3 H3 Psi3 L3 C4}
+               {RC1:remcycle C1 H1 Psi1 L1 C1'}
+	       {CC':catcycle P' C1' (cycle/+ C2 H1 Psi1 L1) C3'}
+        exists {C4'}
+	       {RC3':remcycle C3' H3 Psi3 L3 C4'}
+	true.
+
+- : swap-catend-preserves-remcycle 
+     (catcycle/s CC) remcycle/here remcycle/here CC' _ RC2
+    <- catcycle-left-preserves-remcycle* remcycle/here CC' CC RC2.
+
+- : swap-catend-preserves-remcycle
+     (catcycle/s CC) remcycle/here (remcycle/there RC1) (catcycle/s CC') _ 
+     remcycle/here.
+
+- : swap-catend-preserves-remcycle
+     (catcycle/s CC) (remcycle/there RC3) remcycle/here CC' _ RC3'
+    <- insert-preserves-remcycle CC RC3 CC' _ RC3'.
+
+- : swap-catend-preserves-remcycle
+     (catcycle/s CC) (remcycle/there RC3) (remcycle/there RC1) 
+     (catcycle/s CC') _ (remcycle/there RC3')
+    <- swap-catend-preserves-remcycle CC RC3 RC1 CC' _ RC3'.
+
+% thaw swap-catend-preserves-remcycle.
+
+%worlds () (swap-catend-preserves-remcycle _ _ _ _ _ _).
+%total (C) (swap-catend-preserves-remcycle C _ _ _ _ _).
+
+
+%theorem unequal-remcycles-commute :
+	forall* {H1} {Psi1} {P1} {H2} {Psi2} {P2}
+		{N} {C0:cycle (s N)} {C1:cycle N} {C2: cycle N}
+	forall {RC1:remcycle C0 H1 Psi1 P1 C1}
+	       {RC2:remcycle C0 H2 Psi2 P2 C2}
+	       {NE:natpair`ne P1 P2}
+	exists {N'} {E:nat`eq (s N') N}
+	       {C1':cycle (s N')} {C2':cycle (s N')} {C3:cycle N'}
+	       {E1:cycle`eq C1' C1}
+	       {E2:cycle`eq C2' C2}
+	       {RC1':remcycle C2' H1 Psi1 P1 C3}
+	       {RC2':remcycle C1' H2 Psi2 P2 C3}
+	true.
+
+- : unequal-remcycles-commute remcycle/here remcycle/here P1<>P1 
+                              z E _ _ cycle/0 E1 E2 remcycle/here remcycle/here
+    <- natpair`ne-anti-reflexive P1<>P1 F
+    <- nat`false-implies-eq F E
+    <- cycle`false-implies-eq F E1
+    <- cycle`false-implies-eq F E2.
+
+- : unequal-remcycles-commute 
+     remcycle/here (remcycle/there RMC) _ _ nat`eq/ _ _ _
+     cycle`eq/ cycle`eq/ remcycle/here RMC.
+
+- : unequal-remcycles-commute 
+     (remcycle/there RMC) remcycle/here _ _ nat`eq/ _ _ _
+     cycle`eq/ cycle`eq/ RMC remcycle/here.
+
+- : unequal-remcycles-commute
+	(remcycle/there RMC1) (remcycle/there RMC2) P1<>P2 _ Ex
+	_ _ _ E1x E2x (remcycle/there RMC1') (remcycle/there RMC2')
+    <- unequal-remcycles-commute RMC1 RMC2 P1<>P2 _ E _ _ _ E1 E2 RMC1' RMC2'
+    <- succ-deterministic E Ex
+    <- cycle/+-preserves-eq E1 heap`eq/ permission`eq/ natpair`eq/ E1x
+    <- cycle/+-preserves-eq E2 heap`eq/ permission`eq/ natpair`eq/ E2x.
+
+%worlds () (unequal-remcycles-commute _ _ _ _ _ _ _ _ _ _ _ _).
+%total (R) (unequal-remcycles-commute R _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem unequal-remcycles-commute* :
+	forall* {H1} {Psi1} {P1} {H2} {Psi2} {P2}
+		{N} {C0:cycle (s (s N))} {C1:cycle (s N)} {C2: cycle (s N)}
+	forall {RC1:remcycle C0 H1 Psi1 P1 C1}
+	       {RC2:remcycle C0 H2 Psi2 P2 C2}
+	       {NE:natpair`ne P1 P2}
+	exists {C3:cycle N}
+	       {RC1':remcycle C2 H1 Psi1 P1 C3}
+	       {RC2':remcycle C1 H2 Psi2 P2 C3}
+	true.
+
+- : unequal-remcycles-commute* 
+     (remcycle/here:remcycle _ _ _ _ (cycle/+ C _ _ _))
+     remcycle/here P1<>P1 C RC1 RC2
+    <- natpair`ne-anti-reflexive P1<>P1 F
+    <- false-implies-remcycle F RC1
+    <- false-implies-remcycle F RC2.
+
+- : unequal-remcycles-commute* 
+     remcycle/here (remcycle/there RMC) _ _ remcycle/here RMC.
+
+- : unequal-remcycles-commute* 
+     (remcycle/there RMC) remcycle/here _ _ RMC remcycle/here.
+
+- : unequal-remcycles-commute*
+	(remcycle/there RMC1) (remcycle/there RMC2) P1<>P2 _
+	(remcycle/there RMC1') (remcycle/there RMC2')
+    <- unequal-remcycles-commute* RMC1 RMC2 P1<>P2 _ RMC1' RMC2'.
+
+- : unequal-remcycles-commute*
+	(remcycle/there (remcycle/here:remcycle _ _ _ _ C))
+        (remcycle/there remcycle/here) P1<>P1 C RMC1 RMC2
+    <- natpair`ne-anti-reflexive P1<>P1 F
+    <- false-implies-remcycle F RMC1
+    <- false-implies-remcycle F RMC2.
+
+%worlds () (unequal-remcycles-commute* _ _ _ _ _ _).
+%total (R) (unequal-remcycles-commute* R _ _ _ _ _).
+
+
+%theorem unequal-heaps-implies-remcycles-commute* :
+	forall* {H1} {Psi1} {P1} {H2} {Psi2} {P2} {FRV} {L}
+		{N} {C0:cycle (s (s N))} {C1:cycle (s N)} {C2: cycle (s N)}
+	forall {RC1:remcycle C0 H1 Psi1 P1 C1}
+	       {RC2:remcycle C0 H2 Psi2 P2 C2}
+	       {H1L:pheap`lookup H1 L FRV}
+	       {H2F:pheap`fresh H2 L}
+	exists {C3:cycle N}
+	       {RC1':remcycle C2 H1 Psi1 P1 C3}
+	       {RC2':remcycle C1 H2 Psi2 P2 C3}
+	true.
+
+- : unequal-heaps-implies-remcycles-commute* 
+     (remcycle/here:remcycle _ _ _ _ (cycle/+ C _ _ _))
+     remcycle/here HL HF C RC1 RC2
+    <- pheap`fresh-lookup-not-equal HF HL L<>L
+    <- nat`ne-anti-reflexive L<>L F
+    <- false-implies-remcycle F RC1
+    <- false-implies-remcycle F RC2.
+
+- : unequal-heaps-implies-remcycles-commute* 
+     remcycle/here (remcycle/there RMC) _ _ _ remcycle/here RMC.
+
+- : unequal-heaps-implies-remcycles-commute* 
+     (remcycle/there RMC) remcycle/here _ _ _ RMC remcycle/here.
+
+- : unequal-heaps-implies-remcycles-commute*
+	(remcycle/there RMC1) (remcycle/there RMC2) H1L H2F _
+	(remcycle/there RMC1') (remcycle/there RMC2')
+    <- unequal-heaps-implies-remcycles-commute* RMC1 RMC2 H1L H2F _ RMC1' RMC2'.
+
+- : unequal-heaps-implies-remcycles-commute*
+	(remcycle/there (remcycle/here:remcycle _ _ _ _ C))
+        (remcycle/there remcycle/here) HL HF C RMC1 RMC2
+    <- pheap`fresh-lookup-not-equal HF HL L<>L
+    <- nat`ne-anti-reflexive L<>L F
+    <- false-implies-remcycle F RMC1
+    <- false-implies-remcycle F RMC2.
+
+%worlds () (unequal-heaps-implies-remcycles-commute* _ _ _ _ _ _ _).
+%total (R) (unequal-heaps-implies-remcycles-commute* R _ _ _ _ _ _).
+
+
+
+%%% Theorems for models
+
+
+%theorem false-implies-models :
+	forall* {K} {L} {H} {Psi} {N} {C:cycle L} {T:term K}
+	forall {F:void}
+	exists {M:models H Psi N C T}
+	true.
+
+%worlds () (false-implies-models _ _).
+%total { } (false-implies-models _ _).
+
+
+%theorem models-respects-eq :
+	forall* {K} {L} {H1} {H2} {Psi1} {Psi2} {N1} {N2} 
+		{C1:cycle L} {C2:cycle L}
+	        {T1:term K} {T2:term K}
+	forall {M1:models H1 Psi1 N1 C1 T1}
+	       {HE:heap`eq H1 H2} {OE:permission`eq Psi1 Psi2}
+	       {NE:nesting`eq N1 N2} {CE:cycle`eq C1 C2} 
+               {PE:permission`eq T1 T2}
+	exists {M2:models H2 Psi2 N2 C2 T2}
+	true.
+
+- : models-respects-eq M heap`eq/ permission`eq/ nesting`eq/ cycle`eq/ 
+                         permission`eq/ M.
+
+%worlds () (models-respects-eq _ _ _ _ _ _ _).
+%total { } (models-respects-eq _ _ _ _ _ _ _).
+
+
+%% The following lemma is very similar to "discard separation" (q.v.)
+
+%theorem models-equiv-added-implies-models-added :
+	forall* {H} {L} {Pi} {Pi1} {Pi2} {N} {Cy:cycle L} {C} {C1} {C2} {Psi}
+	forall {M:models H Psi N Cy Pi}
+	       {K:canon Pi C}
+               {K1:canon Pi1 C1}
+	       {K2:canon Pi2 C2}
+	       {A:canonical`add C1 C2 C}
+	exists {H1} {H2} {A:heap`add H1 H2 H}
+	       {Psi1} {Psi2} {E: equiv (Psi1 , Psi2) Psi}
+	       {M1:models H1 Psi1 N Cy Pi1}
+	       {M2:models H2 Psi2 N Cy Pi2}
+	true.
+
+- : models-equiv-added-implies-models-added
+	(models/scale M Q*H=QH)
+        (canon/s Pi->C Q*C=QC) Pi1->QC1 Pi2->QC2
+	QC1+QC2=QC QH1 QH2 QH1+QH2=QH
+        _ _ (equiv/transitive (equiv/symmetric equiv/distribute) E')
+	(models/equiv equiv/reflexive
+		      (equiv/transitive (equiv/mul Q*R=1) equiv/one)
+                      (models/scale M1 Q*H1=QH1))
+        (models/equiv equiv/reflexive
+		      (equiv/transitive (equiv/mul Q*R=1) equiv/one)
+                      (models/scale M2 Q*H2=QH2))
+    <- rat`div-total R*Q=1
+    <- rat`mul-commutative R*Q=1 Q*R=1
+    <- canonical`scale-identity _ ONE*C=C
+    <- canonical`scale-associates* R*Q=1 ONE*C=C Q*C=QC R*QC=C
+    <- canonical`scale-distributes-over-add QC1+QC2=QC R*QC=C C1 C2 
+                                            R*QC1=C1 R*QC2=C2 C1+C2=C
+    <- models-equiv-added-implies-models-added M Pi->C
+       (canon/s Pi1->QC1 R*QC1=C1) (canon/s Pi2->QC2 R*QC2=C2) C1+C2=C
+       H1 H2 H1+H2=H Psi1 Psi2 E M1 M2
+    <- equiv/frac-admissible E E'
+    <- heap`scale-distributes-over-add H1+H2=H Q*H=QH QH1 QH2 Q*H1=QH1 Q*H2=QH2
+				       QH1+QH2=QH.
+
+- : models-equiv-added-implies-models-added
+	(models/combined M1 M2 H1+H2=H)
+        (canon/+ Pi1->C1 Pi2->C2 C1+C2=C) Pi3->C3 Pi4->C4 C3+C4=C
+        H3 H4 H3+H4=H _ _ 
+        (equiv/transitive equiv/double-associate (equiv/combine E1 E2))
+        (models/equiv equiv/reflexive (equiv/symmetric Pi3=Pi13,Pi23)
+                      (models/combined M13 M23 H13+H23=H3))
+        (models/equiv equiv/reflexive (equiv/symmetric Pi4=Pi14,Pi24)
+                      (models/combined M14 M24 H14+H24=H4))
+    <- canonical`add-cross-comparable 
+	C1+C2=C C3+C4=C C13 C14 C23 C24
+	C13+C14=C1 C23+C24=C2 C13+C23=C3 C14+C24=C4
+    <- canon-added-implies-equiv-combined 
+	(Pi3->C3:canon Pi3 C3) C13+C23=C3 Pi13 Pi23 Pi13->C13 Pi23->C23 Pi3=Pi13,Pi23
+    <- canon-added-implies-equiv-combined 
+	Pi4->C4 C14+C24=C4 Pi14 Pi24 Pi14->C14 Pi24->C24 Pi4=Pi14,Pi24
+    <- models-equiv-added-implies-models-added M1 Pi1->C1
+	Pi13->C13 Pi14->C14 C13+C14=C1 H13 H14 H13+H14=H1 
+	Psi13 Psi14 E1 M13 M14
+    <- models-equiv-added-implies-models-added M2 Pi2->C2
+	Pi23->C23 Pi24->C24 C23+C24=C2 H23 H24 H23+H24=H2 
+	Psi23 Psi24 E2 M23 M24
+    <- heap`add-double-associative H13+H14=H1 H23+H24=H2 H1+H2=H H3 H4
+				   H13+H23=H3 H14+H24=H4 H3+H4=H.
+
+- : models-equiv-added-implies-models-added
+	(models/obligation) Pi->C Pi1->C1 Pi2->C2 C1+C2=C
+        heap`0 heap`0 pheap`add/L _ _ (equiv/symmetric Pi=Pi1,Pi2)
+	models/obligation models/obligation
+    <- canon-eq-implies-equiv 
+	Pi->C (canon/+ Pi1->C1 Pi2->C2 C1+C2=C) canonical`eq/ Pi=Pi1,Pi2.
+
+- : models-equiv-added-implies-models-added 
+	(models/unit M) (canon/1 U->N) Pi1->C1 Pi2->C2 
+        (canonical`add/= _ Q1+Q2=1 nat`eq/) H1 H2 H1+H2=H 
+        _ _ (equiv/transitive (equiv/add Q1+Q2=1) equiv/one)
+        (models/equiv equiv/reflexive (equiv/symmetric Pi1=Q1U)
+                      (models/scale (models/unit M) Q1*H=H1))
+        (models/equiv equiv/reflexive (equiv/symmetric Pi2=Q2U)
+                      (models/scale (models/unit M) Q2*H=H2))
+    <- heap`scale-identity _ ONE*H=H
+    <- heap`scale-right-distributes-over-add 
+	Q1+Q2=1 ONE*H=H H1 H2 Q1*H=H1 Q2*H=H2 H1+H2=H
+    <- canon-only-one-implies-equiv-scaled-unit Pi1->C1 U->N Pi1=Q1U
+    <- canon-only-one-implies-equiv-scaled-unit Pi2->C2 U->N Pi2=Q2U.
+
+- : models-equiv-added-implies-models-added 
+	(models/unit M) (canon/1 U->N) Pi1->0 Pi2->CN10
+        (canonical`add/L) heap`0 H (pheap`add/L) _ _ 
+        (equiv/transitive equiv/commute equiv/identity)
+        (models/equiv Pi1=0 equiv/reflexive (models/obligation))
+        (models/equiv equiv/reflexive U=Pi2 (models/unit M))
+    <- canon-eq-implies-equiv Pi1->0 canon/0 canonical`eq/ Pi1=0
+    <- canon-eq-implies-equiv (canon/1 U->N) Pi2->CN10 canonical`eq/ U=Pi2.
+
+- : models-equiv-added-implies-models-added 
+	(models/unit M) (canon/1 U->N) Pi1->CN10 Pi2->0
+        (canonical`add/R) H heap`0 (pheap`add/R) _ _ 
+        (equiv/identity)
+        (models/equiv equiv/reflexive U=Pi1 (models/unit M))
+        (models/equiv Pi2=0 equiv/reflexive (models/obligation))
+    <- canon-eq-implies-equiv (canon/1 U->N) Pi1->CN10 canonical`eq/ U=Pi1
+    <- canon-eq-implies-equiv Pi2->0 canon/0 canonical`eq/ Pi2=0.
+
+- : models-equiv-added-implies-models-added
+	(models/equiv Psi=Psi' Pi=Pi' M) Pi'->C Pi1->C1 Pi2->C2 C1+C2=C
+	H1 H2 H1+H2=H _ _ (equiv/transitive E Psi=Psi') M1 M2
+    <- equiv-preserves-canon-converse Pi'->C Pi=Pi' Pi->C
+    <- models-equiv-added-implies-models-added 
+	M Pi->C Pi1->C1 Pi2->C2 C1+C2=C 
+	H1 H2 H1+H2=H _ _ E M1 M2.
+
+%worlds () (models-equiv-added-implies-models-added _ _ _ _ _ _ _ _ _ _ _ _ _).
+%total (M) (models-equiv-added-implies-models-added M _ _ _ _ _ _ _ _ _ _ _ _).
+
+
+%theorem models/combined-inversion :
+	forall* {H} {N} {Pi1} {Pi2}
+	forall	{M:models H empty N cycle/0 (Pi1 , Pi2)}
+	exists	{H1} {H2} {HA:heap`add H1 H2 H}
+		{M1:models H1 empty N cycle/0 Pi1}
+		{M2:models H2 empty N cycle/0 Pi2}
+	true.
+
+- : models/combined-inversion M H1 H2 HA
+	(models/equiv Psi1==0 equiv/reflexive M1) 
+	(models/equiv Psi2==0 equiv/reflexive M2)
+    <- canon-total Pi1->C1
+    <- canon-total Pi2->C2
+    <- canonical`add-total C1+C2=C
+    <- models-equiv-added-implies-models-added 
+	M (canon/+ Pi1->C1 Pi2->C2 C1+C2=C)
+	Pi1->C1 Pi2->C2 C1+C2=C H1 H2 HA
+	Psi1 Psi2 E M1 M2
+    <- equiv-empty-implies-null E (null/+ Psi1=0 Psi2=0)
+    <- null-implies-equiv-empty Psi1=0 Psi1==0
+    <- null-implies-equiv-empty Psi2=0 Psi2==0.
+
+%worlds () (models/combined-inversion _ _ _ _ _ _).
+%total { } (models/combined-inversion _ _ _ _ _ _).
+
+
+%theorem models/scale-inversion :
+	forall*	{QH} {N} {Q} {Pi}
+	forall	{M:models QH empty N cycle/0 
+                          (scale (fraction/ Q) Pi)}
+	exists	{H} {S:heap`scale Q H QH}
+		{M':models H empty N cycle/0 Pi}
+	true.
+
+- : models/scale-inversion M H Q*H=QH
+	(models/equiv equiv/zero 
+	  (equiv/transitive (equiv/mul R*Q=1) equiv/one)
+	  (models/scale M R*QH=H))
+    <- rat`div-total* rat`one Q R R*Q=1
+    <- rat`mul-commutative R*Q=1 Q*R=1
+    <- heap`scale-identity QH ONE*QH=QH
+    <- heap`scale-associates Q*R=1 ONE*QH=QH H R*QH=H Q*H=QH.
+
+%worlds () (models/scale-inversion _ _ _ _).
+%total { } (models/scale-inversion _ _ _ _).
+
+% same as above except, with non-empty obligation
+%theorem models/scale-inversion* :
+	forall* {QH} {N} {Q} {Pi} {Psi}
+	forall	{M:models QH (scale (fraction/ Q) Psi) N cycle/0 
+		     (scale (fraction/ Q) Pi)}
+	exists	{H} {S:heap`scale Q H QH}
+		{M':models H Psi N cycle/0 Pi}
+	true.
+
+- : models/scale-inversion* M H Q*H=QH
+	(models/equiv
+	  (equiv/transitive (equiv/mul R*Q=1) equiv/one)
+	  (equiv/transitive (equiv/mul R*Q=1) equiv/one)
+	  (models/scale M R*QH=H))
+    <- rat`div-total* rat`one Q R R*Q=1
+    <- rat`mul-commutative R*Q=1 Q*R=1
+    <- heap`scale-identity QH ONE*QH=QH
+    <- heap`scale-associates Q*R=1 ONE*QH=QH H R*QH=H Q*H=QH.
+
+%worlds () (models/scale-inversion* _ _ _ _).
+%total { } (models/scale-inversion* _ _ _ _).
+
+
+%theorem models-empty-is-empty :
+	forall* {H} {L} {Psi} {N} {C:cycle L} {Pi}
+	forall {M1:models H Psi N C Pi}
+	       {NP:null Pi}
+	exists {NP:null Psi} {EH:heap`eq heap`0 H}
+	true.
+
+- : models-empty-is-empty (models/scale M Q*H=QH) (null/* Pi=0)
+			  (null/* Psi=0) ZERO=QH
+    <- models-empty-is-empty M Pi=0 Psi=0 ZERO=H
+    <- heap`scale-deterministic (pheap`scale/0) Q*H=QH equ/ ZERO=H ZERO=QH.
+
+- : models-empty-is-empty (models/combined M1 M2 H1+H2=H) (null/+ Pi1=0 Pi2=0)
+			  (null/+ Psi1=0 Psi2=0) ZERO=H
+    <- models-empty-is-empty M1 Pi1=0 Psi1=0 ZERO=H1
+    <- models-empty-is-empty M2 Pi2=0 Psi2=0 ZERO=H2
+    <- heap`add-deterministic (pheap`add/L) H1+H2=H ZERO=H1 ZERO=H2 ZERO=H.
+
+- : models-empty-is-empty (models/obligation) Pi=0 Pi=0 heap`eq/.
+
+- : models-empty-is-empty (models/equiv Psi=Psi' Pi=Pi' M) Pi'=0 Psi'=0 ZERO=H
+    <- equiv-preserves-null-converse Pi'=0 Pi=Pi' Pi=0
+    <- models-empty-is-empty M Pi=0 Psi=0 ZERO=H
+    <- equiv-preserves-null Psi=0 Psi=Psi' Psi'=0.
+
+%worlds () (models-empty-is-empty _ _ _ _).
+%total (M) (models-empty-is-empty M _ _ _).
+
+
+%theorem models/weaken-admissible :
+	forall* {H} {Psi} {NG} {N} {C:cycle N} {K} {T:term K}
+	        {H'} {Psi'} {P'}
+	forall {M:models H Psi NG C T}
+	exists {M':models H Psi NG (cycle/+ C H' Psi' P') T}
+	true.
+
+%theorem models/weaken-admissible/L :
+	forall* {H} {Psi} {NG} {K} {T:term K}
+	        {H'} {Psi'} {P'}
+	        {N1} {N2} {N3} {A:plus N1 N2 N3}
+		{C1:cycle N1} {C2:cycle N2} {C3:cycle N3}
+		{N3'} {A':plus N1 (s N2) N3'} {C3':cycle N3'}
+	forall {CC:catcycle A C1 C2 C3}
+               {M:models H Psi NG C3 T}
+               {CC':catcycle A' C1 (cycle/+ C2 H' Psi' P') C3'}
+	exists {M':models H Psi NG C3' T}
+	true.
+
+- : models/weaken-admissible M M'
+    <- models/weaken-admissible/L catcycle/z M catcycle/z M'.
+
+- : models/weaken-admissible/L CC  (models/scale M Q*H=QH)
+                               CC' (models/scale M' Q*H=QH)
+    <- models/weaken-admissible/L CC M CC' M'.
+
+- : models/weaken-admissible/L CC  (models/combined M1 M2 A)
+                               CC' (models/combined M1' M2' A)
+    <- models/weaken-admissible/L CC M1 CC' M1'
+    <- models/weaken-admissible/L CC M2 CC' M2'.
+
+- : models/weaken-admissible/L CC (models/obligation) CC' (models/obligation).
+
+- : models/weaken-admissible/L CC  (models/equiv E1 E2 M)
+                               CC' (models/equiv E1 E2 M')
+    <- models/weaken-admissible/L CC M CC' M'.
+
+- : models/weaken-admissible/L CC  (models/unit M)
+                               CC' (models/unit M')
+    <- models/weaken-admissible/L CC M CC' M'.
+
+- : models/weaken-admissible/L CC  (models/nonlinear BE)  
+                               CC' (models/nonlinear BE).
+
+- : models/weaken-admissible/L CC  (models/conditional/T BE M)
+                               CC' (models/conditional/T BE M')
+    <- models/weaken-admissible/L CC M CC' M'.
+
+- : models/weaken-admissible/L CC  (models/conditional/F BE M)
+                               CC' (models/conditional/F BE M')
+    <- models/weaken-admissible/L CC M CC' M'.
+
+- : models/weaken-admissible/L CC  (models/exists V M)
+                               CC' (models/exists V M')
+    <- models/weaken-admissible/L CC M CC' M'.
+
+- : models/weaken-admissible/L CC  (models/encumbered M)
+                               CC' (models/encumbered M')
+    <- models/weaken-admissible/L CC M CC' M'.
+
+- : models/weaken-admissible/L CC  (models/basic P2N NL K M A)
+                               CC' (models/basic P2N NL K M' A)
+    <- models/weaken-admissible/L (catcycle/s CC) M (catcycle/s CC') M'.
+
+- : models/weaken-admissible/L CC  (models/basic-co P2N RMC A)
+                               CC' (models/basic-co P2N RMC' A)
+    <- insert-preserves-remcycle CC RMC CC' _ RMC'.
+
+%worlds () (models/weaken-admissible/L _ _ _ _).
+%total (M) (models/weaken-admissible/L _ M _ _).
+
+%worlds () (models/weaken-admissible _ _).
+%total { } (models/weaken-admissible _ _).
+
+
+%theorem models/weaken*-admissible* :
+        forall* {K} {H} {Psi} {N} {T:term K} {L}
+        forall {C:cycle L} {M1:models H Psi N cycle/0 T}
+        exists {M2:models H Psi N C T}
+        true.
+
+- : models/weaken*-admissible* _ M M.
+
+- : models/weaken*-admissible* _ M M''
+    <- models/weaken*-admissible* _ M M'
+    <- models/weaken-admissible M' M''.
+
+%worlds () (models/weaken*-admissible* _ _ _).
+%total (C) (models/weaken*-admissible* C _ _).
+
+
+%abbrev models/weaken*-admissible = models/weaken*-admissible* _.
+
+
+%theorem catcycle-left-preserves-models :
+        forall* {K} {H} {Psi} {N} {T:term K}
+                {N1} {C1:cycle N1} {N2} {C2:cycle N2} {N3} {C3:cycle N3}
+		{P:plus N1 N2 N3}
+        forall {M1:models H Psi N C2 T}
+	       {CC:catcycle P C1 C2 C3}
+        exists {M2:models H Psi N C3 T}
+        true.
+
+- : catcycle-left-preserves-models M1 (catcycle/z) M1.
+
+- : catcycle-left-preserves-models M1 (catcycle/s CC) M2
+    <- catcycle-left-preserves-models M1 CC M1'
+    <- models/weaken-admissible M1' M2.
+
+%worlds () (catcycle-left-preserves-models _ _ _).
+%total (C) (catcycle-left-preserves-models _ C _).
+
+
+%theorem can-drop-unused-cycle1 :
+	forall* {K} {H1} {Psi1} {H2} {Psi2} {N} {T:term K} 
+		{N1} {N2} {N3} {C1:cycle N1} {C2:cycle N2} {C4:cycle (s N3)} 
+	        {N1+N2+1=N3+1: plus N1 (s N2) (s N3)}
+                {C3:cycle N3} {N1+N2=N3:plus N1 N2 N3}
+                {L2} 
+	forall {CC:catcycle N1+N2+1=N3+1 C1 (cycle/+ C2 H2 Psi2 L2) C4}
+               {M:models H1 Psi1 N C4 T}
+               {HF1:heap`fresh H1 L2}
+               {CC':catcycle N1+N2=N3 C1 C2 C3}
+	exists {M':models H1 Psi1 N C3 T}
+	true.
+
+- : can-drop-unused-cycle1 CC  (models/scale M1 Q*H1=QH1) QHF1
+                           CC' (models/scale M1' Q*H1=QH1)
+    <- heap`scale-preserves-fresh-converse QHF1 Q*H1=QH1 HF1
+    <- can-drop-unused-cycle1 CC M1 HF1 CC' M1'.
+
+- : can-drop-unused-cycle1 CC  (models/combined M1 M2 H1+H2=H3) HF3
+                           CC' (models/combined M1' M2' H1+H2=H3)
+    <- heap`add-preserves-fresh-converse* HF3 H1+H2=H3 HF1 HF2
+    <- can-drop-unused-cycle1 CC M1 HF1 CC' M1'
+    <- can-drop-unused-cycle1 CC M2 HF2 CC' M2'.
+
+- : can-drop-unused-cycle1 (CC:catcycle N1+sN2=sN3 _ _ _) 
+     (models/obligation) _ CC' (models/obligation).
+
+- : can-drop-unused-cycle1 CC  (models/equiv E1 E2 M) HF
+                           CC' (models/equiv E1 E2 M')
+    <- can-drop-unused-cycle1 CC M HF CC' M'.
+
+- : can-drop-unused-cycle1 CC  (models/unit M) HF
+                           CC' (models/unit M')
+    <- can-drop-unused-cycle1 CC M HF CC' M'.
+
+- : can-drop-unused-cycle1 (CC:catcycle N1+sN2=sN3 _ _ _) 
+     (models/nonlinear G) _ CC' (models/nonlinear G).
+
+- : can-drop-unused-cycle1 CC  (models/conditional/T G M) HF
+                           CC' (models/conditional/T G M')
+    <- can-drop-unused-cycle1 CC M HF CC' M'.
+
+- : can-drop-unused-cycle1 CC  (models/conditional/F G M) HF
+                           CC' (models/conditional/F G M')
+    <- can-drop-unused-cycle1 CC M HF CC' M'.
+
+- : can-drop-unused-cycle1 CC  (models/exists V M) HF
+                           CC' (models/exists V M')
+    <- can-drop-unused-cycle1 CC M HF CC' M'.
+
+- : can-drop-unused-cycle1 CC  (models/encumbered M) HF
+                           CC' (models/encumbered M')
+    <- can-drop-unused-cycle1 CC M HF CC' M'.
+
+- : can-drop-unused-cycle1 CC (models/basic P2N NL K M HA) HF
+                           CC' (models/basic P2N NL K M' HA)
+    <- heap`add-preserves-fresh-converse* HF HA HF' _
+    <- can-drop-unused-cycle1 (catcycle/s CC) M HF' (catcycle/s CC') M'.
+
+- : can-drop-unused-cycle1 CC (models/basic-co P2N RMC H1+U=H2) H2F CC'
+                              (models/basic-co P2N RMC' H1+U=H2)
+    <- heap`add-preserves-fresh-converse* H2F H1+U=H2 _ UF'
+    <- heap`fresh-lookup-not-equal 
+       UF' (heap`lookup/ (pheap`lookup/= nat`eq/) P2N) P1<>P2
+    <- catcycle-left-preserves-remcycle* remcycle/here CC CC' RC1
+    <- unequal-remcycles-commute* RC1 RMC P1<>P2 _ _ RMC'.
+
+- : can-drop-unused-cycle1 
+     catcycle/z (models/basic-co P2N remcycle/here H1+U=H2) H2F CC' M
+    <- heap`add-preserves-fresh-converse* H2F H1+U=H2 _ UF'
+    <- heap`fresh-lookup-not-equal 
+       UF' (heap`lookup/ (pheap`lookup/= nat`eq/) P2N) P<>P
+    <- natpair`ne-anti-reflexive P<>P F
+    <- false-implies-models F M.
+
+%worlds () (can-drop-unused-cycle1 _ _ _ _ _).
+%total (M) (can-drop-unused-cycle1 _ M _ _ _).
+
+
+%theorem can-drop-unused-cycle2 :
+	forall* {K} {H1} {Psi1} {H2} {Psi2} {N} {T:term K} 
+		{N1} {N2} {N3} {C1:cycle N1} {C2:cycle N2} {C4:cycle (s N3)} 
+	        {N1+N2+1=N3+1: plus N1 (s N2) (s N3)}
+                {C3:cycle N3} {N1+N2=N3:plus N1 N2 N3}
+                {L2} {L} {FRV}
+	forall {CC:catcycle N1+N2+1=N3+1 C1 (cycle/+ C2 H2 Psi2 L2) C4}
+               {M:models H1 Psi1 N C4 T}
+               {HF1:pheap`fresh H1 L}
+	       {HL2:pheap`lookup H2 L FRV}
+               {CC':catcycle N1+N2=N3 C1 C2 C3}
+	exists {M':models H1 Psi1 N C3 T}
+	true.
+
+- : can-drop-unused-cycle2 CC  (models/scale M1 Q*H1=QH1) QHF1 HL2 
+                           CC' (models/scale M1' Q*H1=QH1)
+    <- pheap`scale-preserves-fresh-converse QHF1 Q*H1=QH1 HF1
+    <- can-drop-unused-cycle2 CC M1 HF1 HL2 CC' M1'.
+
+- : can-drop-unused-cycle2 CC  (models/combined M1 M2 H1+H2=H3) HF3 HL
+                           CC' (models/combined M1' M2' H1+H2=H3)
+    <- pheap`add-preserves-fresh-converse* HF3 H1+H2=H3 HF1 HF2
+    <- can-drop-unused-cycle2 CC M1 HF1 HL CC' M1'
+    <- can-drop-unused-cycle2 CC M2 HF2 HL CC' M2'.
+
+- : can-drop-unused-cycle2 (CC:catcycle N1+sN2=sN3 _ _ _) 
+     (models/obligation) _ _ CC' (models/obligation).
+
+- : can-drop-unused-cycle2 CC  (models/equiv E1 E2 M) HF HL
+                           CC' (models/equiv E1 E2 M')
+    <- can-drop-unused-cycle2 CC M HF HL CC' M'.
+
+- : can-drop-unused-cycle2 CC  (models/unit M) HF HL
+                           CC' (models/unit M')
+    <- can-drop-unused-cycle2 CC M HF HL CC' M'.
+
+- : can-drop-unused-cycle2 (CC:catcycle N1+sN2=sN3 _ _ _) 
+     (models/nonlinear G) _ _ CC' (models/nonlinear G).
+
+- : can-drop-unused-cycle2 CC  (models/conditional/T G M) HF HL
+                           CC' (models/conditional/T G M')
+    <- can-drop-unused-cycle2 CC M HF HL CC' M'.
+
+- : can-drop-unused-cycle2 CC  (models/conditional/F G M) HF HL
+                           CC' (models/conditional/F G M')
+    <- can-drop-unused-cycle2 CC M HF HL CC' M'.
+
+- : can-drop-unused-cycle2 CC  (models/exists V M) HF HL
+                           CC' (models/exists V M')
+    <- can-drop-unused-cycle2 CC M HF HL CC' M'.
+
+- : can-drop-unused-cycle2 CC  (models/encumbered M) HF HL
+                           CC' (models/encumbered M')
+    <- can-drop-unused-cycle2 CC M HF HL CC' M'.
+
+- : can-drop-unused-cycle2 CC (models/basic P2N NL K M HA) HF HL
+                           CC' (models/basic P2N NL K M' HA)
+    <- pheap`add-preserves-fresh-converse* HF HA HF' _
+    <- can-drop-unused-cycle2 (catcycle/s CC) M HF' HL (catcycle/s CC') M'.
+
+- : can-drop-unused-cycle2 catcycle/z (models/basic-co P2N _ H1+U=H2) H2F H1L
+                          CC' M'
+    <- pheap`add-preserves-fresh-converse* H2F H1+U=H2 H1F _
+    <- pheap`fresh-lookup-not-equal H1F H1L N<>N
+    <- nat`ne-anti-reflexive N<>N F
+    <- false-implies-models F M'.
+
+ - : can-drop-unused-cycle2 CC
+      (models/basic-co P2N RMC (H0+U=H1: heap`add H0 _ H1)) H1F H2L CC'
+      (models/basic-co P2N RMC' H0+U=H1)
+    <- pheap`add-preserves-fresh-converse* H1F H0+U=H1 H0F UF
+    <- catcycle-left-preserves-remcycle* remcycle/here CC CC' RC1
+    <- unequal-heaps-implies-remcycles-commute* RC1 RMC H2L H0F _ _ RMC'.
+
+%worlds () (can-drop-unused-cycle2 _ _ _ _ _ _).
+%total (M) (can-drop-unused-cycle2 _ M _ _ _ _).
+
+
+%theorem can-unfold-cycle :
+	forall* {N1} {N2} {N3} {C1:cycle N1} {C2:cycle N2} {C3:cycle N3}
+		{N3'} {C3':cycle N3'}
+                {P:plus N2 (s N1) N3} {P':plus N2 N1 N3'}
+                {H} {Psi} {NG} {K} {Pi:term K}
+                {H1} {Psi1} {Pi1} {O} {F} {L} {C}
+	forall {M:models H Psi NG C3 Pi} 
+               {CC:catcycle P C2 (cycle/+ C1 H1 Psi1 (natpair/ O F)) C3}
+               {P2N:pair2nat (natpair/ O F) L}
+               {NL:nesting`lookup NG L C}
+	       {K:canon Pi1 C}
+	       {M1:models H1 Psi1 NG (cycle/+ C1 H1 Psi1 (natpair/ O F)) Pi1}  
+	       {CC':catcycle P' C2 C1 C3'}
+	exists {M':models H Psi NG C3' Pi}
+	true.
+
+- : can-unfold-cycle (models/scale M HS) CC P2N NL K M1 CC'
+                     (models/scale M' HS)
+    <- can-unfold-cycle M CC P2N NL K M1 CC' M'.
+
+- : can-unfold-cycle (models/combined M1 M2 HA) CC P2N NL K M CC'
+                     (models/combined M1' M2' HA)
+    <- can-unfold-cycle M1 CC P2N NL K M CC' M1'
+    <- can-unfold-cycle M2 CC P2N NL K M CC' M2'.
+
+- : can-unfold-cycle (models/obligation) _ _ _ _ _ _ (models/obligation).
+
+- : can-unfold-cycle (models/equiv E E' M) CC P2N NL K M1 CC'
+                     (models/equiv E E' M')
+    <- can-unfold-cycle M CC P2N NL K M1 CC' M'.
+
+- : can-unfold-cycle (models/unit M) CC P2N NL K M1 CC'
+                     (models/unit M')
+    <- can-unfold-cycle M CC P2N NL K M1 CC' M'.
+
+- : can-unfold-cycle (models/nonlinear BE) _ _ _ _ _ _ (models/nonlinear BE).
+
+- : can-unfold-cycle (models/conditional/T BE M) CC P2N NL K M1 CC'
+                     (models/conditional/T BE M')
+    <- can-unfold-cycle M CC P2N NL K M1 CC' M'.
+
+- : can-unfold-cycle (models/conditional/F BE M) CC P2N NL K M1 CC'
+                     (models/conditional/F BE M')
+    <- can-unfold-cycle M CC P2N NL K M1 CC' M'.
+
+- : can-unfold-cycle (models/exists V M) CC P2N NL K M1 CC'
+                     (models/exists V M')
+    <- can-unfold-cycle M CC P2N NL K M1 CC' M'.
+
+- : can-unfold-cycle (models/encumbered M) CC P2N NL K M1 CC'
+                     (models/encumbered M')
+    <- can-unfold-cycle M CC P2N NL K M1 CC' M'.
+
+- : can-unfold-cycle (models/basic P2N NL K M HA) CC P2N1 NL1 K1 M1 CC'
+                     (models/basic P2N NL K M' HA)
+    <- can-unfold-cycle M (catcycle/s CC) P2N1 NL1 K1 M1 (catcycle/s CC') M'.
+
+%theorem can-unfold-cycle/L :
+	forall* {N1} {N2} {N3} {C1:cycle N1} {C2:cycle N2} {C3:cycle N3}
+		{N3'} {C3':cycle N3'}
+                {P:plus N2 (s N1) N3} {P':plus N2 N1 N3'}
+                {H} {Psi} {NG} {O'} {H'}
+                {H1} {Psi1} {Pi1} {O} {F} {L} {C} {O1} {F1} {L1}
+	forall {P2N:pair2nat (natpair/ O F) L}
+               {RCC: remcycle-choice C2 (cycle/+ C1 H1 Psi1 (natpair/ O1 F1)) 
+                                     H Psi (natpair/ O F)}
+	       {HA:heap`add H (pheap`map/+ L (frv/ rat`one O') heap`0) H'}
+               {CC:catcycle P C2 (cycle/+ C1 H1 Psi1 (natpair/ O1 F1)) C3}
+               {P2N1:pair2nat (natpair/ O1 F1) L1}
+               {NL:nesting`lookup NG L1 C}
+	       {K:canon Pi1 C}
+	       {M1:models H1 Psi1 NG (cycle/+ C1 H1 Psi1 (natpair/ O1 F1)) Pi1}
+	       {CC':catcycle P' C2 C1 C3'}
+	exists {M':models H' Psi NG C3' (basic (object/ O) F (object/ O'))}
+	true.
+
+- : can-unfold-cycle (models/basic-co P2N RC HA) CC P2N1 NL1 K1 M1 CC' M'
+    <- catcycle-chooses-remcycle CC RC RCC
+    <- can-unfold-cycle/L P2N RCC HA CC P2N1 NL1 K1 M1 CC' M'. 
+
+- : can-unfold-cycle/L P2N (remcycle-choice/1 RC) HA CC _ _ _ _ CC'
+                       (models/basic-co P2N RC' HA)
+    <- catcycle-right-preserves-remcycle RC CC' _ _ _ RC'.
+
+- : can-unfold-cycle/L P2N (remcycle-choice/2 remcycle/here) HA CC 
+                       P2N1 NL1 K1 M1 CC' M'
+    <- pair2nat-deterministic P2N1 P2N natpair`eq/ L1=L
+    <- nesting`lookup-respects-eq NL1 nesting`eq/ L1=L canonical`eq/ NL
+    <- catcycle-left-preserves-models (models/basic P2N NL K1 M1 HA) CC' M'.
+ 
+- : can-unfold-cycle/L P2N (remcycle-choice/2 (remcycle/there RC)) HA CC
+                       _ _ _ _ CC'
+                       (models/basic-co P2N RC' HA)
+    <- catcycle-left-preserves-remcycle RC CC' _ _ _ RC'.
+
+%worlds () (can-unfold-cycle/L _ _ _ _ _ _ _ _ _ _).
+%total { } (can-unfold-cycle/L _ _ _ _ _ _ _ _ _ _).
+
+%worlds () (can-unfold-cycle _ _ _ _ _ _ _ _).
+%total (M) (can-unfold-cycle M _ _ _ _ _ _ _).
+
+
+%theorem models-null-obligation :
+	forall* {K} {H} {Psi} {NG} {Pi}
+	forall {M:models* K z H Psi NG cycle/0 Pi}
+	       {NP:null Psi}
+	exists {M:models H empty NG cycle/0 Pi}
+	true.
+
+- : models-null-obligation M _ M.
+
+- : models-null-obligation M NP (models/equiv Psi=0 equiv/reflexive M)
+    <- null-implies-equiv-empty NP Psi=0.
+
+- : models-null-obligation (models/conditional/T BE M) NP
+                           (models/conditional/T BE 
+                              (models/equiv Psi=0 equiv/reflexive M))
+    <- null-implies-equiv-empty NP Psi=0.
+
+- : models-null-obligation (models/conditional/F BE M) NP
+                           (models/conditional/F BE 
+                             (models/equiv Psi=0 equiv/reflexive M))
+    <- null-implies-equiv-empty NP Psi=0.
+
+- : models-null-obligation (models/exists V M) NP
+                           (models/exists V
+                             (models/equiv Psi=0 equiv/reflexive M))
+    <- null-implies-equiv-empty NP Psi=0.
+
+- : models-null-obligation (models/encumbered M) NP
+			   (models/encumbered
+                             (models/equiv 
+                                (equiv/combine Psi=0 equiv/reflexive) 
+                                 equiv/reflexive M))
+    <- null-implies-equiv-empty NP Psi=0.
+
+- : models-null-obligation (models/basic P2N NL K M HA) NP
+                           (models/basic P2N NL K
+                              (models/equiv Psi=0 equiv/reflexive M'') HA)
+    <- null-implies-equiv-empty NP Psi=0
+    <- can-unfold-cycle M catcycle/z P2N NL K M catcycle/z M'
+    <- models/weaken-admissible M' M''.
+
+%worlds () (models-null-obligation _ _ _).
+%total { } (models-null-obligation _ _ _).
+
+
+
+%%% theorems about modelsize
+
+
+%theorem modelsize-total* :
+	forall* {K} {H} {Psi} {NG} {N} {C:cycle N} {Pi:term K}
+	forall {M:models H Psi NG C Pi}
+	exists {N} {MS:modelsize M N}
+	true.
+
+%abbrev modelsize-total = modelsize-total* _ _.
+
+- : modelsize-total (modelsize/scale MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/combined MS1 MS2 MX)
+    <- modelsize-total MS1
+    <- modelsize-total MS2
+    <- max-total MX.
+
+- : modelsize-total (modelsize/obligation).
+
+- : modelsize-total (modelsize/equiv MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/unit MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/nonlinear).
+
+- : modelsize-total (modelsize/conditional/T MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/conditional/F MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/exists MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/encumbered MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/basic MS)
+    <- modelsize-total MS.
+
+- : modelsize-total (modelsize/basic-co).
+
+%worlds () (modelsize-total* _ _ _).
+%total (M) (modelsize-total* M _ _).
+
+
+
+%%% Theorems about cycle-models and cycle-provide
+
+
+%theorem cycle-models-implies-models :
+	forall* {N} {C:cycle N} {H} {Psi} {NG} {K} {Pi:term K}
+	forall {M:models H Psi NG C Pi} 
+	       {CM:cycle-models NG C}
+	exists {M':models H Psi NG cycle/0 Pi}
+	true.
+
+- : cycle-models-implies-models M cycle-models/0 M.
+
+- : cycle-models-implies-models M (cycle-models/+ P2N NL K M1 CM) M''
+    <- can-unfold-cycle M catcycle/z P2N NL K M1 catcycle/z M'
+    <- cycle-models-implies-models M' CM M''.
+
+%worlds () (cycle-models-implies-models _ _ _).
+%total (C) (cycle-models-implies-models _ C _).
+
+
+%theorem cycle-provide-modifies-remcycle :
+	forall* {N} {Cy1:cycle (s N)} {H1} {Psi0} {Psi1} {P1} {Cy1'}
+                {U2} {H2} {Cy2} {C1} {C3} {Q} {QH2} {H3}
+	forall {RC1:remcycle Cy1 H1 Psi1 P1 Cy1'}
+	       {CP:cycle-provide Cy1 U2 Psi0 H2 Cy2}
+	       {K1:canon Psi1 C1}
+	       {CL:canonical`lookup C1 U2 Q}
+	       {CA:canonical`add (canonical`map/+ U2 Q canonical`map/0) C3 C1}
+	       {HS:heap`scale Q H2 QH2}
+	       {HA:heap`add H1 QH2 H3}
+	exists {Cy2'} {Psi3} {K3:canon Psi3 C3}
+	       {RC2:remcycle Cy2 H3 (scale (fraction/ Q) Psi0 , Psi3) P1 Cy2'}
+	true.
+
+%theorem cycle-provide-modifies-remcycle/helper :
+	forall*	{Q1} {Q2} {Pi1} {Pi2}
+	forall  {QE:rat`eq Q1 Q2}
+	exists	{PE:permission`eq 
+		      (scale (fraction/ Q1) Pi1 , Pi2)
+		      (scale (fraction/ Q2) Pi1 , Pi2)}
+	true.
+
+- : cycle-provide-modifies-remcycle/helper rat`eq/ permission`eq/.
+
+%worlds () (cycle-provide-modifies-remcycle/helper _ _).
+%total { } (cycle-provide-modifies-remcycle/helper _ _).
+
+- : cycle-provide-modifies-remcycle 
+     (remcycle/here) (cycle-provide/+ _ K1' CL' HS' HA' K3' CA')
+     K1 CL CA HS HA _ _ K3 RC2
+    <- canon-deterministic K1' K1 permission`eq/ C1'=C1
+    <- canonical`lookup-deterministic CL' CL C1'=C1 nat`eq/ Q'=Q
+    <- canonical`map/+-preserves-eq nat`eq/ Q'=Q canonical`eq/ Q'U=QU
+    <- canonical`add-left-cancels CA' CA Q'U=QU C1'=C1 C3'=C3
+    <- canon-respects-eq K3' permission`eq/ C3'=C3 K3
+    <- heap`scale-deterministic HS' HS Q'=Q heap`eq/ Q'H=QH
+    <- heap`add-deterministic HA' HA heap`eq/ Q'H=QH H3'=H3
+    <- cycle-provide-modifies-remcycle/helper Q'=Q PE
+    <- remcycle-respects-eq (remcycle/here) cycle`eq/ H3'=H3 PE
+                            natpair`eq/ cycle`eq/ RC2.
+
+- : cycle-provide-modifies-remcycle
+     (remcycle/there RC) (cycle-provide/+ CP _ _ _ _ _ _)
+     K1 CL CA HS HA _ _ K3 (remcycle/there RC2)
+    <- cycle-provide-modifies-remcycle RC CP K1 CL CA HS HA _ _ K3 RC2.
+
+%worlds () (cycle-provide-modifies-remcycle _ _ _ _ _ _ _ _ _ _ _).
+%total (C) (cycle-provide-modifies-remcycle _ C _ _ _ _ _ _ _ _ _).
+
+
+
+%%% Lemma about basic permissions leading to output heap contraints
+
+
+%theorem basic-visible-in-output-heap :
+	forall* {H} {NG} {N} {Cy:cycle N} {O} {F} {Pi} {Q} {U} {O'} {C}
+	forall {M:models H empty NG Cy Pi}
+	       {TN:term2nat (basic (object/ O) F (object/ O')) U}
+	       {K:canon Pi C}
+	       {CL:canonical`lookup C U Q}
+	exists {Q'} {L:heap`lookup H (natpair/ O F) (frv/ Q' O')}
+	true.
+
+%theorem basic-visible-in-output-heap/L :
+	forall* {H} {Psi} {NG} {N} {Cy:cycle N} {O} {F} {Pi} {Q} {U} {O'} {C}
+	forall {M:models H Psi NG Cy Pi} {NP:null Psi}
+	       {S} {MS:modelsize M S}
+	       {TN:term2nat (basic (object/ O) F (object/ O')) U}
+	       {K:canon Pi C}
+	       {CL:canonical`lookup C U Q}
+	exists {Q'} {L:heap`lookup H (natpair/ O F) (frv/ Q' O')}
+	true.
+
+- : basic-visible-in-output-heap M TN K CL _ L
+    <- modelsize-total MS
+    <- basic-visible-in-output-heap/L M null/0 _ MS TN K CL _ L.
+
+- : basic-visible-in-output-heap/L (models/scale M HS) (null/* NP)
+                                   _ (modelsize/scale MS)
+                                   TN (canon/s K CS) QCL _ QL
+    <- canonical`scale-affects-lookup-converse QCL CS _ QM CL
+    <- basic-visible-in-output-heap/L M NP _ MS TN K CL _ L
+    <- heap`scale-affects-lookup L HS _ FS QL'
+    <- frv`scale-inversion FS _ N=N'
+    <- nat`eq-symmetric N=N' N'=N
+    <- frv-preserves-eq rat`eq/ N'=N FRVEQ
+    <- heap`lookup-respects-eq QL' heap`eq/ natpair`eq/ FRVEQ QL.
+
+%theorem basic-visible-in-output-heap/combined :
+	forall* {NG} {N} {Cy:cycle N} {O} {F} {U} {O'} {C} {H} {Q}
+                {H1} {Pi1} {Psi1} {C1} {S1} {B1} {B3}
+                {H2} {Pi2} {Psi2} {C2} {S2} {B2} {B4}
+	forall {M1:models H1 Psi1 NG Cy Pi1}
+	       {M2:models H2 Psi2 NG Cy Pi2}
+	       {HA:heap`add H1 H2 H}
+               {NP1:null Psi1}
+               {NP2:null Psi2}
+	       {MS1:modelsize M1 S1}
+	       {MS2:modelsize M2 S2}
+	       {S} {MAX:nat`max S1 S2 S}
+	       {TN:term2nat (basic (object/ O) F (object/ O')) U}
+	       {K1:canon Pi1 C1}
+	       {K2:canon Pi2 C2}
+	       {CA:canonical`add C1 C2 C}
+	       {CL:canonical`lookup C U Q}
+	       {D1:canonical`domain? C1 U B1}
+	       {D2:canonical`domain? C2 U B2}
+               {HD1:heap`domain? H1 (natpair/ O F) B3}
+	       {HD2:heap`domain? H2 (natpair/ O F) B4}
+	exists {Q'} {L:heap`lookup H (natpair/ O F) (frv/ Q' O')}
+	true.
+
+- : basic-visible-in-output-heap/L (models/combined M1 M2 HA)
+				   (null/+ NP1 NP2)
+				   _ (modelsize/combined MS1 MS2 MAX)
+                                   TN (canon/+ K1 K2 CA) CL _ L
+    <- canonical`domain?-total D1
+    <- canonical`domain?-total D2
+    <- heap`domain?-total D3
+    <- heap`domain?-total D4
+    <- basic-visible-in-output-heap/combined M1 M2 HA NP1 NP2 MS1 MS2 _ MAX 
+                                             TN K1 K2 CA CL D1 D2 D3 D4 _ L.
+
+- : basic-visible-in-output-heap/combined 
+	M1 M2 HA NP1 NP2 MS1 MS2 _ MAX TN K1 K2 CA CL
+     	(canonical`domain?/in CL1) _ _ 
+        (heap`domain?/ (pheap`domain?/in PL2) P2N) _ (heap`lookup/ PL P2N)
+    <- nat`max-implies-ge MAX GE1 _
+    <- nat`meta-ge _ _ GE1
+    <- basic-visible-in-output-heap/L M1 NP1 _ MS1 TN K1 CL1 _ 
+                                      (heap`lookup/ PL1' P2N')
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ N'=N
+    <- pheap`lookup-respects-eq PL1' pheap`eq/ N'=N frv`eq/ PL1
+    <- pheap`add-joins-lookup PL1 PL2 HA _ FA PL'
+    <- frv`add-inversion FA _ EQ1 EQ2 EQ3
+    <- nat`eq-symmetric EQ2 EQ
+    <- frv-preserves-eq rat`eq/ EQ FRVEQ
+    <- pheap`lookup-respects-eq PL' pheap`eq/ nat`eq/ FRVEQ PL.
+
+- : basic-visible-in-output-heap/combined 
+	M1 M2 HA NP1 NP2 MS1 MS2 _ MAX TN K1 K2 CA CL
+     	_ (canonical`domain?/in CL2)
+        (heap`domain?/ (pheap`domain?/in PL1) P2N) _ _ (heap`lookup/ PL P2N)
+    <- nat`max-implies-ge MAX _ GE
+    <- nat`meta-ge _ _ GE
+    <- basic-visible-in-output-heap/L M2 NP2 _ MS2 TN K2 CL2 _ 
+                                      (heap`lookup/ PL2' P2N')
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ N'=N
+    <- pheap`lookup-respects-eq PL2' pheap`eq/ N'=N frv`eq/ PL2
+    <- pheap`add-joins-lookup PL1 PL2 HA _ FA PL'
+    <- frv`add-inversion FA _ EQ1 EQ2 EQ3
+    <- nat`eq-symmetric EQ3 O1=O2
+    <- frv-preserves-eq rat`eq/ O1=O2 FRVEQ
+    <- pheap`lookup-respects-eq PL' pheap`eq/ nat`eq/ FRVEQ PL.
+
+- : basic-visible-in-output-heap/combined 
+	M1 M2 HA NP1 NP2 MS1 MS2 _ MAX TN K1 K2 CA CL
+     	(canonical`domain?/in CL1) _ _ 
+        (heap`domain?/ (pheap`domain?/out PF2) P2N) _ (heap`lookup/ PL P2N)
+    <- nat`max-implies-ge MAX GE1 _
+    <- nat`meta-ge _ _ GE1
+    <- basic-visible-in-output-heap/L M1 NP1 _ MS1 TN K1 CL1 _ 
+                                      (heap`lookup/ PL1' P2N')
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ N'=N
+    <- pheap`lookup-respects-eq PL1' pheap`eq/ N'=N frv`eq/ PL1
+    <- pheap`fresh-add-right-preserves-lookup* PL1 PF2 HA PL.
+
+- : basic-visible-in-output-heap/combined 
+	M1 M2 HA NP1 NP2 MS1 MS2 _ MAX TN K1 K2 CA CL
+     	_ (canonical`domain?/in CL2)
+        (heap`domain?/ (pheap`domain?/out PF1) P2N) _ _ (heap`lookup/ PL P2N)
+    <- nat`max-implies-ge MAX _ GE
+    <- nat`meta-ge _ _ GE
+    <- basic-visible-in-output-heap/L M2 NP2 _ MS2 TN K2 CL2 _ 
+                                      (heap`lookup/ PL2' P2N')
+    <- pair2nat-deterministic P2N' P2N natpair`eq/ N'=N
+    <- pheap`lookup-respects-eq PL2' pheap`eq/ N'=N frv`eq/ PL2
+    <- pheap`fresh-add-left-preserves-lookup* PF1 PL2 HA PL.
+
+- : basic-visible-in-output-heap/combined 
+	M1 M2 HA _ _ MS1 MS2 _ MAX TN K1 K2 CA CL
+     	(canonical`domain?/out CF1) (canonical`domain?/out CF2)
+        _ _ rat`one L
+    <- canonical`add-preserves-fresh* CF1 CF2 CA CF
+    <- canonical`fresh-lookup-not-equal CF CL NE
+    <- nat`ne-anti-reflexive NE F
+    <- heap`false-implies-lookup F L.
+
+- : basic-visible-in-output-heap/L (models/obligation) NP _ _ TN K CL rat`one L
+    <- null-implies-equiv-empty NP EQV
+    <- equiv-preserves-canon K EQV K0
+    <- canon-deterministic K0 canon/0 permission`eq/ C=0
+    <- canonical`lookup-respects-eq CL C=0 nat`eq/ rat`eq/ ZL
+    <- canonical`lookup-contradiction ZL F
+    <- heap`false-implies-lookup F L.
+
+- : basic-visible-in-output-heap/L (models/equiv Psi=Psi' Pi=Pi' M) NP'
+                                   _ (modelsize/equiv MS) TN K' CL _ L
+    <- null-implies-equiv-empty NP' Psi'=0
+    <- equiv-transitive Psi=Psi' Psi'=0 Psi=0
+    <- equiv-empty-implies-null Psi=0 NP
+    <- equiv-preserves-canon-converse K' Pi=Pi' K
+    <- basic-visible-in-output-heap/L M NP _ MS TN K CL _ L.
+
+%theorem basic-visible-in-output-heap/basic :
+	forall* {H} {Psi} {NG} {N} {Cy:cycle N} {O} {F} {Pi} {U} {O'}
+	forall {M:models H Psi NG Cy Pi}
+               {TN:term2nat Pi U}
+               {E:permission`eq Pi (basic (object/ O) F (object/ O'))}
+	exists {Q'} {L:heap`lookup H (natpair/ O F) (frv/ Q' O')}
+	true.
+
+- : basic-visible-in-output-heap/basic 
+	(models/basic P2N _ _ _ HA) TN permission`eq/ _ (heap`lookup/ PL P2N)
+    <- add-left-preserves-lookup-object (pheap`lookup/= nat`eq/) HA _ PL.
+
+- : basic-visible-in-output-heap/basic
+	(models/basic-co P2N _ HA) TN permission`eq/ _ (heap`lookup/ PL P2N)
+    <- add-left-preserves-lookup-object (pheap`lookup/= nat`eq/) HA _ PL.
+
+%worlds () (basic-visible-in-output-heap/basic _ _ _ _ _).
+%total { } (basic-visible-in-output-heap/basic _ _ _ _ _).
+
+- : basic-visible-in-output-heap/L (models/unit M)
+                                   _ _ _ TN' (canon/1 TN)
+                                   (canonical`lookup/= nat`eq/) _ L
+    <- nat2term-deterministic TN TN' nat`eq/ EQ
+    <- basic-visible-in-output-heap/basic M TN EQ _ L.
+
+%worlds () (basic-visible-in-output-heap/L _ _ _ _ _ _ _ _ _)
+           (basic-visible-in-output-heap/combined _ _ _ _ _ _ _ _ _ _
+                                                  _ _ _ _ _ _ _ _ _ _).
+%total (C S) (basic-visible-in-output-heap/L _ _ S _ _ _ _ _ _)
+	     (basic-visible-in-output-heap/combined _ _ _ _ _ _ _ C _ _
+                                                    _ _ _ _ _ _ _ _ _ _).
+
+%worlds () (basic-visible-in-output-heap _ _ _ _ _ _).
+%total { } (basic-visible-in-output-heap _ _ _ _ _ _).
+
+
+
+%%% Paper lemmas and theorems
+
+
+%{%
+The following lemma is of interest in itself: it says that
+given two modelings of the same permission, we can model the 
+same permission with any linear combination of the two heaps.
+It is similar to (but not the same as) saying that permissions
+are "supported".
+%}%
+
+%theorem models-combinable :
+	forall* {K} {H1} {H2} {NG} {Pi} {Q1} {QH1} {Q2} {QH2} {QH} {Q}
+	forall {M1:models* K z H1 empty NG cycle/0 Pi}
+               {M2:models* K z H2 empty NG cycle/0 Pi}
+               {HS1:heap`scale Q1 H1 QH1} 
+               {HS2:heap`scale Q2 H2 QH2}
+               {HA:heap`add QH1 QH2 QH}
+	       {QA:rat`add Q1 Q2 Q} 
+	exists {H} {HS:heap`scale Q H QH} {M:models H empty NG cycle/0 Pi} 
+	true.
+
+%theorem models-combinable/full :
+	forall* {H1} {H2} {N} {Psi} {NG} {Cy:cycle N} {Pi} 
+                {Q1} {QH1} {Q2} {QH2} {QH} {Q}
+	forall {M1:models* permissionk N H1 Psi NG Cy Pi}
+               {M2:models* permissionk N H2 Psi NG Cy Pi}
+               {HS1:heap`scale Q1 H1 QH1} 
+               {HS2:heap`scale Q2 H2 QH2}
+               {HA:heap`add QH1 QH2 QH}
+	       {QA:rat`add Q1 Q2 Q} 
+	exists {H} {HS:heap`scale Q H QH} {M:models H Psi NG Cy Pi} 
+	true.
+
+- : models-combinable/full M1 M2 HS1 HS2 HA Q1+Q2=Q H Q*H=QH
+		      (models/equiv 
+                         (equiv/transitive4
+                           equiv/distribute
+                           (equiv/combine (equiv/mul R*Q1=R1) 
+                                          (equiv/mul R*Q2=R2))
+			   (equiv/add R1+R2=1)
+                           equiv/one)
+                         (equiv/transitive4
+                           equiv/distribute
+                           (equiv/combine (equiv/mul R*Q1=R1) 
+                                          (equiv/mul R*Q2=R2))
+                           (equiv/add R1+R2=1)
+			   equiv/one)
+                         (models/scale
+                            (models/combined (models/scale M1 HS1)
+                                             (models/scale M2 HS2) HA) R*QH=H))
+    <- rat`div-total* rat`one Q R R*Q=1
+    <- rat`mul-left-distributes-over-add Q1+Q2=Q R*Q=1 R1 R2 R*Q1=R1 R*Q2=R2
+                                         R1+R2=1
+    <- rat`mul-commutative R*Q=1 Q*R=1
+    <- heap`scale-identity QH ONE*QH=QH
+    <- heap`scale-associates Q*R=1 ONE*QH=QH H R*QH=H Q*H=QH.
+
+%worlds () (models-combinable/full _ _ _ _ _ _ _ _ _).
+%total { } (models-combinable/full _ _ _ _ _ _ _ _ _).
+
+- : models-combinable M1 M2 HS1 HS2 HA QA H HS M
+    <- models-combinable/full M1 M2 HS1 HS2 HA QA H HS M.
+
+- : models-combinable (models/nonlinear BE) (models/nonlinear _) 
+                      pheap`scale/0 pheap`scale/0 pheap`add/L _ _ 
+                      pheap`scale/0
+                      (models/nonlinear BE).
+
+- : models-combinable (models/nonlinear BE) (models/nonlinear _) 
+                      pheap`scale/0 pheap`scale/0 pheap`add/R _ _ 
+                      pheap`scale/0
+                      (models/nonlinear BE).
+
+- : models-combinable (models/conditional/T BE M1) 
+                      (models/conditional/T _  M2)
+                      HS1 HS2 HA QA H HS (models/conditional/T BE M)
+    <- models-combinable M1 M2 HS1 HS2 HA QA H HS M.
+
+- : models-combinable (models/conditional/F BE M1) 
+                      (models/conditional/F _  M2)
+                      HS1 HS2 HA QA H HS (models/conditional/F BE M)
+    <- models-combinable M1 M2 HS1 HS2 HA QA H HS M.
+
+- : models-combinable (models/conditional/T BE1 M1) 
+                      (models/conditional/F BE2 M2)
+                      HS1 HS2 HA QA heap`0 HS M
+    <- booleval-deterministic BE1 BE2 nesting`eq/ permission`eq/ T=F
+    <- bool`eq-ne-implies-false T=F (bool`ne/TF) F
+    <- heap`false-implies-scale F HS
+    <- false-implies-models F M.
+
+- : models-combinable (models/conditional/F BE1 M1) 
+                      (models/conditional/T BE2 M2)
+                      HS1 HS2 HA QA heap`0 HS M
+    <- booleval-deterministic BE1 BE2 nesting`eq/ permission`eq/ F=T
+    <- bool`eq-ne-implies-false F=T (bool`ne/FT) F
+    <- heap`false-implies-scale F HS
+    <- false-implies-models F M.
+
+%theorem models-combinable/L1 :
+	forall* {H} {NG} {O} {F}
+	forall {E: object -> permission} {O1} {O2}
+               {M: models H empty NG cycle/0 
+                          (combine (unitperm (basic (object/ O) F (object/ O1)))
+                                   (E (object/ O1)))}
+               {EQ:nat`eq O1 O2}
+	exists {M':models H empty NG cycle/0 
+                          (combine (unitperm (basic (object/ O) F (object/ O2)))
+                                   (E (object/ O2)))}
+	true.
+
+- : models-combinable/L1 E O O M nat`eq/ M.
+
+%worlds () (models-combinable/L1 _ _ _ _ _ _).
+%total { } (models-combinable/L1 _ _ _ _ _ _).
+
+- : models-combinable (models/exists* E (object/ O1) M1) 
+                      (models/exists* E (object/ O2) M2)
+                      (HS1:heap`scale Q1 H1 QH1) HS2 (HA:heap`add QH1 QH2 QH) QA H HS 
+                      (models/exists* E (object/ O2) M)
+    <- term2nat-total TN1
+    <- canon-total K1
+    <- canonical`add-total CA1
+    <- canonical`add-right-affects-lookup (canonical`lookup/= nat`eq/) CA1 _ CL1
+    <- basic-visible-in-output-heap M1 TN1 (canon/+ (canon/1 TN1) K1 CA1) 
+                                    CL1 _ HL1
+    <- heap`scale-affects-lookup HL1 HS1 _ FS1 QHL1
+    <- frv`scale-inversion FS1 _ O1=O1'
+    <- term2nat-total TN2
+    <- canon-total K2
+    <- canonical`add-total CA2
+    <- canonical`add-right-affects-lookup (canonical`lookup/= nat`eq/) CA2 _ CL2
+    <- basic-visible-in-output-heap M2 TN2 (canon/+ (canon/1 TN2) K2 CA2) 
+                                    CL2 _ HL2
+    <- heap`scale-affects-lookup HL2 HS2 _ FS2 QHL2
+    <- frv`scale-inversion FS2 _ O2=O2'
+    <- heap`add-joins-lookup QHL1 QHL2 HA _ FA HL
+    <- frv`add-inversion FA _ O1'=O2' _ _
+    <- nat`eq-symmetric O2=O2' O2'=O2 
+    <- nat`eq-transitive O1=O1' O1'=O2' O1=O2'
+    <- nat`eq-transitive O1=O2' O2'=O2 O1=O2
+    <- models-combinable/L1 E O1 O2 M1 O1=O2 M1'
+    <- models-combinable/full M1' M2 HS1 HS2 HA QA H HS M.
+
+- : models-combinable (models/encumbered M1) (models/encumbered M2) HS1 HS2 HA
+                      QA H HS (models/encumbered M)
+    <- models-combinable/full M1 M2 HS1 HS2 HA QA H HS M.
+
+- : models-combinable (models/basic P2N1 NL1 K1 M1 HA1)
+                      (models/basic P2N2 NL2 K2 M2 HA2) HS1 HS2 HA QA _ HS
+                      (models/basic P2N2 NL2 K2 M3 HA3)
+    <- natpair`pair2nat-deterministic P2N1 P2N2 natpair`eq/ L1=L2
+    <- nesting`lookup-deterministic NL1 NL2 nesting`eq/ L1=L2 C1=C2
+    <- canon-eq-implies-equiv K1 K2 C1=C2 Pi1=Pi2
+    <- can-unfold-cycle M1 catcycle/z P2N1 NL1 K1 M1 catcycle/z M1'    
+    <- can-unfold-cycle M2 catcycle/z P2N2 NL2 K2 M2 catcycle/z M2'        
+    <- heap`scale-total HS1'
+    <- heap`scale-total HS2'
+    <- rat`mul-right-identity Q1 Q1*1=Q1
+    <- rat`mul-right-identity Q2 Q2*1=Q2
+    <- heap`scale-distributes-over-add* HA1 HS1 HS1' 
+	(pheap`scale/+ pheap`scale/0 (frv`scale/ Q1*1=Q1)) H1'+F1=H1
+    <- heap`scale-distributes-over-add* HA2 HS2 HS2' 
+	(pheap`scale/+ pheap`scale/0 (frv`scale/ Q2*1=Q2)) H2'+F2=H2
+    <- pheap`map/+-preserves-eq L1=L2 frv`eq/ heap`eq/ F1=F1'
+    <- heap`add-respects-eq H1'+F1=H1 heap`eq/ F1=F1' heap`eq/ H1'+F1'=H1
+    <- heap`add-double-associative H1'+F1'=H1 H2'+F2=H2 HA QH' F3 HA' F1'+F2=F3
+                                   QH'+F3=QH
+    <- heap`add-deterministic F1'+F2=F3 
+                              (pheap`add/= pheap`add/L (frv`add/ QA nat`eq/)
+                                           nat`eq/)
+                              heap`eq/ heap`eq/ F3=QO'
+    <- heap`add-respects-eq QH'+F3=QH heap`eq/ F3=QO' heap`eq/ QH'+QO'=QH
+    <- models-combinable/full (models/equiv equiv/reflexive Pi1=Pi2 M1') M2'
+                              HS1' HS2' HA' QA H' HS' M3'
+    <- models/weaken-admissible M3' M3
+    <- rat`mul-right-identity Q Q*1=Q
+    <- heap`scale-factors-over-add 
+	HS' (pheap`scale/+ pheap`scale/0 (frv`scale/ Q*1=Q)) QH'+QO'=QH 
+        H3 HA3 HS.
+
+%worlds () (models-combinable _ _ _ _ _ _ _ _ _).
+%total (M) (models-combinable _ M _ _ _ _ _ _ _).
+
+
+%theorem models-unit-inversion :
+	forall* {H} {NG} {Pi}
+	forall {M:models H empty NG cycle/0 (unitperm Pi)}
+	exists {M:models H empty NG cycle/0 Pi}
+	true.
+
+%abbrev models/unit-inversion = models-unit-inversion.
+
+%theorem models-unit-inversion/L :
+	forall* {H} {Psi} {NG} {Pi} {U} {Q} {UPi}
+	forall {M:models H Psi NG cycle/0 Pi}
+	       {NP:null Psi}
+	       {K:canon Pi (canonical`map/+ U Q canonical`map/0)}
+	       {TN:term2nat UPi U}
+	exists {H'} {HS:heap`scale Q H' H}
+               {M:models* upermk z H' empty NG cycle/0 UPi}
+	true.
+
+- : models-unit-inversion M M''
+    <- term2nat-total T2N
+    <- models-unit-inversion/L M null/0 (canon/1 T2N) T2N _ ONE*H'=H M'
+    <- heap`scale-identity _ ONE*H'=H'
+    <- heap`scale-deterministic ONE*H'=H' ONE*H'=H rat`eq/ heap`eq/ H'=H
+    <- models-respects-eq M' H'=H permission`eq/ nesting`eq/ cycle`eq/ 
+                          permission`eq/ M''.
+
+- : models-unit-inversion/L (models/scale M HS) 
+                            (null/* NP) (canon/s K (canonical`scale/+ _ QM)) TN
+                            _ HS'' M'
+    <- models-unit-inversion/L M NP K TN _ HS' M'
+    <- heap`scale-associates-converse* HS' HS QM HS''.
+
+- : models-unit-inversion/L (models/combined M1 M2 HA) (null/+ NP1 NP2)
+			    (canon/+ K1 K2 (canonical`add/L)) TN _ HS M
+    <- canon-eq-implies-equiv K1 canon/0 canonical`eq/ Pi1=0
+    <- equiv-empty-implies-null Pi1=0 NPi1
+    <- models-empty-is-empty M1 NPi1 _ ZERO=H1
+    <- heap`add-deterministic pheap`add/L HA ZERO=H1 heap`eq/ HE
+    <- models-unit-inversion/L M2 NP2 K2 TN _ HS' M
+    <- heap`scale-respects-eq HS' rat`eq/ heap`eq/ HE HS.
+
+- : models-unit-inversion/L (models/combined M1 M2 HA) (null/+ NP1 NP2)
+			    (canon/+ K1 K2 (canonical`add/R)) TN _ HS M
+    <- canon-eq-implies-equiv K2 canon/0 canonical`eq/ Pi2=0
+    <- equiv-empty-implies-null Pi2=0 NPi2
+    <- models-empty-is-empty M2 NPi2 _ ZERO=H2
+    <- heap`add-deterministic pheap`add/R HA heap`eq/ ZERO=H2 HE
+    <- models-unit-inversion/L M1 NP1 K1 TN _ HS' M
+    <- heap`scale-respects-eq HS' rat`eq/ heap`eq/ HE HS.
+
+- : models-unit-inversion/L (models/combined M1 M2 HA) (null/+ NP1 NP2)
+			    (canon/+ K1' K2' (canonical`add/= A QA nat`eq/)) TN 
+                            _ HS M
+    <- canonical`add-empty-implies-empty A C1x=0 C2x=0
+    <- canonical`map/+-preserves-eq nat`eq/ rat`eq/ C1x=0 C1=U1
+    <- canonical`map/+-preserves-eq nat`eq/ rat`eq/ C2x=0 C2=U2
+    <- canon-respects-eq K1' permission`eq/ C1=U1 K1
+    <- canon-respects-eq K2' permission`eq/ C2=U2 K2
+    <- models-unit-inversion/L M1 NP1 K1 TN _ HS1 M1'
+    <- models-unit-inversion/L M2 NP2 K2 TN _ HS2 M2'
+    <- models-combinable M1' M2' HS1 HS2 HA QA _ HS M.
+
+- : models-unit-inversion/L (models/obligation) NP K TN _ pheap`scale/0 M
+    <- null-implies-equiv-empty NP Psi=0
+    <- equiv-preserves-canon-converse canon/0 Psi=0 K'
+    <- canon-deterministic K' K permission`eq/ EQM
+    <- canonical`eq-contradiction EQM F
+    <- false-implies-models F M.
+
+- : models-unit-inversion/L (models/equiv Psi=Psi' Pi=Pi' M) 
+                            NP' K' TN _ HS M'
+    <- null-implies-equiv-empty NP' Psi'=0
+    <- equiv-transitive Psi=Psi' Psi'=0 Psi=0
+    <- equiv-empty-implies-null Psi=0 NP
+    <- equiv-preserves-canon-converse K' Pi=Pi' K
+    <- models-unit-inversion/L M NP K TN _ HS M'.
+    
+- : models-unit-inversion/L (models/unit M) NP (canon/1 TN) TN' _ ONE*H=H M''
+    <- nat2term-deterministic TN TN' nat`eq/ PEQ
+    <- heap`scale-identity _ ONE*H=H
+    <- models-respects-eq M heap`eq/ permission`eq/ nesting`eq/ cycle`eq/ PEQ M'
+    <- models-null-obligation M' NP M''.
+    
+%worlds () (models-unit-inversion/L _ _ _ _ _ _ _).
+%total (M) (models-unit-inversion/L M _ _ _ _ _ _).
+
+%worlds () (models-unit-inversion _ _).
+%total { } (models-unit-inversion _ _).
+
+
+%theorem scepter-complements-combine :
+	forall* {H} {H1} {H2} {Psi} {Psi0} {Psi1} {Psi2} {N}
+		{Pi:permission}
+	forall {M1:models H1 Psi1 N cycle/0 Pi}
+	       {M2:models H2 Psi0 N cycle/0 Psi2}
+	       {HA:heap`add H1 H2 H}
+               {EQ:equiv Psi1 (Psi2 , Psi)}
+	exists {M:models H (Psi0 , Psi) N cycle/0 Pi}
+	true.
+
+%{%
+We implement this theorem by induction on the size of the
+canonicalized permission until we get a single unit
+permission, and then we manipulate this until we ensure
+that we are complementing ALL that unit permission in
+the obligations.  Then we recurse on the modelling relation.  When we
+hit a field permission (with its implicit co-induction),
+we remember the cycle so that it can be unfolded as necessary.
+%}%
+
+%theorem scepter-complements-combine/L1 :
+	forall* {H} {H1} {H2} {Psi} {Psi0} {Psi1} {Psi2} {N}
+		{Pi:permission}
+	forall {M1:models H1 Psi1 N cycle/0 Pi}
+	       {M2:models H2 Psi0 N cycle/0 Psi2}
+	       {HA:heap`add H1 H2 H}
+               {N2} {C2} {SZ:canonical`size C2 N2} {K2:canon Psi2 C2}
+               {EQ:equiv Psi1 (Psi2 , Psi)}
+	exists {M:models H (Psi0 , Psi) N cycle/0 Pi}
+	true.
+
+- : scepter-complements-combine M1 M2 HA EQ M
+    <- canon-total K2
+    <- canonical`size-total SZ
+    <- scepter-complements-combine/L1 M1 M2 HA _ _ SZ K2 EQ M.
+
+- : scepter-complements-combine/L1 M1 M2 HA _ canonical`map/0 _ K2 Psi1=Psi2,Psi
+	(models/equiv
+	   (equiv/transitive3 % Psi1==Psi0,Psi 
+	      Psi1=Psi2,Psi
+	      (equiv/combine Psi2==0 equiv/reflexive)
+	      (equiv/combine (equiv/symmetric Psi0==0) equiv/reflexive))
+	   equiv/reflexive M)
+    <- canon-empty-implies-equiv-empty K2 Psi2==0
+    <- equiv-empty-implies-null Psi2==0 Psi2=0
+    <- models-empty-is-empty M2 Psi2=0 Psi0=0 ZERO=H2
+    <- null-implies-equiv-empty Psi0=0 Psi0==0
+    <- heap`add-deterministic (pheap`add/R) HA heap`eq/ ZERO=H2 H1=H
+    <- models-respects-eq M1 H1=H permission`eq/ nesting`eq/ cycle`eq/ 
+                             permission`eq/ M. 
+
+%theorem scepter-complements-combine/L2 :
+	forall* {L} {H} {H1} {H2} {Psi0} {Psi1} {Psi2} {N} {C:cycle L} {C'}
+		{Pi:permission} {Q} {B} {U2} {QH2} {C1} {C3}
+	forall {M1:models H1 Psi1 N C Pi}
+               {N1} {MS:modelsize M1 N1} {CM:cycle-models N C} 
+	       {M2:models H2 Psi0 N cycle/0 Psi2}
+	       {CP:cycle-provide C U2 Psi0 H2 C'}
+	       {HS:heap`scale Q H2 QH2}
+	       {HA:heap`add H1 QH2 H}
+	       {K1:canon Psi1 C1}
+               {K2:canon Psi2 (canonical`map/+ U2 rat`one canonical`map/0)}
+	       {CA:canonical`add (canonical`map/+ U2 Q canonical`map/0) C3 C1}
+	       {CD:canonical`domain? C3 U2 B}
+	exists {Psi} {K3:canon Psi C3}
+               {M:models H ((scale (fraction/ Q) Psi0) , Psi) N C' Pi}
+	true.
+
+- : scepter-complements-combine/L1 
+    M1 M2 H1+H2=H _ (canonical`map/+ U2 Q2 C21) (canonical`size/+ SZ) 
+    K2 (Psi1=Psi2,Psi:equiv Psi1 (combine Psi2 Psi)) 
+    (models/equiv 
+       (equiv/transitive3
+	  (equiv/combine 
+	     (equiv/transitive (equiv/mul Q2*R2=1) equiv/one)
+	     (equiv/transitive (equiv/symmetric Psi,Psi0b=Psi') equiv/commute))
+	  equiv/associate
+	  (equiv/combine Psi0a,Psi0b=Psi0 equiv/reflexive))
+       equiv/reflexive M)
+    <- canonical`shift-total C21<<U2=C22
+    <- canonical`shift-right-preserves-add 
+       canonical`add/L C21<<U2=C22 C20+C22=C2
+    <- canon-onto K20
+    <- canon-onto K22
+    <- models-equiv-added-implies-models-added 
+       M2 K2 K20 K22 C20+C22=C2 H20 H22 H20+H22=H2 
+       Psi0a Psi0b (Psi0a,Psi0b=Psi0:equiv (Psi0a , Psi0b) Psi0) M20 M22
+    <- canon-eq-implies-equiv K2 (canon/+ K20 K22 C20+C22=C2) canonical`eq/
+                              (Psi2=Psi20,Psi22:equiv Psi2 (Psi20 , Psi22))
+    <- heap`add-commutative H20+H22=H2 H22+H20=H2
+    <- heap`add-associative-converse H22+H20=H2 H1+H2=H HX H1+H22=HX HX+H20=H
+    <- canonical`shift-preserves-size SZ C21<<U2=C22 SZ22
+    <- scepter-complements-combine/L1
+       M1 M22 H1+H22=HX _ _ SZ22 K22
+       (equiv/transitive3
+	  Psi1=Psi2,Psi
+          (equiv/combine (equiv/transitive Psi2=Psi20,Psi22 equiv/commute)
+	     equiv/reflexive)
+          (equiv/symmetric equiv/associate)) MX
+    <- rat`div-total* rat`one Q2 R2 R2*Q2=1
+    <- rat`mul-commutative R2*Q2=1 Q2*R2=1
+    <- heap`scale-identity H20 ONE*H20=H20
+    <- heap`scale-associates Q2*R2=1 ONE*H20=H20 H2 R2*H20=H2 Q2*H2=H20
+    <- modelsize-total MS
+    <- canon-total K
+    <- canon-total K0b
+    <- canonical`add-total* _ C CX Q2U2+C=CX
+    <- canonical`add-total* C0b CX CY C0b+CX=CY
+    <- canonical`add-commutative C0b+CX=CY CX+C0b=CY
+    <- canonical`add-associative Q2U2+C=CX CX+C0b=CY C' C+C0b=C' Q2U2+C'=CY
+    <- canonical`domain?-total CD
+    <- scepter-complements-combine/L2
+       MX _ MS cycle-models/0
+       (models/scale M20 R2*H20=H2) cycle-provide/0 Q2*H2=H20 HX+H20=H
+       (canon/+ K0b (canon/+ K20 K Q2U2+C=CX) C0b+CX=CY)
+       (canon/s K20 (canonical`scale/+ canonical`scale/0 R2*Q2=1))
+       Q2U2+C'=CY CD Psi' K' M
+    <- canon-eq-implies-equiv 
+       (canon/+ K K0b C+C0b=C') K' canonical`eq/ Psi,Psi0b=Psi'.
+
+% special case when U2 is fresh in C3 (the normal case).
+% The other case only happens for encumbering.
+%theorem scepter-complements-combine/L3 :
+	forall* {L} {H} {H1} {H2} {Psi0} {Psi1} {Psi2} {N} {C:cycle L} {C'}
+		{K} {Pi:term K} {Q} {U2} {QH2} {C1} {C3}
+	forall {M1:models H1 Psi1 N C Pi} 
+               {N1} {MS:modelsize M1 N1} {CM:cycle-models N C}
+	       {M2:models H2 Psi0 N cycle/0 Psi2}
+	       {CP:cycle-provide C U2 Psi0 H2 C'}
+	       {HS:heap`scale Q H2 QH2}
+	       {HA:heap`add H1 QH2 H}
+	       {K1:canon Psi1 C1}
+               {K2:canon Psi2 (canonical`map/+ U2 rat`one canonical`map/0)}
+	       {CA:canonical`add (canonical`map/+ U2 Q canonical`map/0) C3 C1}
+	       {CD:canonical`fresh C3 U2}
+	exists {Psi} {K3:canon Psi C3}
+	       {M:models H ((scale (fraction/ Q) Psi0) , Psi) N C' Pi}
+	true.
+
+- : scepter-complements-combine/L2 M1 _ MS CM M2 CP HS HA K1 K2 CA
+                                   (canonical`domain?/out CF) _ K3 M
+    <- scepter-complements-combine/L3 
+       M1 _ MS CM M2 CP HS HA K1 K2 CA CF _ K3 M.
+
+%theorem scepter-complements-combine/scale :
+	forall* {N} {Cy:cycle N} {Cy'} {Pi:permission} {Psi0} {Q}
+                {H1} {Psi1} {NG} {Q1} {Q1H1} {Q1H3} {C1} {Q1C1}
+                {H2} {Psi2} {U2} {Q2} {Q2H2} {Q1C3}
+	forall {M1: models H1 Psi1 NG Cy Pi}
+	       {HS1:heap`scale Q1 H1 Q1H1}
+	       {N1}
+	       {MS: modelsize M1 N1}
+	       {CM: cycle-models NG Cy}
+	       {M2: models H2 Psi0 NG cycle/0 Psi2}
+	       {CP: cycle-provide Cy U2 Psi0 H2 Cy'}
+	       {HS2:heap`scale Q2 H2 Q2H2}
+	       {HA: heap`add Q1H1 Q2H2 Q1H3}
+	       {K1: canon Psi1 C1}
+	       {CS1:canonical`scale Q1 C1 Q1C1}
+	       {K2: canon Psi2 (canonical`map/+ U2 rat`one canonical`map/0)}
+	       {CA: canonical`add (canonical`map/+ U2 Q2 canonical`map/0) 
+		                  Q1C3 Q1C1}
+	       {RM: rat`mul Q Q1 Q2}
+	       {QCF:canonical`fresh Q1C3 U2}
+	exists {Psi3} {C3} {H3}
+	       {K3: canon Psi3 C3}
+	       {CS3:canonical`scale Q1 C3 Q1C3}
+	       {M3: models H3 ((scale (fraction/ Q) Psi0) , Psi3) NG Cy' Pi}
+	       {HS3:heap`scale Q1 H3 Q1H3}
+	true.
+
+%{%
+Faced with a remaining obligation that includes the permission
+we are providing, we split the M1 relation into Q2/(Q2+Q3)M
+and Q3/(Q2+Q3)M, and then provide Q2 to the first one and nothing
+to the second.
+
+We make this co-recursive with the L2 one and
+use it for models/encumbered, so it needs to take a cycle models
+as well as model size and also needs to avoid calling models/scale
+on inputs.
+%}%
+
+- : {C301+Q2U=C11:canonical`add C301 (canonical`map/+ U2 Q2 canonical`map/0) C11}
+    {C301+C01=C3':canonical`add C301 C01 C3'}
+    {Q3U+C30=C3: canonical`add _ C30 C3}
+    {CP:cycle-provide C U2 Psi0 H2 C'}
+    scepter-complements-combine/L2 
+    M1 _ MS CM M2 CP Q2*H2=Q2H2 H1+Q2H2=H K1 K2 Q2U+C3=C1 
+    (canonical`domain?/in CL)
+    _ K3
+    (models/equiv 
+       (equiv/transitive3
+	  (equiv/combine equiv/distribute equiv/reflexive)
+	  (equiv/symmetric equiv/associate)
+	  (equiv/combine (equiv/mul Q1*Q5=Q2) E))
+       (equiv/transitive (equiv/add Q1+Q0=1) equiv/one)
+       (models/combined
+        (models/scale M Q1*H3=Q1H3)
+	M0
+        H11+HX0=H))
+%% define Q5 and QI (1/Q5), Q1 and Q0
+    <- rat`add-total* Q2 Q3 Q5 Q2+Q3=Q5
+    <- rat`add-commutative Q2+Q3=Q5 Q3+Q2=Q5
+    <- rat`div-total* rat`one Q5 QI QI*Q5=1
+    <- rat`mul-left-distributes-over-add 
+       Q2+Q3=Q5 QI*Q5=1 Q1 Q0 QI*Q2=Q1 QI*Q3=Q0 Q1+Q0=1
+    <- rat`add-commutative Q1+Q0=1 Q0+Q1=1
+    <- rat`mul-commutative QI*Q5=1 Q5*QI=1
+    <- rat`mul-left-identity Q2 ONE*Q2=Q2
+    <- rat`mul-associative* Q5*QI=1 ONE*Q2=Q2 QI*Q2=Q1 Q5*Q1=Q2  
+    <- rat`mul-commutative Q5*Q1=Q2 Q1*Q5=Q2  
+    <- rat`mul-left-identity Q3 ONE*Q3=Q3
+    <- rat`mul-associative* Q5*QI=1 ONE*Q3=Q3 QI*Q3=Q0 Q5*Q0=Q3
+%% Now we go along a circuitous route to prove 
+%% C3 = C30 + Q3*unitmap for some C30
+%% This is made hard because there is no connection between
+%% addition and lookup.
+    <- canonical`update-total CU
+    <- canonical`update-may-have-no-effect CL CU CEQ
+    <- canonical`eq-symmetric CEQ CEQs
+    <- canonical`update-respects-eq CU canonical`eq/ nat`eq/ rat`eq/ CEQs CUU
+    <- canonical`update-left-preserves-leq* 
+       canonical`leq/0 canonical`update/0 CUU Q3U<=C3
+    <- canonical`leq-implies-add Q3U<=C3 C30 C30+Q3U=C3
+%    <- canon-onto* C30 Psi30 K30
+    <- canonical`add-commutative C30+Q3U=C3 Q3U+C30=C3
+    <- canonical`add-right-preserves-lookup-implies-fresh
+       (canonical`lookup/= nat`eq/) Q3U+C30=C3 CL C30F
+%% This is used to find a new breakdown of C1, or rather C11 (Q1*C1)
+    <- canonical`scale-identity C1 ONE*C1=C1
+    <- canonical`scale-right-distributes-over-add Q0+Q1=1 ONE*C1=C1
+       C01 C11 Q0*C1=C01 Q1*C1=C11 C01+C11=C1
+    <- canonical`add-commutative Q2U+C3=C1 C3+Q2U=C1
+    <- canonical`add-associative* C30+Q3U=C3 C3+Q2U=C1 
+       (canonical`add/= canonical`add/L Q3+Q2=Q5 nat`eq/) C30+Q5U=C1
+    <- canonical`scale-total* Q1 C30 C301 Q1*C30=C301
+    <- canonical`scale-distributes-over-add* C30+Q5U=C1 Q1*C1=C11 Q1*C30=C301
+       (canonical`scale/+ canonical`scale/0 Q1*Q5=Q2) C301+Q2U=C11
+    <- canonical`add-commutative C301+Q2U=C11 Q2U+C301=C11
+    <- canonical`add-commutative C01+C11=C1 C11+C01=C1
+    <- canonical`add-associative Q2U+C301=C11 C11+C01=C1 
+       C3' C301+C01=C3' Q2U+C3'=C1
+    <- canonical`add-left-cancels 
+       Q2U+C3'=C1 Q2U+C3=C1 canonical`eq/ canonical`eq/ C3'=C3
+    <- canonical`add-respects-eq 
+       C301+C01=C3' canonical`eq/ canonical`eq/ C3'=C3 C301+C01=C3
+    <- canonical`scale-preserves-fresh C30F Q1*C30=C301 C301F
+%% 
+    <- heap`scale-identity H1 ONE*H1=H1
+    <- heap`scale-right-distributes-over-add Q1+Q0=1 ONE*H1=H1
+       HX1 HX0 Q1*H1=HX1 Q0*H1=HX0 HX1+HX0=H1
+    <- heap`add-commutative HX1+HX0=H1 HX0+HX1=H1
+    <- heap`add-associative HX0+HX1=H1 H1+Q2H2=H H11 HX1+Q2H2=H11 HX0+H11=H
+    <- heap`add-commutative HX0+H11=H H11+HX0=H
+    <- scepter-complements-combine/scale
+       M1 Q1*H1=HX1 _ MS CM M2 CP Q2*H2=Q2H2 HX1+Q2H2=H11 
+       K1 Q1*C1=C11 K2 Q2U+C301=C11 Q5*Q1=Q2 C301F _ _ _ K301x CSx M Q1*H3=Q1H3
+%% now get equivalence
+    <- canon-onto* C3 Psi K3
+    <- canon-eq-implies-equiv 
+       (canon/+ (canon/s K301x CSx) (canon/s K1 Q0*C1=C01) C301+C01=C3)
+       K3 canonical`eq/ E
+    <- cycle-models-implies-models (models/scale M1 Q0*H1=HX0) CM M0'
+    <- models/weaken*-admissible M0' M0.
+
+
+- : {M2:models H2 Psi0 NG cycle/0 Psi2}
+    scepter-complements-combine/scale
+     M1 Q*H1=QH1 _ MS CM M2 CP Q2*H2=Q2H2 
+     QH1+Q2H2=H K1 Q*C1=QC1 K2 Q2U+C3=QC1 RQ2*Q=Q2 QCF _ _ _
+     K3 Q*RC3=C3 M Q*RH=H
+    <- rat`div-total* _ Q R R*Q=1
+    <- rat`mul-commutative R*Q=1 Q*R=1
+    <- rat`mul-right-identity RQ2 RQ2*1=RQ2
+    <- rat`mul-associative-converse* Q*R=1 RQ2*1=RQ2 RQ2*Q=Q2 Q2*R=RQ2
+    <- rat`mul-commutative Q2*R=RQ2 R*Q2=RQ2
+    <- heap`scale-total R*Q2H2=RQ2H2
+    <- heap`scale-associates-converse* Q2*H2=Q2H2 R*Q2H2=RQ2H2 
+                                       R*Q2=RQ2 RQ2*H2=RQ2H2
+    <- heap`scale-identity H1 ONE*H1=H1
+    <- heap`scale-associates* R*Q=1 ONE*H1=H1 Q*H1=QH1 R*QH1=H1
+    <- heap`scale-total* R H RH R*H=RH
+    <- heap`scale-distributes-over-add* QH1+Q2H2=H R*H=RH R*QH1=H1 R*Q2H2=RQ2H2 
+                                        H1+RQ2H2=RH
+    <- heap`scale-identity H ONE*H=H
+    <- heap`scale-associates* Q*R=1 ONE*H=H R*H=RH Q*RH=H
+    <- canonical`scale-identity C1 ONE*C1=C1
+    <- canonical`scale-associates* R*Q=1 ONE*C1=C1 Q*C1=QC1 R*QC1=C1
+    <- canonical`scale-identity C3 ONE*C3=C3
+    <- canonical`scale-associates Q*R=1 ONE*C3=C3 RC3 R*C3=RC3 Q*RC3=C3
+    <- canonical`scale-distributes-over-add*
+       Q2U+C3=QC1 R*QC1=C1 
+       (canonical`scale/+ canonical`scale/0 R*Q2=RQ2) R*C3=RC3 RQ2U+RC3=C1
+    <- canonical`scale-preserves-fresh-converse QCF Q*RC3=C3 CF
+    <- scepter-complements-combine/L3 M1 _ MS CM 
+       M2 CP RQ2*H2=RQ2H2 H1+RQ2H2=RH K1 K2
+       RQ2U+RC3=C1 CF _ K3 M.
+
+- : scepter-complements-combine/L3 
+     (models/scale M1 Q*H1=QH1) _ (modelsize/scale MS) CM M2 CP Q2*H2=Q2H2 
+     QH1+Q2H2=H (canon/s K1 Q*C1=QC1) K2 Q2U+C3=QC1 QCF _ 
+     (canon/s K3 Q*RC3=C3)
+     (models/equiv
+	(equiv/transitive 
+	   equiv/distribute 
+	   (equiv/combine (equiv/mul Q*R=Q2) equiv/reflexive))
+	equiv/reflexive
+	(models/scale M Q*RH=H))
+    <- rat`div-total* Q2 Q R R*Q=Q2
+    <- scepter-complements-combine/scale  M1 Q*H1=QH1 _ MS CM M2 CP Q2*H2=Q2H2 
+     QH1+Q2H2=H K1 Q*C1=QC1 K2 Q2U+C3=QC1 R*Q=Q2 QCF _ _ _
+     K3 Q*RC3=C3 M Q*RH=H
+    <- rat`mul-commutative R*Q=Q2 Q*R=Q2.
+
+%theorem scepter-complements-combine/combined :
+	forall* {N} {Cy:cycle N} {NG} {Psi0}
+		{Ha} {Psi1a} {Pia:permission} {Na} {C1a} {Ba}
+		{Hb} {Psi1b} {Pib:permission} {Nb} {C1b} {Bb}
+		{H2} {Psi2} {U} {Q} {QH2} {H3} {H1} {C1} {C3} {Cy'}
+	forall {Ma: models Ha Psi1a NG Cy Pia}
+	       {Mb: models Hb Psi1b NG Cy Pib}
+	       {HA1: heap`add Ha Hb H1}
+	       {MSa: modelsize Ma Na}
+	       {MSb: modelsize Mb Nb}
+               {N1}
+	       {MAX: nat`max Na Nb N1}
+	       {CM: cycle-models NG Cy}
+	       {M2: models H2 Psi0 NG cycle/0 Psi2}
+	       {CP: cycle-provide Cy U Psi0 H2 Cy'}
+	       {HS: heap`scale Q H2 QH2}
+	       {HA: heap`add H1 QH2 H3}
+       	       {K1a: canon Psi1a C1a}
+       	       {K1b: canon Psi1b C1b}
+	       {CA1: canonical`add C1a C1b C1}
+	       {K2: canon Psi2 (canonical`map/+ U rat`one canonical`map/0)}
+	       {CA: canonical`add (canonical`map/+ U Q canonical`map/0) C3 C1}
+	       {C3F:canonical`fresh C3 U}
+	       {CDa:canonical`domain? C1a U Ba}
+	       {CDb:canonical`domain? C1b U Bb}
+	exists {Psi0a} {Psi0b} {Psi3a} {Psi3b} {C3a} {C3b}
+               {E0: equiv (Psi0a , Psi0b) (scale (fraction/ Q) Psi0)}
+	       {K3a: canon Psi3a C3a}
+	       {K3b: canon Psi3b C3b}
+	       {CA3: canonical`add C3a C3b C3}
+	       {H3a} {H3b}
+	       {Ma': models H3a (Psi0a , Psi3a) NG Cy' Pia}
+	       {Mb': models H3b (Psi0b , Psi3b) NG Cy' Pib}
+	       {HA3: heap`add H3a H3b H3}
+	true.
+
+- : scepter-complements-combine/L3
+     (models/combined Ma Mb HA1) _ (modelsize/combined MSa MSb MAX) 
+     CM M2 CP HS HA (canon/+ K1a K1b CA1) K2 CA C3F
+     _ (canon/+ K3a K3b CA3)
+     (models/equiv 
+	(equiv/transitive
+	   equiv/double-associate
+	   (equiv/combine Psi0a,Psi0b=QPsi0 equiv/reflexive))
+	equiv/reflexive 
+	(models/combined Ma' Mb' HA3))
+    <- canonical`domain?-total CDa
+    <- canonical`domain?-total CDb
+    <- scepter-complements-combine/combined Ma Mb HA1 MSa MSb _ MAX
+       CM M2 CP HS HA K1a K1b CA1 K2 CA C3F CDa CDb 
+       Psi0a Psi0b Psi3a Psi3b C3a C3b
+       Psi0a,Psi0b=QPsi0 K3a K3b CA3 _ _ Ma' Mb' HA3.
+
+% three subcases for combined:
+
+- : scepter-complements-combine/combined
+     Ma Mb HA1 MSa MSb N1 MAX CM M2 CP HS HA K1a K1b CA1 K2 CA C3F
+     (canonical`domain?/in CLa) (canonical`domain?/in CLb) 
+     (scale (fraction/ Qa) Psi0) (scale (fraction/ Qb) Psi0) _ _ _ _
+     (equiv/add Qa+Qb=Q)
+     K3a K3b CA3 _ _ Ma' Mb' HA3
+    <- canonical`fresh-add-right-preserves-lookup* 
+       (canonical`lookup/= nat`eq/) C3F CA CL
+    <- canonical`add-joins-lookup CLa CLb CA1 Q' Qa+Qb=Q' CL'
+    <- canonical`lookup-deterministic CL' CL canonical`eq/ nat`eq/ Q'=Q
+    <- rat`add-respects-eq Qa+Qb=Q' rat`eq/ rat`eq/ Q'=Q Qa+Qb=Q
+    <- heap`scale-right-distributes-over-add Qa+Qb=Q HS QaH2 QbH2
+       Qa*H2=QaH2 Qb*H2=QbH2 QaH2+QbH2=QH2
+    <- heap`add-double-associative HA1 QaH2+QbH2=QH2 HA H3a H3b
+	H1a+QaH2=H3a H1b+QbH2=H3b HA3
+    <- canonical`lookup-implies-add CLa C3a C3aF QaU+C3a=C1a
+    <- canonical`lookup-implies-add CLb C3b C3bF QbU+C3b=C1b
+    <- canonical`add-total C3a+C3b=C3'
+    <- canonical`add-double-associative* QaU+C3a=C1a QbU+C3b=C1b CA1
+       (canonical`add/= canonical`add/L Qa+Qb=Q nat`eq/) C3a+C3b=C3'
+       QU+C3'=C1
+    <- canonical`add-left-cancels QU+C3'=C1 CA canonical`eq/ canonical`eq/ 
+                                  C3'=C3
+    <- canonical`add-respects-eq C3a+C3b=C3' canonical`eq/ canonical`eq/ C3'=C3
+                                 CA3
+    <- nat`max-implies-ge MAX N1>=Na N1>=Nb
+    <- nat`meta-ge _ _ N1>=Na
+    <- nat`meta-ge _ _ N1>=Nb
+    <- scepter-complements-combine/L3 Ma _ MSa CM M2 CP 
+       Qa*H2=QaH2 H1a+QaH2=H3a K1a K2 QaU+C3a=C1a C3aF Psia K3a Ma'
+    <- scepter-complements-combine/L3 Mb _ MSb CM M2 CP 
+       Qb*H2=QbH2 H1b+QbH2=H3b K1b K2 QbU+C3b=C1b C3bF Psib K3b Mb'.
+
+- : scepter-complements-combine/combined
+     Ma (Mb: models Hb Psi1b NG Cy Pib)
+     HA1 MSa MSb N1 MAX CM M2 CP HS HA K1a K1b CA1 K2 CA C3F
+     _ (canonical`domain?/out CFb) (scale (fraction/ Q) Psi0) empty _ _ _ _
+     equiv/identity K3a K1b CA3 _ _ Ma' 
+     (models/equiv 
+	(equiv/transitive (equiv/symmetric equiv/identity) equiv/commute) 
+	equiv/reflexive Mb'') 
+     HA3
+    <- canonical`fresh-add-right-preserves-lookup* 
+       (canonical`lookup/= nat`eq/) C3F CA CL
+    <- canonical`fresh-add-right-preserves-lookup-converse 
+       CL CFb CA1 CLa
+    <- canonical`lookup-implies-add CLa C3a C3aF QU+C3a=C1a
+    <- heap`add-commutative HA1 H1b+H1a=H1
+    <- heap`add-associative H1b+H1a=H1 HA H3a H1a+QH2=H3a H1b+H3a=H3
+    <- heap`add-commutative H1b+H3a=H3 HA3
+    <- nat`max-implies-ge MAX N1>=Na _
+    <- nat`meta-ge _ _ N1>=Na
+    <- scepter-complements-combine/L3 Ma _ MSa CM M2 CP 
+       HS H1a+QH2=H3a K1a K2 QU+C3a=C1a C3aF Psia K3a Ma'
+    <- canonical`add-associative QU+C3a=C1a CA1 C3' C3a+C1b=C3' QU+C3'=C1
+    <- canonical`add-left-cancels QU+C3'=C1 CA canonical`eq/ canonical`eq/ 
+                                  C3'=C3
+    <- canonical`add-respects-eq C3a+C1b=C3' canonical`eq/ canonical`eq/ C3'=C3
+                                 CA3
+    <- cycle-models-implies-models Mb CM Mb'
+    <- models/weaken*-admissible Mb' Mb''.
+
+- : scepter-complements-combine/combined
+     Ma Mb HA1 MSa MSb N1 MAX CM M2 CP HS HA K1a K1b CA1 K2 CA C3F
+     (canonical`domain?/out CFa) _ 
+     empty (scale (fraction/ Q) Psi0) _ _ _ _
+     (equiv/transitive equiv/commute equiv/identity) K1a K3b CA3 _ _ 
+     (models/equiv 
+	(equiv/transitive (equiv/symmetric equiv/identity) equiv/commute) 
+	equiv/reflexive Ma'')
+     Mb' HA3
+    <- canonical`fresh-add-right-preserves-lookup* 
+       (canonical`lookup/= nat`eq/) C3F CA CL
+    <- canonical`fresh-add-left-preserves-lookup-converse 
+       CFa CL CA1 CLb
+    <- canonical`lookup-implies-add CLb C3b C3bF QU+C3b=C1b
+    <- heap`add-associative HA1 HA H3b H1b+QH2=H3b HA3
+    <- nat`max-implies-ge MAX _ N1>=Nb
+    <- nat`meta-ge _ _ N1>=Nb
+    <- scepter-complements-combine/L3 Mb _ MSb CM M2 CP 
+       HS H1b+QH2=H3b K1b K2 QU+C3b=C1b C3bF Psib K3b Mb'
+    <- canonical`add-commutative CA1 C1b+C1a=C1
+    <- canonical`add-associative QU+C3b=C1b C1b+C1a=C1 C3' C3b+C1a=C3' QU+C3'=C1
+    <- canonical`add-left-cancels QU+C3'=C1 CA canonical`eq/ canonical`eq/ 
+                                  C3'=C3
+    <- canonical`add-commutative C3b+C1a=C3' C1a+C3b=C3'
+    <- canonical`add-respects-eq C1a+C3b=C3' canonical`eq/ canonical`eq/ C3'=C3
+                                 CA3
+    <- cycle-models-implies-models Ma CM Ma'
+    <- models/weaken*-admissible Ma' Ma''.
+
+- : scepter-complements-combine/L3 
+     models/obligation _ _ _ M2 CP HS ZERO+QH2=H K1 K2 QU+C3=C1 _
+     _ K3 % (canon/+ K3 (canon/s canon/0 canonical`scale/0) canonical`add/R)
+     (models/equiv
+        equiv/commute
+	(equiv/transitive equiv/commute E)
+	(models/combined 
+	   models/obligation 
+	   (models/scale M2' HS) 
+	   ZERO+QH2=H))
+    <- models/weaken*-admissible M2 M2'
+    <- canon-onto K3
+    <- rat`mul-right-identity Q Q*1=Q
+    <- canon-eq-implies-equiv
+       (canon/+ (canon/s K2 (canonical`scale/+ canonical`scale/0 Q*1=Q))
+                K3 QU+C3=C1) 
+       K1 canonical`eq/ E.
+
+- : scepter-complements-combine/L3
+     (models/equiv EO E M) _ (modelsize/equiv MS) CM M2 CP HS H1+QH2=H 
+     K1 K2 Q2U+C3=C1 CF _ K3
+     (models/equiv equiv/reflexive E M')
+    <- equiv-preserves-canon-converse K1 EO K1'
+    <- scepter-complements-combine/L3
+       M _ MS CM M2 CP HS H1+QH2=H K1' K2 Q2U+C3=C1 CF _ K3 M'.
+
+- : scepter-complements-combine/L3
+     (models/unit M) _ (modelsize/unit MS) CM M2 CP HS H1+QH2=H
+     K1 K2 CA CF _ K3
+     (models/unit M')
+    <- scepter-complements-combine/L3
+       M _ MS CM M2 CP HS H1+QH2=H K1 K2 CA CF _ K3 M'.
+
+- : scepter-complements-combine/L3
+     (models/nonlinear BE) _ _ _ M2 CP HS ZERO+QH2=H
+     (canon/0) K2 Q2U+C3=0 _ empty canon/0 M
+    <- canonical`add-empty-implies-empty Q2U+C3=0 Q2U=0 C3=0
+    <- canonical`eq-symmetric Q2U=0 ZERO=Q2U
+    <- canonical`eq-contradiction ZERO=Q2U F
+    <- false-implies-models F M.
+
+- : scepter-complements-combine/L3
+     (models/conditional/T BE M) _ (modelsize/conditional/T MS) CM M2 CP HS HA
+     K1 K2 CA CF _ K3
+     (models/conditional/T BE M')
+    <- scepter-complements-combine/L3 
+       M _ MS CM M2 CP HS HA K1 K2 CA CF _ K3 M'.
+
+- : scepter-complements-combine/L3
+     (models/conditional/F BE M) _ (modelsize/conditional/F MS) CM M2 CP HS HA
+     K1 K2 CA CF _ K3
+     (models/conditional/F BE M')
+    <- scepter-complements-combine/L3 
+       M _ MS CM M2 CP HS HA K1 K2 CA CF _ K3 M'.
+
+- : scepter-complements-combine/L3
+     (models/exists V M) _ (modelsize/exists MS) CM M2 CP HS HA
+     K1 K2 CA CF _ K3
+     (models/exists V M')
+    <- scepter-complements-combine/L3 
+       M _ MS CM M2 CP HS HA K1 K2 CA CF _ K3 M'.
+
+- : scepter-complements-combine/L3
+     (models/encumbered M) _ (modelsize/encumbered MS) CM M2 CP HS HA
+     K1 K2 C2+C3=C1 CF _ K3
+     (models/encumbered 
+	(models/equiv 
+	   (equiv/transitive
+	      (equiv/combine equiv/reflexive EO) 
+	      equiv/associate)
+	   equiv/reflexive M'))
+    <- canon-total* Pi C K
+    <- canonical`add-total* C1 C C1' C1+C=C1'
+    <- canonical`add-associative C2+C3=C1 C1+C=C1' C3' C3+C=C3' CA'
+    <- canonical`domain?-total CD
+    <- scepter-complements-combine/L2 M _ MS CM M2 CP HS HA
+       (canon/+ K1 K C1+C=C1') K2 CA' CD _ K3' M'
+    <- canon-onto K3
+    <- canon-eq-implies-equiv K3' (canon/+ K3 K C3+C=C3') canonical`eq/ EO.
+
+- : scepter-complements-combine/L3
+     (models/basic P2N NL K M H0+U=H1) _ (modelsize/basic MS) CM M2 CP 
+     Q*H2=QH2 H1+QH2=H3
+     (K1:canon Psi1 C1) K2 QU+C3=C1 C3F _ K3
+     (models/basic P2N NL K 
+	(models/equiv (equiv/combine equiv/reflexive EO) equiv/reflexive M') 
+	H0'+U=H3)
+    <- canon-onto* C3 Psi K3
+    <- canonical`fresh-add-right-preserves-lookup* 
+       (canonical`lookup/= nat`eq/) C3F QU+C3=C1 CL
+    <- heap`add-commutative H0+U=H1 U+H0=H1
+    <- heap`add-associative U+H0=H1 H1+QH2=H3 H0' H0+QH2=H0' U+H0'=H3
+    <- heap`add-commutative U+H0'=H3 H0'+U=H3
+    <- scepter-complements-combine/L3 M _ MS 
+       (cycle-models/+ P2N NL K M CM) M2
+       (cycle-provide/+ CP K1 CL Q*H2=QH2 H0+QH2=H0' K3 QU+C3=C1)
+       Q*H2=QH2 H0+QH2=H0' K1 K2 QU+C3=C1 C3F _ K3' M'
+    <- canon-eq-implies-equiv K3' K3 canonical`eq/ EO.
+       
+- : scepter-complements-combine/L3
+     (models/basic-co P2N RC H0+U=H1) _ _ _ M2 CP Q*H2=QH2 H1+QH2=H3
+     K1 K2 QU2+C3=C1 C3F _ K3
+     (models/basic-co P2N RC' H0'+U=H3)
+    <- canonical`fresh-add-right-preserves-lookup* 
+       (canonical`lookup/= nat`eq/) C3F QU2+C3=C1 CL
+    <- heap`add-commutative H0+U=H1 U+H0=H1
+    <- heap`add-associative U+H0=H1 H1+QH2=H3 H0' H0+QH2=H0' U+H0'=H3
+    <- heap`add-commutative U+H0'=H3 H0'+U=H3
+    <- cycle-provide-modifies-remcycle RC CP K1 CL QU2+C3=C1 Q*H2=QH2 H0+QH2=H0'
+                                       _ _ K3 RC'.
+
+%worlds () (scepter-complements-combine/L3 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+           (scepter-complements-combine/scale _ _ _ _ _ _ _ _ _ _ _ _ _ _
+                                              _ _ _ _ _ _ _ _)
+           (scepter-complements-combine/combined _ _ _ _ _ _ _ _ _ _
+                                                 _ _ _ _ _ _ _ _ _ _
+                                                 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+           (scepter-complements-combine/L2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+%total (T S C Z)
+           (scepter-complements-combine/L3 _ T _ _ _ _ _ _ _ _ _ _ _ _ _)
+           (scepter-complements-combine/scale _ _ S _ _ _ _ _ _ _ _ _ _ _
+                                              _ _ _ _ _ _ _ _)
+           (scepter-complements-combine/combined _ _ _ _ _ C _ _ _ _
+                                                 _ _ _ _ _ _ _ _ _ _
+                                                 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+           (scepter-complements-combine/L2 _ Z _ _ _ _ _ _ _ _ _ _ _ _ _).
+
+%worlds () (scepter-complements-combine/L1 _ _ _ _ _ _ _ _ _).
+%total (S) (scepter-complements-combine/L1 _ _ _ S _ _ _ _ _).
+
+%worlds () (scepter-complements-combine _ _ _ _ _).
+%total { } (scepter-complements-combine _ _ _ _ _).
+
+
+%{%
+A version of the previous theorem that matches what
+what is in the paper.  We use the unit-inversion lemma
+to do the work of getting down to what we have above.
+%}%
+
+%theorem scepter-complements-combine* :
+	forall* {H1} {NG} {Pi1} {H2} {Pi2} {H3}
+	forall {M1: models H1 empty NG cycle/0 Pi1}
+	       {M2: models H2 empty NG cycle/0 (unitperm (encumbered Pi1 Pi2))}
+	       {HA: heap`add H1 H2 H3}
+	exists {M3: models H3 empty NG cycle/0 Pi2}
+	true.
+
+- : scepter-complements-combine* M1 M2 (HA:heap`add H1 H2 H3) 
+     (models/equiv equiv/identity equiv/reflexive M3)
+    <- models-unit-inversion M2 (models/encumbered M2')
+    <- heap`add-commutative HA HAc
+    <- scepter-complements-combine M2' M1 HAc equiv/commute M3.
+
+%worlds () (scepter-complements-combine* _ _ _ _).
+%total { } (scepter-complements-combine* _ _ _ _).
+
+
+
+%%% Theorem from paper about existentials
+
+
+%theorem precise-exists-can-be-opened :
+	forall* {H} {NG} {O} {F} {G}
+	forall {M:models H empty NG cycle/0 (unitperm (precise-exists O F G))}
+	exists {O'} 
+	       {M':models H empty NG cycle/0 (unitperm (basic O F O') , (G O'))}
+	true.
+
+- : precise-exists-can-be-opened M O' M'
+    <- models-unit-inversion M (models/exists O' M').
+
+%worlds () (precise-exists-can-be-opened _ _ _).
+%total { } (precise-exists-can-be-opened _ _ _).
+
+
+
+%%% Other useful inversion lemmas
+
+
+%theorem models/exists-inversion :
+        forall* {H} {N} {O} {F} {E}
+        forall  {M: models H permission`empty N cycle/0 (precise-exists O F ([r]
+ E r))}
+        exists  {O'}
+                {M':models H permission`empty N cycle/0
+                        (unitperm (basic O F O') , (E O'))}
+        true.
+
+- : models/exists-inversion (models/exists O M) O M.
+
+%worlds (gtermvar) (models/exists-inversion _ _ _).
+%total { } (models/exists-inversion _ _ _).
+
+
+%theorem models/nonlinear-inversion :
+	forall* {H} {NG} {G}
+	forall	{M:models H empty NG cycle/0 (nonlinear G)}
+	exists	{E:heap`eq heap`map/0 H}
+		{BE:booleval assumptions/0 NG G true}
+	true.
+
+- : models/nonlinear-inversion (models/nonlinear BE) heap`eq/ BE.
+
+%worlds (gtermvar) (models/nonlinear-inversion _ _ _).
+%total { } (models/nonlinear-inversion _ _ _).
+
+
+%theorem models/basic-inversion :
+    forall* {H'} {N} {O} {F} {O'}
+    forall {M':models H' empty N cycle/0 (basic (object/ O) F (object/ O'))}
+    exists {L} {C} {Pi} {H}
+	   {P2N:pair2nat (natpair/ O F) L} {NL:nesting`lookup N L C}
+           {CA:canon Pi C} 
+           {M:models H empty N (cycle/+ cycle/0 H empty (natpair/ O F)) Pi}
+           {HA:heap`add H (pheap`map/+ L (frv/ rat`one O') pheap`map/0) H'}
+    true.
+
+- : models/basic-inversion (models/basic P2N NL CA M HA) _ _ _ _
+        P2N NL CA M HA.
+
+%worlds () (models/basic-inversion _ _ _ _ _ _ _ _ _ _).
+%total { } (models/basic-inversion _ _ _ _ _ _ _ _ _ _).

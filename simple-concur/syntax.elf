@@ -1,0 +1,890 @@
+%%%%% Simple concurrency, syntax
+%%%%% John Boyland, 2007
+
+%{%
+  This signature requires the nat and set signatures.
+%}%
+
+%%%% Definitions
+
+
+
+%%% Expressions and conditional expressions
+
+kind : type.
+
+exprk : kind.
+
+condk : kind.
+
+argsk : kind.
+
+funck : kind.
+
+
+term : kind -> type.
+
+%abbrev expr = term exprk.
+
+%abbrev cond = term condk.
+
+%abbrev args = term argsk.
+
+%abbrev func = term funck.
+
+
+lit : object -> expr.
+
+alloc : nat -> set -> set -> expr.  % alloc ClassID NF VF
+
+read : expr -> nat -> expr.
+
+write : expr -> nat -> expr -> expr.
+
+readv : expr -> nat -> expr.
+
+writev : expr -> nat -> expr -> expr.
+
+let : expr -> (object -> expr) -> expr.
+
+if : cond -> expr -> expr -> expr.
+
+while : cond -> expr -> expr.
+
+call : nat -> args -> expr.
+
+fork : expr -> expr.
+
+join : expr -> expr.
+
+synch : expr -> expr -> expr.
+
+hold : object -> expr -> expr.
+
+%abbrev seq = [E1] [E2] (let E1 ([x:object] E2)).
+
+
+cond/true : cond.
+
+not : cond -> cond.
+
+and : cond -> cond -> cond.
+
+eql : expr -> expr -> cond.
+
+%abbrev cond/false = not cond/true.
+
+%abbrev or = [C1] [C2] not (and (not C1) (not C2)).
+
+
+args/0 : args.
+
+args/+ : expr -> args -> args.
+
+
+func/0 : expr -> func.
+
+func/+ : (object -> func) -> func.
+
+
+%%% Argument Counts
+
+
+funccount : func -> nat`nat -> type.
+
+funccount/0 : funccount (func/0 E) nat`z.
+
+funccount/+ : 
+    ({o} funccount (F o) N) ->
+    funccount (func/+ F) (nat`s N).
+
+argscount : args -> nat`nat -> type.
+
+argscount/0 : argscount args/0 nat`z.
+
+argscount/+ :
+    argscount A N ->
+    argscount (args/+ E A) (nat`s N).
+
+
+%%% Values
+
+
+value?* : {K} term K -> bool -> type.
+
+%abbrev value? = value?* _.
+
+%abbrev value* = [K] [T:term K] (value?* K T true).
+
+%abbrev value = value* _.
+
+%abbrev notvalue* = [K] [T:term K] (value?* K T false).
+
+%abbrev notvalue = notvalue* _.
+
+
+value/lit : value (lit _).
+
+value/true : value cond/true.
+
+value/false : value cond/false.
+
+value/args/0 : value args/0.
+
+value/args/+ : value E -> value A -> value (args/+ E A).
+
+value/func : value (F:func).
+
+
+notvalue/alloc : notvalue (alloc _ _ _).
+
+notvalue/read : notvalue (read _ _).
+
+notvalue/write : notvalue (write _ _ _).
+
+notvalue/readv : notvalue (readv _ _).
+
+notvalue/writev : notvalue (writev _ _ _).
+
+notvalue/let : notvalue (let _ _).
+
+notvalue/if : notvalue (if _ _ _).
+
+notvalue/while : notvalue (while _ _).
+
+notvalue/call : notvalue (call _ _).
+
+notvalue/fork : notvalue (fork _).
+
+notvalue/join : notvalue (join _).
+
+notvalue/synch : notvalue (synch _ _).
+
+notvalue/hold : notvalue (hold _ _).
+
+notvalue/notnot : notvalue (not (not _)).
+
+notvalue/notand : notvalue (not (and _ _)).
+
+notvalue/noteql : notvalue (not (eql _ _)).
+
+notvalue/and : notvalue (and _ _).
+
+notvalue/eql : notvalue (eql _ _).
+
+notvalue/args/expr : notvalue E -> notvalue (args/+ E _).
+
+notvalue/args/args : notvalue A -> notvalue (args/+ _ A).
+
+
+% EXTEND syntax-definition
+
+
+%{% We do NOT yet do the following.  
+    Currently eval.elf has all_allocated.  If we need another of these,
+    we will investigate refactoring.
+
+%%% Subterms
+
+%{%
+We collect lists of all subterms, with let-bound variables
+substituted with (object/ 0).  This avoids the need for
+lots of predicates that crawl over the tree.  But it does not 
+prevent the need for case analysis ON those terms.
+%}%
+%}%
+
+
+
+
+%%%% Relations
+
+
+term`eq* : {K} {K'} term K -> term K' -> type.
+
+
+term`eq/: term`eq* K K T T.
+
+
+%abbrev term`eq = term`eq* _ _.
+
+
+
+term-func-eq* : {K1} {K2} {K3} {K4} 
+                (term K1 -> term K2) -> (term K3 -> term K4) -> type.
+
+%abbrev term-func-eq = term-func-eq* _ _ _ _.
+
+
+term-func-eq/ : term-func-eq F F.
+
+let-body-eq : (object -> expr) -> (object -> expr) -> type.
+let-body-eq/ : let-body-eq B B.
+
+
+%%%% Theorems
+
+
+%theorem term`false-implies-eq :
+	forall* {K1} {K2} {T1} {T2}
+	forall {F:void}
+	exists {E:term`eq* K1 K2 T1 T2}
+	true.
+
+%worlds () (term`false-implies-eq _ _).
+%total { } (term`false-implies-eq _ _).
+
+
+%theorem term`eq-reflexive :
+	forall* {K}
+	forall {T}
+	exists {TE:term`eq* K K T T}
+	true.
+
+- : term`eq-reflexive _ term`eq/.
+
+%worlds () (term`eq-reflexive _ _).
+%total { } (term`eq-reflexive _ _).
+
+
+%theorem term`eq-symmetric :
+	forall* {K1} {K2} {T1} {T2}
+	forall {TE:term`eq* K1 K2 T1 T2}
+	exists {TE':term`eq* K2 K1 T2 T1}
+	true.
+
+- : term`eq-symmetric term`eq/ term`eq/.
+
+%worlds () (term`eq-symmetric _ _).
+%total { } (term`eq-symmetric _ _).
+
+
+%theorem term`eq-transitive :
+	forall* {K1} {K2} {K3} {T1} {T2} {T3}
+	forall {TE:term`eq* K1 K2 T1 T2} {TE:term`eq* K2 K3 T2 T3}
+	exists {TE:term`eq* K1 K3 T1 T3}
+	true.
+
+- : term`eq-transitive term`eq/ term`eq/ term`eq/.
+
+%worlds () (term`eq-transitive _ _ _).
+%total { } (term`eq-transitive _ _ _).
+
+%theorem args/+-preserves-eq :
+    forall* {E1} {E2} {A1} {A2}
+    forall {EE:term`eq E1 E2} {AE:term`eq A1 A2}
+    exists {EQ:term`eq (args/+ E1 A1) (args/+ E2 A2)}
+    true.
+
+- : args/+-preserves-eq term`eq/ term`eq/ term`eq/.
+
+%worlds () (args/+-preserves-eq _ _ _).
+%total { } (args/+-preserves-eq _ _ _).
+
+
+%theorem lit-preserves-eq :
+	forall* {O1} {O2}
+	forall {OE:object`eq O1 O2}
+	exists {TE:term`eq (lit O1) (lit O2)}
+	true.
+
+- : lit-preserves-eq object`eq/ term`eq/.
+
+%worlds () (lit-preserves-eq _ _).
+%total { } (lit-preserves-eq _ _).
+
+
+%theorem lit-cancels-eq :
+	forall* {O1} {O2}
+	forall {TE:term`eq (lit O1) (lit O2)}
+	exists {OE:object`eq O1 O2}
+	true.
+
+- : lit-cancels-eq  term`eq/ object`eq/.
+
+%worlds () (lit-cancels-eq _ _).
+%total { } (lit-cancels-eq _ _).
+
+
+%theorem term`eq-cancels-not :
+	forall* {C1} {C2}
+	forall {CE:term`eq (not C1) (not C2)}
+	exists {CE:term`eq C1 C2}
+	true.
+
+- : term`eq-cancels-not term`eq/ term`eq/.
+
+%worlds () (term`eq-cancels-not _ _).
+%total { } (term`eq-cancels-not _ _).
+
+
+%theorem false-implies-term-func-eq :
+	forall* {K1} {K1'} {K2} {K2'} {F1} {F2}
+	forall {F:void}
+	exists {E:term-func-eq* K1 K1' K2 K2' F1 F2}
+	true.
+
+%worlds () (false-implies-term-func-eq _ _).
+%total { } (false-implies-term-func-eq _ _).
+
+
+%theorem app-respects-eq :
+	forall* {K1} {K1'} {K2} {K2'} {F1} {T1} {F2} {T2}
+	forall {FE:term-func-eq* K1 K1' K2 K2' F1 F2}
+	       {TE:term`eq* K1 K2 T1 T2}
+	exists {AE:term`eq* K1' K2' (F1 T1) (F2 T2)}
+	true.
+
+- : app-respects-eq term-func-eq/ term`eq/ term`eq/.
+
+%worlds () (app-respects-eq _ _ _).
+%total { } (app-respects-eq _ _ _).
+
+
+%theorem app-respects-eq* :
+	forall* {K1} {K1'} {K2} {K2'} {F1} {F2}
+	forall {T1} {T2} {FE:term-func-eq* K1 K1' K2 K2' F1 F2}
+	       {TE:term`eq* K1 K2 T1 T2}
+	exists {AE:term`eq* K1' K2' (F1 T1) (F2 T2)}
+	true.
+
+- : app-respects-eq* _ _ term-func-eq/ term`eq/ term`eq/.
+
+%worlds () (app-respects-eq* _ _ _ _ _).
+%total { } (app-respects-eq* _ _ _ _ _).
+
+
+%theorem composition-preserves-eq :
+	forall* {K1} {K1'} {K2} {K2'} {K1''} {K2''} {F1} {G1} {F2} {G2}
+	forall  {FE:term-func-eq* K1 K1' K2 K2' F1 F2}
+		{GE:term-func-eq* K1' K1'' K2' K2'' G1 G2}
+	exists	{HE:term-func-eq ([x] (G1 (F1 x))) ([x] (G2 (F2 x)))}
+	true.
+
+- : composition-preserves-eq term-func-eq/ term-func-eq/ term-func-eq/.
+
+%worlds () (composition-preserves-eq _ _ _).
+%total { } (composition-preserves-eq _ _ _).
+
+%theorem read-preserves-eq :
+	forall* {E1} {E2} {F1} {F2}
+    forall {EE:term`eq E1 E2} {FE:nat`eq F1 F2}
+    exists {RE:term`eq (read E1 F1) (read E2 F2)}
+    true.
+
+- : read-preserves-eq term`eq/ nat`eq/ term`eq/.
+
+%worlds () (read-preserves-eq _ _ _).
+%total {} (read-preserves-eq _ _ _).
+
+%theorem readv-preserves-eq :
+	forall* {E1} {E2} {F1} {F2}
+    forall {EE:term`eq E1 E2} {FE:nat`eq F1 F2}
+    exists {RE:term`eq (readv E1 F1) (readv E2 F2)}
+    true.
+
+- : readv-preserves-eq term`eq/ nat`eq/ term`eq/.
+
+%worlds () (readv-preserves-eq _ _ _).
+%total {} (readv-preserves-eq _ _ _).
+
+%theorem read-eq-implies-eq :
+	forall* {E1} {E2} {F1} {F2}
+	forall {RE:term`eq (read E1 F1) (read E2 F2)}
+	exists {EE:term`eq E1 E2} {FE:nat`eq F1 F2}
+	true.
+
+- : read-eq-implies-eq term`eq/ term`eq/ nat`eq/.
+
+%worlds () (read-eq-implies-eq _ _ _).
+%total { } (read-eq-implies-eq _ _ _).
+
+
+%theorem write-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4} {F1} {F2}
+	forall {WE:term`eq (write E1 F1 E2) (write E3 F2 E4)}
+	exists {EE1:term`eq E1 E3} {FE:nat`eq F1 F2} {EE2:term`eq E2 E4}
+	true.
+
+- : write-eq-implies-eq term`eq/ term`eq/ nat`eq/ term`eq/.
+
+%worlds () (write-eq-implies-eq _ _ _ _).
+%total { } (write-eq-implies-eq _ _ _ _).
+
+
+%theorem write-preserves-eq :
+	forall* {E1} {E2} {E3} {E4} {F1} {F2}
+	forall  {EE1:term`eq E1 E3} {FE:nat`eq F1 F2} {EE2:term`eq E2 E4}
+	exists  {WE:term`eq (write E1 F1 E2) (write E3 F2 E4)}
+	true.
+
+- : write-preserves-eq term`eq/ nat`eq/ term`eq/ term`eq/.
+
+%worlds () (write-preserves-eq _ _ _ _).
+%total { } (write-preserves-eq _ _ _ _).
+
+%theorem writev-preserves-eq :
+	forall* {E1} {E2} {E3} {E4} {F1} {F2}
+	forall  {EE1:term`eq E1 E3} {FE:nat`eq F1 F2} {EE2:term`eq E2 E4}
+	exists  {WE:term`eq (writev E1 F1 E2) (writev E3 F2 E4)}
+	true.
+
+- : writev-preserves-eq term`eq/ nat`eq/ term`eq/ term`eq/.
+
+%worlds () (writev-preserves-eq _ _ _ _).
+%total { } (writev-preserves-eq _ _ _ _).
+
+
+%theorem readv-eq-implies-eq :
+	forall* {E1} {E2} {F1} {F2}
+	forall {RE:term`eq (readv E1 F1) (readv E2 F2)}
+	exists {EE:term`eq E1 E2} {FE:nat`eq F1 F2}
+	true.
+
+- : readv-eq-implies-eq term`eq/ term`eq/ nat`eq/.
+
+%worlds () (readv-eq-implies-eq _ _ _).
+%total { } (readv-eq-implies-eq _ _ _).
+
+
+%theorem writev-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4} {F1} {F2}
+	forall {WE:term`eq (writev E1 F1 E2) (writev E3 F2 E4)}
+	exists {EE1:term`eq E1 E3} {FE:nat`eq F1 F2} {EE2:term`eq E2 E4}
+	true.
+
+- : writev-eq-implies-eq term`eq/ term`eq/ nat`eq/ term`eq/.
+
+%worlds () (writev-eq-implies-eq _ _ _ _).
+%total { } (writev-eq-implies-eq _ _ _ _).
+
+
+%theorem let-preserves-eq :
+    forall* {E1} {B1:object -> expr} {E2} {B2:object -> expr}
+    forall {EE:term`eq E1 E2} {BE:let-body-eq B1 B2}
+    exists {LE:term`eq (let E1 B1) (let E2 B2)}
+    true.
+
+- : let-preserves-eq term`eq/ let-body-eq/ term`eq/.
+
+%worlds () (let-preserves-eq _ _ _).
+%total { } (let-preserves-eq _ _ _).
+
+%theorem let-eq-implies-eq :
+	forall* {E1} {B1} {E2} {B2}
+	forall {LE:term`eq (let E1 B1) (let E2 B2)}
+	exists {EE:term`eq E1 E2}
+	true.
+
+- : let-eq-implies-eq term`eq/ term`eq/.
+
+%worlds () (let-eq-implies-eq _ _).
+%total { } (let-eq-implies-eq _ _).
+
+%theorem if-preserves-eq :
+    forall* {C1} {C2} {E1} {E2} {E3} {E4}
+    forall {CE:term`eq C1 C2} {EE1:term`eq E1 E3} {EE2:term`eq E2 E4}
+    exists {IE:term`eq (if C1 E1 E2) (if C2 E3 E4)}
+    true.
+
+- : if-preserves-eq term`eq/ term`eq/ term`eq/ term`eq/.
+
+%worlds () (if-preserves-eq _ _ _ _).
+%total { } (if-preserves-eq _ _ _ _).
+
+%theorem if-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4} {C1} {C2}
+	forall {IE:term`eq (if C1 E1 E2) (if C2 E3 E4)}
+	exists {CE:term`eq C1 C2} {EE1:term`eq E1 E3} {EE2:term`eq E2 E4}
+	true.
+
+- : if-eq-implies-eq term`eq/ term`eq/ term`eq/ term`eq/.
+
+%worlds () (if-eq-implies-eq _ _ _ _).
+%total { } (if-eq-implies-eq _ _ _ _).
+
+%theorem call-preserves-eq :
+    forall* {N1} {N2} {A1} {A2}
+    forall {NE:nat`eq N1 N2} {AE:term`eq A1 A2}
+    exists {CE:term`eq (call N1 A1) (call N2 A2)}
+    true.
+
+- : call-preserves-eq nat`eq/ term`eq/ term`eq/.
+
+%worlds () (call-preserves-eq _ _ _).
+%total { } (call-preserves-eq _ _ _).
+
+%theorem call-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4}
+	forall {AE:term`eq (call E1 E2) (call E3 E4)}
+	exists {EQ1:nat`eq E1 E3} {EQ2:term`eq E2 E4}
+	true.
+
+- : call-eq-implies-eq term`eq/ nat`eq/ term`eq/.
+
+%worlds () (call-eq-implies-eq _ _ _).
+%total { } (call-eq-implies-eq _ _ _).
+
+%theorem join-preserves-eq :
+    forall* {E1} {E2}
+    forall {EE:term`eq E1 E2}
+    exists {JE:term`eq (join E1) (join E2)}
+    true.
+
+- : join-preserves-eq term`eq/ term`eq/.
+
+%worlds () (join-preserves-eq _ _).
+%total { } (join-preserves-eq _ _).
+
+%theorem join-eq-implies-eq :
+	forall* {E1} {E2}
+	forall {AE:term`eq (join E1) (join E2)}
+	exists {EQ1:term`eq E1 E2}
+	true.
+
+- : join-eq-implies-eq term`eq/ term`eq/.
+
+%worlds () (join-eq-implies-eq _ _).
+%total { } (join-eq-implies-eq _ _).
+
+%theorem synch-preserves-eq :
+    forall* {E1} {E2} {E3} {E4}
+    forall {EQ1:term`eq E1 E3} {EQ2:term`eq E2 E4}
+    exists {SE:term`eq (synch E1 E2) (synch E3 E4)}
+    true.
+
+- : synch-preserves-eq term`eq/ term`eq/ term`eq/.
+
+%worlds () (synch-preserves-eq _ _ _).
+%total { } (synch-preserves-eq _ _ _).
+
+%theorem synch-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4}
+	forall {AE:term`eq (synch E1 E2) (synch E3 E4)}
+	exists {EQ1:term`eq E1 E3} {EQ2:term`eq E2 E4}
+	true.
+
+- : synch-eq-implies-eq term`eq/ term`eq/ term`eq/.
+
+%worlds () (synch-eq-implies-eq _ _ _).
+%total { } (synch-eq-implies-eq _ _ _).
+
+%theorem hold-preserves-eq :
+    forall* {E1} {E2} {O1} {O2}
+    forall {EE:term`eq E1 E2} {OE:object`eq O1 O2}
+    exists {HE:term`eq (hold O1 E1) (hold O2 E2)}
+    true.
+
+- : hold-preserves-eq term`eq/ object`eq/ term`eq/.
+
+%worlds () (hold-preserves-eq _ _ _).
+%total { } (hold-preserves-eq _ _ _).
+
+%theorem hold-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4}
+	forall {AE:term`eq (hold E1 E2) (hold E3 E4)}
+	exists {EQ1:object`eq E1 E3} {EQ2:term`eq E2 E4}
+	true.
+
+- : hold-eq-implies-eq term`eq/ object`eq/ term`eq/.
+
+%worlds () (hold-eq-implies-eq _ _ _).
+%total { } (hold-eq-implies-eq _ _ _).
+
+%theorem and-preserves-eq :
+    forall* {E1} {E2} {E3} {E4}
+    forall {EQ1:term`eq E1 E3} {EQ2:term`eq E2 E4}
+    exists {AE:term`eq (and E1 E2) (and E3 E4)}
+    true.
+
+- : and-preserves-eq term`eq/ term`eq/ term`eq/.
+
+%worlds () (and-preserves-eq _ _ _).
+%total { } (and-preserves-eq _ _ _).
+
+%theorem and-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4}
+	forall {AE:term`eq (and E1 E2) (and E3 E4)}
+	exists {EQ1:term`eq E1 E3} {EQ2:term`eq E2 E4}
+	true.
+
+- : and-eq-implies-eq term`eq/ term`eq/ term`eq/.
+
+%worlds () (and-eq-implies-eq _ _ _).
+%total { } (and-eq-implies-eq _ _ _).
+
+%theorem not-preserves-eq :
+    forall* {E1} {E2}
+    forall {EE:term`eq E1 E2}
+    exists {NE:term`eq (not E1) (not E2)}
+    true.
+
+- : not-preserves-eq term`eq/ term`eq/.
+
+%worlds () (not-preserves-eq _ _).
+%total { } (not-preserves-eq _ _).
+
+%theorem not-eq-implies-eq :
+	forall* {E1} {E2}
+	forall {AE:term`eq (not E1) (not E2)}
+	exists {EQ1:term`eq E1 E2}
+	true.
+
+- : not-eq-implies-eq term`eq/ term`eq/.
+
+%worlds () (not-eq-implies-eq _ _).
+%total { } (not-eq-implies-eq _ _).
+
+%theorem eql-preserves-eq :
+    forall* {E1} {E2} {E3} {E4}
+    forall {EQ1:term`eq E1 E3} {EQ2:term`eq E2 E4}
+    exists {EE:term`eq (eql E1 E2) (eql E3 E4)}
+    true.
+
+- : eql-preserves-eq term`eq/ term`eq/ term`eq/.
+
+%worlds () (eql-preserves-eq _ _ _).
+%total { } (eql-preserves-eq _ _ _).
+
+%theorem eql-eq-implies-eq :
+	forall* {E1} {E2} {E3} {E4}
+	forall {AE:term`eq (eql E1 E2) (eql E3 E4)}
+	exists {EQ1:term`eq E1 E3} {EQ2:term`eq E2 E4}
+	true.
+
+- : eql-eq-implies-eq term`eq/ term`eq/ term`eq/.
+
+%worlds () (eql-eq-implies-eq _ _ _).
+%total { } (eql-eq-implies-eq _ _ _).
+
+
+%theorem read-eq-join-contradiction :
+	forall* {O} {F} {O'}
+	forall {E:term`eq (read O F) (join O')}
+	exists {F:void}
+	true.
+
+%worlds () (read-eq-join-contradiction _ _).
+%total { } (read-eq-join-contradiction _ _).
+
+
+%theorem write-eq-join-contradiction :
+	forall* {O} {F} {O'} {O''}
+	forall {E:term`eq (write O F O') (join O'')}
+	exists {F:void}
+	true.
+
+%worlds () (write-eq-join-contradiction _ _).
+%total { } (write-eq-join-contradiction _ _).
+
+
+%theorem read-eq-readv-contradiction :
+	forall* {O} {F} {O'} {F'}
+	forall {E:term`eq (read O F) (readv O' F')}
+	exists {F:void}
+	true.
+
+%worlds () (read-eq-readv-contradiction _ _).
+%total { } (read-eq-readv-contradiction _ _).
+
+
+%theorem write-eq-readv-contradiction :
+	forall* {O} {F} {O'} {O''} {F'}
+	forall {E:term`eq (write O F O') (readv O'' F')}
+	exists {F:void}
+	true.
+
+%worlds () (write-eq-readv-contradiction _ _).
+%total { } (write-eq-readv-contradiction _ _).
+
+
+%theorem read-eq-synch-contradiction :
+	forall* {O} {F} {O'} {S}
+	forall {E:term`eq (read O F) (synch O' S)}
+	exists {F:void}
+	true.
+
+%worlds () (read-eq-synch-contradiction _ _).
+%total { } (read-eq-synch-contradiction _ _).
+
+
+%theorem write-eq-synch-contradiction :
+	forall* {O} {F} {O'} {O''} {S}
+	forall {E:term`eq (write O F O') (synch O'' S)}
+	exists {F:void}
+	true.
+
+%worlds () (write-eq-synch-contradiction _ _).
+%total { } (write-eq-synch-contradiction _ _).
+
+%%% Theorems about values
+
+
+%theorem false-implies-value? :
+	forall* {K} {T} {B}
+	forall {F:void}
+	exists {V:value?* K T B}
+	true.
+
+%worlds () (false-implies-value? _ _).
+%total { } (false-implies-value? _ _).
+
+
+%abbrev false-implies-value = false-implies-value?.
+
+
+%abbrev false-implies-notvalue = false-implies-value?.
+
+
+%theorem value?-respects-eq :
+	forall* {K1} {K2} {T1} {T2} {B}
+	forall {V1:value?* K1 T1 B}
+	       {E:term`eq* K1 K2 T1 T2}
+	exists {V2:value?* K2 T2 B}
+	true.
+
+- : value?-respects-eq V term`eq/ V.
+
+%worlds () (value?-respects-eq _ _ _).
+%total { } (value?-respects-eq _ _ _).
+
+
+%abbrev value-respects-eq = value?-respects-eq.
+
+
+%abbrev notvalue-respects-eq = value?-respects-eq.
+
+
+%theorem value?*-total* :
+	forall {K} {T:term K}
+	exists {B} {V:value? T B}
+	true.
+
+% lemma:
+%theorem value?-total/L :
+	forall* {E} {EB} {A} {AB}
+	forall {EV: value? E EB}
+	       {AV: value? A AB}
+	exists {B} {V:value? (args/+ E A) B}
+	true.
+
+%abbrev value?-total* = value?*-total* _.
+
+%abbrev value?-total = value?-total* _ _.
+
+- : value?-total value/lit. 
+
+- : value?-total value/true.
+
+- : value?-total value/false.
+
+- : value?-total value/args/0.
+
+- : value?-total value/func.
+
+
+- : value?-total notvalue/alloc.
+
+- : value?-total notvalue/read.
+
+- : value?-total notvalue/write.
+
+- : value?-total notvalue/readv.
+
+- : value?-total notvalue/writev.
+
+- : value?-total notvalue/let.
+
+- : value?-total notvalue/if.
+
+- : value?-total notvalue/while.
+
+- : value?-total notvalue/call.
+
+- : value?-total notvalue/fork.
+
+- : value?-total notvalue/join.
+
+- : value?-total notvalue/synch.
+
+- : value?-total notvalue/hold.
+
+- : value?-total notvalue/notnot.
+
+- : value?-total notvalue/notand.
+
+- : value?-total notvalue/noteql.
+
+- : value?-total notvalue/and.
+
+- : value?-total notvalue/eql.
+
+- : value?-total V
+    <- value?-total VE
+    <- value?-total VA
+    <- value?-total/L VE VA _ V.
+
+- : value?-total/L VE VA _ (value/args/+ VE VA).
+
+- : value?-total/L NE _ _ (notvalue/args/expr NE).
+
+- : value?-total/L _ NA _ (notvalue/args/args NA).
+
+% EXTEND value-total
+
+%worlds () (value?-total/L _ _ _ _).
+%total { } (value?-total/L _ _ _ _).
+
+%worlds () (value?*-total* _ _ _ _).
+%total (T) (value?*-total* _ T _ _).
+
+
+%theorem value-notvalue-contradiction :
+	forall* {K} {T:term K}
+	forall {V:value T} {NV:notvalue T}
+	exists {F:void}
+	true.
+
+- : value-notvalue-contradiction (value/args/+ V _) (notvalue/args/expr N) F
+    <- value-notvalue-contradiction V N F.
+
+- : value-notvalue-contradiction (value/args/+ _ V) (notvalue/args/args N) F
+    <- value-notvalue-contradiction V N F.
+
+%worlds () (value-notvalue-contradiction _ _ _).
+%total (V) (value-notvalue-contradiction V _ _).
+
+
+%block someobj : block {o:object}.
+
+
+%theorem funccount-total* :
+    forall {F:func}
+    exists {N:nat} {FC:funccount F N}
+    true.
+
+- : funccount-total* _ _ funccount/0.
+
+- : funccount-total* (func/+ F) (nat`s N) (funccount/+ FC)
+    <- ( {o} funccount-total* (F o) N (FC o)).
+
+%worlds (someobj) (funccount-total* _ _ _).
+%total (F) (funccount-total* F _ _).
+
+%abbrev funccount-total = funccount-total* _ _.
+
+
+%theorem argscount-total* :
+    forall {A:args}
+    exists {N:nat} {AC:argscount A N}
+    true.
+
+- : argscount-total* _ _ argscount/0.
+
+- : argscount-total* (args/+ _ A) (nat`s N) (argscount/+ AC)
+    <- argscount-total* A N AC.
+
+%worlds () (argscount-total* _ _ _).
+%total (A) (argscount-total* A _ _).
+
+%abbrev argscount-total = argscount-total* _ _.
